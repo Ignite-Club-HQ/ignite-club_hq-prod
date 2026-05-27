@@ -441,6 +441,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onClose={() => setShowFullscreen(false)}
           onReport={onReportImage}
           onBlockUser={onBlockImageAuthor}
+          onForward={onForwardImage}
           showActions={showImageActions}
         />
       )}
