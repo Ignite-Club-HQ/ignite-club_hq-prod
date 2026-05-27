@@ -32,6 +32,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import ClubAdminInboxList from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
