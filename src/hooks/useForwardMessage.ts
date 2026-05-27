@@ -30,12 +30,13 @@ export function useForwardDestinations(userId: string | undefined, enabled: bool
       const ids = (memberships ?? []).map((m) => m.group_id);
       if (ids.length === 0) return [];
 
-      // 2) live group rows (filter deleted + closed-to-forwarding)
+      // 2) live group rows (filter deleted + closed-to-forwarding + personal groups)
       const { data: groups, error: gErr } = await supabase
         .from("chat_groups")
         .select("id, name, club_id, team_id, deleted_at")
         .in("id", ids)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .not("club_id", "is", null);
       if (gErr) throw gErr;
 
       const clubIds = Array.from(
