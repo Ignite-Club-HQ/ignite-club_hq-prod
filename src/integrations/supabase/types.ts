@@ -645,6 +645,7 @@ export type Database = {
       }
       chat_groups: {
         Row: {
+          allow_forwarding: boolean
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category: string | null
           club_id: string | null
@@ -662,6 +663,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_forwarding?: boolean
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
@@ -679,6 +681,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_forwarding?: boolean
           allowed_roles?: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
@@ -1587,6 +1590,9 @@ export type Database = {
           club_id: string
           created_at: string
           deleted_at: string | null
+          forwarded_at: string | null
+          forwarded_from_user_id: string | null
+          forwarded_source_label: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -1597,6 +1603,9 @@ export type Database = {
           club_id: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -1607,6 +1616,9 @@ export type Database = {
           club_id?: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -2676,6 +2688,9 @@ export type Database = {
           conversation_id: string
           created_at: string
           deleted_at: string | null
+          forwarded_at: string | null
+          forwarded_from_user_id: string | null
+          forwarded_source_label: string | null
           id: string
           image_url: string | null
           is_system_message: boolean | null
@@ -2687,6 +2702,9 @@ export type Database = {
           conversation_id: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           is_system_message?: boolean | null
@@ -2698,6 +2716,9 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           is_system_message?: boolean | null
@@ -4448,6 +4469,9 @@ export type Database = {
           author_id: string
           created_at: string
           deleted_at: string | null
+          forwarded_at: string | null
+          forwarded_from_user_id: string | null
+          forwarded_source_label: string | null
           group_id: string
           id: string
           image_url: string | null
@@ -4459,6 +4483,9 @@ export type Database = {
           author_id: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           group_id: string
           id?: string
           image_url?: string | null
@@ -4470,6 +4497,9 @@ export type Database = {
           author_id?: string
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           group_id?: string
           id?: string
           image_url?: string | null
@@ -7769,6 +7799,9 @@ export type Database = {
           club_announcement_name: string | null
           created_at: string
           deleted_at: string | null
+          forwarded_at: string | null
+          forwarded_from_user_id: string | null
+          forwarded_source_label: string | null
           id: string
           image_url: string | null
           is_club_announcement: boolean
@@ -7782,6 +7815,9 @@ export type Database = {
           club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
@@ -7795,6 +7831,9 @@ export type Database = {
           club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          forwarded_at?: string | null
+          forwarded_from_user_id?: string | null
+          forwarded_source_label?: string | null
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
