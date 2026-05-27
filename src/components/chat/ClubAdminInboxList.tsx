@@ -71,7 +71,7 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
           .from("profiles")
           .select("user_id, display_name, avatar_url")
           .in("user_id", memberIds),
-        supabase
+        (supabase as any)
           .from("club_admin_messages")
           .select("conversation_id, text, image_url, created_at")
           .in("conversation_id", convIds)
