@@ -82,6 +82,9 @@ interface Message {
   image_url: string | null;
   reply_to_id: string | null;
   created_at: string;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   profiles: {
     display_name: string | null;
     avatar_url: string | null;
