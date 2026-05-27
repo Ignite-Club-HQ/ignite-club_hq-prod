@@ -251,13 +251,16 @@ async function getOrCreateGroupFolder(
   const cacheKey = `${clubId}:group:${chatGroupId}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
-  // Look up by chat_group_id (stable even if the group is renamed).
+  // Look up by chat_group_id (stable even if the group is renamed or
+  // the folder lives nested under a parent folder).
   const { data } = await supabase
     .from("vault_folders")
     .select("id")
     .eq("club_id", clubId)
     .eq("chat_group_id", chatGroupId)
-    .is("parent_id", null)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (data) {
