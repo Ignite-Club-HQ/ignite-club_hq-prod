@@ -68,7 +68,7 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
       const sb = supabase as any;
       const [clubsRes, profilesRes, msgsRes] = await Promise.all([
         sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
-        sb.from("profiles").select("user_id, display_name, avatar_url").in("user_id", memberIds),
+        sb.from("profiles").select("id, display_name, avatar_url").in("id", memberIds),
         sb
           .from("club_admin_messages")
           .select("conversation_id, text, image_url, created_at")
@@ -79,7 +79,7 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
 
       const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
       const profileMap = new Map(
-        (profilesRes.data || []).map((p: any) => [p.user_id, p]),
+        (profilesRes.data || []).map((p: any) => [p.id, p]),
       );
       const latestByConv = new Map<string, any>();
       for (const m of msgsRes.data || []) {
