@@ -466,6 +466,7 @@ function getPreferenceColumn(notificationType: string | undefined): string | nul
     'message_reply': 'messages_enabled',
     'message_mention': 'messages_enabled',
     'message_reaction': 'messages_enabled',
+    'club_admin_message': 'messages_enabled',
     // Event types (matches DB inserts: event_invite, event_cancelled, etc.)
     'event_invite': 'events_enabled',
     'event_reminder': 'events_enabled',
