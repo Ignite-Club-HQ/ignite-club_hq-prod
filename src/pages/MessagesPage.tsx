@@ -152,53 +152,8 @@ const abbreviateClubName = (name: string): string => {
 // fake names like "Casey Walker" when profiles weren't loaded yet.
 // Now we show empty string until the real profile is fetched.
 
-// Component for message preview with optional image thumbnail
-const MessagePreview = ({ 
-  text, 
-  imageUrl, 
-  author, 
-  hasUnread, 
-  fallback,
-  isAnnouncement,
-  eventTitles,
-  vaultFolderNames,
-  vaultFileNames,
-}: { 
-  text?: string; 
-  imageUrl?: string | null; 
-  author?: string;
-  hasUnread?: boolean;
-  fallback: string;
-  isAnnouncement?: boolean;
-  eventTitles?: Record<string, string>;
-  vaultFolderNames?: Record<string, string>;
-  vaultFileNames?: Record<string, string>;
-}) => {
-  const hasText = text && text.trim();
-  const isImageOnly = !hasText && imageUrl;
-  const hasTextAndImage = hasText && imageUrl;
-  
-  // Strip mention formatting (and resolve event/vault names) from text for preview
-  const displayText = hasText
-    ? stripMentionFormatting(text!, { eventTitles, vaultFolderNames, vaultFileNames })
-    : null;
-  
-  if (!hasText && !imageUrl && !author) {
-    return <span className="text-muted-foreground">No messages yet</span>;
-  }
-  
-  const systemReminder = isSystemReminderText(text);
-
-  return (
-    <span className={`line-clamp-2 ${systemReminder ? 'italic text-muted-foreground/80' : ''}`}>
-      {(isImageOnly || hasTextAndImage) && (
-        <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
-      )}
-      {author && !systemReminder && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
-      {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
-    </span>
-  );
-};
+// MessagePreview lives in its own module so the memoized ConversationRow can
+// share the exact same render path. See: components/chat/MessagePreview.tsx
 
 interface Team {
   id: string;
