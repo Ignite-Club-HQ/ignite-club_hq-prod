@@ -98,6 +98,8 @@ interface GroupChatMessageRowProps {
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
   /** When false, the Forward action is hidden (group has forwarding disabled by admin). */
   allowForwarding?: boolean;
+  /** Name of the current group — used as source label on forwarded copies. */
+  groupName?: string | null;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -126,6 +128,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   isPublishedToGallery = false,
   onPublishToGallery,
   allowForwarding = true,
+  groupName,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -662,6 +665,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           text: msg.text ?? "",
           imageUrl: msg.image_url,
           authorId: msg.author_id,
+          sourceLabel: groupName ?? null,
         }}
       />
       {showFullscreenImage && msg.image_url && (
