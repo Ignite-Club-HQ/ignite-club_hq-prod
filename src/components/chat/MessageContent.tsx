@@ -24,6 +24,7 @@ interface MessageContentProps {
   previewsOnly?: boolean;
   onReportImage?: () => void;
   onBlockImageAuthor?: () => void;
+  onForwardImage?: () => void;
   showImageActions?: boolean;
 }
 
