@@ -157,6 +157,15 @@ export function MessageActionSheet({
     });
   }
 
+  if (canForward && onForward) {
+    actions.push({
+      id: "forward",
+      label: "Forward",
+      icon: <Forward className="h-5 w-5" />,
+      onClick: onForward,
+    });
+  }
+
   if (canEdit) {
     actions.push({
       id: "edit",
