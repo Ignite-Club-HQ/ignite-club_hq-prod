@@ -2719,6 +2719,11 @@ export default function MessagesPage() {
           </Card>
         )}
 
+        {/* Incoming "Contact Club Admin" threads for club admins */}
+        {!showSkeletonLoading && (
+          <ClubAdminInboxList clubFilter={activeClubFilter} />
+        )}
+
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
           <ContactClubButton clubFilter={activeClubFilter} />
