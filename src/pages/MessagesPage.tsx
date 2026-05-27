@@ -2734,8 +2734,9 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Incoming "Contact Club Admin" threads for club admins — shown as a dedicated "Admin Groups" section under the Groups tab */}
-        {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
+        {/* Incoming "Contact Club Admin" threads — rendered here for non-group tabs.
+            On the Groups tab the inbox is injected above "Custom Groups" inside the sectioned list. */}
+        {!showSkeletonLoading && typeFilter !== 'groups' && (
           <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
         )}
 
