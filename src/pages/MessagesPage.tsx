@@ -108,6 +108,7 @@ const TYPE_ACCENT_HSL: Record<string, string | undefined> = {
   team: '142 71% 42%',   // green
   club: '210 85% 52%',   // blue
   group: '25 92% 52%',   // orange
+  admin_group: '210 85% 52%',
   league: '270 60% 55%', // purple
   dm: undefined,         // neutral
   broadcast: undefined,
@@ -217,6 +218,14 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+
+  const { data: clubAdminConversations = [] } = useQuery({
+    queryKey: clubAdminInboxQueryKey(user?.id, activeClubFilter),
+    enabled: !!user && initialized,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    queryFn: () => fetchClubAdminConversations(user!.id, activeClubFilter),
+  });
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
