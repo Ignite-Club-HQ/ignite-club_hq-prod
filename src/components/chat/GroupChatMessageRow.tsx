@@ -98,6 +98,8 @@ interface GroupChatMessageRowProps {
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
   /** When false, the Forward action is hidden (group has forwarding disabled by admin). */
   allowForwarding?: boolean;
+  /** Name of the current group — used as source label on forwarded copies. */
+  groupName?: string | null;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
