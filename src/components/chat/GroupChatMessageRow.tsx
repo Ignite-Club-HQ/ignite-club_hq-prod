@@ -27,6 +27,7 @@ import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ForwardMessageSheet } from "@/components/chat/ForwardMessageSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
@@ -128,6 +129,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
+  const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -626,6 +628,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         pinLimitReached={pinLimitReached}
         onPin={onPin ? () => { onPin(msg.id); closeActionUi(); } : undefined}
         onUnpin={onUnpin ? () => { onUnpin(msg.id); closeActionUi(); } : undefined}
+        canForward={!msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
+        onForward={() => { setShowForwardSheet(true); closeActionUi(); }}
+      />
+      <ForwardMessageSheet
+        open={showForwardSheet}
+        onOpenChange={setShowForwardSheet}
+        excludeGroupId={msg.group_id}
+        source={{
+          text: msg.text ?? "",
+          imageUrl: msg.image_url,
+          authorId: msg.author_id,
+        }}
       />
       {showFullscreenImage && msg.image_url && (
         <FullscreenImageViewer

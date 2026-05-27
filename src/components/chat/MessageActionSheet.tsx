@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2 } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2, Forward } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -53,6 +53,9 @@ interface MessageActionSheetProps {
   messageText?: string;
   hasImage?: boolean;
   onReply: () => void;
+  /** Optional. When provided, a "Forward" action appears in the sheet. */
+  canForward?: boolean;
+  onForward?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
@@ -83,6 +86,8 @@ export function MessageActionSheet({
   messageText,
   hasImage,
   onReply,
+  canForward = false,
+  onForward,
   onEdit,
   onDelete,
   onReport,
@@ -149,6 +154,15 @@ export function MessageActionSheet({
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
       onClick: onReply,
+    });
+  }
+
+  if (canForward && onForward) {
+    actions.push({
+      id: "forward",
+      label: "Forward",
+      icon: <Forward className="h-5 w-5" />,
+      onClick: onForward,
     });
   }
 

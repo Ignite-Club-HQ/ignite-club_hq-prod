@@ -32,6 +32,7 @@ import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ForwardMessageSheet } from "@/components/chat/ForwardMessageSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
@@ -145,6 +146,7 @@ function ChatMessageInner({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
+  const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -1035,6 +1037,27 @@ function ChatMessageInner({
           onPublishToGallery={
             onPublishToGallery && imageUrl ? () => onPublishToGallery(id, imageUrl) : undefined
           }
+          canForward={!isSystemMessage && !isPendingMessage}
+          onForward={() => setShowForwardSheet(true)}
+        />
+        <ForwardMessageSheet
+          open={showForwardSheet}
+          onOpenChange={setShowForwardSheet}
+          source={{
+            text: text ?? "",
+            imageUrl: imageUrl ?? null,
+            authorId,
+            sourceLabel:
+              messageType === "team"
+                ? "Team chat"
+                : messageType === "club"
+                  ? "Club chat"
+                  : messageType === "dm"
+                    ? "Direct message"
+                    : messageType === "broadcast"
+                      ? "Broadcast"
+                      : null,
+          }}
         />
         {/* Fullscreen image viewer triggered from action sheet */}
         {showFullscreenImage && imageUrl && (
