@@ -11,7 +11,21 @@ import {
   type ForwardSourceMessage,
 } from "@/hooks/useForwardMessage";
 import { useAuth } from "@/hooks/useAuth";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { cn } from "@/lib/utils";
+
+function ForwardThumbnail({ imageUrl }: { imageUrl: string }) {
+  const { signedUrl } = useSignedPhotoUrl(imageUrl);
+  return (
+    <div className="h-10 w-10 shrink-0 rounded-md bg-muted overflow-hidden flex items-center justify-center">
+      <img
+        src={signedUrl || imageUrl}
+        alt=""
+        className="h-full w-full object-cover"
+      />
+    </div>
+  );
+}
 
 const MAX_DESTINATIONS = 5;
 
