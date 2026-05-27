@@ -2760,11 +2760,8 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Incoming "Contact Club Admin" threads — rendered here for non-group tabs.
-            On the Groups tab the inbox is injected above "Custom Groups" inside the sectioned list. */}
-        {!showSkeletonLoading && typeFilter !== 'groups' && (
-          <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
-        )}
+        {/* Admin Group threads are now merged into the unified sorted list above. */}
+
 
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
