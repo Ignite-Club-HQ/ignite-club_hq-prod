@@ -8,8 +8,6 @@ import {
 } from "@/components/ui/sheet";
 
 interface MessageAction {
-  /** Stable identifier independent of localised/transient label text — used as
-   *  React key so swapping "Copy Message" → "Copied!" doesn't unmount the row. */
   id: string;
   label: string;
   icon: React.ReactNode;
@@ -27,7 +25,7 @@ const extractUrls = (text: string): string[] => {
     const normalized = url.replace(/[.,!?;:]+$/g, "");
     if (normalized && !urls.includes(normalized)) urls.push(normalized);
   };
-  
+
   let match;
   while ((match = markdownLinkRegex.exec(text)) !== null) {
     addUrl(match[2]);
@@ -53,7 +51,7 @@ interface MessageActionSheetProps {
   messageText?: string;
   hasImage?: boolean;
   onReply: () => void;
-  /** Optional. When provided, a "Forward" action appears in the sheet. */
+  /** Optional. When provided, a "Forward" action appears in the More menu. */
   canForward?: boolean;
   onForward?: () => void;
   onEdit: () => void;
@@ -67,13 +65,16 @@ interface MessageActionSheetProps {
   pinLimitReached?: boolean;
   onPin?: () => void;
   onUnpin?: () => void;
-  // Publish-to-gallery support (only set when poster owns the image
-  // and the chat has a known team/club context, e.g. team chat).
+  // Publish-to-gallery support
   canPublishToGallery?: boolean;
   isPublishedToGallery?: boolean;
   isPublishingToGallery?: boolean;
   onPublishToGallery?: () => void;
+  /** Optional quick-reaction row above the sheet. */
+  onReact?: (emoji: string) => void;
 }
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export function MessageActionSheet({
   open,
@@ -102,8 +103,9 @@ export function MessageActionSheet({
   isPublishedToGallery = false,
   isPublishingToGallery = false,
   onPublishToGallery,
+  onReact,
 }: MessageActionSheetProps) {
-  const [showSafety, setShowSafety] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,75 +115,40 @@ export function MessageActionSheet({
     }
   }, [copiedText]);
 
-  const actions: MessageAction[] = [];
+  // Reset submenu state whenever sheet closes
+  useEffect(() => {
+    if (!open) setShowMore(false);
+  }, [open]);
 
-  if (hasImage && onViewImage) {
-    actions.push({
-      id: "view-image",
-      label: "View Image",
-      icon: <ImageIcon className="h-5 w-5" />,
-      onClick: onViewImage,
-    });
-  }
-
-  // Publish own chat photo to the team's media gallery.
-  // Only meaningful for image messages in a team-context chat where the
-  // poster has team-member upload rights.
-  if (canPublishToGallery && hasImage && onPublishToGallery) {
-    const label = isPublishingToGallery
-      ? "Publishing…"
-      : isPublishedToGallery
-        ? "Published to Gallery"
-        : "Publish to Media Gallery";
-    actions.push({
-      id: "publish-gallery",
-      label,
-      icon: isPublishingToGallery
-        ? <Loader2 className="h-5 w-5 animate-spin" />
-        : isPublishedToGallery
-          ? <Check className="h-5 w-5 text-primary" />
-          : <ImagePlus className="h-5 w-5" />,
-      onClick: () => {
-        if (isPublishingToGallery || isPublishedToGallery) return;
-        onPublishToGallery();
-      },
-    });
-  }
+  // ---------- Primary actions (kept intentionally short) ----------
+  const primary: MessageAction[] = [];
 
   if (canReply) {
-    actions.push({
+    primary.push({
       id: "reply",
       label: "Reply",
-      icon: <Reply className="h-5 w-5" />,
+      icon: <Reply className="h-[18px] w-[18px]" />,
       onClick: onReply,
     });
   }
 
-  if (canForward && onForward) {
-    actions.push({
-      id: "forward",
-      label: "Forward",
-      icon: <Forward className="h-5 w-5" />,
-      onClick: onForward,
-    });
-  }
-
   if (canEdit) {
-    actions.push({
+    primary.push({
       id: "edit",
       label: "Edit",
-      icon: <Pencil className="h-5 w-5" />,
+      icon: <Pencil className="h-[18px] w-[18px]" />,
       onClick: onEdit,
     });
   }
 
-  // Copy message text
   if (messageText) {
     const isMessageCopied = copiedText === messageText;
-    actions.push({
+    primary.push({
       id: "copy-message",
-      label: isMessageCopied ? "Copied!" : "Copy Message",
-      icon: isMessageCopied ? <Check className="h-5 w-5 text-primary" /> : <Copy className="h-5 w-5" />,
+      label: isMessageCopied ? "Copied!" : "Copy",
+      icon: isMessageCopied
+        ? <Check className="h-[18px] w-[18px] text-primary" />
+        : <Copy className="h-[18px] w-[18px]" />,
       onClick: () => {
         navigator.clipboard.writeText(messageText).then(() => {
           setCopiedText(messageText);
@@ -190,29 +157,50 @@ export function MessageActionSheet({
         });
       },
     });
+  }
 
-    // Extract URLs for link actions
+  // ---------- Secondary actions (everything else lives behind More…) ----------
+  const secondary: MessageAction[] = [];
+
+  if (hasImage && onViewImage) {
+    secondary.push({
+      id: "view-image",
+      label: "View Image",
+      icon: <ImageIcon className="h-[18px] w-[18px]" />,
+      onClick: onViewImage,
+    });
+  }
+
+  if (canForward && onForward) {
+    secondary.push({
+      id: "forward",
+      label: "Forward",
+      icon: <Forward className="h-[18px] w-[18px]" />,
+      onClick: onForward,
+    });
+  }
+
+  // Link actions extracted from text
+  if (messageText) {
     const urls = extractUrls(messageText);
     if (urls.length > 0) {
       const firstUrl = urls[0];
       const isLinkCopied = copiedText === firstUrl;
-
-      // Open Link action
-      actions.push({
+      secondary.push({
         id: "open-link",
-        label: urls.length > 1 ? "Open Link" : "Open Link",
-        icon: <ExternalLink className="h-5 w-5" />,
+        label: "Open Link",
+        icon: <ExternalLink className="h-[18px] w-[18px]" />,
         onClick: () => {
-          const fullUrl = firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`;
+          const fullUrl = firstUrl.startsWith("http") ? firstUrl : `https://${firstUrl}`;
           safeOpenUrl(fullUrl);
         },
       });
-
-      // Copy Link action
-      actions.push({
+      secondary.push({
         id: "copy-link",
         label: isLinkCopied ? "Link Copied!" : "Copy Link",
-        icon: isLinkCopied ? <Check className="h-5 w-5 text-primary" /> : <Link className="h-5 w-5" />,
+        icon: isLinkCopied
+          ? <Check className="h-[18px] w-[18px] text-primary" />
+          : <Link className="h-[18px] w-[18px]" />,
         onClick: () => {
           navigator.clipboard.writeText(firstUrl).then(() => {
             setCopiedText(firstUrl);
@@ -224,51 +212,90 @@ export function MessageActionSheet({
     }
   }
 
-  // Pin / Unpin (only when supported by chat type) — placed after Copy, before Delete
+  // Pin / Unpin — admin/moderation-flavoured, lives in More
   if (canPin) {
     if (isPinned && onUnpin) {
-      actions.push({
+      secondary.push({
         id: "unpin",
         label: "Unpin Message",
-        icon: <PinOff className="h-5 w-5" />,
+        icon: <PinOff className="h-[18px] w-[18px]" />,
         onClick: onUnpin,
       });
     } else if (!isPinned && onPin) {
-      actions.push({
+      secondary.push({
         id: "pin",
         label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
-        icon: <Pin className="h-5 w-5" />,
+        icon: <Pin className="h-[18px] w-[18px]" />,
         onClick: onPin,
       });
     }
   }
 
+  // Publish to media gallery
+  if (canPublishToGallery && hasImage && onPublishToGallery) {
+    const label = isPublishingToGallery
+      ? "Publishing…"
+      : isPublishedToGallery
+        ? "Published to Gallery"
+        : "Publish to Gallery";
+    secondary.push({
+      id: "publish-gallery",
+      label,
+      icon: isPublishingToGallery
+        ? <Loader2 className="h-[18px] w-[18px] animate-spin" />
+        : isPublishedToGallery
+          ? <Check className="h-[18px] w-[18px] text-primary" />
+          : <ImagePlus className="h-[18px] w-[18px]" />,
+      onClick: () => {
+        if (isPublishingToGallery || isPublishedToGallery) return;
+        onPublishToGallery();
+      },
+    });
+  }
+
   if (canDelete) {
-    actions.push({
+    secondary.push({
       id: "delete",
       label: "Delete",
-      icon: <Trash2 className="h-5 w-5" />,
+      icon: <Trash2 className="h-[18px] w-[18px]" />,
       onClick: onDelete,
       destructive: true,
     });
   }
 
+  // Safety actions (Report / Block) — others' messages only
   const hasSafetyActions = !isOwn && !isSystemMessage;
+  if (hasSafetyActions) {
+    secondary.push({
+      id: "report",
+      label: "Report Message",
+      icon: <Flag className="h-[18px] w-[18px]" />,
+      onClick: onReport,
+      destructive: true,
+    });
+    secondary.push({
+      id: "block",
+      label: "Block User",
+      icon: <ShieldAlert className="h-[18px] w-[18px]" />,
+      onClick: onBlock,
+      destructive: true,
+    });
+  }
 
-  if (actions.length === 0 && !hasSafetyActions) return null;
+  const hasMore = secondary.length > 0;
+
+  if (primary.length === 0 && !hasMore) return null;
 
   const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) setShowSafety(false);
+    if (!isOpen) setShowMore(false);
     onOpenChange(isOpen);
   };
 
   const renderAction = (action: MessageAction) => (
     <button
       key={action.id}
-      className={`w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
-        action.destructive
-          ? "text-destructive"
-          : "text-foreground"
+      className={`w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
+        action.destructive ? "text-destructive" : "text-foreground"
       }`}
       onClick={() => {
         handleOpenChange(false);
@@ -291,20 +318,39 @@ export function MessageActionSheet({
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
-        <div className="py-2">
-          {!showSafety ? (
+
+        {/* Quick reactions row — only shown when caller provides onReact */}
+        {onReact && !showMore && (
+          <div className="flex items-center justify-around px-3 pt-3 pb-2">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-2xl active:scale-90 active:bg-muted transition-transform"
+                onClick={() => {
+                  handleOpenChange(false);
+                  requestAnimationFrame(() => onReact(emoji));
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="py-1.5">
+          {!showMore ? (
             <>
-              {actions.map(renderAction)}
-              {hasSafetyActions && (
+              {primary.map(renderAction)}
+              {hasMore && (
                 <>
-                  {actions.length > 0 && (
-                    <div className="my-1 mx-6 border-t border-border/30" />
+                  {primary.length > 0 && (
+                    <div className="my-0.5 mx-5 border-t border-border/30" />
                   )}
                   <button
-                    className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                    onClick={() => setShowSafety(true)}
+                    className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                    onClick={() => setShowMore(true)}
                   >
-                    <MoreHorizontal className="h-5 w-5" />
+                    <MoreHorizontal className="h-[18px] w-[18px]" />
                     More…
                   </button>
                 </>
@@ -313,38 +359,20 @@ export function MessageActionSheet({
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                onClick={() => setShowSafety(false)}
+                className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                onClick={() => setShowMore(false)}
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-[18px] w-[18px]" />
                 Back
               </button>
-              <div className="my-1 mx-6 border-t border-border/30" />
-              <button
-                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                onClick={() => {
-                  handleOpenChange(false);
-                  requestAnimationFrame(() => onReport());
-                }}
-              >
-                <Flag className="h-5 w-5" />
-                Report Message
-              </button>
-              <button
-                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                onClick={() => {
-                  handleOpenChange(false);
-                  requestAnimationFrame(() => onBlock());
-                }}
-              >
-                <ShieldAlert className="h-5 w-5" />
-                Block User
-              </button>
+              <div className="my-0.5 mx-5 border-t border-border/30" />
+              {secondary.map(renderAction)}
             </>
           )}
+
           {copiedText && (
-            <div className="mx-6 mt-2 mb-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-              <p className="text-xs text-muted-foreground mb-1">Copied to clipboard:</p>
+            <div className="mx-5 mt-2 mb-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-xs text-muted-foreground mb-0.5">Copied to clipboard:</p>
               <p className="text-sm text-foreground truncate">{copiedText}</p>
             </div>
           )}
