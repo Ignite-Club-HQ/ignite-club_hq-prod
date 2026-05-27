@@ -75,6 +75,9 @@ interface DirectMessage {
   author_id: string;
   conversation_id: string;
   reply_to_id: string | null;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   author?: {
     display_name: string | null;
     avatar_url: string | null;
@@ -432,7 +435,7 @@ export default function DirectMessagePage() {
     queryFn: async () => {
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("conversation_id", conversationId)
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
@@ -679,7 +682,7 @@ export default function DirectMessagePage() {
 
       const { data: olderRaw, error } = await supabase
         .from("direct_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("conversation_id", conversationId)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)

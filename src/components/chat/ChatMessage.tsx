@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Reply, Clock, Megaphone, ImagePlus, Check, Loader2 } from "lucide-react";
+import { Reply, Clock, Megaphone, ImagePlus, Check, Loader2, Forward } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +95,10 @@ export interface ChatMessageProps {
    *  grouping window — flatten the bottom corner and hide the per-bubble
    *  timestamp / read-receipt strip until the last message in the group. */
   groupedWithNext?: boolean;
+  /** Forward attribution — when set, renders a "↪ Forwarded from X · Label" banner above the bubble. */
+  forwardedFromUserId?: string | null;
+  forwardedFromName?: string | null;
+  forwardedSourceLabel?: string | null;
 }
 
 function ChatMessageInner({
@@ -136,6 +140,9 @@ function ChatMessageInner({
   onPublishToGallery,
   groupedWithPrev = false,
   groupedWithNext = false,
+  forwardedFromUserId,
+  forwardedFromName,
+  forwardedSourceLabel,
 }: ChatMessageProps) {
   const navigate = useNavigate();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -911,6 +918,19 @@ function ChatMessageInner({
               onContextMenu={(e) => e.preventDefault()}
               onDragStart={(e) => e.preventDefault()}
             >
+              {forwardedFromUserId && (
+                <div
+                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${
+                    isOwn && !isClubAnnouncement ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"
+                  }`}
+                >
+                  <Forward className="h-3 w-3 shrink-0" />
+                  <span className="truncate">
+                    Forwarded{forwardedFromName ? ` from ${forwardedFromName}` : ""}
+                    {forwardedSourceLabel ? ` · ${forwardedSourceLabel}` : ""}
+                  </span>
+                </div>
+              )}
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
                   text={displayText} 

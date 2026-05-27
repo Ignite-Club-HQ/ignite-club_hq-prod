@@ -2,7 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Reply, Clock, Check, ImagePlus, Loader2 } from "lucide-react";
+import { Reply, Clock, Check, ImagePlus, Loader2, Forward } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +64,9 @@ interface GroupMessage {
   group_id: string;
   reply_to_id: string | null;
   is_system_message?: boolean;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   author?: { display_name: string | null; avatar_url: string | null };
   reply_to?: { text: string; author?: { display_name: string | null } } | null;
 }
@@ -93,6 +96,8 @@ interface GroupChatMessageRowProps {
   isPublishingToGallery?: boolean;
   isPublishedToGallery?: boolean;
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
+  /** When false, the Forward action is hidden (group has forwarding disabled by admin). */
+  allowForwarding?: boolean;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -120,6 +125,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   isPublishingToGallery = false,
   isPublishedToGallery = false,
   onPublishToGallery,
+  allowForwarding = true,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -465,6 +471,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 onContextMenu={(e) => e.preventDefault()}
                 onDragStart={(e) => e.preventDefault()}
               >
+                {msg.forwarded_from_user_id && (() => {
+                  const fwdName = getProfile(msg.forwarded_from_user_id)?.display_name;
+                  return (
+                    <div className={`flex items-center gap-1 text-[11px] italic mb-1 ${isOwnMessage ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"}`}>
+                      <Forward className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        Forwarded{fwdName ? ` from ${fwdName}` : ""}
+                        {msg.forwarded_source_label ? ` · ${msg.forwarded_source_label}` : ""}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="text-sm min-w-0 max-w-full overflow-hidden">
                   <MessageContent
                     text={msg.text}
@@ -628,7 +646,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         pinLimitReached={pinLimitReached}
         onPin={onPin ? () => { onPin(msg.id); closeActionUi(); } : undefined}
         onUnpin={onUnpin ? () => { onUnpin(msg.id); closeActionUi(); } : undefined}
-        canForward={!msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
+        canForward={allowForwarding && !msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
         onForward={() => { setShowForwardSheet(true); closeActionUi(); }}
       />
       <ForwardMessageSheet

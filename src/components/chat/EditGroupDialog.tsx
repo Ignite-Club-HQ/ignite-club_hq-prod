@@ -39,6 +39,7 @@ interface EditGroupDialogProps {
     team_id?: string | null;
     mini_league_id?: string | null;
     join_policy?: string | null;
+    allow_forwarding?: boolean;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -56,6 +57,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
   const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
+  const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
   
   // Support both controlled and uncontrolled modes
@@ -65,11 +67,12 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
 
   const updateGroupMutation = useMutation({
     mutationFn: async () => {
-      const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string } = { name };
+      const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
       if (!isManual) updates.allowed_roles = selectedRoles;
       if (qualifiesForOpenJoin) {
         updates.join_policy = openToClub ? "open_to_club" : "invite_only";
       }
+      updates.allow_forwarding = allowForwarding;
       const { error } = await supabase
         .from("chat_groups")
         .update(updates as any)
@@ -186,6 +189,24 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
               </div>
             </div>
           )}
+
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="edit-group-allow-forwarding"
+                checked={allowForwarding}
+                onCheckedChange={(v) => setAllowForwarding(v === true)}
+              />
+              <div className="space-y-0.5">
+                <label htmlFor="edit-group-allow-forwarding" className="text-sm font-medium cursor-pointer">
+                  Allow members to forward messages
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Turn off for sensitive chats (e.g. Committee) to hide the Forward action on messages in this group.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
