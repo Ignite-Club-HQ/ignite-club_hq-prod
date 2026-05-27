@@ -11,7 +11,8 @@ export const MESSAGE_NOTIFICATION_TYPES = [
   'broadcast',
   'message_reply',
   'message_mention',
-  'direct_message'
+  'direct_message',
+  'club_admin_message'
 ] as const;
 
 // Event-related notifications
