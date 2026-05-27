@@ -118,6 +118,15 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
 
   return (
     <>
+      {withSectionHeader && (
+        <div className="pt-3">
+          <div className="flex items-center gap-2 pb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Admin Groups
+            </span>
+          </div>
+        </div>
+      )}
       {conversations.map((conv) => {
         const preview = conv.last_text?.trim()
           ? conv.last_text
