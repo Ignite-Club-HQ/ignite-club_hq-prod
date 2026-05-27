@@ -140,6 +140,9 @@ function ChatMessageInner({
   onPublishToGallery,
   groupedWithPrev = false,
   groupedWithNext = false,
+  forwardedFromUserId,
+  forwardedFromName,
+  forwardedSourceLabel,
 }: ChatMessageProps) {
   const navigate = useNavigate();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
