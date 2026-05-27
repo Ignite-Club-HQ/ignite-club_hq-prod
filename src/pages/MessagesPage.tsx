@@ -2674,7 +2674,7 @@ export default function MessagesPage() {
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
-                          <React.Fragment key={section}>
+                          <Fragment key={section}>
                             {section === 'Custom Groups' && showAdminInbox && (
                               <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
                             )}
@@ -2686,7 +2686,7 @@ export default function MessagesPage() {
                               </div>
                               {buckets[section].map(renderConversationCard)}
                             </div>
-                          </React.Fragment>
+                          </Fragment>
                         ))}
                         {/* If there is no Custom Groups bucket, still show Admin Groups at the end of the built-in groups */}
                         {showAdminInbox && !orderedSections.includes('Custom Groups') && (
