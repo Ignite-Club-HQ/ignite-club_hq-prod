@@ -2674,11 +2674,11 @@ export default function MessagesPage() {
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
-                          <>
+                          <React.Fragment key={section}>
                             {section === 'Custom Groups' && showAdminInbox && (
-                              <ClubAdminInboxList key="admin-groups-inline" clubFilter={activeClubFilter} withSectionHeader />
+                              <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
                             )}
-                            <div key={section} className={idx === 0 ? '' : 'pt-3'}>
+                            <div className={idx === 0 ? '' : 'pt-3'}>
                               <div className="flex items-center gap-2 pb-1.5">
                                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                                   {section}
@@ -2686,7 +2686,7 @@ export default function MessagesPage() {
                               </div>
                               {buckets[section].map(renderConversationCard)}
                             </div>
-                          </>
+                          </React.Fragment>
                         ))}
                         {/* If there is no Custom Groups bucket, still show Admin Groups at the end of the built-in groups */}
                         {showAdminInbox && !orderedSections.includes('Custom Groups') && (
