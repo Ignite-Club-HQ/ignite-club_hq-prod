@@ -96,10 +96,11 @@ interface FullscreenImageViewerProps {
   onClose: () => void;
   onReport?: () => void;
   onBlockUser?: () => void;
+  onForward?: () => void;
   showActions?: boolean;
 }
 
-export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, showActions = false }: FullscreenImageViewerProps) {
+export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, onForward, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
   const { signedUrl } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
