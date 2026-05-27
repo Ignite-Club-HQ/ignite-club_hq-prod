@@ -90,6 +90,9 @@ interface Message {
   is_club_announcement?: boolean;
   club_announcement_name?: string | null;
   is_system_message?: boolean;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   profiles: {
     display_name: string | null;
     avatar_url: string | null;
