@@ -148,12 +148,16 @@ Deno.serve(async (req) => {
     const restricted = allowedRoles.some((r) => RESTRICTED_ROLES.has(r));
 
     // 2. Get or create the group's vault folder.
+    // Match by chat_group_id only — the existing folder may already live nested
+    // under a parent folder, so don't constrain on parent_id IS NULL.
     const { data: existingFolder } = await supabase
       .from("vault_folders")
       .select("id")
       .eq("club_id", g.club_id)
       .eq("chat_group_id", g.id)
-      .is("parent_id", null)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     let folderId = existingFolder?.id as string | undefined;
