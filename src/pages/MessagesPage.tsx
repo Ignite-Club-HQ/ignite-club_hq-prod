@@ -32,7 +32,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import ClubAdminInboxList from "@/components/chat/ClubAdminInboxList";
+import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
@@ -108,6 +108,7 @@ const TYPE_ACCENT_HSL: Record<string, string | undefined> = {
   team: '142 71% 42%',   // green
   club: '210 85% 52%',   // blue
   group: '25 92% 52%',   // orange
+  admin_group: '210 85% 52%',
   league: '270 60% 55%', // purple
   dm: undefined,         // neutral
   broadcast: undefined,
@@ -173,7 +174,7 @@ interface Club {
 }
 
 interface UnifiedConversation {
-  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
+  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
   id: string;
   key: string;
   name: string;
@@ -217,6 +218,14 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+
+  const { data: clubAdminConversations = [] } = useQuery({
+    queryKey: clubAdminInboxQueryKey(user?.id, activeClubFilter),
+    enabled: !!user && initialized,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    queryFn: () => fetchClubAdminConversations(user!.id, activeClubFilter),
+  });
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
@@ -2020,6 +2029,28 @@ export default function MessagesPage() {
       });
     });
 
+    // Club admin conversations
+    clubAdminConversations.forEach((conv) => {
+      items.push({
+        type: 'admin_group',
+        id: conv.id,
+        key: `admin-group-${conv.id}`,
+        name: conv.member_name,
+        avatarUrl: conv.member_avatar,
+        link: `/messages/club-admin/${conv.id}`,
+        lastActivity: conv.last_created_at || conv.updated_at || '',
+        lastMessage: conv.last_created_at ? {
+          text: conv.last_text || '',
+          author: conv.last_author_id === user?.id ? 'You' : conv.member_name,
+          created_at: conv.last_created_at,
+          image_url: conv.last_image,
+        } : undefined,
+        unreadCount: 0,
+        isMuted: false,
+        category: 'Admin Groups',
+      });
+    });
+
     // Ignite Support system message (if not already shown as a DM)
     if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
       items.push({
@@ -2058,7 +2089,7 @@ export default function MessagesPage() {
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, user?.id, showIgniteSupport, systemMessage, allDrafts,
+    filteredDMs, clubAdminConversations, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
 
   // Resolve event titles referenced in any conversation preview so they
@@ -2230,6 +2261,7 @@ export default function MessagesPage() {
     club: 'Club',
     team: 'Team',
     group: 'Group',
+    admin_group: 'Admin',
     league: 'League',
     dm: 'DM',
   };
