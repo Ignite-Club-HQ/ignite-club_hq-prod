@@ -40,6 +40,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pointsHistoryRef = useRef<HTMLDivElement>(null);
+  const rewardsRef = useRef<HTMLDivElement>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [showAllDuties, setShowAllDuties] = useState(false);
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
