@@ -27,6 +27,7 @@ import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ForwardMessageSheet } from "@/components/chat/ForwardMessageSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
