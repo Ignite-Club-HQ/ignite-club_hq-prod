@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Loader2, Search, MessageSquare, ImageIcon, Forward } from "lucide-react";
 import {
   useForwardDestinations,
@@ -132,7 +132,10 @@ export function ForwardMessageSheet({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-3">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {isLoading ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -185,7 +188,7 @@ export function ForwardMessageSheet({
               })}
             </ul>
           )}
-        </ScrollArea>
+        </div>
 
         <div className="border-t border-border bg-background px-5 py-3 pb-safe shrink-0">
           <div className="flex items-center justify-between gap-3">
