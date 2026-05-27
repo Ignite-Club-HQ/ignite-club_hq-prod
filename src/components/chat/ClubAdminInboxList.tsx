@@ -90,7 +90,7 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
         }
       }
 
-      return convs.flatMap((c) => {
+      const rows = convs.flatMap((c) => {
         const last = latestByConv.get(c.id);
         // Hide empty conversations — only show threads where a member has actually messaged
         if (!last) return [];
@@ -111,6 +111,13 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
         }];
       });
 
+      // Sort by most recent message activity (admin replies bump the thread to top)
+      rows.sort((a, b) => {
+        const ta = new Date(a.last_created_at || a.updated_at).getTime();
+        const tb = new Date(b.last_created_at || b.updated_at).getTime();
+        return tb - ta;
+      });
+      return rows;
     },
   });
 
