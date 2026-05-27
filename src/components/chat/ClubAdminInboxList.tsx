@@ -12,6 +12,7 @@ interface ClubAdminInboxListProps {
   clubFilter?: string | null;
   /** Render a "Admin Groups" section header above the list (only when non-empty). */
   withSectionHeader?: boolean;
+  conversations?: ClubAdminConversationRow[];
 }
 
 export interface ClubAdminConversationRow {
@@ -120,17 +121,18 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
  * club_admin of one or more clubs. Lets admins reply to messages members
  * sent via the home-screen "Contact Club" button.
  */
-export default function ClubAdminInboxList({ clubFilter, withSectionHeader = false }: ClubAdminInboxListProps) {
+export default function ClubAdminInboxList({ clubFilter, withSectionHeader = false, conversations: providedConversations }: ClubAdminInboxListProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data: conversations } = useQuery({
+  const { data: fetchedConversations } = useQuery({
     queryKey: clubAdminInboxQueryKey(user?.id, clubFilter),
-    enabled: !!user,
+    enabled: !!user && !providedConversations,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
     queryFn: () => fetchClubAdminConversations(user!.id, clubFilter),
   });
+  const conversations = providedConversations ?? fetchedConversations;
 
   if (!conversations?.length) return null;
 
