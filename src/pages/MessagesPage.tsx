@@ -2184,7 +2184,7 @@ export default function MessagesPage() {
         // them as another team they belong to.
         case 'teams': return c.type === 'team' || c.type === 'league';
         // Groups bucket includes club broadcast-style groups alongside regular chat groups.
-        case 'groups': return c.type === 'group' || c.type === 'club';
+        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'admin_group';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
