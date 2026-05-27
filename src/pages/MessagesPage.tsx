@@ -2239,6 +2239,7 @@ export default function MessagesPage() {
     club: 'Club',
     team: 'Team',
     group: 'Group',
+    admin_group: 'Admin',
     league: 'League',
     dm: 'DM',
   };
