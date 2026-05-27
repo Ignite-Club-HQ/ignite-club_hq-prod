@@ -128,6 +128,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   isPublishedToGallery = false,
   onPublishToGallery,
   allowForwarding = true,
+  groupName,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
