@@ -95,6 +95,10 @@ export interface ChatMessageProps {
    *  grouping window — flatten the bottom corner and hide the per-bubble
    *  timestamp / read-receipt strip until the last message in the group. */
   groupedWithNext?: boolean;
+  /** Forward attribution — when set, renders a "↪ Forwarded from X · Label" banner above the bubble. */
+  forwardedFromUserId?: string | null;
+  forwardedFromName?: string | null;
+  forwardedSourceLabel?: string | null;
 }
 
 function ChatMessageInner({
