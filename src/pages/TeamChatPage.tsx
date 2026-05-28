@@ -279,7 +279,7 @@ export default function TeamChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
-  const { data: teamData, isLoading: loadingTeam } = useQuery({
+  const { data: teamData, isLoading: loadingTeam, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
