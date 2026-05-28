@@ -574,6 +574,13 @@ export default function ClubAdminChatPage() {
   );
 
   const handleSend = () => {
+    // Flush IME composition before reading composer state (see TeamChatPage).
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      setTimeout(handleSend, 0);
+      return;
+    }
     if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
@@ -592,6 +599,7 @@ export default function ClubAdminChatPage() {
     setReplyTo(null);
     setPendingPollId(null);
   };
+
 
   // Real-time subscription
   useEffect(() => {
