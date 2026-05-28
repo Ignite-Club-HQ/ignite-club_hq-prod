@@ -45,6 +45,7 @@ export default function JoinTeamPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [joined, setJoined] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
@@ -55,6 +56,7 @@ export default function JoinTeamPage() {
   const [childYearOfBirth, setChildYearOfBirth] = useState("");
   const [linkExistingChildId, setLinkExistingChildId] = useState<string | null>(null);
   const [addingChild, setAddingChild] = useState(false);
+  const [addedChildren, setAddedChildren] = useState<string[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
   
