@@ -94,7 +94,7 @@ export default function AttendanceStatsPage() {
   });
 
   // Fetch team details
-  const { data: team, isLoading: teamLoading } = useQuery({
+  const { data: team, isLoading: teamLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team-attendance", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
