@@ -110,13 +110,15 @@ export function markChatScopeNotificationsRead({
         q = q.eq("type", "broadcast");
         break;
       case "team":
-        q = q.eq("type", "team_message");
+        // Must scope by related_id — otherwise opening one team chat clears
+        // unread notifications for EVERY team the user is in.
+        q = q.eq("type", "team_message").eq("related_id", scope.teamId);
         break;
       case "club":
-        q = q.eq("type", "club_message");
+        q = q.eq("type", "club_message").eq("related_id", scope.clubId);
         break;
       case "group":
-        q = q.eq("type", "group_message");
+        q = q.eq("type", "group_message").eq("related_id", scope.groupId);
         break;
       case "dm":
         q = q.eq("type", "direct_message").eq("related_id", scope.conversationId);
