@@ -877,14 +877,7 @@ export default function ClubAdminChatPage() {
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
-          <button
-            type="button"
-            onClick={() => setPollDialogOpen(true)}
-            className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors"
-            aria-label="Create poll"
-          >
-            <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
-          </button>
+
           <MentionInput
             value={message}
             onChange={(val) => {
