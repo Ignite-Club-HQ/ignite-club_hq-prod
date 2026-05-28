@@ -235,7 +235,7 @@ export default function EditTeamPage() {
     navigate(`/teams/${id}`);
   };
 
-  if (isLoading) {
+  if (isLoading || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-32" />
