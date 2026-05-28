@@ -1396,6 +1396,16 @@ export default function TeamChatPage() {
   });
 
   const handleSend = () => {
+    // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
+    // BEFORE reading message state. Without this, a tap on Send mid-word
+    // sends the partial/garbled composing fragment ("wothpur" → "without").
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      // Defer one tick so React commits the flushed compositionend value.
+      setTimeout(handleSend, 0);
+      return;
+    }
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
@@ -1409,6 +1419,7 @@ export default function TeamChatPage() {
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
   };
+
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
     setEditingMessage(msg);
