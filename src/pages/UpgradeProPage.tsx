@@ -468,7 +468,7 @@ export default function UpgradeProPage() {
     enabled: !!team?.club_id,
   });
 
-  if (teamLoading || loadingAdminCheck) {
+  if (teamLoading || loadingAdminCheck || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-48" />
