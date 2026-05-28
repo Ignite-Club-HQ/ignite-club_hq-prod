@@ -371,7 +371,7 @@ export default function AttendanceStatsPage() {
     toast({ title: "Exported to CSV" });
   };
 
-  if (teamLoading || loadingAdminCheck || teamSubLoading || clubSubLoading) {
+  if (teamLoading || loadingAdminCheck || teamSubLoading || clubSubLoading || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-48" />
