@@ -381,8 +381,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
-      (document.activeElement as HTMLElement | null)?.blur();
+      // Do NOT blur document.activeElement here: if the user tapped back into
+      // the chat textarea while the upload was running, this dismisses their
+      // keyboard mid-typing. dismissIOSKeyboardAccessory() at the start of the
+      // pick (before upload) already handles the picker→keyboard handoff.
     }
+
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
