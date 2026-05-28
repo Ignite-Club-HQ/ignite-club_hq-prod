@@ -590,16 +590,24 @@ export default function ClubDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
         .eq("club_id", id!)
         .is("team_id", null)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
       
-      // Filter out anonymous share-link invites with no identifying info
+      // Filter out anonymous share-link invites with no identifying info,
+      // and mini-league share/join links (they belong to the mini-league hub, not club members)
+      const MINI_LEAGUE_LINK_KINDS = new Set([
+        "mini_league_parent_join_link",
+        "league_admin_join_link",
+        "mini_league_admin_join_link",
+      ]);
       const identifiableInvites = (data || []).filter(
-        inv => inv.invited_label || inv.invited_email || inv.invited_user_id
+        inv =>
+          (inv.invited_label || inv.invited_email || inv.invited_user_id) &&
+          !MINI_LEAGUE_LINK_KINDS.has((inv.metadata as any)?.kind)
       );
       
       // Fetch profile data separately for invited users
