@@ -171,7 +171,7 @@ export default function ManageTeamRolesPage() {
     },
   });
 
-  if (loadingTeam) {
+  if (loadingTeam || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-4">
         <Skeleton className="h-8 w-32" />
