@@ -279,7 +279,7 @@ export default function TeamChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
-  const { data: teamData, isLoading: loadingTeam } = useQuery({
+  const { data: teamData, isLoading: loadingTeam, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1531,6 +1531,12 @@ export default function TeamChatPage() {
 
   // Only block on the metadata fetch if we have nothing cached to render the header with.
   if (loadingTeam && !team) {
+    return <PageLoading message="Loading team chat..." />;
+  }
+
+  // Query is paused (offline) and we have no cached team — keep showing loader
+  // instead of a misleading "Team not found".
+  if (teamFetchStatus === "paused" && !team) {
     return <PageLoading message="Loading team chat..." />;
   }
 

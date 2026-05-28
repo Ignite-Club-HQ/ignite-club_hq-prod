@@ -52,7 +52,7 @@ export default function ManageTeamRolesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: team, isLoading: loadingTeam } = useQuery({
+  const { data: team, isLoading: loadingTeam, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -171,7 +171,7 @@ export default function ManageTeamRolesPage() {
     },
   });
 
-  if (loadingTeam) {
+  if (loadingTeam || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-4">
         <Skeleton className="h-8 w-32" />
