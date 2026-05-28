@@ -94,7 +94,7 @@ export default function AttendanceStatsPage() {
   });
 
   // Fetch team details
-  const { data: team, isLoading: teamLoading } = useQuery({
+  const { data: team, isLoading: teamLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team-attendance", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -371,7 +371,7 @@ export default function AttendanceStatsPage() {
     toast({ title: "Exported to CSV" });
   };
 
-  if (teamLoading || loadingAdminCheck || teamSubLoading || clubSubLoading) {
+  if (teamLoading || loadingAdminCheck || teamSubLoading || clubSubLoading || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-48" />

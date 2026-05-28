@@ -1555,6 +1555,13 @@ export default function GroupChatPage() {
   });
 
   const handleSend = () => {
+    // Flush IME composition before reading composer state (see TeamChatPage).
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      setTimeout(handleSend, 0);
+      return;
+    }
     if ((!message.trim() && !imageUrl && !pendingPollId) || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
@@ -1570,6 +1577,7 @@ export default function GroupChatPage() {
       });
     }
   };
+
 
   const handleEdit = (msg: GroupMessage) => {
     setEditingMessage(msg);

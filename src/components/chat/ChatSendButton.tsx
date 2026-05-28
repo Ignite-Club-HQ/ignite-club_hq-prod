@@ -36,6 +36,11 @@ export function ChatSendButton({
   // Tracks whether the current gesture has already fired onSend, so the
   // follow-up synthetic click (after pointerup) doesn't double-send.
   const firedThisGestureRef = useRef(false);
+  // Guards against accidental sends from swipe-type / gesture-typing where
+  // the pointer ENDS on the send button but never began on it. Only a tap
+  // that actually started on this button is allowed to fire.
+  const pointerDownOnUsRef = useRef(false);
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const [pressing, setPressing] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
@@ -93,9 +98,11 @@ export function ChatSendButton({
     fireSend();
   };
 
-  const startLongPress = () => {
+  const startLongPress = (e: React.PointerEvent) => {
     longPressedRef.current = false;
     firedThisGestureRef.current = false;
+    pointerDownOnUsRef.current = true;
+    pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
     setPressing(true);
     cancelTimer();
     if (!onSchedule || disabled || loading) return;
@@ -110,14 +117,25 @@ export function ChatSendButton({
   const endLongPress = (e?: React.PointerEvent) => {
     cancelTimer();
     setPressing(false);
-    // On pointerup (not cancel/leave), if the long-press hasn't triggered,
-    // fire send immediately. This avoids relying on the synthetic `click`
-    // event, which is suppressed if the finger drifts a few pixels between
-    // pointerdown and pointerup.
-    if (e && e.type === "pointerup" && !longPressedRef.current) {
-      fireSend();
+    // Only fire on a clean tap that BEGAN on this button. This rejects
+    // swipe-typing gestures that happen to end over the send icon — the
+    // root cause of garbled messages like "wothpur" being sent mid-word.
+    const startedOnUs = pointerDownOnUsRef.current;
+    pointerDownOnUsRef.current = false;
+    if (!e || e.type !== "pointerup") return;
+    if (!startedOnUs) return;
+    if (longPressedRef.current) return;
+    // Reject if pointer drifted significantly (treat as swipe, not tap).
+    const start = pointerDownPosRef.current;
+    pointerDownPosRef.current = null;
+    if (start) {
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (dx * dx + dy * dy > 24 * 24) return;
     }
+    fireSend();
   };
+
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!onSchedule) return;

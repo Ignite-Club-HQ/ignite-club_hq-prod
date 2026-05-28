@@ -148,7 +148,7 @@ export default function UpgradeProPage() {
   const isTeamAdmin = adminStatus?.isTeamAdmin ?? false;
   const isClubAdminForTeam = adminStatus?.isClubAdmin ?? false;
 
-  const { data: team, isLoading: teamLoading } = useQuery({
+  const { data: team, isLoading: teamLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -468,7 +468,7 @@ export default function UpgradeProPage() {
     enabled: !!team?.club_id,
   });
 
-  if (teamLoading || loadingAdminCheck) {
+  if (teamLoading || loadingAdminCheck || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-48" />

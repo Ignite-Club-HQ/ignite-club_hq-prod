@@ -54,7 +54,7 @@ export default function EditTeamPage() {
   const [autoRsvpEventTypes, setAutoRsvpEventTypes] = useState<string[]>(["match", "training", "game"]);
   const [defaultRsvpAudience, setDefaultRsvpAudience] = useState<RsvpAudience>(DEFAULT_TEAM_RSVP_AUDIENCE);
 
-  const { data: team, isLoading } = useQuery({
+  const { data: team, isLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -235,7 +235,7 @@ export default function EditTeamPage() {
     navigate(`/teams/${id}`);
   };
 
-  if (isLoading) {
+  if (isLoading || (teamFetchStatus === "paused" && !team)) {
     return (
       <div className="py-6 space-y-6">
         <Skeleton className="h-8 w-32" />

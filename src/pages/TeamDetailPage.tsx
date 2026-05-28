@@ -148,7 +148,7 @@ export default function TeamDetailPage() {
   const adminInviteEmail = locationState?.inviteEmail || "";
   const adminInviteTeamName = locationState?.teamName || "";
 
-  const { data: team, isLoading } = useQuery({
+  const { data: team, isLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,6 +161,7 @@ export default function TeamDetailPage() {
     },
     enabled: !!id,
   });
+  const teamQueryPaused = teamFetchStatus === "paused";
 
   const isSoccerClub = team?.clubs?.sport && SOCCER_SPORTS.some(keyword => 
     team.clubs.sport.toLowerCase().includes(keyword)
@@ -787,7 +788,7 @@ export default function TeamDetailPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || (teamQueryPaused && !team)) {
     return (
       <div className="py-6 space-y-6" role="status" aria-label="Loading team">
         <Skeleton className="h-8 w-32" aria-hidden="true" />

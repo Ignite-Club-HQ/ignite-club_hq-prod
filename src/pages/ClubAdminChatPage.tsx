@@ -574,6 +574,13 @@ export default function ClubAdminChatPage() {
   );
 
   const handleSend = () => {
+    // Flush IME composition before reading composer state (see TeamChatPage).
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      setTimeout(handleSend, 0);
+      return;
+    }
     if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
@@ -592,6 +599,7 @@ export default function ClubAdminChatPage() {
     setReplyTo(null);
     setPendingPollId(null);
   };
+
 
   // Real-time subscription
   useEffect(() => {
@@ -877,14 +885,7 @@ export default function ClubAdminChatPage() {
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
-          <button
-            type="button"
-            onClick={() => setPollDialogOpen(true)}
-            className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors"
-            aria-label="Create poll"
-          >
-            <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
-          </button>
+
           <MentionInput
             value={message}
             onChange={(val) => {
