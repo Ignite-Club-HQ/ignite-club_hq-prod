@@ -255,6 +255,28 @@ const App = () => {
     return () => { listener?.remove(); };
   }, []);
 
+  // Android WebView "lost surface" recovery: after long sleep the GPU compositor
+  // may not repaint until something invalidates it. Force a one-frame compositing
+  // layer toggle on every resume so the screen is never blank.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (Capacitor.getPlatform() !== 'android') return;
+
+    let listener: { remove: () => void } | undefined;
+
+    import('@capacitor/app').then(({ App: CapApp }) => {
+      CapApp.addListener('resume', () => {
+        document.body.style.transform = 'translateZ(0)';
+        requestAnimationFrame(() => {
+          document.body.style.transform = '';
+        });
+      }).then(l => { listener = l; });
+    });
+
+    return () => { listener?.remove(); };
+  }, []);
+
+
   return (
   <ThemeProvider attribute="class" defaultTheme={INITIAL_THEME} enableSystem={false} storageKey="app-theme">
     <QueryClientProvider client={queryClient}>
