@@ -984,6 +984,13 @@ export default function DirectMessagePage() {
   );
 
   const handleSend = () => {
+    // Flush IME composition before reading composer state (see TeamChatPage).
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      setTimeout(handleSend, 0);
+      return;
+    }
     if (!message.trim() && !dmImageUrl) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
@@ -1005,6 +1012,7 @@ export default function DirectMessagePage() {
     setDmImageUrl(null);
     setReplyTo(null);
   };
+
 
   // Real-time subscription for messages, deletions, edits, and reactions
   useEffect(() => {
