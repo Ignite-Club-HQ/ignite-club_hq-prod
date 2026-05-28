@@ -133,35 +133,53 @@ async function resolveRecipients(
     return [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])].filter(id => id !== excludeUserId);
   }
 
-  if (teamId) {
-    const { data: members } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('team_id', teamId)
-      .neq('user_id', excludeUserId);
-    return [...new Set((members || []).map((m: any) => m.user_id as string))] as string[];
+  // Paginate every branch deterministically. PostgREST has a per-request row cap
+  // (project-configured, observed < 409 on this project) that silently truncates
+  // un-ordered .range() queries — see Kings Cup fan-out incident where 8 club
+  // members were silently dropped. Keep PAGE_SIZE well below any plausible cap.
+  const PAGE_SIZE = 200;
+
+  async function paginateUserIds(
+    build: () => any,
+  ): Promise<string[]> {
+    let offset = 0;
+    const ids: string[] = [];
+    while (true) {
+      const { data: page, error } = await build()
+        .order('user_id', { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) {
+        console.error('[EVENT-NOTIFY] Recipient pagination error:', error);
+        break;
+      }
+      const rows = page || [];
+      if (rows.length === 0) break;
+      ids.push(...rows.map((m: any) => m.user_id));
+      if (rows.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+    return ids;
   }
 
-  // Club-wide: paginated
-  const PAGE_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  const ids: string[] = [];
-  while (hasMore) {
-    const { data: page } = await supabase
+  if (teamId) {
+    const ids = await paginateUserIds(() =>
+      supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('team_id', teamId)
+        .neq('user_id', excludeUserId)
+    );
+    return [...new Set(ids)];
+  }
+
+  // Club-wide
+  const ids = await paginateUserIds(() =>
+    supabase
       .from('user_roles')
       .select('user_id')
       .eq('club_id', clubId)
       .neq('user_id', excludeUserId)
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (page && page.length > 0) {
-      ids.push(...page.map((m: any) => m.user_id));
-      offset += PAGE_SIZE;
-      hasMore = page.length === PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  );
   return [...new Set(ids)];
 }
 
