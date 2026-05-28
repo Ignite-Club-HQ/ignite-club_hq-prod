@@ -1534,6 +1534,12 @@ export default function TeamChatPage() {
     return <PageLoading message="Loading team chat..." />;
   }
 
+  // Query is paused (offline) and we have no cached team — keep showing loader
+  // instead of a misleading "Team not found".
+  if (teamFetchStatus === "paused" && !team) {
+    return <PageLoading message="Loading team chat..." />;
+  }
+
   if (!team) {
     return <div className="py-6 text-center text-muted-foreground">Team not found</div>;
   }
