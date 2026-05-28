@@ -1242,7 +1242,11 @@ export default function JoinTeamPage() {
     if (!invite?.team_id && !leagueLinkMiniLeagueId) return;
     setAddingChild(true);
     try {
+      let addedLabel = "";
       if (linkExistingChildId) {
+        // Find existing child name for the summary
+        const existing = (existingTeamChildren as any[]).find(c => c.id === linkExistingChildId);
+        addedLabel = existing?.name || "Child";
         // Link existing child as guardian (team flow only)
         const { error: guardErr } = await supabase.from("child_guardians").insert({
           child_id: linkExistingChildId,
@@ -1253,14 +1257,15 @@ export default function JoinTeamPage() {
         if (guardErr && !guardErr.message?.includes("duplicate")) {
           throw guardErr;
         }
-        toast({ title: "Linked to existing child!" });
+        toast({ title: `Linked to ${addedLabel}!` });
       } else if (childName.trim()) {
+        addedLabel = childName.trim();
         // Create new child
         const { data: newChild, error: childErr } = await supabase
           .from("children")
           .insert({
             parent_id: user.id,
-            name: childName.trim(),
+            name: addedLabel,
             year_of_birth: childYearOfBirth ? parseInt(childYearOfBirth) : null,
           })
           .select("id")
@@ -1289,10 +1294,17 @@ export default function JoinTeamPage() {
             });
           }
         }
-        toast({ title: `${childName.trim()} added to ${inviteEntityName}!` });
+        toast({ title: `${addedLabel} added to ${inviteEntityName}!` });
       }
-      setJoined(true);
-      setShowChildStep(false);
+
+      // Track the added child and reset the form so a sibling can be added next
+      setAddedChildren(prev => [...prev, addedLabel]);
+      setChildName("");
+      setChildYearOfBirth("");
+      setLinkExistingChildId(null);
+      // Refresh the "existing children on team" list so the just-linked child
+      // disappears from the choices.
+      queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", invite?.team_id] });
     } catch (err) {
       console.error("[JoinTeam] Error adding child:", err);
       toast({ title: "Failed to add child", variant: "destructive" });
@@ -1301,7 +1313,17 @@ export default function JoinTeamPage() {
     }
   };
 
+  const handleFinishChildStep = () => {
+    setShowChildStep(false);
+    setJoined(true);
+  };
+
   const handleSkipChildStep = async () => {
+    if (addedChildren.length > 0) {
+      // They've already added at least one — treat skip as "done"
+      handleFinishChildStep();
+      return;
+    }
     if (!leagueLinkMiniLeagueId) {
       // Team flow: nudge admins to link the parent's child manually
       await notifyAdminsOfUnlinkedParent();
