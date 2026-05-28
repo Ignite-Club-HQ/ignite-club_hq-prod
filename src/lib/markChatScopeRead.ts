@@ -131,6 +131,71 @@ export function markChatScopeNotificationsRead({
       console.warn("[markChatScopeNotificationsRead] update failed", err);
     }
 
+    // 3b: also clear message_reply / message_mention notifications whose
+    // related message belongs to this scope. Without this, opening a chat
+    // leaves these notifications behind — the bell + Messages tab badges
+    // "snap back" to a non-zero count after the realtime UPDATE → invalidate
+    // → server refetch round-trip completes.
+    try {
+      const scopeTable =
+        scope.kind === "team" ? "team_messages" :
+        scope.kind === "club" ? "club_messages" :
+        scope.kind === "group" ? "group_messages" :
+        scope.kind === "dm" ? "direct_messages" : null;
+      const scopeCol =
+        scope.kind === "team" ? "team_id" :
+        scope.kind === "club" ? "club_id" :
+        scope.kind === "group" ? "group_id" :
+        scope.kind === "dm" ? "conversation_id" : null;
+      const scopeId =
+        scope.kind === "team" ? scope.teamId :
+        scope.kind === "club" ? scope.clubId :
+        scope.kind === "group" ? scope.groupId :
+        scope.kind === "dm" ? scope.conversationId : null;
+
+      if (scopeTable && scopeCol && scopeId) {
+        const { data: notifs } = await supabase
+          .from("notifications")
+          .select("id, related_id")
+          .eq("user_id", userId)
+          .eq("is_read", false)
+          .in("type", ["message_reply", "message_mention"]);
+
+        const relatedIds = Array.from(
+          new Set((notifs ?? []).map((n: any) => n.related_id).filter(Boolean))
+        ) as string[];
+
+        if (relatedIds.length > 0) {
+          const { data: scopedMsgs } = await (supabase as any)
+            .from(scopeTable)
+            .select("id")
+            .eq(scopeCol, scopeId)
+            .in("id", relatedIds);
+
+          const scopedSet = new Set<string>((scopedMsgs ?? []).map((m: any) => m.id));
+          const notifIdsToMark = (notifs ?? [])
+            .filter((n: any) => scopedSet.has(n.related_id))
+            .map((n: any) => n.id as string);
+
+          if (notifIdsToMark.length > 0) {
+            await supabase
+              .from("notifications")
+              .update({ is_read: true })
+              .in("id", notifIdsToMark);
+            decrementUnreadCount(notifIdsToMark.length);
+            queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
+              typeof old === "number" ? Math.max(0, old - notifIdsToMark.length) : old
+            );
+            queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
+              typeof old === "number" ? Math.max(0, old - notifIdsToMark.length) : old
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[markChatScopeNotificationsRead] reply/mention sweep failed", err);
+    }
+
     // 4: reconcile (covers any drift if the optimistic count was off, and
     // refreshes the inbox/recent-notifications dropdown).
     try {
