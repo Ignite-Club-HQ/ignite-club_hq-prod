@@ -148,7 +148,7 @@ export default function UpgradeProPage() {
   const isTeamAdmin = adminStatus?.isTeamAdmin ?? false;
   const isClubAdminForTeam = adminStatus?.isClubAdmin ?? false;
 
-  const { data: team, isLoading: teamLoading } = useQuery({
+  const { data: team, isLoading: teamLoading, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
