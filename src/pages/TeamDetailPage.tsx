@@ -788,7 +788,7 @@ export default function TeamDetailPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || (teamQueryPaused && !team)) {
     return (
       <div className="py-6 space-y-6" role="status" aria-label="Loading team">
         <Skeleton className="h-8 w-32" aria-hidden="true" />
