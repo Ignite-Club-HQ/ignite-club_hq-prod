@@ -1342,15 +1342,49 @@ export default function JoinTeamPage() {
   };
 
   if (showChildStep) {
+    const hasAdded = addedChildren.length > 0;
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CheckCircle className="h-10 w-10 text-primary mx-auto mb-2" />
-            <CardTitle>You've joined as Parent!</CardTitle>
-            <p className="text-sm text-muted-foreground">Now add your child to {inviteEntityName}</p>
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-xl">
+              {hasAdded ? "Add another child?" : `Link your child to ${inviteEntityName}`}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {hasAdded
+                ? "Add a sibling, or tap Done to finish."
+                : "This is how the team knows which player you're the parent of. You can add more than one."}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Summary of children added so far */}
+            {hasAdded && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-medium text-primary uppercase tracking-wide">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Added
+                </div>
+                {addedChildren.map((name, i) => (
+                  <div key={`${name}-${i}`} className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-medium">{name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Prominent call-out (first time only) */}
+            {!hasAdded && (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                {existingTeamChildren.length > 0
+                  ? "If your child is already on the team roster, tap their name to claim them. Otherwise add them below."
+                  : "Add your child's name so the coach can connect you to them on the team sheet."}
+              </div>
+            )}
+
             {existingTeamChildren.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Link to existing child on team</Label>
@@ -1423,16 +1457,33 @@ export default function JoinTeamPage() {
               ) : (
                 <Plus className="h-4 w-4 mr-2" />
               )}
-              {linkExistingChildId ? "Link Child" : "Add Child"}
+              {linkExistingChildId
+                ? "Link Child"
+                : hasAdded
+                  ? "Add Another Child"
+                  : "Add Child"}
             </Button>
 
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={handleSkipChildStep}
-            >
-              Skip for now
-            </Button>
+            {hasAdded ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleFinishChildStep}
+                disabled={addingChild}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Done
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={handleSkipChildStep}
+                disabled={addingChild}
+              >
+                Skip for now
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
