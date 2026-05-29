@@ -571,15 +571,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5 px-0.5 flex items-center gap-1.5 justify-end">
+            <div className="mt-0.5 px-0.5 flex items-center gap-1 justify-end">
               <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
               <span
-                className={`text-[10px] text-muted-foreground/55 tracking-tight ${(readCounts[msg.id] || 0) > 0 ? "cursor-pointer" : ""}`}
+                className={(readCounts[msg.id] || 0) > 0 ? "cursor-pointer" : ""}
                 onClick={(readCounts[msg.id] || 0) > 0 ? () => setShowReadReceipts(true) : undefined}
               >
-                {(readCounts[msg.id] || 0) > 0 ? `· Seen by ${readCounts[msg.id]}` : "· Sent"}
+                <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
               </span>
             </div>
           ) : null}
