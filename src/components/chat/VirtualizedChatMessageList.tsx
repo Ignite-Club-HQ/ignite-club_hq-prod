@@ -1155,6 +1155,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Window targets don't apply for the inline Virtuoso scroller, so we
       // only retain HTMLElement instances.
       scrollerElRef.current = element instanceof HTMLElement ? element : null;
+      // Track real user gestures (touch / wheel) on the viewport so the
+      // post-pin stay-pinned guard can distinguish a user-driven scroll
+      // away from programmatic snaps + content-growth driven `atBottom`
+      // flips. Without this, the very first programmatic `scrollToIndex`
+      // after reveal fires a `scroll` event that we'd mistakenly count as
+      // "user scrolled away".
+      installChatScrollIntentTracking(scrollerElRef.current);
       debugAttachScrollerWatcher(element);
       scrollerRef?.(element);
     },
