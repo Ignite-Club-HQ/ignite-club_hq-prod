@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 const HINT_STORAGE_KEY = "chat:send-long-press-hint:v1";
 const SEND_COUNT_KEY = "chat:send-count";
