@@ -52,7 +52,6 @@ import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
-import { checkVaultFoldersSchema } from "./lib/vaultSchemaCheck";
 import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
 import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
 
@@ -60,9 +59,6 @@ import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
 // retries on 401, so a stale token mid-session can't silently empty Schedule /
 // Media / Pro-check screens on iOS.
 installSupabaseAuthRetry();
-
-// Non-blocking startup probe: warn loudly if vault_folders.deleted_at is missing.
-checkVaultFoldersSchema();
 
 // Chat performance diagnostics — disabled unless `?chatPerfDiag=1` or
 // localStorage `ff:chat-perf-diag=1`. Patches ResizeObserver + installs a
