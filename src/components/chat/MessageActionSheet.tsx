@@ -74,7 +74,8 @@ interface MessageActionSheetProps {
   onReact?: (emoji: string) => void;
 }
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+// Reactions intentionally live in the floating pill above the bubble, not in
+// this sheet. See MessageReactionsPopover for the quick-reaction emoji set.
 
 export function MessageActionSheet({
   open,
