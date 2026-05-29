@@ -59,102 +59,115 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Always fetch actual readers for this message
         const field = MESSAGE_ID_FIELDS[messageType];
-        const { data: readData } = await (supabase
+
+        // Kick off all independent queries in parallel
+        const readsPromise = (supabase
           .from("message_reads")
           .select(`${field}, user_id`) as any)
           .eq(field, messageId);
 
+        const needsMembers =
+          messageType !== "dm" && messageType !== "broadcast" && !!contextId;
+
+        let membersPromise: Promise<string[]> = Promise.resolve([]);
+        if (needsMembers) {
+          if (messageType === "team") {
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("team_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+          } else if (messageType === "club") {
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("club_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+          } else if (messageType === "group") {
+            membersPromise = (async () => {
+              const memberIds = new Set<string>();
+              const [gmRes, giRes] = await Promise.all([
+                Promise.resolve(supabase.from("group_members").select("user_id").eq("group_id", contextId)),
+                Promise.resolve(
+                  supabase
+                    .from("chat_groups")
+                    .select("club_id, team_id, allowed_roles")
+                    .eq("id", contextId)
+                    .maybeSingle()
+                ),
+              ]);
+
+              for (const r of gmRes.data || []) memberIds.add((r as any).user_id);
+              const groupInfo = giRes.data as any;
+              const roleQueries: Promise<any>[] = [];
+              if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
+                roleQueries.push(
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("club_id", groupInfo.club_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
+                );
+              }
+              if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
+                roleQueries.push(
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("team_id", groupInfo.team_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
+                );
+              }
+
+              const roleResults = await Promise.all(roleQueries);
+              for (const res of roleResults) {
+                for (const r of res.data || []) memberIds.add((r as any).user_id);
+              }
+              return [...memberIds];
+            })();
+          }
+        }
+
+        const [readsRes, memberIdsRaw] = await Promise.all([readsPromise, membersPromise]);
+
         const readerUserIds = new Set<string>();
-        for (const row of readData || []) {
+        for (const row of (readsRes as any).data || []) {
           const userId = (row as any).user_id as string;
           if (userId !== currentUserId) readerUserIds.add(userId);
         }
 
-        // Fetch reader profiles
-        if (readerUserIds.size > 0) {
+        const memberIds = memberIdsRaw.filter((id) => id !== currentUserId);
+
+        // Single profile fetch for both readers and members
+        const allIds = new Set<string>([...readerUserIds, ...memberIds]);
+        let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+        if (allIds.size > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("id, display_name, avatar_url")
-            .in("id", Array.from(readerUserIds));
-          setFetchedReaders(
-            (profiles || []).map((p) => ({
-              user_id: p.id,
-              display_name: p.display_name,
-              avatar_url: p.avatar_url,
-            }))
-          );
-        } else {
-          setFetchedReaders([]);
+            .in("id", Array.from(allIds));
+          for (const p of profiles || []) {
+            profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url });
+          }
         }
 
-        // 2. Fetch all members for non-DM contexts (to show "not yet read")
-        if (messageType !== "dm" && messageType !== "broadcast" && contextId) {
-          let userIds: string[] = [];
+        setFetchedReaders(
+          Array.from(readerUserIds).map((id) => ({
+            user_id: id,
+            display_name: profileMap.get(id)?.display_name ?? null,
+            avatar_url: profileMap.get(id)?.avatar_url ?? null,
+          }))
+        );
 
-          if (messageType === "team") {
-            const { data } = await supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("team_id", contextId);
-            userIds = [...new Set((data || []).map((r) => r.user_id))];
-          } else if (messageType === "club") {
-            const { data } = await supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("club_id", contextId);
-            userIds = [...new Set((data || []).map((r) => r.user_id))];
-          } else if (messageType === "group") {
-            const memberIds = new Set<string>();
-            const { data: gmData } = await supabase
-              .from("group_members")
-              .select("user_id")
-              .eq("group_id", contextId);
-            for (const r of gmData || []) memberIds.add(r.user_id);
-
-            const { data: groupInfo } = await supabase
-              .from("chat_groups")
-              .select("club_id, team_id, allowed_roles")
-              .eq("id", contextId)
-              .maybeSingle();
-
-            if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
-              const { data: roleData } = await supabase
-                .from("user_roles")
-                .select("user_id")
-                .eq("club_id", groupInfo.club_id)
-                .in("role", groupInfo.allowed_roles);
-              for (const r of roleData || []) memberIds.add(r.user_id);
-            }
-            if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
-              const { data: roleData } = await supabase
-                .from("user_roles")
-                .select("user_id")
-                .eq("team_id", groupInfo.team_id)
-                .in("role", groupInfo.allowed_roles);
-              for (const r of roleData || []) memberIds.add(r.user_id);
-            }
-            userIds = [...memberIds];
-          }
-
-          userIds = userIds.filter((id) => id !== currentUserId);
-
-          if (userIds.length > 0) {
-            const { data: profiles } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .in("id", userIds);
-            setAllMembers(
-              (profiles || []).map((p) => ({
-                user_id: p.id,
-                display_name: p.display_name,
-                avatar_url: p.avatar_url,
-              }))
-            );
-          } else {
-            setAllMembers([]);
-          }
+        if (needsMembers) {
+          setAllMembers(
+            memberIds.map((id) => ({
+              user_id: id,
+              display_name: profileMap.get(id)?.display_name ?? null,
+              avatar_url: profileMap.get(id)?.avatar_url ?? null,
+            }))
+          );
         }
       } catch (err) {
         console.error("Error fetching read receipt data:", err);
@@ -165,6 +178,7 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
 
     fetchData();
   }, [open, messageId, contextId, messageType, currentUserId]);
+
 
   const readerIds = new Set(readers.map((r) => r.user_id));
   const isDm = messageType === "dm";
