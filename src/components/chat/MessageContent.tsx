@@ -232,8 +232,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
-  const handleImageLoad = useCallback(() => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     setImageLoaded(true);
+    const img = e.currentTarget;
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setNaturalAspect(img.naturalWidth / img.naturalHeight);
+    }
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
   }, [effectiveImageUrl, imageUrl]);
