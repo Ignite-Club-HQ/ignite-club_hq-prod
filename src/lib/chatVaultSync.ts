@@ -311,6 +311,7 @@ async function getOrCreateRestrictedFolder(
     .is("parent_id", null)
     .is("chat_group_id", null)
     .not("restricted_roles", "is", null)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (data) {
