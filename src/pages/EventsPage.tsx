@@ -693,7 +693,7 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="py-3 space-y-3">
+    <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
@@ -993,9 +993,9 @@ export default function EventsPage() {
       </div>
 
       {viewMode === "calendar" ? (
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Card>
-            <CardContent className="p-3">
+            <CardContent className="p-4">
               <Calendar
                 mode="single"
                 selected={selectedDate}
