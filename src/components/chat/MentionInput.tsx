@@ -776,7 +776,9 @@ export function MentionInput({
         }
       >
         {showEmojiPicker && (
-          <div className="flex items-center justify-center h-10 transition-all duration-200 animate-in fade-in zoom-in-95">
+          // h-9 matches the attachment "+" trigger height so both icons sit
+          // on the exact same optical centre line as the textarea.
+          <div className="flex items-center justify-center h-9 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
