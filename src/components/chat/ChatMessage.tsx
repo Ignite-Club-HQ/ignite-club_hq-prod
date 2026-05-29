@@ -1102,6 +1102,7 @@ function ChatMessageInner({
           reactions={optimisticReactions}
           currentUserId={currentUserId}
           onReactionClick={handleReactionClick}
+          isOwn={isOwn}
         />
         
         {/* Per-bubble timestamp / inline read-state. Hidden on grouped
