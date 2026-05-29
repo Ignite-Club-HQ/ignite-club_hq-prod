@@ -29,9 +29,15 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
     >
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible",
+          // items-center: every icon + the single-line textarea share one
+          // optical centre line. When the textarea grows to multiple lines
+          // it expands symmetrically; the buttons remain centred on the
+          // first row, which is the same behaviour as iMessage / WhatsApp.
+          "flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible",
           "rounded-[26px] bg-muted/55 dark:bg-muted/40",
-          "px-1.5 py-1 min-h-[52px]",
+          // Slightly more right padding so the send button doesn't touch
+          // the pill edge optically.
+          "pl-1.5 pr-2 py-1 min-h-[52px]",
           "transition-[background-color,box-shadow] duration-150",
           "focus-within:bg-muted/70 dark:focus-within:bg-muted/55",
           "focus-within:ring-1 focus-within:ring-ring/40",
