@@ -885,9 +885,10 @@ export default function ClubAdminChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
+        <ChatComposerShell>
 
           <MentionInput
+            bare
             value={message}
             onChange={(val) => {
               setMessage(val);
@@ -906,7 +907,7 @@ export default function ClubAdminChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}
