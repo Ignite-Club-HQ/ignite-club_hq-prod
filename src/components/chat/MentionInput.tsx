@@ -312,6 +312,7 @@ export function MentionInput({
   disableMentions = false,
   showEmojiPicker = true,
   onGifSelect,
+  bare = false,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
