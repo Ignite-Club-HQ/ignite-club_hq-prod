@@ -27,6 +27,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
         "dark:shadow-[0_-1px_0_0_hsl(var(--border)/0.4)]",
       )}
     >
+      <ChatActionsOnboardingBanner />
       <div
         className={cn(
           // Single optical centre line for icons + textarea.
