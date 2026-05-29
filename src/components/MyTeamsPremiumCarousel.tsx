@@ -188,7 +188,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
           ) : photos.length > 0 ? (
             <button
               type="button"
-              className="flex items-center gap-2 min-w-0 flex-1"
+              className="group flex items-center gap-2 min-w-0 flex-1"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
@@ -209,10 +209,12 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
                   </div>
                 ))}
               </div>
-              <span className="text-[11px] text-muted-foreground truncate">
-                {photos.length} new photo{photos.length > 1 ? "s" : ""}
+              <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
+                View {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 transition-all duration-200 group-hover:text-muted-foreground/80 group-hover:translate-x-0.5" />
             </button>
+
           ) : members && members.count > 0 ? (
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="flex -space-x-1.5 shrink-0">
