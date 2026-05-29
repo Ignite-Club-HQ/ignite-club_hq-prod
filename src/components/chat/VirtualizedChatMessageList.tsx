@@ -941,9 +941,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   const handleScroll = useCallback(() => {
-    if (bottomPinReadyRef.current) {
-      userHasScrolledAfterPinRef.current = true;
-    }
+    if (!bottomPinReadyRef.current) return;
+    // Only treat a scroll event as "user scrolled away" when there is a real
+    // user gesture behind it. Programmatic `scrollToIndex` snaps (initial
+    // pin, stay-pinned re-anchor, follow-output) also dispatch scroll events
+    // and would otherwise permanently disable the post-reveal stay-pinned
+    // guard — leaving the last message hidden behind the composer after
+    // late avatar/image hydration on first cold-cache open.
+    if (!isViewportUserActive(scrollerElRef.current)) return;
+    userHasScrolledAfterPinRef.current = true;
   }, []);
 
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
