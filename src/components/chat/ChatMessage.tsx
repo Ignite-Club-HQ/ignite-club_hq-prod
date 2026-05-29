@@ -658,6 +658,7 @@ function ChatMessageInner({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
+    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
 
