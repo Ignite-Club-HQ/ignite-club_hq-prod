@@ -21,6 +21,7 @@ import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messages
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
@@ -240,13 +241,12 @@ export default function MessagesPage() {
   // `localStorage.removeItem("msg_bootstrap_v1")`.
   useMessagesPageBootstrap(user?.id, initialized);
 
-  // Fetch unread message notifications grouped by thread
-  const { data: unreadCounts } = useQuery({
-    queryKey: ["unread-message-counts", user?.id],
-    queryFn: async () => fetchUnreadMessageCounts(user!.id),
-    enabled: !!user && initialized,
-    refetchInterval: jitteredInboxInterval,
-    staleTime: 5 * 60 * 1000,
+  // Fetch unread message notifications grouped by thread.
+  // Uses the shared useUnreadMessageCounts hook so the RPC is deduped across
+  // MessagesPage, BottomNav and MyTeamsPremiumCarousel (previously each
+  // fetched independently — the #1 slow query in pg_stat_statements).
+  const { data: unreadCounts } = useUnreadMessageCounts(user?.id, {
+    enabled: initialized,
     placeholderData: (prev) => prev,
   });
 

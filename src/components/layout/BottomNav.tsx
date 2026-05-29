@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Capacitor } from "@capacitor/core";
 import {
   IOS_LAYOUT_RESET_EVENT,
@@ -38,41 +38,52 @@ export function BottomNav() {
   // (fetchUnreadMessageCounts), then sum the slices that belong to the active club —
   // club chat + teams in the club + groups in the club — plus DMs and broadcasts
   // which are always visible in the inbox regardless of filter.
-  const { data: clubMessagesCount = 0 } = useQuery({
-    queryKey: ["club-messages-unread", user?.id, activeClubFilter, activeClubTeamIds],
-    queryFn: async () => {
-      if (!user?.id || !activeClubFilter) return 0;
-      const counts = await fetchUnreadMessageCounts(user.id);
-
-      // Resolve which chat groups belong to this club (team-scoped or club-scoped).
-      const groupIds = Object.keys(counts.groups);
-      let clubGroupIds = new Set<string>();
-      if (groupIds.length > 0) {
-        const { data: groups } = await supabase
-          .from("chat_groups")
-          .select("id, club_id, team_id")
-          .in("id", groupIds);
-        groups?.forEach((g) => {
-          if (g.club_id === activeClubFilter) clubGroupIds.add(g.id);
-          else if (g.team_id && activeClubTeamIds.includes(g.team_id)) clubGroupIds.add(g.id);
-        });
-      }
-
-      const sumRecord = (rec: Record<string, number>, keys: string[]) =>
-        keys.reduce((acc, k) => acc + (rec[k] || 0), 0);
-
-      return (
-        counts.broadcast +
-        (counts.clubs[activeClubFilter] || 0) +
-        sumRecord(counts.teams, activeClubTeamIds) +
-        sumRecord(counts.groups, Array.from(clubGroupIds)) +
-        Object.values(counts.dms).reduce((a, b) => a + b, 0)
-      );
-    },
-    enabled: !!user?.id && !!activeClubFilter,
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+  //
+  // Uses the shared useUnreadMessageCounts hook so the underlying RPC is
+  // deduped with MessagesPage + MyTeamsPremiumCarousel (was previously firing
+  // independently every 30s — top of the slow-query list).
+  const { data: counts } = useUnreadMessageCounts(user?.id, {
+    enabled: !!activeClubFilter,
   });
+
+  // Secondary lookup: which chat groups belong to the active club. Cached
+  // separately so it doesn't piggy-back on every unread refetch.
+  const groupIds = counts ? Object.keys(counts.groups) : [];
+  const { data: groupClubMap = {} as Record<string, { club_id: string | null; team_id: string | null }> } = useQuery({
+    queryKey: ["chat-groups-club-map", groupIds.sort().join(",")],
+    queryFn: async () => {
+      if (groupIds.length === 0) return {};
+      const { data } = await supabase
+        .from("chat_groups")
+        .select("id, club_id, team_id")
+        .in("id", groupIds);
+      const map: Record<string, { club_id: string | null; team_id: string | null }> = {};
+      data?.forEach((g) => { map[g.id] = { club_id: g.club_id, team_id: g.team_id }; });
+      return map;
+    },
+    enabled: groupIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clubMessagesCount = (() => {
+    if (!counts || !activeClubFilter) return 0;
+    const clubGroupIds = new Set<string>();
+    for (const gid of groupIds) {
+      const meta = groupClubMap[gid];
+      if (!meta) continue;
+      if (meta.club_id === activeClubFilter) clubGroupIds.add(gid);
+      else if (meta.team_id && activeClubTeamIds.includes(meta.team_id)) clubGroupIds.add(gid);
+    }
+    const sumRecord = (rec: Record<string, number>, keys: string[]) =>
+      keys.reduce((acc, k) => acc + (rec[k] || 0), 0);
+    return (
+      counts.broadcast +
+      (counts.clubs[activeClubFilter] || 0) +
+      sumRecord(counts.teams, activeClubTeamIds) +
+      sumRecord(counts.groups, Array.from(clubGroupIds)) +
+      Object.values(counts.dms).reduce((a, b) => a + b, 0)
+    );
+  })();
 
   const unreadMessagesCount = activeClubFilter ? clubMessagesCount : globalMessagesCount;
   const location = useLocation();
