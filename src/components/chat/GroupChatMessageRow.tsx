@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { MessageReadAvatars } from "./MessageReadAvatars";
+import { MessageReadIndicator } from "./MessageReadIndicator";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
