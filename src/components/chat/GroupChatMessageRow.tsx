@@ -411,19 +411,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         )}
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-          <div className="flex items-center gap-2 mb-1">
-            {!isOwnMessage && (
+          {!isOwnMessage && (
+            <div className="flex items-center gap-2 mb-1">
               <span className="text-[12px] font-semibold text-foreground/85 tracking-[-0.005em]">{displayName}</span>
-            )}
-            {msg.id.startsWith("queued-") && (
-              <span className="flex items-center text-amber-500" title="Pending sync">
-                <Clock className="h-3 w-3" />
+              {msg.id.startsWith("queued-") && (
+                <span className="flex items-center text-amber-500" title="Pending sync">
+                  <Clock className="h-3 w-3" />
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+                {format(new Date(msg.created_at), "HH:mm")}
               </span>
-            )}
-            <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
-              {format(new Date(msg.created_at), "HH:mm")}
-            </span>
-          </div>
+            </div>
+          )}
 
           <ReplyIndicator
             replyToMessage={replyPreview ? { text: replyPreview.text, authorName: replyPreview.author?.display_name || null } : null}
