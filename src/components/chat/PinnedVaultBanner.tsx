@@ -153,7 +153,7 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
         </div>
         <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-primary uppercase tracking-wide shrink-0">
-            Pinned
+            {target.icon === "file" ? "Pinned file" : target.icon === "folder" ? "Pinned folder" : "Pinned vault"}
           </span>
           <p className="text-xs text-foreground truncate leading-tight">
             {target.label}
