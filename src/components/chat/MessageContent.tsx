@@ -86,6 +86,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Reset image state when URL changes — but honour the decoded-cache so we
