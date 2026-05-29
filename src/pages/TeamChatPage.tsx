@@ -1793,6 +1793,7 @@ export default function TeamChatPage() {
             hasText={!!message.trim()}
           />
           <MentionInput
+            bare
             placeholder="Type a message..."
             value={message}
             onChange={(val) => {
