@@ -995,7 +995,7 @@ export default function EventsPage() {
       {viewMode === "calendar" ? (
         <div className="space-y-2">
           <Card>
-            <CardContent className="p-2">
+            <CardContent className="p-3">
               <Calendar
                 mode="single"
                 selected={selectedDate}
