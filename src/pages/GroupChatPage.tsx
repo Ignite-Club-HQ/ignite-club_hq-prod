@@ -1667,6 +1667,15 @@ export default function GroupChatPage() {
     user?.id
   );
 
+  const messagesWithReadState = useMemo(() => {
+    return (filteredMessages || []).map((message) => ({
+      ...message,
+      __readStateSignature: `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
+        .map((reader) => reader.user_id)
+        .join(",")}`,
+    }));
+  }, [filteredMessages, readCounts, readFrontier]);
+
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
     `group-${groupId}`,
@@ -1889,7 +1898,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
-            messages={filteredMessages || []}
+            messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
             onLoadOlder={loadOlderMessages}
