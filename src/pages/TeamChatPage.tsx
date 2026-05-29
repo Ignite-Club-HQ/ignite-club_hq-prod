@@ -1605,13 +1605,25 @@ export default function TeamChatPage() {
         externalOpen={inviteSheetOpen}
         onExternalOpenChange={setInviteSheetOpen}
       />
-      {/* Inline invite banner below header */}
+      {/* Integrated invite affordance — sits flush under header, reads as part of the chat */}
       <button
         onClick={() => setInviteSheetOpen(true)}
-        className="flex items-center gap-2 mx-3 mt-2 mb-1 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/15 transition-colors w-fit"
+        aria-label="Invite parents and players to this team"
+        className="group w-full flex items-center gap-3 px-3.5 py-2.5 bg-gradient-to-b from-primary/[0.06] to-transparent border-b border-border/40 text-left touch-manipulation active:bg-primary/10 transition-colors shrink-0"
       >
-        <UserPlus className="h-3.5 w-3.5" />
-        + Invite to Team
+        <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0 ring-1 ring-primary/15">
+          <UserPlus className="h-4 w-4" strokeWidth={2.25} />
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background" aria-hidden="true" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13px] font-semibold text-foreground leading-tight truncate">
+            Invite to {team.name}
+          </span>
+          <span className="block text-[11.5px] text-muted-foreground leading-tight mt-0.5 truncate">
+            Add parents, players and coaches to the chat
+          </span>
+        </span>
+        <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0 group-active:translate-x-0.5 transition-transform" strokeWidth={2.5} />
       </button>
 
 
