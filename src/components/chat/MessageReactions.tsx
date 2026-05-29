@@ -203,8 +203,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
         {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
-        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
-          <div className="flex justify-around">
+        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1.5 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
+          <div className="flex items-center justify-between gap-0.5">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -217,15 +217,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchStart={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // Ignore touches that arrive within 500ms of the picker opening
-                    // to prevent accidental selection from the long-press finger lift
                     if (Date.now() - mountedAtRef.current < 500) return;
                     triggerEmojiSelection(type);
                   }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // Also trigger on touchEnd as fallback, but with the same guard
                     if (Date.now() - mountedAtRef.current < 500) return;
                   }}
                   onPointerDown={(e) => {
@@ -248,7 +245,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     WebkitUserSelect: "none",
                     userSelect: "none",
                   }}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
+                  className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-[17px] leading-none shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
