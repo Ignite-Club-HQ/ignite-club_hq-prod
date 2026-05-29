@@ -752,7 +752,11 @@ export default function MediaPage() {
     return filtered;
   }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
-  const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
+  // Club auto-applied via club-theme mode shouldn't count as a user-applied filter.
+  const clubFilterIsUserApplied =
+    selectedClubId !== "all" && selectedClubId !== activeClubFilter;
+  const hasActiveFilters =
+    clubFilterIsUserApplied || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
   // Auto-open the fullscreen lightbox when arriving via ?photo=ID (e.g. from
   // the Latest Photos thumbnails on a team page). Wait until the highlighted
