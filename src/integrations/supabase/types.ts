@@ -9587,6 +9587,10 @@ export type Database = {
         }[]
       }
       get_messages_page_bootstrap: { Args: { _user_id: string }; Returns: Json }
+      get_my_accessible_chat_group_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       get_my_pending_eois: {
         Args: never
         Returns: {
@@ -9955,6 +9959,7 @@ export type Database = {
         Args: { _club_id: string; _team_id: string }
         Returns: boolean
       }
+      is_vault_admin: { Args: { _user_id: string }; Returns: boolean }
       join_open_chat_group: { Args: { _group_id: string }; Returns: string }
       list_club_parents_for_team: {
         Args: { p_team_id: string }

@@ -63,7 +63,9 @@ export function ChatHeaderShell({
       <TitleEl
         {...titleProps}
         className={cn(
-          "flex items-center gap-2.5 flex-1 min-w-0 min-h-[44px] rounded-lg px-1 -mx-1",
+          // ml-1 keeps a real gap from the back button's hit area so taps
+          // near the back button's right edge don't open the details panel.
+          "flex items-center gap-2.5 flex-1 min-w-0 min-h-[44px] rounded-lg px-1 ml-1 -mr-1",
           "text-left",
           interactive && onOpenDetails && "active:opacity-70 transition-opacity touch-manipulation",
         )}

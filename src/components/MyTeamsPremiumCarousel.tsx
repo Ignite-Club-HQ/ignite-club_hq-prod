@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Users, Calendar, Trophy, Plus, ChevronRight, Image, MessageCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -188,7 +189,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
           ) : photos.length > 0 ? (
             <button
               type="button"
-              className="flex items-center gap-2 min-w-0 flex-1"
+              className="group flex items-center gap-2 min-w-0 flex-1 rounded-sm -mx-1 px-1 py-1 transition-colors active:bg-muted/50"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
@@ -209,10 +210,16 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
                   </div>
                 ))}
               </div>
-              <span className="text-[11px] text-muted-foreground truncate">
-                {photos.length} new photo{photos.length > 1 ? "s" : ""}
+              <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
+                View {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
+              <ChevronRight
+                className="ml-auto h-4 w-4 shrink-0 text-muted-foreground opacity-70 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
             </button>
+
           ) : members && members.count > 0 ? (
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="flex -space-x-1.5 shrink-0">
@@ -527,14 +534,12 @@ export function MyTeamsPremiumCarousel() {
 
   // Fetch unread message counts per team — use the SAME source as the
   // Messages inbox (notifications.is_read=false) so the team card and inbox
-  // never disagree. The previous direct team_messages/message_reads diff
-  // could over-report (e.g. message_reads not always inserted on viewing).
-  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
-    queryKey: ["team-unread-counts", teamIds, user?.id],
-    queryFn: async () => {
-      if (teamIds.length === 0 || !user?.id) return {};
-      const { fetchUnreadMessageCounts } = await import("@/lib/unreadMessageCounts");
-      const counts = await fetchUnreadMessageCounts(user.id);
+  // never disagree. Shared via useUnreadMessageCounts so the RPC is deduped
+  // with MessagesPage + BottomNav.
+  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useUnreadMessageCounts(user?.id, {
+    enabled: teamIds.length > 0,
+    placeholderData: (prev) => prev,
+    select: (counts) => {
       const map: Record<string, number> = {};
       for (const id of teamIds) {
         const n = counts.teams[id] ?? 0;
@@ -542,9 +547,6 @@ export function MyTeamsPremiumCarousel() {
       }
       return map;
     },
-    enabled: teamIds.length > 0 && !!user?.id,
-    staleTime: 60 * 1000,
-    placeholderData: (prev) => prev,
   });
 
   // Fetch members + avatars per team for the social fallback footer state.
