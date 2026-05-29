@@ -232,12 +232,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
-    const img = e.currentTarget;
-    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-      setNaturalAspect(img.naturalWidth / img.naturalHeight);
-    }
+    const el = e.currentTarget as HTMLImageElement & HTMLVideoElement;
+    const w = (el as HTMLImageElement).naturalWidth ?? (el as HTMLVideoElement).videoWidth;
+    const h = (el as HTMLImageElement).naturalHeight ?? (el as HTMLVideoElement).videoHeight;
+    if (w > 0 && h > 0) setNaturalAspect(w / h);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
   }, [effectiveImageUrl, imageUrl]);
