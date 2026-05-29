@@ -165,26 +165,26 @@ export function ClubDaySummary({
     return Array.from(map.entries());
   }, [visible]);
 
+  const extraAcrossClub = scope === "my" && events ? Math.max(0, events.length - visible.length) : 0;
+  const primaryCount = games.length > 0 ? games.length : visible.length;
+  const primaryLabel = games.length > 0
+    ? `${primaryCount} game${primaryCount === 1 ? "" : "s"} today`
+    : `${primaryCount} event${primaryCount === 1 ? "" : "s"} today`;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0">
           <h2 className="text-xl font-bold tracking-tight text-foreground leading-tight truncate">
             {format(selectedDate, "EEEE, MMMM d")}
           </h2>
           {visible.length > 0 && (
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-foreground">
-                {games.length > 0
-                  ? `${games.length} Game${games.length === 1 ? "" : "s"} Scheduled`
-                  : `${visible.length} Event${visible.length === 1 ? "" : "s"} Scheduled`}
-              </p>
-              {scope === "my" && events && events.length > visible.length && (
-                <p className="text-xs text-muted-foreground">
-                  {events.length - visible.length} additional event{events.length - visible.length === 1 ? "" : "s"} across the club
-                </p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {primaryLabel}
+              {extraAcrossClub > 0 && (
+                <> <span aria-hidden="true">•</span> {extraAcrossClub} more across club</>
               )}
-            </div>
+            </p>
           )}
         </div>
         <ToggleGroup
@@ -192,20 +192,20 @@ export function ClubDaySummary({
           size="sm"
           value={scope}
           onValueChange={(v) => v && setScope(v as "my" | "club")}
-          className="shrink-0 self-start"
+          className="shrink-0 self-start opacity-80"
         >
           <ToggleGroupItem
             value="my"
-            className="h-6 px-2 text-[11px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/80"
+            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
           >
-            <Users className="h-3 w-3" />
+            <Users className="h-2.5 w-2.5" />
             My teams
           </ToggleGroupItem>
           <ToggleGroupItem
             value="club"
-            className="h-6 px-2 text-[11px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/80"
+            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
           >
-            <Building2 className="h-3 w-3" />
+            <Building2 className="h-2.5 w-2.5" />
             Whole club
           </ToggleGroupItem>
         </ToggleGroup>
