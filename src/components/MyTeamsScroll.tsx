@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar } from "lucide-react";
+import { Users, Calendar, Image } from "lucide-react";
 import { getCachedTeam, cacheTeams } from "@/lib/clubTeamCache";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 
@@ -20,6 +20,13 @@ interface TeamOrLeague {
 interface NextEventInfo {
   label: string;
   dateLabel: string;
+}
+
+interface PhotoThumb {
+  id: string;
+  team_id: string;
+  image_url: string | null;
+  file_url: string | null;
 }
 
 function formatShortDate(dateStr: string): string {
@@ -203,6 +210,33 @@ export function MyTeamsScroll() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch latest photos for all teams (up to 3 per team)
+  const { data: photoMap = {} } = useQuery({
+    queryKey: ["my-teams-photos", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {};
+      const { data } = await supabase
+        .from("photos")
+        .select("id, team_id, image_url, file_url")
+        .in("team_id", teamIds)
+        .eq("show_in_feed", true)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(teamIds.length * 3);
+
+      const map: Record<string, PhotoThumb[]> = {};
+      for (const photo of (data || [])) {
+        if (!map[photo.team_id]) map[photo.team_id] = [];
+        if (map[photo.team_id].length < 3) {
+          map[photo.team_id].push(photo);
+        }
+      }
+      return map;
+    },
+    enabled: teamIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (isLoading) {
     return (
       <section className="space-y-2">
@@ -224,10 +258,14 @@ export function MyTeamsScroll() {
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {items.map((item) => {
           const nextEvent = nextEvents[item.id];
+          const photos = item.type === "team" ? (photoMap[item.id] || []) : [];
+          const hasPhotos = photos.length > 0;
 
           return (
-            <button
+            <div
               key={`${item.type}-${item.id}`}
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 if (item.type === "team") {
                   navigate(`/teams/${item.id}`);
@@ -235,7 +273,17 @@ export function MyTeamsScroll() {
                   navigate(`/mini-leagues/${item.id}`);
                 }
               }}
-              className="shrink-0 w-[180px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (item.type === "team") {
+                    navigate(`/teams/${item.id}`);
+                  } else {
+                    navigate(`/mini-leagues/${item.id}`);
+                  }
+                }
+              }}
+              className="shrink-0 w-[180px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97] cursor-pointer select-none"
             >
               {item.logo_url ? (
                 <LogoImage
@@ -268,7 +316,48 @@ export function MyTeamsScroll() {
               ) : (
                 <span className="text-[10px] text-muted-foreground">No upcoming</span>
               )}
-            </button>
+
+              {/* Photo strip — secondary tap target to gallery */}
+              {hasPhotos && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/media?team=${item.id}`);
+                  }}
+                  className="mt-1 flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 hover:bg-muted transition-colors active:scale-95"
+                >
+                  <div className="flex -space-x-1">
+                    {photos.map((photo) => {
+                      const src = photo.image_url || photo.file_url;
+                      return (
+                        <div
+                          key={photo.id}
+                          className="relative h-5 w-5 rounded-sm overflow-hidden border border-background ring-1 ring-border/40"
+                        >
+                          {src ? (
+                            <img
+                              src={src}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-muted flex items-center justify-center">
+                              <Image className="h-2.5 w-2.5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-medium leading-none">
+                    {photos.length > 1 ? `${photos.length} new` : "Gallery"}
+                  </span>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
