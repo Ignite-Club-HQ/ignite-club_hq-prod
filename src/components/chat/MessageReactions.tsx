@@ -246,7 +246,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     WebkitUserSelect: "none",
                     userSelect: "none",
                   }}
-                  className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation outline-none focus:outline-none ${
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
