@@ -178,8 +178,11 @@ export function ChatSendButton({
       >
         <span
           className={cn(
-            "flex items-center justify-center h-9 w-9 rounded-full bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12),0_2px_6px_-2px_hsl(var(--primary)/0.45)] group-hover:bg-primary/95 group-active:bg-primary/90 group-disabled:bg-muted/70 group-disabled:text-muted-foreground/50 group-disabled:shadow-none transition-all duration-150 ease-out",
-            pressing && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
+            "flex items-center justify-center h-9 w-9 rounded-full transition-all duration-200 ease-out",
+            canSend
+              ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12),0_2px_6px_-2px_hsl(var(--primary)/0.45)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
+              : "bg-transparent text-muted-foreground/60 shadow-none scale-90",
+            pressing && canSend && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           )}
         >
           {loading ? (
