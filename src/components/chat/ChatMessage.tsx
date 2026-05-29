@@ -552,6 +552,7 @@ function ChatMessageInner({
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
+      markLongPressOnboardingCompleted();
     }, 400);
   }, [armDismissGuard]);
 
