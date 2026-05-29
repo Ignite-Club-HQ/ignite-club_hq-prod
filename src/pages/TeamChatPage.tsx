@@ -13,7 +13,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus, ChevronRight } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
