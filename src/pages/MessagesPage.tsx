@@ -21,6 +21,7 @@ import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messages
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
