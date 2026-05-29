@@ -615,13 +615,12 @@ function ChatMessageInner({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else {
-      // Short tap on a text bubble is intentionally a no-op — long press is the
-      // primary interaction for message actions (WhatsApp / iMessage parity).
-      // Surface a contextual hint the first few times so users discover the
-      // new interaction without permanent instructional UI.
-      maybeShowTapHintToast();
     }
+    // Short tap on a text bubble is intentionally a no-op — long press is the
+    // primary interaction for message actions. Discovery is handled by the
+    // dismissible in-chat banner (ChatActionsOnboardingBanner); we no longer
+    // fire a bottom-center toast here because it overlapped the bottom nav
+    // and could appear stuck/unresponsive on Android.
     // Inner content (images, links, polls, file cards) keeps its own tap
     // handlers because we no longer call preventDefault on the short-tap path.
 
