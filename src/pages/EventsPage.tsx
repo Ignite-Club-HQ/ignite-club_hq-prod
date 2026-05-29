@@ -693,7 +693,7 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="py-3 space-y-3">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
