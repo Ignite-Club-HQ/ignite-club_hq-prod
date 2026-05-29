@@ -30,7 +30,7 @@ export const MessageReadAvatars = memo(function MessageReadAvatars({
 
   return (
     <div
-      className={`flex items-center gap-1.5 mt-1 px-0.5 ${isOwn ? "justify-end" : ""}`}
+      className={`flex items-center gap-1.5 mt-0.5 px-0.5 ${isOwn ? "justify-end" : ""}`}
     >
       <div className="flex items-center -space-x-1.5">
         {visible.map((reader) => {
@@ -57,7 +57,7 @@ export const MessageReadAvatars = memo(function MessageReadAvatars({
           </span>
         )}
       </div>
-      <span className="text-[10px] text-muted-foreground/70 tracking-tight">
+      <span className="text-[10px] text-muted-foreground/55 tracking-tight tabular-nums">
         {label}
       </span>
     </div>
