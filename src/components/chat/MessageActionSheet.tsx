@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2, Forward } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { stripMentionFormatting } from "@/lib/messagePreview";
 import {
   Sheet,
   SheetContent,
@@ -143,7 +144,8 @@ export function MessageActionSheet({
   }
 
   if (messageText) {
-    const isMessageCopied = copiedText === messageText;
+    const cleanMessageText = stripMentionFormatting(messageText);
+    const isMessageCopied = copiedText === cleanMessageText;
     primary.push({
       id: "copy-message",
       label: isMessageCopied ? "Copied!" : "Copy",
@@ -151,8 +153,8 @@ export function MessageActionSheet({
         ? <Check className="h-[18px] w-[18px] text-primary" />
         : <Copy className="h-[18px] w-[18px]" />,
       onClick: () => {
-        navigator.clipboard.writeText(messageText).then(() => {
-          setCopiedText(messageText);
+        navigator.clipboard.writeText(cleanMessageText).then(() => {
+          setCopiedText(cleanMessageText);
         }).catch(() => {
           setCopiedText(null);
         });
