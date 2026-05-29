@@ -708,7 +708,7 @@ export default function VaultPage() {
       }
       
       // Execute query with filters - use type assertion to avoid deep type instantiation
-      let query: any = supabase.from("vault_folders").select("*");
+      let query: any = supabase.from("vault_folders").select("*").is("deleted_at", null);
       
       for (const [key, value] of Object.entries(filters)) {
         query = query.eq(key, value);
@@ -2657,7 +2657,7 @@ export default function VaultPage() {
     const { data: folderFiles } = await filesQuery;
 
     // Fetch subfolders
-    let subfoldersQuery = supabase.from("vault_folders").select("*");
+    let subfoldersQuery = supabase.from("vault_folders").select("*").is("deleted_at", null);
     if (teamId) {
       subfoldersQuery = subfoldersQuery.eq("team_id", teamId);
     } else if (clubId) {
