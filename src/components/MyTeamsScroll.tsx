@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Image } from "lucide-react";
+import { Users, Calendar, Image, ChevronRight } from "lucide-react";
 import { getCachedTeam, cacheTeams } from "@/lib/clubTeamCache";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 
