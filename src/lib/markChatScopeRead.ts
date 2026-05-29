@@ -99,101 +99,46 @@ export function markChatScopeNotificationsRead({
 
   // 3: background DB UPDATE (fire-and-forget — do NOT await)
   void (async () => {
-    let q = supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", userId)
-      .eq("is_read", false);
-
-    switch (scope.kind) {
-      case "broadcast":
-        q = q.eq("type", "broadcast");
-        break;
-      case "team":
-        // Must scope by related_id — otherwise opening one team chat clears
-        // unread notifications for EVERY team the user is in.
-        q = q.eq("type", "team_message").eq("related_id", scope.teamId);
-        break;
-      case "club":
-        q = q.eq("type", "club_message").eq("related_id", scope.clubId);
-        break;
-      case "group":
-        q = q.eq("type", "group_message").eq("related_id", scope.groupId);
-        break;
-      case "dm":
-        q = q.eq("type", "direct_message").eq("related_id", scope.conversationId);
-        break;
-    }
-
     try {
-      await q;
-    } catch (err) {
-      console.warn("[markChatScopeNotificationsRead] update failed", err);
-    }
-
-    // 3b: also clear message_reply / message_mention notifications whose
-    // related message belongs to this scope. Without this, opening a chat
-    // leaves these notifications behind — the bell + Messages tab badges
-    // "snap back" to a non-zero count after the realtime UPDATE → invalidate
-    // → server refetch round-trip completes.
-    try {
-      const scopeTable =
-        scope.kind === "team" ? "team_messages" :
-        scope.kind === "club" ? "club_messages" :
-        scope.kind === "group" ? "group_messages" :
-        scope.kind === "dm" ? "direct_messages" : null;
-      const scopeCol =
-        scope.kind === "team" ? "team_id" :
-        scope.kind === "club" ? "club_id" :
-        scope.kind === "group" ? "group_id" :
-        scope.kind === "dm" ? "conversation_id" : null;
+      // Single RPC handles the primary type + reply/mention/reaction/forward
+      // sweep correctly. The previous PostgREST update used
+      // .eq("related_id", scope.teamId) which matched ZERO rows because
+      // notifications.related_id for team/club/group_message is the *message*
+      // id, not the team/club/group id. That meant the badge always snapped
+      // back to its prior value after the inbox 30s refetch interval.
       const scopeId =
         scope.kind === "team" ? scope.teamId :
         scope.kind === "club" ? scope.clubId :
         scope.kind === "group" ? scope.groupId :
-        scope.kind === "dm" ? scope.conversationId : null;
+        scope.kind === "dm" ? scope.conversationId :
+        null;
 
-      if (scopeTable && scopeCol && scopeId) {
-        const { data: notifs } = await supabase
-          .from("notifications")
-          .select("id, related_id")
-          .eq("user_id", userId)
-          .eq("is_read", false)
-          .in("type", ["message_reply", "message_mention"]);
-
-        const relatedIds = Array.from(
-          new Set((notifs ?? []).map((n: any) => n.related_id).filter(Boolean))
-        ) as string[];
-
-        if (relatedIds.length > 0) {
-          const { data: scopedMsgs } = await (supabase as any)
-            .from(scopeTable)
-            .select("id")
-            .eq(scopeCol, scopeId)
-            .in("id", relatedIds);
-
-          const scopedSet = new Set<string>((scopedMsgs ?? []).map((m: any) => m.id));
-          const notifIdsToMark = (notifs ?? [])
-            .filter((n: any) => scopedSet.has(n.related_id))
-            .map((n: any) => n.id as string);
-
-          if (notifIdsToMark.length > 0) {
-            await supabase
-              .from("notifications")
-              .update({ is_read: true })
-              .in("id", notifIdsToMark);
-            decrementUnreadCount(notifIdsToMark.length);
-            queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
-              typeof old === "number" ? Math.max(0, old - notifIdsToMark.length) : old
-            );
-            queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
-              typeof old === "number" ? Math.max(0, old - notifIdsToMark.length) : old
-            );
-          }
+      const { data: affected, error } = await (supabase as any).rpc(
+        "mark_chat_scope_notifications_read",
+        {
+          _user_id: userId,
+          _scope_kind: scope.kind,
+          _scope_id: scopeId,
         }
+      );
+
+      if (error) {
+        console.warn("[markChatScopeNotificationsRead] rpc failed", error);
+      } else if (typeof affected === "number" && affected > scopeCount) {
+        // Server cleared more than our optimistic decrement (reply/mention
+        // notifications weren't counted in the per-scope cache). Catch the
+        // bell + club badges up so they don't snap upward later.
+        const delta = affected - scopeCount;
+        decrementUnreadCount(delta);
+        queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
+          typeof old === "number" ? Math.max(0, old - delta) : old
+        );
+        queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
+          typeof old === "number" ? Math.max(0, old - delta) : old
+        );
       }
     } catch (err) {
-      console.warn("[markChatScopeNotificationsRead] reply/mention sweep failed", err);
+      console.warn("[markChatScopeNotificationsRead] rpc threw", err);
     }
 
     // 4: reconcile (covers any drift if the optimistic count was off, and
@@ -203,10 +148,8 @@ export function markChatScopeNotificationsRead({
     } catch { }
     queryClient.invalidateQueries({ queryKey: ["unread-message-counts", userId] });
     queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-    // Keep total in sync if anything else was watching it.
     const post = queryClient.getQueryData<UnreadMessageCounts>(cacheKey);
     if (post) {
-      // no-op; getTotalUnreadMessageCount available for callers that want it
       void getTotalUnreadMessageCount(post);
     }
   })();
