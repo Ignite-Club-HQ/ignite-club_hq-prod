@@ -576,12 +576,18 @@ export default function ClubAdminChatPage() {
 
   const handleSend = () => {
     // Flush IME composition before reading composer state (see TeamChatPage).
+    // Re-focus on next tick so the keyboard stays open and the thread does
+    // not jump upward after sending.
     const ae = document.activeElement as HTMLElement | null;
     if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
       ae.blur();
-      setTimeout(handleSend, 0);
+      setTimeout(() => {
+        handleSend();
+        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
+      }, 0);
       return;
     }
+
     if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
