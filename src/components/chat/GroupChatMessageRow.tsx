@@ -420,7 +420,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 <Clock className="h-3 w-3" />
               </span>
             )}
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
               {format(new Date(msg.created_at), "HH:mm")}
             </span>
           </div>
@@ -566,12 +566,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               <MessageReadAvatars readers={frontierReaders} isOwn={true} />
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5">
+            <div className="mt-0.5 px-0.5">
               <span
-                className={`text-[10px] text-muted-foreground ${(readCounts[msg.id] || 0) > 0 ? "cursor-pointer underline" : ""}`}
+                className={`text-[10px] text-muted-foreground/55 tracking-tight ${(readCounts[msg.id] || 0) > 0 ? "cursor-pointer" : ""}`}
                 onClick={(readCounts[msg.id] || 0) > 0 ? () => setShowReadReceipts(true) : undefined}
               >
-                {(readCounts[msg.id] || 0) > 0 ? `Read by ${readCounts[msg.id]}` : "Sent"}
+                {(readCounts[msg.id] || 0) > 0 ? `Seen by ${readCounts[msg.id]}` : "Sent"}
               </span>
             </div>
           ) : null}
@@ -593,6 +593,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               userId={userId}
               toggleReactionMutation={toggleReactionMutation}
               messageId={msg.id}
+              isOwn={isOwnMessage}
             />
           )}
 
@@ -706,11 +707,13 @@ function GroupReactionBadges({
   userId,
   toggleReactionMutation,
   messageId,
+  isOwn = false,
 }: {
   messageReactions: any[];
   userId?: string;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
+  isOwn?: boolean;
 }) {
   const [viewingType, setViewingType] = useState<string | null>(null);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
@@ -724,7 +727,14 @@ function GroupReactionBadges({
 
   return (
     <>
-      <div className="relative z-10 flex flex-wrap gap-1 mt-1">
+      {/* Tapback-style overlap: pills sit on the bubble's bottom edge and
+          hug the sender side, matching ChatMessage so reactions feel
+          attached rather than floating beneath the bubble. */}
+      <div
+        className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+          isOwn ? "justify-end" : "justify-start"
+        }`}
+      >
         {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
           const userReaction = items.find((r: any) => r.user_id === userId);
           const emoji = normalizeGroupReactionType(type);
@@ -735,12 +745,16 @@ function GroupReactionBadges({
                 e.stopPropagation();
                 setViewingType(type);
               }}
-              className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
-                userReaction ? "bg-primary/15 text-primary" : "bg-muted/80 text-foreground/75 hover:bg-muted"
+              className={`inline-flex items-center gap-[3px] h-[22px] pl-1.5 pr-2 rounded-full text-[11px] leading-none border transition-colors shadow-[0_2px_4px_-2px_rgba(0,0,0,0.18)] ring-1 ring-background ${
+                userReaction
+                  ? "bg-primary/12 text-primary border-primary/30"
+                  : "bg-card text-foreground/80 border-border/60 hover:bg-muted"
               }`}
             >
-              <span className="text-[12px] leading-none">{emoji}</span>
-              <span className="tabular-nums">{items.length}</span>
+              <span className="text-[13px] leading-none -mt-px">{emoji}</span>
+              {items.length > 1 && (
+                <span className="tabular-nums font-semibold">{items.length}</span>
+              )}
             </button>
           );
         })}
