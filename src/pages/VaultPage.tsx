@@ -708,7 +708,7 @@ export default function VaultPage() {
       }
       
       // Execute query with filters - use type assertion to avoid deep type instantiation
-      let query: any = supabase.from("vault_folders").select("*");
+      let query: any = supabase.from("vault_folders").select("*").is("deleted_at", null);
       
       for (const [key, value] of Object.entries(filters)) {
         query = query.eq(key, value);
