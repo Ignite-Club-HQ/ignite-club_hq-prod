@@ -423,7 +423,7 @@ Deno.serve(async (req) => {
                   name: folder.name,
                   club_id: folder.club_id,
                   team_id: folder.team_id,
-                  parent_folder_id: folder.parent_folder_id,
+                  parent_id: folder.parent_id ?? folder.parent_folder_id ?? null,
                   created_by: user.id,
                 });
                 totalRestored++;
