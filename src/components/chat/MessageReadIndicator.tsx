@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { Eye } from "lucide-react";
 
 interface MessageReadIndicatorProps {
   readCount: number;
@@ -6,20 +7,30 @@ interface MessageReadIndicatorProps {
   readerName?: string | null;
 }
 
+/**
+ * Compact inline read state shown next to a timestamp when avatar clusters
+ * aren't available (e.g. non-last own messages). Uses warm, human phrasing
+ * ("Seen by …") with a small eye glyph to feel social rather than technical.
+ * Deliberately avoids WhatsApp-style ticks.
+ */
 export const MessageReadIndicator = memo(function MessageReadIndicator({
   readCount,
   isOwn,
   readerName,
 }: MessageReadIndicatorProps) {
-  // Only show for own messages
   if (!isOwn) return null;
 
-  const label = readCount > 0
-    ? readerName ? `Read by ${readerName}` : `Read by ${readCount}`
-    : "Sent";
+  if (readCount <= 0) {
+    return <span className="text-[10px] text-muted-foreground/70 ml-1">Sent</span>;
+  }
+
+  const label = readerName
+    ? `Seen by ${readerName.split(" ")[0]}`
+    : `Seen by ${readCount}`;
 
   return (
-    <span className="text-[10px] text-muted-foreground ml-1">
+    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/80 ml-1">
+      <Eye className="h-2.5 w-2.5 opacity-70" strokeWidth={2.25} />
       {label}
     </span>
   );
