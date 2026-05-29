@@ -3,17 +3,21 @@
 // initials-based avatars feel intentional and personal — every member
 // gets the same colour every time, across DMs / team / group chats.
 
+// Muted, slightly desaturated palette — avatars support identification
+// without dominating sender name or bubble. Each pair is a tonal gradient
+// (low contrast within the chip) so initials read clearly and the chip
+// doesn't pull focus from message content.
 const PALETTES: Array<{ from: string; to: string; fg: string }> = [
-  { from: "#FF6B6B", to: "#EE5A6F", fg: "#ffffff" }, // coral
-  { from: "#F59E0B", to: "#F97316", fg: "#ffffff" }, // amber
-  { from: "#10B981", to: "#059669", fg: "#ffffff" }, // emerald
-  { from: "#06B6D4", to: "#0EA5E9", fg: "#ffffff" }, // cyan
-  { from: "#3B82F6", to: "#6366F1", fg: "#ffffff" }, // indigo
-  { from: "#8B5CF6", to: "#A855F7", fg: "#ffffff" }, // violet
-  { from: "#EC4899", to: "#D946EF", fg: "#ffffff" }, // pink
-  { from: "#14B8A6", to: "#22C55E", fg: "#ffffff" }, // teal-green
-  { from: "#EAB308", to: "#F59E0B", fg: "#1f1300" }, // gold
-  { from: "#64748B", to: "#475569", fg: "#ffffff" }, // slate
+  { from: "#B86B6B", to: "#9E5560", fg: "#ffffff" }, // dusty rose
+  { from: "#B8895A", to: "#A06E45", fg: "#ffffff" }, // warm clay
+  { from: "#6B9E7A", to: "#52806A", fg: "#ffffff" }, // sage
+  { from: "#5A95A8", to: "#467A8E", fg: "#ffffff" }, // muted teal
+  { from: "#6B82B3", to: "#52679A", fg: "#ffffff" }, // dusty blue
+  { from: "#8576AC", to: "#6F5E96", fg: "#ffffff" }, // soft violet
+  { from: "#A876A4", to: "#8E5F8E", fg: "#ffffff" }, // muted plum
+  { from: "#6FA08D", to: "#558877", fg: "#ffffff" }, // seafoam
+  { from: "#B89968", to: "#9E8050", fg: "#ffffff" }, // ochre
+  { from: "#7A8896", to: "#5F6D7B", fg: "#ffffff" }, // slate
 ];
 
 function hash(input: string): number {
