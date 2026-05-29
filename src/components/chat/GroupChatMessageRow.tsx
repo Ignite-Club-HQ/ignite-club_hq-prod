@@ -186,6 +186,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
     }, 400);
   }, [armDismissGuard]);
 
@@ -256,18 +257,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — flash highlight then open action sheet
-      e.preventDefault();
-      e.stopPropagation();
-      setTapFlash(true);
-      hapticSelectionTick();
-      setTimeout(() => {
-        setTapFlash(false);
-        setShowMenu(true);
-        setShowActionSheet(true);
-      }, 200);
     }
+    // Short tap is a no-op on text bubbles — long press is the only path to
+    // message actions (WhatsApp / iMessage parity). Inner content keeps its
+    // own tap handlers since we no longer preventDefault on the short tap.
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
@@ -280,6 +273,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
+    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
   useEffect(() => {
@@ -736,11 +730,12 @@ function GroupReactionBadges({
 
   return (
     <>
-      {/* Tapback-style overlap: pills sit on the bubble's bottom edge and
-          hug the sender side, matching ChatMessage so reactions feel
-          attached rather than floating beneath the bubble. */}
+      {/* WhatsApp/Messenger-style: pills sit just BELOW the bubble with a
+          small consistent gap, hugging the sender side so they read as
+          attached to the bubble without overlapping its shadow / rounded
+          corners or the timestamp row that follows. */}
       <div
-        className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+        className={`relative z-10 flex flex-wrap gap-[3px] mt-1 mb-1 px-0.5 ${
           isOwn ? "justify-end" : "justify-start"
         }`}
       >

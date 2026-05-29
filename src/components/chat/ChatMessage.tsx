@@ -38,6 +38,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
+import { markLongPressOnboardingCompleted, maybeShowTapHintToast } from "@/hooks/useChatActionsOnboarding";
 
 interface Reaction {
   id: string;
@@ -550,6 +551,8 @@ function ChatMessageInner({
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
+      markLongPressOnboardingCompleted();
     }, 400);
   }, [armDismissGuard]);
 
@@ -612,18 +615,15 @@ function ChatMessageInner({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — flash highlight then open action sheet
-      e.preventDefault();
-      e.stopPropagation();
-      setTapFlash(true);
-      hapticSelectionTick();
-      setTimeout(() => {
-        setTapFlash(false);
-        setShowMenu(true);
-        setShowActionSheet(true);
-      }, 200);
+    } else {
+      // Short tap on a text bubble is intentionally a no-op — long press is the
+      // primary interaction for message actions (WhatsApp / iMessage parity).
+      // Surface a contextual hint the first few times so users discover the
+      // new interaction without permanent instructional UI.
+      maybeShowTapHintToast();
     }
+    // Inner content (images, links, polls, file cards) keeps its own tap
+    // handlers because we no longer call preventDefault on the short-tap path.
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
@@ -664,6 +664,7 @@ function ChatMessageInner({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
+    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
 
@@ -771,8 +772,7 @@ function ChatMessageInner({
     <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
-          style={{ animationDuration: '120ms' }}
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-in fade-in-0 duration-200 ease-out"
           onClick={(e) => {
             // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
             if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
@@ -909,16 +909,11 @@ function ChatMessageInner({
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
-              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
-              style={isInteracting ? (() => {
-                const isDark = document.documentElement.classList.contains('dark');
-                return {
-                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.08)',
-                  filter: isDark
-                    ? (isOwn ? 'brightness(1.08) saturate(1.03)' : 'brightness(1.08)')
-                    : (isOwn ? 'brightness(1.06)' : 'brightness(0.97)'),
-                };
-              })() : undefined}
+              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${
+                isInteracting
+                  ? "ring-2 ring-primary/45 ring-offset-0 shadow-[0_14px_32px_-16px_rgba(0,0,0,0.38),0_3px_8px_-3px_rgba(0,0,0,0.14)] scale-[1.015] brightness-[1.02] dark:brightness-[1.08]"
+                  : ""
+              } transition-[transform,box-shadow,filter] duration-200 ease-out will-change-transform`}
               onPointerDown={(e) => e.preventDefault()}
               onContextMenu={(e) => e.preventDefault()}
               onDragStart={(e) => e.preventDefault()}
@@ -1111,7 +1106,7 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] text-muted-foreground/55 mt-0.5 px-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-0.5 px-1 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
 
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">

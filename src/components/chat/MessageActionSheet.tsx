@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2, Forward } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { stripMentionFormatting } from "@/lib/messagePreview";
 import {
   Sheet,
   SheetContent,
@@ -74,7 +75,8 @@ interface MessageActionSheetProps {
   onReact?: (emoji: string) => void;
 }
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+// Reactions intentionally live in the floating pill above the bubble, not in
+// this sheet. See MessageReactionsPopover for the quick-reaction emoji set.
 
 export function MessageActionSheet({
   open,
@@ -142,7 +144,8 @@ export function MessageActionSheet({
   }
 
   if (messageText) {
-    const isMessageCopied = copiedText === messageText;
+    const cleanMessageText = stripMentionFormatting(messageText);
+    const isMessageCopied = copiedText === cleanMessageText;
     primary.push({
       id: "copy-message",
       label: isMessageCopied ? "Copied!" : "Copy",
@@ -150,8 +153,8 @@ export function MessageActionSheet({
         ? <Check className="h-[18px] w-[18px] text-primary" />
         : <Copy className="h-[18px] w-[18px]" />,
       onClick: () => {
-        navigator.clipboard.writeText(messageText).then(() => {
-          setCopiedText(messageText);
+        navigator.clipboard.writeText(cleanMessageText).then(() => {
+          setCopiedText(cleanMessageText);
         }).catch(() => {
           setCopiedText(null);
         });
@@ -294,7 +297,7 @@ export function MessageActionSheet({
   const renderAction = (action: MessageAction) => (
     <button
       key={action.id}
-      className={`w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
+      className={`w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium active:bg-muted transition-colors ${
         action.destructive ? "text-destructive" : "text-foreground"
       }`}
       onClick={() => {
@@ -314,40 +317,27 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        className="px-0 pt-0 pb-0 rounded-t-2xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0"
+        className="px-0 pt-1 pb-1 rounded-t-3xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-12px_32px_-16px_rgba(0,0,0,0.22)] dark:shadow-[0_-12px_32px_-12px_rgba(0,0,0,0.55)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
-        {/* Quick reactions row — only shown when caller provides onReact */}
-        {onReact && !showMore && (
-          <div className="flex items-center justify-around px-3 pt-3 pb-2">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                className="h-10 w-10 flex items-center justify-center rounded-full text-2xl active:scale-90 active:bg-muted transition-transform"
-                onClick={() => {
-                  handleOpenChange(false);
-                  requestAnimationFrame(() => onReact(emoji));
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Reactions intentionally live in the floating pill ABOVE the selected
+            message (MessageReactionsPopover). They are never duplicated here:
+            the action sheet is the dedicated "functional" container, separate
+            from the social/reactions container. */}
 
-        <div className="py-1.5">
+        <div className="py-0">
           {!showMore ? (
             <>
               {primary.map(renderAction)}
               {hasMore && (
                 <>
                   {primary.length > 0 && (
-                    <div className="my-0.5 mx-5 border-t border-border/30" />
+                    <div className="mx-4 border-t border-border/30" />
                   )}
                   <button
-                    className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                    className="w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
                     onClick={() => setShowMore(true)}
                   >
                     <MoreHorizontal className="h-[18px] w-[18px]" />
@@ -359,20 +349,20 @@ export function MessageActionSheet({
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                className="w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
                 onClick={() => setShowMore(false)}
               >
                 <ChevronLeft className="h-[18px] w-[18px]" />
                 Back
               </button>
-              <div className="my-0.5 mx-5 border-t border-border/30" />
+              <div className="mx-4 border-t border-border/30" />
               {secondary.map(renderAction)}
             </>
           )}
 
           {copiedText && (
-            <div className="mx-5 mt-2 mb-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20">
-              <p className="text-xs text-muted-foreground mb-0.5">Copied to clipboard:</p>
+            <div className="mx-5 mt-1.5 mb-1.5 p-2 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-[11px] text-muted-foreground mb-0.5">Copied to clipboard:</p>
               <p className="text-sm text-foreground truncate">{copiedText}</p>
             </div>
           )}

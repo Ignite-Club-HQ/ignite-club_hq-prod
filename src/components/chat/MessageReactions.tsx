@@ -83,15 +83,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const minPickerWidth = 244;
-      const pickerWidth = Math.max(minPickerWidth, Math.min(rect.width, 320));
-      const pickerHeight = 44;
+      const pickerWidth = 236; // hugs 6 emojis @ 32px + tight padding
+      const pickerHeight = 40;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 0;
+      const gap = 6;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
-      const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
+      const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
 
       const unclampedTop = showBelow
         ? rect.bottom + gap
@@ -101,7 +100,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
+      // Center over bubble for a Messenger/WhatsApp feel, with a gentle bias
+      // toward the sender side so it doesn't drift off-screen on narrow bubbles.
+      const bubbleCenter = rect.left + rect.width / 2;
+      let left = bubbleCenter - pickerWidth / 2;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
@@ -200,9 +202,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
-        {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-popover / bg-muted. */}
-        <div className="dark:bg-popover bg-muted dark:border dark:border-border/20 border border-black/[0.03] rounded-2xl px-1.5 py-1 shadow-none dark:shadow-sm animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150">
-          <div className="flex justify-around">
+        {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
+        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1.5 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
+          <div className="flex items-center justify-between gap-0.5">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -215,15 +217,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchStart={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // Ignore touches that arrive within 500ms of the picker opening
-                    // to prevent accidental selection from the long-press finger lift
                     if (Date.now() - mountedAtRef.current < 500) return;
                     triggerEmojiSelection(type);
                   }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // Also trigger on touchEnd as fallback, but with the same guard
                     if (Date.now() - mountedAtRef.current < 500) return;
                   }}
                   onPointerDown={(e) => {
@@ -246,7 +245,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     WebkitUserSelect: "none",
                     userSelect: "none",
                   }}
-                  className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation outline-none focus:outline-none ${
+                  className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-[17px] leading-none shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
@@ -314,14 +313,13 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        {/* Anchored tapback-style: pills overlap the bubble's bottom edge by
-            ~8px and hug the sender side, so they read as "attached to this
-            bubble" rather than floating in the gap above the timestamp.
-            Consistent for text / image / file / long messages because they
-            always render in the bubble's own column. Solid surfaces only
-            (no blur) per WebView perf rule. */}
+        {/* WhatsApp/Messenger-style: pills sit just BELOW the bubble (not
+            overlapping its shadow/rounded corners) with a small consistent
+            gap, hugging the sender side. Bottom margin keeps the pill from
+            crowding the timestamp / read receipt row that follows. Solid
+            surfaces only (no blur) per WebView perf rule. */}
         <div
-          className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+          className={`relative z-10 flex flex-wrap gap-[3px] mt-1 mb-1 px-0.5 ${
             isOwn ? "justify-end" : "justify-start"
           }`}
         >

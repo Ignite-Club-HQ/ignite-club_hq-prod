@@ -10088,6 +10088,13 @@ export type Database = {
         }[]
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
+      prune_old_diagnostic_logs: {
+        Args: never
+        Returns: {
+          activity_logs_deleted: number
+          push_logs_deleted: number
+        }[]
+      }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
       quick_rsvp_from_dm: {
@@ -10316,6 +10323,65 @@ export type Database = {
           id: string
           is_valid: boolean
         }[]
+      }
+      vault_user_has_club_role_scope:
+        | {
+            Args: { _club_id: string; _roles: string[]; _user_id: string }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _club_id: string
+              _roles: Database["public"]["Enums"]["app_role"][]
+              _team_id: string
+              _user_id: string
+            }
+            Returns: boolean
+          }
+      vault_user_has_club_scope:
+        | { Args: { _club_id: string; _user_id: string }; Returns: boolean }
+        | {
+            Args: { _club_id: string; _team_id: string; _user_id: string }
+            Returns: boolean
+          }
+      vault_user_has_file_club_role_scope: {
+        Args: {
+          _club_id: string
+          _folder_id: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _team_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      vault_user_has_file_team_role_scope: {
+        Args: {
+          _folder_id: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _team_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      vault_user_has_mini_league_role_scope: {
+        Args: {
+          _mini_league_id: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      vault_user_has_team_role_scope: {
+        Args: {
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _team_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      vault_user_has_team_scope: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
       }
     }
     Enums: {
