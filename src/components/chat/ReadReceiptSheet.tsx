@@ -99,22 +99,27 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
               const roleQueries: Promise<any>[] = [];
               if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
                 roleQueries.push(
-                  supabase
-                    .from("user_roles")
-                    .select("user_id")
-                    .eq("club_id", groupInfo.club_id)
-                    .in("role", groupInfo.allowed_roles)
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("club_id", groupInfo.club_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
                 );
               }
               if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
                 roleQueries.push(
-                  supabase
-                    .from("user_roles")
-                    .select("user_id")
-                    .eq("team_id", groupInfo.team_id)
-                    .in("role", groupInfo.allowed_roles)
+                  Promise.resolve(
+                    supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("team_id", groupInfo.team_id)
+                      .in("role", groupInfo.allowed_roles)
+                  )
                 );
               }
+
               const roleResults = await Promise.all(roleQueries);
               for (const res of roleResults) {
                 for (const r of res.data || []) memberIds.add((r as any).user_id);
