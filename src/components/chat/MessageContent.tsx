@@ -367,8 +367,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onPointerDown={stopMediaGesture}
         >
           <div
-            className="relative w-full aspect-[4/3] bg-muted/40"
-            style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            className="relative w-full bg-muted/40"
+            style={{ aspectRatio: naturalAspect ? String(naturalAspect) : '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
