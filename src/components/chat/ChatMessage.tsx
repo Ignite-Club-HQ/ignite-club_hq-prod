@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackStyle, getAvatarInitial } from "@/lib/avatarColor";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { removeMessageFromCache } from "@/lib/messageCache";
