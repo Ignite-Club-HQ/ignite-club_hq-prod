@@ -74,7 +74,8 @@ interface MessageActionSheetProps {
   onReact?: (emoji: string) => void;
 }
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+// Reactions intentionally live in the floating pill above the bubble, not in
+// this sheet. See MessageReactionsPopover for the quick-reaction emoji set.
 
 export function MessageActionSheet({
   open,
@@ -319,23 +320,10 @@ export function MessageActionSheet({
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
-        {/* Quick reactions row — only shown when caller provides onReact */}
-        {onReact && !showMore && (
-          <div className="flex items-center justify-around px-3 pt-3 pb-2">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                className="h-10 w-10 flex items-center justify-center rounded-full text-2xl active:scale-90 active:bg-muted transition-transform"
-                onClick={() => {
-                  handleOpenChange(false);
-                  requestAnimationFrame(() => onReact(emoji));
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Reactions intentionally live in the floating pill ABOVE the selected
+            message (MessageReactionsPopover). They are never duplicated here:
+            the action sheet is the dedicated "functional" container, separate
+            from the social/reactions container. */}
 
         <div className="py-1.5">
           {!showMore ? (

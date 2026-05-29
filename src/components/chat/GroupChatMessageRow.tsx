@@ -256,18 +256,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — flash highlight then open action sheet
-      e.preventDefault();
-      e.stopPropagation();
-      setTapFlash(true);
-      hapticSelectionTick();
-      setTimeout(() => {
-        setTapFlash(false);
-        setShowMenu(true);
-        setShowActionSheet(true);
-      }, 200);
     }
+    // Short tap is a no-op on text bubbles — long press is the only path to
+    // message actions (WhatsApp / iMessage parity). Inner content keeps its
+    // own tap handlers since we no longer preventDefault on the short tap.
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
