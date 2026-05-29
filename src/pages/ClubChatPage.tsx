@@ -1580,7 +1580,7 @@ export default function ClubChatPage() {
               loading={sendMutation.isPending}
               canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
             />
-          </div>
+          </ChatComposerShell>
           {scheduleTarget && (
             <ScheduleMessageDialog
               open={scheduleDialogOpen}
