@@ -687,7 +687,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS, segments, displayValue]);
 
   return (
-    <div ref={containerRef} className="relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ml-1">
+    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ${bare ? "" : "ml-1"}`}>
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="w-full min-w-0 max-w-full max-h-28 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
