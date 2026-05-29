@@ -28,6 +28,10 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
+import {
+  installChatScrollIntentTracking,
+  isViewportUserActive,
+} from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 
@@ -937,9 +941,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   const handleScroll = useCallback(() => {
-    if (bottomPinReadyRef.current) {
-      userHasScrolledAfterPinRef.current = true;
-    }
+    if (!bottomPinReadyRef.current) return;
+    // Only treat a scroll event as "user scrolled away" when there is a real
+    // user gesture behind it. Programmatic `scrollToIndex` snaps (initial
+    // pin, stay-pinned re-anchor, follow-output) also dispatch scroll events
+    // and would otherwise permanently disable the post-reveal stay-pinned
+    // guard — leaving the last message hidden behind the composer after
+    // late avatar/image hydration on first cold-cache open.
+    if (!isViewportUserActive(scrollerElRef.current)) return;
+    userHasScrolledAfterPinRef.current = true;
   }, []);
 
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
@@ -973,9 +983,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const repinIfAtBottom = () => {
       pendingFrame = null;
       if (cancelled) return;
+      // Hand off the viewport to the user the moment a real gesture lands.
+      if (isViewportUserActive(viewport)) return;
       // Stop once the user has actively scrolled away from the bottom.
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
-      if (!atBottomRef.current) return;
+      // NOTE: deliberately do NOT bail on `!atBottomRef.current` alone.
+      // Late-hydrating avatars / link previews / reactions grow row heights
+      // AFTER reveal; Virtuoso then reports we're no longer at bottom — but
+      // that's the exact drift this guard exists to correct. As long as no
+      // real user gesture is active, re-pinning is safe.
       const sh = viewport.scrollHeight;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
@@ -1151,6 +1167,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Window targets don't apply for the inline Virtuoso scroller, so we
       // only retain HTMLElement instances.
       scrollerElRef.current = element instanceof HTMLElement ? element : null;
+      // Track real user gestures (touch / wheel) on the viewport so the
+      // post-pin stay-pinned guard can distinguish a user-driven scroll
+      // away from programmatic snaps + content-growth driven `atBottom`
+      // flips. Without this, the very first programmatic `scrollToIndex`
+      // after reveal fires a `scroll` event that we'd mistakenly count as
+      // "user scrolled away".
+      installChatScrollIntentTracking(scrollerElRef.current);
       debugAttachScrollerWatcher(element);
       scrollerRef?.(element);
     },
