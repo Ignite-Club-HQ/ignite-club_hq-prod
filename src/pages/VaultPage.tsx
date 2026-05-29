@@ -2657,7 +2657,7 @@ export default function VaultPage() {
     const { data: folderFiles } = await filesQuery;
 
     // Fetch subfolders
-    let subfoldersQuery = supabase.from("vault_folders").select("*");
+    let subfoldersQuery = supabase.from("vault_folders").select("*").is("deleted_at", null);
     if (teamId) {
       subfoldersQuery = subfoldersQuery.eq("team_id", teamId);
     } else if (clubId) {
