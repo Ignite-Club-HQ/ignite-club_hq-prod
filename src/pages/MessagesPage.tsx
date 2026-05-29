@@ -796,12 +796,35 @@ export default function MessagesPage() {
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Perf: pre-filter via SECURITY DEFINER RPC that returns just the
+      // accessible group ids (scope-table lookup), then do a PK select on
+      // chat_groups. Avoids per-row RLS policy evaluation on inbox cold load.
+      // Kill-switch: localStorage.msg_accessible_ids_rpc = "0" to bypass.
+      let accessibleIds: string[] | null = null;
+      try {
+        if (typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0") {
+          const { data: ids, error: idsErr } = await (supabase as any).rpc(
+            "get_my_accessible_chat_group_ids",
+            { _user_id: user!.id }
+          );
+          if (!idsErr && Array.isArray(ids)) accessibleIds = ids as string[];
+        }
+      } catch {
+        accessibleIds = null;
+      }
+
+      if (accessibleIds && accessibleIds.length === 0) {
+        return { groups: [], latestMessages: {} };
+      }
+
+      let query = supabase
         .from("chat_groups")
         .select("*, teams(name), clubs(name, logo_url), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (accessibleIds) query = query.in("id", accessibleIds);
+      const { data, error } = await query;
+
       
       const groups = data || [];
       
