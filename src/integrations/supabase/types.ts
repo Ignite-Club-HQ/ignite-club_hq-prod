@@ -10088,6 +10088,13 @@ export type Database = {
         }[]
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
+      prune_old_diagnostic_logs: {
+        Args: never
+        Returns: {
+          activity_logs_deleted: number
+          push_logs_deleted: number
+        }[]
+      }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
       quick_rsvp_from_dm: {
