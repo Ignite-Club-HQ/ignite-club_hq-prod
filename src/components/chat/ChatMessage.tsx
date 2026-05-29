@@ -903,11 +903,12 @@ function ChatMessageInner({
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
-              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"} transition-transform duration-200 ease-out`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
-                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.08)',
+                  boxShadow: '0 10px 28px -14px rgba(0,0,0,0.32), 0 2px 6px -2px rgba(0,0,0,0.12)',
+                  transform: 'translateY(-2px)',
                   filter: isDark
                     ? (isOwn ? 'brightness(1.08) saturate(1.03)' : 'brightness(1.08)')
                     : (isOwn ? 'brightness(1.06)' : 'brightness(0.97)'),
