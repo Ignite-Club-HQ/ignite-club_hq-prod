@@ -801,16 +801,16 @@ function ChatMessageInner({
         null
       ) : isClubAnnouncement && !authorAvatar ? (
         groupedWithPrev ? (
-          <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+          <div className="h-9 w-9 shrink-0" aria-hidden="true" />
         ) : (
-          <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
-            <Megaphone className="h-4 w-4 text-primary-foreground" />
+          <div className="h-9 w-9 shrink-0 rounded-full bg-primary flex items-center justify-center">
+            <Megaphone className="h-[18px] w-[18px] text-primary-foreground" />
           </div>
         )
       ) : groupedWithPrev ? (
         // Incoming follow-up message in a group: reserve the avatar slot
         // so bubbles stay vertically aligned, but don't repeat the avatar.
-        <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+        <div className="h-9 w-9 shrink-0" aria-hidden="true" />
       ) : (
         <button
           type="button"
@@ -822,14 +822,15 @@ function ChatMessageInner({
           className="shrink-0 rounded-full disabled:cursor-default"
           aria-label={displayName ? `Open ${displayName} profile actions` : "Open profile actions"}
         >
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-9 w-9 ring-1 ring-border/40">
             <AvatarImage src={authorAvatar || undefined} />
-            <AvatarFallback className="text-xs">
+            <AvatarFallback className="text-[13px] font-semibold bg-muted text-muted-foreground">
               {displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </button>
       )}
+
       <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {/* Always reserve the name-row height for non-own, non-announcement
             messages so late profile hydration on first-ever open of a thread
@@ -858,7 +859,7 @@ function ChatMessageInner({
             // min-height locks ~16px (text-xs line-height) so the row exists
             // even before authorName resolves — no shift on hydration.
             style={{ minHeight: '16px' }}
-            className="text-xs mb-1 text-left text-muted-foreground disabled:cursor-default"
+            className="text-[11px] mb-1.5 text-left text-muted-foreground/80 font-medium disabled:cursor-default"
           >
             {displayName || "\u00A0"}
           </button>
@@ -1105,7 +1106,8 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10.5px] text-muted-foreground/60 mt-1 flex items-center gap-1 whitespace-nowrap overflow-hidden tabular-nums ${isOwn ? "justify-end" : ""}`}>
+
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
                 <Clock className="h-3 w-3" />
@@ -1134,7 +1136,7 @@ function ChatMessageInner({
                     <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
                   </div>
               )
-            : <p className={`text-[10px] text-muted-foreground/70 mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : <p className={`text-[10.5px] text-muted-foreground/60 mt-1 tabular-nums ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
