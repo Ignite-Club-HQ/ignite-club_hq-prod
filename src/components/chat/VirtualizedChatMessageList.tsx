@@ -983,9 +983,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const repinIfAtBottom = () => {
       pendingFrame = null;
       if (cancelled) return;
+      // Hand off the viewport to the user the moment a real gesture lands.
+      if (isViewportUserActive(viewport)) return;
       // Stop once the user has actively scrolled away from the bottom.
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
-      if (!atBottomRef.current) return;
+      // NOTE: deliberately do NOT bail on `!atBottomRef.current` alone.
+      // Late-hydrating avatars / link previews / reactions grow row heights
+      // AFTER reveal; Virtuoso then reports we're no longer at bottom — but
+      // that's the exact drift this guard exists to correct. As long as no
+      // real user gesture is active, re-pinning is safe.
       const sh = viewport.scrollHeight;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
