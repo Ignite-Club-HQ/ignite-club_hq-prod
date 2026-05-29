@@ -572,7 +572,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5 px-0.5 flex items-center gap-1 justify-end">
+            <div className="mt-0.5 px-0.5 flex items-center justify-end">
               <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
