@@ -17,12 +17,21 @@ interface ChatComposerShellProps {
  */
 export function ChatComposerShell({ children, className }: ChatComposerShellProps) {
   return (
-    <div className="px-2 pt-1 pb-1.5">
+    <div
+      className={cn(
+        // Subtle elevation lifts the composer off the conversation without a
+        // hard divider. Slightly more breathing room above + below than the
+        // previous flush row.
+        "px-2 pt-2 pb-2",
+        "border-t border-border/40",
+        "shadow-[0_-4px_12px_-10px_rgba(0,0,0,0.18)] dark:shadow-[0_-4px_12px_-10px_rgba(0,0,0,0.5)]",
+      )}
+    >
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible",
-          "rounded-[24px] bg-muted/55 dark:bg-muted/40",
-          "px-1 py-1 min-h-[44px]",
+          "flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible",
+          "rounded-[26px] bg-muted/55 dark:bg-muted/40",
+          "px-1.5 py-1 min-h-[52px]",
           "transition-[background-color,box-shadow] duration-150",
           "focus-within:bg-muted/70 dark:focus-within:bg-muted/55",
           "focus-within:ring-1 focus-within:ring-ring/40",
@@ -34,3 +43,4 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
     </div>
   );
 }
+
