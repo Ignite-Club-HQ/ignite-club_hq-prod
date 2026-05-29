@@ -186,6 +186,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
     }, 400);
   }, [armDismissGuard]);
 
