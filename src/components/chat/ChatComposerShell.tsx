@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { ChatActionsOnboardingBanner } from "./ChatActionsOnboardingBanner";
 
 interface ChatComposerShellProps {
   children: ReactNode;
