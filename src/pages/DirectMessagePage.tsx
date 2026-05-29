@@ -42,6 +42,7 @@ import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
@@ -1494,7 +1495,7 @@ export default function DirectMessagePage() {
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-                <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
+                <ChatComposerShell>
                 {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}
@@ -1511,6 +1512,7 @@ export default function DirectMessagePage() {
                   />
                 )}
                 <MentionInput
+                  bare
                   value={message}
                   onChange={(val) => {
                     setMessage(val);
@@ -1529,7 +1531,7 @@ export default function DirectMessagePage() {
                   loading={sendMessageMutation.isPending}
                   canSend={!!message.trim() || !!dmImageUrl}
                 />
-              </div>
+              </ChatComposerShell>
               {scheduleTarget && (
                 <ScheduleMessageDialog
                   open={scheduleDialogOpen}

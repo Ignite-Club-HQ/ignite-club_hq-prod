@@ -17,6 +17,7 @@ import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
@@ -1972,7 +1973,7 @@ export default function GroupChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
+        <ChatComposerShell>
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
@@ -1989,6 +1990,7 @@ export default function GroupChatPage() {
             hasText={!!message.trim()}
           />
           <MentionInput
+            bare
             value={message}
             onChange={(val) => {
               setMessage(val);
@@ -2018,7 +2020,7 @@ export default function GroupChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}

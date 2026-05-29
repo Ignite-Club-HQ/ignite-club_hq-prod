@@ -29,6 +29,12 @@ interface MentionInputProps {
   showEmojiPicker?: boolean;
   /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
   onGifSelect?: (gifUrl: string) => void;
+  /**
+   * When true, the input renders without its own pill background — the parent
+   * (ChatComposerShell) provides the unified container instead. Used by the
+   * redesigned WhatsApp/iMessage-style composer.
+   */
+  bare?: boolean;
 }
 
 interface SuggestedUser {
@@ -306,6 +312,7 @@ export function MentionInput({
   disableMentions = false,
   showEmojiPicker = true,
   onGifSelect,
+  bare = false,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
@@ -680,7 +687,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS, segments, displayValue]);
 
   return (
-    <div ref={containerRef} className="relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ml-1">
+    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ${bare ? "" : "ml-1"}`}>
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="w-full min-w-0 max-w-full max-h-28 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
@@ -761,7 +768,13 @@ export function MentionInput({
         </div>
       )}
 
-      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-9 ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150">
+      <div
+        className={
+          bare
+            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden pl-0.5 pr-0 min-h-9"
+            : "flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-9 ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150"
+        }
+      >
         {showEmojiPicker && (
           <div className="flex items-center justify-center h-9 -mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />

@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -1539,7 +1540,7 @@ export default function ClubChatPage() {
             />
           )}
           {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-          <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
+          <ChatComposerShell>
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
@@ -1556,6 +1557,7 @@ export default function ClubChatPage() {
               hasText={!!message.trim()}
             />
             <MentionInput
+              bare
               placeholder="Type a message..."
               value={message}
               onChange={(val) => {
@@ -1578,7 +1580,7 @@ export default function ClubChatPage() {
               loading={sendMutation.isPending}
               canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
             />
-          </div>
+          </ChatComposerShell>
           {scheduleTarget && (
             <ScheduleMessageDialog
               open={scheduleDialogOpen}

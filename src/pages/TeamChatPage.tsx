@@ -50,6 +50,7 @@ import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -1774,7 +1775,7 @@ export default function TeamChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
+        <ChatComposerShell>
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
@@ -1792,6 +1793,7 @@ export default function TeamChatPage() {
             hasText={!!message.trim()}
           />
           <MentionInput
+            bare
             placeholder="Type a message..."
             value={message}
             onChange={(val) => {
@@ -1815,7 +1817,7 @@ export default function TeamChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}

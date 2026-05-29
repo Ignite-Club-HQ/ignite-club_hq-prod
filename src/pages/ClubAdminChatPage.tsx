@@ -34,6 +34,7 @@ import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
@@ -884,9 +885,10 @@ export default function ClubAdminChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
+        <ChatComposerShell>
 
           <MentionInput
+            bare
             value={message}
             onChange={(val) => {
               setMessage(val);
@@ -905,7 +907,7 @@ export default function ClubAdminChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}
