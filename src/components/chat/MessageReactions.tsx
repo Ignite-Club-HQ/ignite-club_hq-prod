@@ -266,12 +266,14 @@ interface MessageReactionsDisplayProps {
   reactions?: Reaction[];
   currentUserId?: string;
   onReactionClick: (type: string, reactionId?: string) => void;
+  isOwn?: boolean;
 }
 
 export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   reactions = [],
   currentUserId,
   onReactionClick,
+  isOwn = false,
 }: MessageReactionsDisplayProps) {
   const [isOpen, setIsOpen] = useState(false);
 
