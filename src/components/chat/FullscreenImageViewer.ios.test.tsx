@@ -226,4 +226,14 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
     // built-in pinch/pan recognizer in a WebView.
     expect(root.style.touchAction).toBe("none");
   });
+
+  it("renders above chat sheets and shared-media dialogs", () => {
+    render();
+    const root = getPortalledGestureRoot(container);
+    expect(root).toBeTruthy();
+    // App dialogs use z-[1000001] and chat sheets use z-[100009]. Shared-media
+    // thumbnails can launch the fullscreen viewer from either surface, so the
+    // viewer must sit above both or taps appear to do nothing.
+    expect(root.className).toContain("z-[1000005]");
+  });
 });
