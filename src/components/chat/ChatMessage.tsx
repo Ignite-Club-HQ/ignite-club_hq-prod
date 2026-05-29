@@ -38,7 +38,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
-import { markLongPressOnboardingCompleted, maybeShowTapHintToast } from "@/hooks/useChatActionsOnboarding";
+import { markLongPressOnboardingCompleted } from "@/hooks/useChatActionsOnboarding";
 
 interface Reaction {
   id: string;
