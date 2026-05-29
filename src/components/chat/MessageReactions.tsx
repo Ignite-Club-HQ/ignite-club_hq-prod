@@ -200,8 +200,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
-        {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-popover / bg-muted. */}
-        <div className="dark:bg-popover bg-muted dark:border dark:border-border/20 border border-black/[0.03] rounded-2xl px-1.5 py-1 shadow-none dark:shadow-sm animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150">
+        {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
+        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
           <div className="flex justify-around">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
