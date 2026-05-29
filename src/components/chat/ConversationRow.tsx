@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronRight, BellOff, ImageIcon, Crown, Lock, EyeOff, Shield } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +15,12 @@ import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { useAuth } from "@/hooks/useAuth";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 
 // Lazy import to avoid cycle if MessagePreview imports something heavy.
 import { MessagePreview } from "@/components/chat/MessagePreview";
+
 
 export interface UnifiedConversationLike {
   type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
