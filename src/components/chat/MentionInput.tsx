@@ -29,6 +29,12 @@ interface MentionInputProps {
   showEmojiPicker?: boolean;
   /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
   onGifSelect?: (gifUrl: string) => void;
+  /**
+   * When true, the input renders without its own pill background — the parent
+   * (ChatComposerShell) provides the unified container instead. Used by the
+   * redesigned WhatsApp/iMessage-style composer.
+   */
+  bare?: boolean;
 }
 
 interface SuggestedUser {
