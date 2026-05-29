@@ -374,13 +374,18 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   const content = (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
+      className="fixed inset-0 z-[100000] bg-black flex items-center justify-center overscroll-none"
       style={{
         paddingTop: safeTop,
         paddingBottom: 'env(safe-area-inset-bottom)',
         touchAction: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
+        // Radix Dialog/Sheet sets pointer-events:none on <body> while open.
+        // Since the viewer is portalled to <body>, it inherits that and
+        // becomes click-through. Force pointer-events:auto so taps on the
+        // image (and overlay buttons) register when launched from a Sheet.
+        pointerEvents: 'auto',
       }}
       onClick={scale === 1 ? onClose : undefined}
       onDoubleClick={handleDoubleClick}
