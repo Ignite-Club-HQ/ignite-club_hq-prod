@@ -144,7 +144,7 @@ function ConversationRowImpl({
 
   if (item.type === 'support') {
     return (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="hover:border-primary/50 transition-colors" style={accentStyle}>
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
@@ -170,7 +170,7 @@ function ConversationRowImpl({
 
   if (item.type === 'club' && item.isLocked) {
     return (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="opacity-70 hover:border-primary/50 transition-colors">
           <CardContent className="py-3 px-2.5 flex items-center gap-2">
             <div className="relative">
@@ -209,7 +209,7 @@ function ConversationRowImpl({
     const isSupport = isIgniteSupportUser(conv?.other_user?.id);
 
     const dmCard = (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="hover:border-primary/50 transition-colors">
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
@@ -285,7 +285,7 @@ function ConversationRowImpl({
       <Card
         className="hover:border-primary/50 transition-colors cursor-pointer"
         style={accentStyle}
-        onClick={() => navigate(item.link)}
+        onClick={() => { handleOpen(); navigate(item.link); }}
         tabIndex={0}
         role="link"
       >
@@ -336,7 +336,7 @@ function ConversationRowImpl({
       <Card
         className="hover:border-primary/50 transition-colors cursor-pointer"
         style={accentStyle}
-        onClick={() => navigate(item.link)}
+        onClick={() => { handleOpen(); navigate(item.link); }}
         tabIndex={0}
         role="link"
       >
@@ -407,7 +407,7 @@ function ConversationRowImpl({
 
   // Club / Team default
   return (
-    <Link to={item.link}>
+    <Link to={item.link} onClick={handleOpen}>
       <Card className="hover:border-primary/50 transition-colors" style={accentStyle}>
         <CardContent className="py-[18px] px-3 flex items-center gap-3">
           <div className="shrink-0">
