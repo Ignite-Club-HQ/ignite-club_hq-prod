@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Capacitor } from "@capacitor/core";
 import {
   IOS_LAYOUT_RESET_EVENT,
