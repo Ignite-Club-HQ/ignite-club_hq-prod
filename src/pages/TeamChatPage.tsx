@@ -50,6 +50,7 @@ import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
