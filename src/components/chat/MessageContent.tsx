@@ -86,6 +86,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Reset image state when URL changes — but honour the decoded-cache so we
@@ -99,6 +100,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
+      const img = imgRef.current;
+      if (img.naturalWidth > 0) setNaturalAspect(img.naturalWidth / img.naturalHeight);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
       if (imageUrl) decodedImageUrls.add(imageUrl);
     }
@@ -229,8 +232,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
-  const handleImageLoad = useCallback(() => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
+    const el = e.currentTarget as HTMLImageElement & HTMLVideoElement;
+    const w = (el as HTMLImageElement).naturalWidth ?? (el as HTMLVideoElement).videoWidth;
+    const h = (el as HTMLImageElement).naturalHeight ?? (el as HTMLVideoElement).videoHeight;
+    if (w > 0 && h > 0) setNaturalAspect(w / h);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
   }, [effectiveImageUrl, imageUrl]);
@@ -360,8 +367,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onPointerDown={stopMediaGesture}
         >
           <div
-            className="relative w-full aspect-[4/3] bg-muted/40"
-            style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            className="relative w-full bg-muted/40"
+            style={{ aspectRatio: naturalAspect ? String(naturalAspect) : '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
@@ -403,7 +410,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-contain cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
