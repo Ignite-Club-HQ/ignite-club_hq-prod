@@ -10317,19 +10317,26 @@ export type Database = {
           is_valid: boolean
         }[]
       }
-      vault_user_has_club_role_scope: {
-        Args: {
-          _club_id: string
-          _roles: Database["public"]["Enums"]["app_role"][]
-          _team_id: string
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      vault_user_has_club_scope: {
-        Args: { _club_id: string; _team_id: string; _user_id: string }
-        Returns: boolean
-      }
+      vault_user_has_club_role_scope:
+        | {
+            Args: { _club_id: string; _roles: string[]; _user_id: string }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _club_id: string
+              _roles: Database["public"]["Enums"]["app_role"][]
+              _team_id: string
+              _user_id: string
+            }
+            Returns: boolean
+          }
+      vault_user_has_club_scope:
+        | { Args: { _club_id: string; _user_id: string }; Returns: boolean }
+        | {
+            Args: { _club_id: string; _team_id: string; _user_id: string }
+            Returns: boolean
+          }
       vault_user_has_file_club_role_scope: {
         Args: {
           _club_id: string
