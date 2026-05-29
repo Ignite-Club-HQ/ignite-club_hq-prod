@@ -73,28 +73,27 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
         let membersPromise: Promise<string[]> = Promise.resolve([]);
         if (needsMembers) {
           if (messageType === "team") {
-            membersPromise = supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("team_id", contextId)
-              .then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("team_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
           } else if (messageType === "club") {
-            membersPromise = supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("club_id", contextId)
-              .then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
+            membersPromise = Promise.resolve(
+              supabase.from("user_roles").select("user_id").eq("club_id", contextId)
+            ).then(({ data }) => [...new Set((data || []).map((r: any) => r.user_id))]);
           } else if (messageType === "group") {
             membersPromise = (async () => {
               const memberIds = new Set<string>();
               const [gmRes, giRes] = await Promise.all([
-                supabase.from("group_members").select("user_id").eq("group_id", contextId),
-                supabase
-                  .from("chat_groups")
-                  .select("club_id, team_id, allowed_roles")
-                  .eq("id", contextId)
-                  .maybeSingle(),
+                Promise.resolve(supabase.from("group_members").select("user_id").eq("group_id", contextId)),
+                Promise.resolve(
+                  supabase
+                    .from("chat_groups")
+                    .select("club_id, team_id, allowed_roles")
+                    .eq("id", contextId)
+                    .maybeSingle()
+                ),
               ]);
+
               for (const r of gmRes.data || []) memberIds.add((r as any).user_id);
               const groupInfo = giRes.data as any;
               const roleQueries: Promise<any>[] = [];
