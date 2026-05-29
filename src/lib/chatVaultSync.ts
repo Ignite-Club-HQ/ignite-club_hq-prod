@@ -204,7 +204,8 @@ async function getOrCreateFolder(
     .eq("name", folderName)
     .is("parent_id", null)
     .is("chat_group_id", null)
-    .is("restricted_roles", null);
+    .is("restricted_roles", null)
+    .is("deleted_at", null);
 
   if (teamId) {
     query = query.eq("team_id", teamId);
