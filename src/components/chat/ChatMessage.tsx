@@ -858,7 +858,7 @@ function ChatMessageInner({
             // min-height locks ~16px (text-xs line-height) so the row exists
             // even before authorName resolves — no shift on hydration.
             style={{ minHeight: '16px' }}
-            className="text-xs mb-1 text-left text-muted-foreground disabled:cursor-default"
+            className="text-[11px] mb-1.5 text-left text-muted-foreground/80 font-medium disabled:cursor-default"
           >
             {displayName || "\u00A0"}
           </button>
