@@ -277,14 +277,19 @@ async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
       // scope, a second link to the same Drive (or any link sharing Drive IDs
       // with an earlier link) would silently re-use folders that live under a
       // different vault root, leaving the new link's tree empty of subfolders.
-      const { data: existingFolder } = await supabase
+      // NB: use limit(1) + maybeSingle (not .maybeSingle() alone) so that legacy
+      // duplicate rows for the same drive_folder_id don't make this lookup return
+      // null (which would trigger yet another duplicate insert every cron run).
+      const { data: existingFolders } = await supabase
         .from('vault_folders')
         .select('id')
         .eq('club_id', link.club_id)
         .eq('parent_id', vaultId)
         .eq('drive_folder_id', sub.id)
         .is('deleted_at', null)
-        .maybeSingle();
+        .order('created_at', { ascending: true })
+        .limit(1);
+      const existingFolder = existingFolders?.[0] ?? null;
 
       let subVaultId: string;
       if (existingFolder) {
