@@ -9959,6 +9959,7 @@ export type Database = {
         Args: { _club_id: string; _team_id: string }
         Returns: boolean
       }
+      is_vault_admin: { Args: { _user_id: string }; Returns: boolean }
       join_open_chat_group: { Args: { _group_id: string }; Returns: string }
       list_club_parents_for_team: {
         Args: { p_team_id: string }
