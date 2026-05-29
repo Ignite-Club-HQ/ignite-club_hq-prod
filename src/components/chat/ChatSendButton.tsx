@@ -181,15 +181,15 @@ export function ChatSendButton({
             "flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 ease-out",
             canSend
               ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.18),0_4px_10px_-3px_hsl(var(--primary)/0.55)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
-              : "bg-transparent text-muted-foreground/50 shadow-none scale-90",
+              : "bg-transparent text-muted-foreground/85 shadow-none scale-95",
             pressing && canSend && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           )}
         >
           {loading ? (
-            <Loader2 className="h-[19px] w-[19px] animate-spin" strokeWidth={2.25} />
+            <Loader2 className="h-[20px] w-[20px] animate-spin" strokeWidth={2.4} />
           ) : (
             // Optical nudge: Send icon's visual mass sits right-of-center, so shift left ~1px
-            <Send className="h-[19px] w-[19px] -ml-px" strokeWidth={2.25} />
+            <Send className="h-[20px] w-[20px] -ml-px" strokeWidth={2.4} />
           )}
         </span>
       </button>
