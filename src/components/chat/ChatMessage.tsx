@@ -550,6 +550,7 @@ function ChatMessageInner({
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
     }, 400);
   }, [armDismissGuard]);
 
@@ -657,6 +658,7 @@ function ChatMessageInner({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
+    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
 
