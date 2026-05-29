@@ -83,15 +83,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const minPickerWidth = 244;
-      const pickerWidth = Math.max(minPickerWidth, Math.min(rect.width, 320));
-      const pickerHeight = 44;
+      const pickerWidth = 236; // hugs 6 emojis @ 32px + tight padding
+      const pickerHeight = 40;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 0;
+      const gap = 6;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
-      const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
+      const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
 
       const unclampedTop = showBelow
         ? rect.bottom + gap
@@ -101,7 +100,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
+      // Center over bubble for a Messenger/WhatsApp feel, with a gentle bias
+      // toward the sender side so it doesn't drift off-screen on narrow bubbles.
+      const bubbleCenter = rect.left + rect.width / 2;
+      let left = bubbleCenter - pickerWidth / 2;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
