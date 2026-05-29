@@ -86,6 +86,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Reset image state when URL changes — but honour the decoded-cache so we
@@ -99,6 +100,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
+      const img = imgRef.current;
+      if (img.naturalWidth > 0) setNaturalAspect(img.naturalWidth / img.naturalHeight);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
       if (imageUrl) decodedImageUrls.add(imageUrl);
     }
@@ -229,8 +232,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
-  const handleImageLoad = useCallback(() => {
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
+    const el = e.currentTarget as HTMLImageElement & HTMLVideoElement;
+    const w = (el as HTMLImageElement).naturalWidth ?? (el as HTMLVideoElement).videoWidth;
+    const h = (el as HTMLImageElement).naturalHeight ?? (el as HTMLVideoElement).videoHeight;
+    if (w > 0 && h > 0) setNaturalAspect(w / h);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
   }, [effectiveImageUrl, imageUrl]);
@@ -344,35 +351,24 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }
 
   return (
-    <div className="space-y-2 min-w-0 max-w-full">
-      {/* Image / video attachment */}
+    <div className={`min-w-0 max-w-full ${imageUrl ? "" : "space-y-2"}`}>
+      {/* Image / video attachment — full-bleed at the top of the bubble.
+          The parent bubble switches to p-0 when imageUrl is present, so
+          the image visually owns the top of the bubble (WhatsApp / iMessage
+          pattern) and the caption text below sits in its own padded area.
+          Width is set on this wrapper so the bubble has an intrinsic size
+          to grow into; aspect-[4/3] reserves height before decode so the
+          virtualised scroller doesn't shift. */}
       {imageUrl && !imageError && (
-        // Explicit width (NOT just max-width) is critical: the chat bubble
-        // sizes to its intrinsic content, and both the skeleton and the
-        // <img> below are `position:absolute` so they contribute zero
-        // intrinsic width. Without `width: 240px` the wrapper collapses to
-        // 0×0 and the image bubble appears as a tiny grey blob — most
-        // visible under virtuoso, where rows mount fresh on every scroll.
         <div
-          className="rounded-lg overflow-hidden"
-          // touchAction: 'pan-y' tells the browser that vertical scrolls
-          // initiated on the image should pass through to the chat scroller
-          // — without it iOS treats the tappable image as a gesture target
-          // and momentum-scrolling halts the moment the user's finger
-          // crosses an image while flicking through history.
-          style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y', overflowAnchor: 'none' }}
+          className="w-full"
+          style={{ width: 300, maxWidth: '100%', touchAction: 'pan-y', overflowAnchor: 'none' }}
           onTouchStart={stopMediaGesture}
           onPointerDown={stopMediaGesture}
         >
-          {/* Fixed-aspect frame so the bubble reserves its final height
-              BEFORE the image decodes. Skeleton + image share the same box
-              and the image fades in via opacity — no layout shift when
-              imageLoaded flips, no scrollHeight change when signed URLs
-              resolve later. This is what keeps history scroll anchored
-              while images above the viewport hydrate. */}
           <div
-            className="relative w-full aspect-square bg-muted/40"
-            style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            className="relative w-full bg-muted/40"
+            style={{ aspectRatio: naturalAspect ? String(naturalAspect) : '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
@@ -408,17 +404,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   ref={imgRef}
                   src={effectiveImageUrl}
                   alt="Attachment"
-                  width={240}
-                  height={180}
+                  width={300}
+                  height={225}
                   decoding="async"
-                  // Eager loading prevents virtuoso row remounts from
-                  // re-triggering the lazy intersection observer, which is
-                  // what causes images to "shake" / flash when scrolling
-                  // through history at speed.
                   loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-contain cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
@@ -449,7 +441,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       {/* Text content - render caption text; poll/event tokens render as empty spans inline */}
       {text && parts.some(p => (p.type === "text" || p.type === "link" || p.type === "markdown-link" || p.type === "mention") && p.content && p.content.trim()) && (
         <div
-          className="min-w-0 max-w-full whitespace-pre-wrap"
+          className={`min-w-0 max-w-full whitespace-pre-wrap ${imageUrl ? "px-3.5 pt-2 pb-1.5 leading-relaxed" : ""}`}
           style={{
             overflowWrap: 'break-word',
             wordBreak: 'break-word',
@@ -461,6 +453,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onContextMenu={(e) => e.preventDefault()}
           onMouseDown={(e) => e.preventDefault()}
         >
+
           {parts.length === 0 ? (
             // Fallback: render text as-is if parsing fails
             text

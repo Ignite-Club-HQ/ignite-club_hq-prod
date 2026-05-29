@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackStyle, getAvatarInitial } from "@/lib/avatarColor";
 import { Button } from "@/components/ui/button";
 import { Reply, Clock, Check, ImagePlus, Loader2, Forward } from "lucide-react";
 import {
@@ -21,6 +22,7 @@ import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { MessageReadAvatars } from "./MessageReadAvatars";
+import { MessageReadIndicator } from "./MessageReadIndicator";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
@@ -398,26 +400,31 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         {/* Outgoing messages never show the sender avatar — modern messaging
             apps rely on right-alignment + bubble colour for ownership cues. */}
         {!isOwnMessage && (
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarImage src={avatarUrl} />
-            <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
+          <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+            <AvatarImage src={avatarUrl} className="object-cover" />
+            <AvatarFallback
+              className="text-[13px] font-semibold tracking-tight"
+              style={getAvatarFallbackStyle(displayName)}
+            >
+              {getAvatarInitial(displayName)}
+            </AvatarFallback>
           </Avatar>
         )}
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-          <div className="flex items-center gap-2 mb-1">
-            {!isOwnMessage && (
-              <span className="text-xs font-medium">{displayName}</span>
-            )}
-            {msg.id.startsWith("queued-") && (
-              <span className="flex items-center text-amber-500" title="Pending sync">
-                <Clock className="h-3 w-3" />
+          {!isOwnMessage && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[12px] font-semibold text-foreground/85 tracking-[-0.005em]">{displayName}</span>
+              {msg.id.startsWith("queued-") && (
+                <span className="flex items-center text-amber-500" title="Pending sync">
+                  <Clock className="h-3 w-3" />
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+                {format(new Date(msg.created_at), "HH:mm")}
               </span>
-            )}
-            <span className="text-xs text-muted-foreground">
-              {format(new Date(msg.created_at), "HH:mm")}
-            </span>
-          </div>
+            </div>
+          )}
 
           <ReplyIndicator
             replyToMessage={replyPreview ? { text: replyPreview.text, authorName: replyPreview.author?.display_name || null } : null}
@@ -506,9 +513,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </div>
           </div>
           {/* Inline "Add to gallery" chip — only on own image messages */}
-          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && (
+          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && canPublishToGallery && onPublishToGallery && (
             <div className={`mt-1 flex h-7 items-center ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-              {canPublishToGallery && onPublishToGallery ? <button
+              <button
                 type="button"
                 disabled={isPublishingToGallery || isPublishedToGallery}
                 aria-busy={isPublishingToGallery || undefined}
@@ -547,7 +554,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       ? "In gallery"
                       : "Add to gallery"}
                 </span>
-              </button> : null}
+              </button>
             </div>
           )}
           {/* Link previews rendered outside the message bubble */}
@@ -556,16 +563,24 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
-            <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
-              <MessageReadAvatars readers={frontierReaders} isOwn={true} />
+            <div className="flex items-center gap-1.5 justify-end mt-0.5 px-0.5">
+              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+                {format(new Date(msg.created_at), "HH:mm")}
+              </span>
+              <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                <MessageReadAvatars readers={frontierReaders} isOwn={true} />
+              </div>
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5">
+            <div className="mt-0.5 px-0.5 flex items-center justify-end">
+              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+                {format(new Date(msg.created_at), "HH:mm")}
+              </span>
               <span
-                className={`text-[10px] text-muted-foreground ${(readCounts[msg.id] || 0) > 0 ? "cursor-pointer underline" : ""}`}
+                className={(readCounts[msg.id] || 0) > 0 ? "cursor-pointer" : ""}
                 onClick={(readCounts[msg.id] || 0) > 0 ? () => setShowReadReceipts(true) : undefined}
               >
-                {(readCounts[msg.id] || 0) > 0 ? `Read by ${readCounts[msg.id]}` : "Sent"}
+                <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
               </span>
             </div>
           ) : null}
@@ -587,6 +602,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               userId={userId}
               toggleReactionMutation={toggleReactionMutation}
               messageId={msg.id}
+              isOwn={isOwnMessage}
             />
           )}
 
@@ -700,11 +716,13 @@ function GroupReactionBadges({
   userId,
   toggleReactionMutation,
   messageId,
+  isOwn = false,
 }: {
   messageReactions: any[];
   userId?: string;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
+  isOwn?: boolean;
 }) {
   const [viewingType, setViewingType] = useState<string | null>(null);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
@@ -718,7 +736,14 @@ function GroupReactionBadges({
 
   return (
     <>
-      <div className="relative z-10 flex flex-wrap gap-1 mt-1">
+      {/* Tapback-style overlap: pills sit on the bubble's bottom edge and
+          hug the sender side, matching ChatMessage so reactions feel
+          attached rather than floating beneath the bubble. */}
+      <div
+        className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+          isOwn ? "justify-end" : "justify-start"
+        }`}
+      >
         {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
           const userReaction = items.find((r: any) => r.user_id === userId);
           const emoji = normalizeGroupReactionType(type);
@@ -729,12 +754,16 @@ function GroupReactionBadges({
                 e.stopPropagation();
                 setViewingType(type);
               }}
-              className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
-                userReaction ? "bg-primary/15 text-primary" : "bg-muted/80 text-foreground/75 hover:bg-muted"
+              className={`inline-flex items-center gap-[3px] h-[22px] pl-1.5 pr-2 rounded-full text-[11px] leading-none border transition-colors shadow-[0_2px_4px_-2px_rgba(0,0,0,0.18)] ring-1 ring-background ${
+                userReaction
+                  ? "bg-primary/12 text-primary border-primary/30"
+                  : "bg-card text-foreground/80 border-border/60 hover:bg-muted"
               }`}
             >
-              <span className="text-[12px] leading-none">{emoji}</span>
-              <span className="tabular-nums">{items.length}</span>
+              <span className="text-[13px] leading-none -mt-px">{emoji}</span>
+              {items.length > 1 && (
+                <span className="tabular-nums font-semibold">{items.length}</span>
+              )}
             </button>
           );
         })}

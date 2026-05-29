@@ -374,13 +374,20 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   const content = (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
+      className="fixed inset-0 z-[1000005] bg-black flex items-center justify-center overscroll-none"
       style={{
         paddingTop: safeTop,
         paddingBottom: 'env(safe-area-inset-bottom)',
         touchAction: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
+        // Radix Dialog/Sheet sets pointer-events:none on <body> while open.
+        // Since the viewer is portalled to <body>, it inherits that and
+        // becomes click-through. Force pointer-events:auto so taps on the
+        // image (and overlay buttons) register when launched from a Sheet/Dialog.
+        // Keep this above our Dialog z-[1000001] as shared-media thumbnails
+        // can launch it from ChatDetailsSheet and ChatMediaViewer.
+        pointerEvents: 'auto',
       }}
       onClick={scale === 1 ? onClose : undefined}
       onDoubleClick={handleDoubleClick}
@@ -417,7 +424,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           <DropdownMenuContent
             align="end"
             sideOffset={8}
-            className="z-[1000002] min-w-[180px]"
+            className="z-[1000006] min-w-[180px]"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}

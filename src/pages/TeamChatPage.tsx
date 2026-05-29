@@ -13,7 +13,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus, ChevronRight } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -50,6 +50,7 @@ import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
+import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -1604,13 +1605,17 @@ export default function TeamChatPage() {
         externalOpen={inviteSheetOpen}
         onExternalOpenChange={setInviteSheetOpen}
       />
-      {/* Inline invite banner below header */}
+      {/* Compact pinned invite utility — single row, low visual weight */}
       <button
         onClick={() => setInviteSheetOpen(true)}
-        className="flex items-center gap-2 mx-3 mt-2 mb-1 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/15 transition-colors w-fit"
+        aria-label={`Invite people to ${team.name}`}
+        className="group w-full flex items-center gap-2 px-3.5 py-1.5 bg-background border-b border-border/40 text-left touch-manipulation active:bg-muted/60 transition-colors shrink-0"
       >
-        <UserPlus className="h-3.5 w-3.5" />
-        + Invite to Team
+        <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
+        <span className="flex-1 min-w-0 text-[12.5px] text-foreground/80 truncate">
+          Invite to <span className="font-medium text-foreground">{team.name}</span>
+        </span>
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" strokeWidth={2} />
       </button>
 
 
@@ -1774,7 +1779,7 @@ export default function TeamChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
+        <ChatComposerShell>
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
@@ -1792,6 +1797,7 @@ export default function TeamChatPage() {
             hasText={!!message.trim()}
           />
           <MentionInput
+            bare
             placeholder="Type a message..."
             value={message}
             onChange={(val) => {
@@ -1815,7 +1821,7 @@ export default function TeamChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}

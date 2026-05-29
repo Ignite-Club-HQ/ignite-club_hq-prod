@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronRight, BellOff, ImageIcon, Crown, Lock, EyeOff, Shield } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +15,12 @@ import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { useAuth } from "@/hooks/useAuth";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 
 // Lazy import to avoid cycle if MessagePreview imports something heavy.
 import { MessagePreview } from "@/components/chat/MessagePreview";
+
 
 export interface UnifiedConversationLike {
   type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
@@ -63,12 +67,35 @@ function ConversationRowImpl({
   onHideGroup,
 }: Props) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user, decrementUnreadCount, refreshUnreadCount } = useAuth();
   const hasUnread = item.unreadCount > 0;
   const finalBadgeStyle = badgeStyle ?? { color: 'hsl(var(--muted-foreground) / 0.7)' };
 
+  // Mark notifications read immediately on row click so the bell + inbox
+  // badges clear without waiting for the destination chat page to mount.
+  const handleOpen = useCallback(() => {
+    if (!user) return;
+    let scope: Parameters<typeof markChatScopeNotificationsRead>[0]["scope"] | null = null;
+    if (item.type === "broadcast") scope = { kind: "broadcast" };
+    else if (item.type === "team") scope = { kind: "team", teamId: item.id };
+    else if (item.type === "club") scope = { kind: "club", clubId: item.id };
+    else if (item.type === "group" || item.type === "league") scope = { kind: "group", groupId: item.id };
+    else if (item.type === "dm") scope = { kind: "dm", conversationId: item.id };
+    if (!scope) return;
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope,
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, item.type, item.id, queryClient, decrementUnreadCount, refreshUnreadCount]);
+
   if (item.type === 'broadcast') {
     return (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
+
         <Card className="hover:border-primary/50 transition-colors bg-primary/5">
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
@@ -117,7 +144,7 @@ function ConversationRowImpl({
 
   if (item.type === 'support') {
     return (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="hover:border-primary/50 transition-colors" style={accentStyle}>
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
@@ -143,7 +170,7 @@ function ConversationRowImpl({
 
   if (item.type === 'club' && item.isLocked) {
     return (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="opacity-70 hover:border-primary/50 transition-colors">
           <CardContent className="py-3 px-2.5 flex items-center gap-2">
             <div className="relative">
@@ -182,7 +209,7 @@ function ConversationRowImpl({
     const isSupport = isIgniteSupportUser(conv?.other_user?.id);
 
     const dmCard = (
-      <Link to={item.link}>
+      <Link to={item.link} onClick={handleOpen}>
         <Card className="hover:border-primary/50 transition-colors">
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
@@ -258,7 +285,7 @@ function ConversationRowImpl({
       <Card
         className="hover:border-primary/50 transition-colors cursor-pointer"
         style={accentStyle}
-        onClick={() => navigate(item.link)}
+        onClick={() => { handleOpen(); navigate(item.link); }}
         tabIndex={0}
         role="link"
       >
@@ -309,7 +336,7 @@ function ConversationRowImpl({
       <Card
         className="hover:border-primary/50 transition-colors cursor-pointer"
         style={accentStyle}
-        onClick={() => navigate(item.link)}
+        onClick={() => { handleOpen(); navigate(item.link); }}
         tabIndex={0}
         role="link"
       >
@@ -380,7 +407,7 @@ function ConversationRowImpl({
 
   // Club / Team default
   return (
-    <Link to={item.link}>
+    <Link to={item.link} onClick={handleOpen}>
       <Card className="hover:border-primary/50 transition-colors" style={accentStyle}>
         <CardContent className="py-[18px] px-3 flex items-center gap-3">
           <div className="shrink-0">

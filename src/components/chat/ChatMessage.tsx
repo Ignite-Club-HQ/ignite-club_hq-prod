@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackStyle, getAvatarInitial } from "@/lib/avatarColor";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { removeMessageFromCache } from "@/lib/messageCache";
@@ -801,16 +802,16 @@ function ChatMessageInner({
         null
       ) : isClubAnnouncement && !authorAvatar ? (
         groupedWithPrev ? (
-          <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+          <div className="h-9 w-9 shrink-0" aria-hidden="true" />
         ) : (
-          <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
-            <Megaphone className="h-4 w-4 text-primary-foreground" />
+          <div className="h-9 w-9 shrink-0 rounded-full bg-primary flex items-center justify-center">
+            <Megaphone className="h-[18px] w-[18px] text-primary-foreground" />
           </div>
         )
       ) : groupedWithPrev ? (
         // Incoming follow-up message in a group: reserve the avatar slot
         // so bubbles stay vertically aligned, but don't repeat the avatar.
-        <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+        <div className="h-9 w-9 shrink-0" aria-hidden="true" />
       ) : (
         <button
           type="button"
@@ -822,14 +823,18 @@ function ChatMessageInner({
           className="shrink-0 rounded-full disabled:cursor-default"
           aria-label={displayName ? `Open ${displayName} profile actions` : "Open profile actions"}
         >
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={authorAvatar || undefined} />
-            <AvatarFallback className="text-xs">
-              {displayName.charAt(0).toUpperCase()}
+          <Avatar className="h-9 w-9 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+            <AvatarImage src={authorAvatar || undefined} className="object-cover" />
+            <AvatarFallback
+              className="text-[13px] font-semibold tracking-tight"
+              style={getAvatarFallbackStyle(displayName)}
+            >
+              {getAvatarInitial(displayName)}
             </AvatarFallback>
           </Avatar>
         </button>
       )}
+
       <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {/* Always reserve the name-row height for non-own, non-announcement
             messages so late profile hydration on first-ever open of a thread
@@ -858,7 +863,7 @@ function ChatMessageInner({
             // min-height locks ~16px (text-xs line-height) so the row exists
             // even before authorName resolves — no shift on hydration.
             style={{ minHeight: '16px' }}
-            className="text-xs mb-1 text-left text-muted-foreground disabled:cursor-default"
+            className="text-[12px] leading-tight mb-1 text-left text-foreground/85 font-semibold tracking-[-0.005em] disabled:cursor-default"
           >
             {displayName || "\u00A0"}
           </button>
@@ -900,7 +905,7 @@ function ChatMessageInner({
           >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
+                className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
@@ -920,7 +925,7 @@ function ChatMessageInner({
             >
               {forwardedFromUserId && (
                 <div
-                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${
+                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${imageUrl ? "px-4 pt-2" : ""} ${
                     isOwn && !isClubAnnouncement ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"
                   }`}
                 >
@@ -931,7 +936,7 @@ function ChatMessageInner({
                   </span>
                 </div>
               )}
-              <div className="text-sm min-w-0 max-w-full overflow-hidden">
+              <div className="text-sm min-w-0 max-w-full">
                 <MessageContent 
                   text={displayText} 
                   imageUrl={imageUrl} 
@@ -1097,6 +1102,7 @@ function ChatMessageInner({
           reactions={optimisticReactions}
           currentUserId={currentUserId}
           onReactionClick={handleReactionClick}
+          isOwn={isOwn}
         />
         
         {/* Per-bubble timestamp / inline read-state. Hidden on grouped
@@ -1105,7 +1111,8 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10px] text-muted-foreground/55 mt-0.5 px-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
+
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
                 <Clock className="h-3 w-3" />
@@ -1134,7 +1141,7 @@ function ChatMessageInner({
                     <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
                   </div>
               )
-            : <p className={`text-[10px] text-muted-foreground/70 mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : <p className={`text-[10px] text-muted-foreground/55 mt-0.5 px-0.5 tabular-nums tracking-tight ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet

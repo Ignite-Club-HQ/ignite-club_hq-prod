@@ -266,12 +266,14 @@ interface MessageReactionsDisplayProps {
   reactions?: Reaction[];
   currentUserId?: string;
   onReactionClick: (type: string, reactionId?: string) => void;
+  isOwn?: boolean;
 }
 
 export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   reactions = [],
   currentUserId,
   onReactionClick,
+  isOwn = false,
 }: MessageReactionsDisplayProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -312,11 +314,21 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <div className="relative z-10 flex flex-wrap gap-1 mt-1">
+        {/* Anchored tapback-style: pills overlap the bubble's bottom edge by
+            ~8px and hug the sender side, so they read as "attached to this
+            bubble" rather than floating in the gap above the timestamp.
+            Consistent for text / image / file / long messages because they
+            always render in the bubble's own column. Solid surfaces only
+            (no blur) per WebView perf rule. */}
+        <div
+          className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+            isOwn ? "justify-end" : "justify-start"
+          }`}
+        >
           {Object.entries(reactionCounts).map(([type, { count, reactions: typeReactions }]) => {
             const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
             const userReaction = typeReactions.find((r) => r.user_id === currentUserId);
-            
+
             return (
               <button
                 key={type}
@@ -324,18 +336,22 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                   e.stopPropagation();
                   setIsOpen(true);
                 }}
-                className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
+                aria-label={`${count} ${type} reaction${count === 1 ? "" : "s"}${userReaction ? ", you reacted" : ""}`}
+                className={`inline-flex items-center gap-[3px] h-[22px] pl-1.5 pr-2 rounded-full text-[11px] leading-none border transition-colors shadow-[0_2px_4px_-2px_rgba(0,0,0,0.18)] ring-1 ring-background ${
                   userReaction
-                    ? "bg-primary/15 text-primary"
-                    : "bg-muted/80 text-foreground/75 hover:bg-muted"
+                    ? "bg-primary/12 text-primary border-primary/30"
+                    : "bg-card text-foreground/80 border-border/60 hover:bg-muted"
                 }`}
               >
-                <span className="text-[12px] leading-none">{emoji}</span>
-                <span className="tabular-nums">{count}</span>
+                <span className="text-[13px] leading-none -mt-px">{emoji}</span>
+                {count > 1 && (
+                  <span className="tabular-nums font-semibold">{count}</span>
+                )}
               </button>
             );
           })}
         </div>
+
       </PopoverTrigger>
       <AllReactionsContent
         reactions={committed}

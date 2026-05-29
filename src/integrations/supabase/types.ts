@@ -9972,6 +9972,10 @@ export type Database = {
           name: string
         }[]
       }
+      mark_chat_scope_notifications_read: {
+        Args: { _scope_id?: string; _scope_kind: string; _user_id: string }
+        Returns: number
+      }
       mark_gallery_card_push_sent: {
         Args: { _card_id: string }
         Returns: undefined
