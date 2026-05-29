@@ -1106,7 +1106,7 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-1 px-0.5 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-0.5 px-1 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
 
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
