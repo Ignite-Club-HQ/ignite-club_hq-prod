@@ -295,7 +295,7 @@ export function MessageActionSheet({
   const renderAction = (action: MessageAction) => (
     <button
       key={action.id}
-      className={`w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
+      className={`w-full flex items-center gap-3.5 px-5 py-2 text-left text-[15px] font-medium active:bg-muted transition-colors ${
         action.destructive ? "text-destructive" : "text-foreground"
       }`}
       onClick={() => {
@@ -315,7 +315,7 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        className="px-0 pt-0 pb-0 rounded-t-2xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0"
+        className="px-0 pt-0 pb-0 rounded-t-3xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-12px_32px_-16px_rgba(0,0,0,0.22)] dark:shadow-[0_-12px_32px_-12px_rgba(0,0,0,0.55)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
@@ -325,7 +325,7 @@ export function MessageActionSheet({
             the action sheet is the dedicated "functional" container, separate
             from the social/reactions container. */}
 
-        <div className="py-1.5">
+        <div className="py-0.5">
           {!showMore ? (
             <>
               {primary.map(renderAction)}
@@ -335,7 +335,7 @@ export function MessageActionSheet({
                     <div className="my-0.5 mx-5 border-t border-border/30" />
                   )}
                   <button
-                    className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                    className="w-full flex items-center gap-3.5 px-5 py-2 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
                     onClick={() => setShowMore(true)}
                   >
                     <MoreHorizontal className="h-[18px] w-[18px]" />
@@ -347,7 +347,7 @@ export function MessageActionSheet({
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-3.5 px-5 py-2.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                className="w-full flex items-center gap-3.5 px-5 py-2 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
                 onClick={() => setShowMore(false)}
               >
                 <ChevronLeft className="h-[18px] w-[18px]" />
@@ -359,8 +359,8 @@ export function MessageActionSheet({
           )}
 
           {copiedText && (
-            <div className="mx-5 mt-2 mb-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20">
-              <p className="text-xs text-muted-foreground mb-0.5">Copied to clipboard:</p>
+            <div className="mx-5 mt-1.5 mb-1.5 p-2 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-[11px] text-muted-foreground mb-0.5">Copied to clipboard:</p>
               <p className="text-sm text-foreground truncate">{copiedText}</p>
             </div>
           )}
