@@ -312,11 +312,11 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <div className="relative z-10 flex flex-wrap gap-1 -mt-1.5 mx-1">
+        <div className="relative z-10 flex flex-wrap gap-1 mt-1.5">
           {Object.entries(reactionCounts).map(([type, { count, reactions: typeReactions }]) => {
             const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
             const userReaction = typeReactions.find((r) => r.user_id === currentUserId);
-
+            
             return (
               <button
                 key={type}
@@ -324,16 +324,14 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                   e.stopPropagation();
                   setIsOpen(true);
                 }}
-                className={`inline-flex items-center gap-1 pl-1.5 pr-2 py-[2px] rounded-full text-[11px] leading-none border ring-[1.5px] ring-background transition-colors ${
+                className={`inline-flex items-center gap-1 px-2 py-[3px] rounded-full text-[11.5px] leading-none border transition-colors shadow-[0_1px_2px_-1px_rgba(0,0,0,0.06)] ${
                   userReaction
-                    ? "bg-primary/12 text-primary border-primary/30"
+                    ? "bg-primary/12 text-primary border-primary/25"
                     : "bg-card text-foreground/80 border-border/60 hover:bg-muted"
                 }`}
               >
-                <span className="text-[12.5px] leading-none">{emoji}</span>
-                {count > 1 && (
-                  <span className="tabular-nums font-semibold text-[10.5px]">{count}</span>
-                )}
+                <span className="text-[13px] leading-none">{emoji}</span>
+                <span className="tabular-nums font-medium">{count}</span>
               </button>
             );
           })}
