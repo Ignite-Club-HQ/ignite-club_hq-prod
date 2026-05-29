@@ -553,7 +553,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       ? "In gallery"
                       : "Add to gallery"}
                 </span>
-              </button> : null}
+              </button>
             </div>
           )}
           {/* Link previews rendered outside the message bubble */}
