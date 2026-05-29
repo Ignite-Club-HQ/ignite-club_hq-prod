@@ -314,20 +314,20 @@ export function MyTeamsScroll() {
               {/* Divider + Gallery area — secondary tap target (teams only) */}
               {isTeam && (
                 <>
-                  <div className="h-px bg-border/70 mx-3" />
+                  <div className="h-px bg-border/60 mx-3" />
                   <button
                     type="button"
                     onClick={openGallery}
-                    className="flex items-center gap-2 px-3 py-2 bg-muted/20 hover:bg-muted/40 active:bg-muted/60 transition-colors w-full"
+                    className="group flex items-center gap-2 px-3 py-2 transition-colors w-full hover:bg-muted/30 active:bg-muted/50"
                   >
                     {hasPhotos ? (
-                      <div className="flex -space-x-1 shrink-0">
+                      <div className="flex -space-x-1.5 shrink-0">
                         {photos.map((photo) => {
                           const src = photo.image_url || photo.file_url;
                           return (
                             <div
                               key={photo.id}
-                              className="relative h-5 w-5 rounded-sm overflow-hidden border border-background ring-1 ring-border/40"
+                              className="relative h-5 w-5 rounded-sm overflow-hidden border-2 border-card ring-1 ring-border/30"
                             >
                               {src ? (
                                 <img
@@ -347,14 +347,14 @@ export function MyTeamsScroll() {
                         })}
                       </div>
                     ) : (
-                      <Image className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <Image className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
                     )}
-                    <span className="text-[10px] text-muted-foreground font-medium leading-none flex-1 text-left truncate">
+                    <span className="text-[10px] text-muted-foreground/80 font-medium leading-none flex-1 text-left truncate">
                       {hasPhotos
                         ? `View ${photos.length} new ${photos.length === 1 ? "photo" : "photos"}`
                         : "Team Gallery"}
                     </span>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 transition-all duration-200 group-hover:text-muted-foreground/70 group-hover:translate-x-0.5" />
                   </button>
                 </>
               )}
