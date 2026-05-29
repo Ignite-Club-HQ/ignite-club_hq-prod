@@ -28,6 +28,10 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
+import {
+  installChatScrollIntentTracking,
+  isViewportUserActive,
+} from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 
