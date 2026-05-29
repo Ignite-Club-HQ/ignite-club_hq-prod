@@ -512,9 +512,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </div>
           </div>
           {/* Inline "Add to gallery" chip — only on own image messages */}
-          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && (
+          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && canPublishToGallery && onPublishToGallery && (
             <div className={`mt-1 flex h-7 items-center ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-              {canPublishToGallery && onPublishToGallery ? <button
+              <button
                 type="button"
                 disabled={isPublishingToGallery || isPublishedToGallery}
                 aria-busy={isPublishingToGallery || undefined}
@@ -553,7 +553,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       ? "In gallery"
                       : "Add to gallery"}
                 </span>
-              </button> : null}
+              </button>
             </div>
           )}
           {/* Link previews rendered outside the message bubble */}
