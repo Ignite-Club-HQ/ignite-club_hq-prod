@@ -900,7 +900,7 @@ function ChatMessageInner({
           >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
+                className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
@@ -920,7 +920,7 @@ function ChatMessageInner({
             >
               {forwardedFromUserId && (
                 <div
-                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${
+                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${imageUrl ? "px-4 pt-2" : ""} ${
                     isOwn && !isClubAnnouncement ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"
                   }`}
                 >
@@ -931,7 +931,7 @@ function ChatMessageInner({
                   </span>
                 </div>
               )}
-              <div className="text-sm min-w-0 max-w-full overflow-hidden">
+              <div className="text-sm min-w-0 max-w-full">
                 <MessageContent 
                   text={displayText} 
                   imageUrl={imageUrl} 
