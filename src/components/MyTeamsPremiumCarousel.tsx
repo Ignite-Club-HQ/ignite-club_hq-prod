@@ -533,14 +533,12 @@ export function MyTeamsPremiumCarousel() {
 
   // Fetch unread message counts per team — use the SAME source as the
   // Messages inbox (notifications.is_read=false) so the team card and inbox
-  // never disagree. The previous direct team_messages/message_reads diff
-  // could over-report (e.g. message_reads not always inserted on viewing).
-  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
-    queryKey: ["team-unread-counts", teamIds, user?.id],
-    queryFn: async () => {
-      if (teamIds.length === 0 || !user?.id) return {};
-      const { fetchUnreadMessageCounts } = await import("@/lib/unreadMessageCounts");
-      const counts = await fetchUnreadMessageCounts(user.id);
+  // never disagree. Shared via useUnreadMessageCounts so the RPC is deduped
+  // with MessagesPage + BottomNav.
+  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useUnreadMessageCounts(user?.id, {
+    enabled: teamIds.length > 0,
+    placeholderData: (prev) => prev,
+    select: (counts) => {
       const map: Record<string, number> = {};
       for (const id of teamIds) {
         const n = counts.teams[id] ?? 0;
@@ -548,9 +546,6 @@ export function MyTeamsPremiumCarousel() {
       }
       return map;
     },
-    enabled: teamIds.length > 0 && !!user?.id,
-    staleTime: 60 * 1000,
-    placeholderData: (prev) => prev,
   });
 
   // Fetch members + avatars per team for the social fallback footer state.
