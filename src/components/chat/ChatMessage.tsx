@@ -1106,21 +1106,26 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10.5px] text-muted-foreground/60 mt-1 flex items-center gap-1 whitespace-nowrap overflow-hidden tabular-nums ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10.5px] text-muted-foreground/55 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden tabular-nums leading-none ${isOwn ? "justify-end pr-1" : "pl-1"}`}>
 
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
                 <Clock className="h-3 w-3" />
               </span>
             )}
-            {timestamp}
+            <span>{timestamp}</span>
             {!isPending && !isLastMessage && isOwn && readCount > 0 && (
               messageType === "dm" ? (
                 <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
               ) : (
-                <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                <button
+                  type="button"
+                  aria-label="View read receipts"
+                  className="inline-flex items-center"
+                  onClick={() => setShowReadReceipts(true)}
+                >
                   <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-                </span>
+                </button>
               )
             )}
             {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
@@ -1132,11 +1137,21 @@ function ChatMessageInner({
           readFrontierReaders.length > 0
             ? (messageType === "dm"
                 ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                : <button
+                    type="button"
+                    aria-label="View read receipts"
+                    className="self-stretch text-right"
+                    onClick={() => setShowReadReceipts(true)}
+                  >
                     <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                  </div>
+                  </button>
               )
-            : <p className={`text-[10.5px] text-muted-foreground/60 mt-1 tabular-nums ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : (
+              <p className={`mt-0.5 inline-flex items-center gap-1 text-[10.5px] text-muted-foreground/55 tabular-nums leading-none ${isOwn ? "self-end pr-1" : "self-start pl-1"}`}>
+                <span>{timestamp}</span>
+                <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+              </p>
+            )
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
