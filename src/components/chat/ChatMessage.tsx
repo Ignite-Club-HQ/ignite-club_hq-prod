@@ -612,18 +612,11 @@ function ChatMessageInner({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — flash highlight then open action sheet
-      e.preventDefault();
-      e.stopPropagation();
-      setTapFlash(true);
-      hapticSelectionTick();
-      setTimeout(() => {
-        setTapFlash(false);
-        setShowMenu(true);
-        setShowActionSheet(true);
-      }, 200);
     }
+    // Short tap on a text bubble is intentionally a no-op — long press is the
+    // primary interaction for message actions (WhatsApp / iMessage parity).
+    // Inner content (images, links, polls, file cards) keeps its own tap
+    // handlers because we no longer call preventDefault on the short-tap path.
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
