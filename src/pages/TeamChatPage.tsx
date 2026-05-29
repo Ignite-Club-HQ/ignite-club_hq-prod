@@ -1816,7 +1816,7 @@ export default function TeamChatPage() {
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
-        </div>
+        </ChatComposerShell>
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}
