@@ -314,14 +314,13 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        {/* Anchored tapback-style: pills overlap the bubble's bottom edge by
-            ~8px and hug the sender side, so they read as "attached to this
-            bubble" rather than floating in the gap above the timestamp.
-            Consistent for text / image / file / long messages because they
-            always render in the bubble's own column. Solid surfaces only
-            (no blur) per WebView perf rule. */}
+        {/* WhatsApp/Messenger-style: pills sit just BELOW the bubble (not
+            overlapping its shadow/rounded corners) with a small consistent
+            gap, hugging the sender side. Bottom margin keeps the pill from
+            crowding the timestamp / read receipt row that follows. Solid
+            surfaces only (no blur) per WebView perf rule. */}
         <div
-          className={`relative z-10 flex flex-wrap gap-[3px] -mt-2 mb-0.5 px-1 ${
+          className={`relative z-10 flex flex-wrap gap-[3px] mt-1 mb-1 px-0.5 ${
             isOwn ? "justify-end" : "justify-start"
           }`}
         >
