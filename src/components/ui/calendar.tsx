@@ -11,11 +11,11 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-1", className)}
+      className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row space-y-2 sm:space-x-4 sm:space-y-0 w-full",
-        month: "space-y-1 w-full",
-        caption: "flex justify-center relative items-center",
+        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
+        month: "space-y-4 w-full",
+        caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
@@ -24,11 +24,11 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
-        table: "w-full border-collapse",
+        table: "w-full border-collapse space-y-1",
         head_row: "flex w-full",
         head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] text-center",
-        row: "flex w-full mt-0.5",
-        cell: "flex-1 aspect-square text-center text-sm p-[1px] relative focus-within:relative focus-within:z-20",
+        row: "flex w-full mt-2",
+        cell: "flex-1 aspect-square text-center text-sm p-0.5 relative focus-within:relative focus-within:z-20",
         day: cn(buttonVariants({ variant: "ghost" }), "h-full w-full p-0 font-normal aria-selected:opacity-100 flex items-center justify-center rounded-full"),
         day_range_end: "day-range-end",
         day_selected:
