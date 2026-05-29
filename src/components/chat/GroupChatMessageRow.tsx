@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackStyle, getAvatarInitial } from "@/lib/avatarColor";
 import { Button } from "@/components/ui/button";
 import { Reply, Clock, Check, ImagePlus, Loader2, Forward } from "lucide-react";
 import {
@@ -398,9 +399,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         {/* Outgoing messages never show the sender avatar — modern messaging
             apps rely on right-alignment + bubble colour for ownership cues. */}
         {!isOwnMessage && (
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarImage src={avatarUrl} />
-            <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
+          <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+            <AvatarImage src={avatarUrl} className="object-cover" />
+            <AvatarFallback
+              className="text-[13px] font-semibold tracking-tight"
+              style={getAvatarFallbackStyle(displayName)}
+            >
+              {getAvatarInitial(displayName)}
+            </AvatarFallback>
           </Avatar>
         )}
 

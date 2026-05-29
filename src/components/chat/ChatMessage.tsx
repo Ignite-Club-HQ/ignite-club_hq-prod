@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackStyle, getAvatarInitial } from "@/lib/avatarColor";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { removeMessageFromCache } from "@/lib/messageCache";
@@ -822,10 +823,13 @@ function ChatMessageInner({
           className="shrink-0 rounded-full disabled:cursor-default"
           aria-label={displayName ? `Open ${displayName} profile actions` : "Open profile actions"}
         >
-          <Avatar className="h-9 w-9 ring-1 ring-border/40">
-            <AvatarImage src={authorAvatar || undefined} />
-            <AvatarFallback className="text-[13px] font-semibold bg-muted text-muted-foreground">
-              {displayName.charAt(0).toUpperCase()}
+          <Avatar className="h-9 w-9 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+            <AvatarImage src={authorAvatar || undefined} className="object-cover" />
+            <AvatarFallback
+              className="text-[13px] font-semibold tracking-tight"
+              style={getAvatarFallbackStyle(displayName)}
+            >
+              {getAvatarInitial(displayName)}
             </AvatarFallback>
           </Avatar>
         </button>
