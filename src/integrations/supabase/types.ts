@@ -9851,6 +9851,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_valid_team_invite_for_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _team_id: string
+        }
+        Returns: boolean
+      }
       hash_email: { Args: { email: string }; Returns: string }
       heartbeat_presence: {
         Args: { _platform?: string; _user_agent?: string }
