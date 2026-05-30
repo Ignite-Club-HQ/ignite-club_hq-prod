@@ -328,10 +328,12 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        // Tight top/bottom padding — sheet hugs its content rather than reading
-        // as a generic oversized bottom sheet.
-        className="px-0 pt-1 pb-0 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
-        style={{ zIndex: 100002 }}
+        // Raise the sheet ~32px off the bottom edge and round all corners so
+        // it reads as a secondary, floating panel — quieter than the reaction
+        // pill above the message. Tight vertical padding keeps it hugging its
+        // content so the full Reply row is visible the moment it opens.
+        className="mx-2 px-0 pt-1 pb-1 rounded-[24px] bg-muted/90 dark:bg-background/92 backdrop-blur-sm border-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
+        style={{ zIndex: 100002, bottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)", left: 8, right: 8 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
