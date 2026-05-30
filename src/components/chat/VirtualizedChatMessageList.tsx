@@ -605,6 +605,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // "scroll up, stop, then jump higher" symptom on cold open).
   const bottomPinReadyAtRef = useRef(0);
   const userHasScrolledAfterPinRef = useRef(false);
+  // Fresh-login / cold-open safety net: cached messages can mount first, then
+  // the fresh query appends the real latest row a moment later. Track the
+  // opening window so those first data swaps keep landing on the latest row,
+  // unless the user has deliberately started reading history.
+  const openPinStartedAtRef = useRef<number | null>(null);
+  const openPinLastMessageIdRef = useRef<string | null>(null);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
@@ -676,7 +682,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const START_INDEX = 1_000_000;
   const newFirstId = messages[0]?.id ?? null;
   const wasEmptyRef = useRef(messages.length === 0);
-  const bottomPinRevisionRef = useRef(0);
+  const [bottomPinRevision, setBottomPinRevision] = useState(0);
+  const lastMessageId = messages[messages.length - 1]?.id ?? null;
   const anchorRef = useRef<{ baseFirstId: string | null; baseFirstIndex: number }>({
     baseFirstId: newFirstId,
     baseFirstIndex: START_INDEX - messages.length,
@@ -703,7 +710,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     : anchorRef.current.baseFirstIndex;
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
-  const bottomPinRevision = bottomPinRevisionRef.current;
   wasEmptyRef.current = messages.length === 0;
 
   useEffect(() => {
@@ -728,7 +734,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
         userHasScrolledAfterPinRef.current = false;
-        bottomPinRevisionRef.current += 1;
+        openPinStartedAtRef.current = null;
+        openPinLastMessageIdRef.current = null;
+        setBottomPinRevision((revision) => revision + 1);
       }
       debugLogAnchor("reset", {
         previousBaseFirstId: prev.baseFirstId,
