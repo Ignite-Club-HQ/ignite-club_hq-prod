@@ -573,7 +573,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // event/poll/board extras to surface.
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 items-center gap-0">
       <input
         ref={fileInputRef}
         type="file"
