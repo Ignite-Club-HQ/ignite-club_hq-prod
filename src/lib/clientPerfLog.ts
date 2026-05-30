@@ -69,6 +69,11 @@ export function maybeLogSlowFetch(opts: {
 }) {
   try {
     if (!opts.aborted && opts.durationMs < SLOW_THRESHOLD_MS) return;
+    // Skip lifecycle noise: if the tab is backgrounded/hidden when the
+    // request finishes, the "duration" is mostly time the JS event loop
+    // was paused by the OS (Android Doze / iOS background). These rows
+    // dominate the slow-query log without representing real DB slowness.
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
     const now = Date.now();
     if (now - lastLogAt < LOCAL_RATE_LIMIT_MS) return;
     lastLogAt = now;
