@@ -70,28 +70,37 @@ export default function PlayerOfMatchSelector({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("player_of_match")
-        .select(`
-          *,
-          children:child_id (id, name)
-        `)
+        .select("*")
         .eq("event_id", eventId)
         .maybeSingle();
-      
+
       if (error) throw error;
       if (!data) return null;
 
-      // Fetch profile separately if user_id exists
-      let profile = null;
+      // Fetch related profile / child separately. The previous inline
+      // `children:child_id(...)` embed was silently returning null because
+      // PostgREST treated `child_id` as a table name, not an FK column hint,
+      // so the card rendered an empty name + "?" avatar.
+      let profile: any = null;
+      let child: any = null;
       if (data.user_id) {
-        const { data: profileData } = await supabase
+        const { data: p } = await supabase
           .from("profiles")
           .select("id, display_name, avatar_url")
           .eq("id", data.user_id)
-          .single();
-        profile = profileData;
+          .maybeSingle();
+        profile = p;
+      }
+      if (data.child_id) {
+        const { data: c } = await supabase
+          .from("children")
+          .select("id, name")
+          .eq("id", data.child_id)
+          .maybeSingle();
+        child = c;
       }
 
-      return { ...data, profiles: profile };
+      return { ...data, profiles: profile, children: child };
     },
   });
 
