@@ -220,11 +220,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // window. We do NOT re-pin on `lastMessageId` / `virtualReady` / `bottomPad`
   // changes — Virtuoso's `followOutput` covers new appends when at-bottom.
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
-  const prevComposerTallRef = useRef(composerHeight > 64);
+  const prevComposerHeightRef = useRef(composerHeight);
   useEffect(() => {
     if (!virtualReady) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
-      prevComposerTallRef.current = composerHeight > 64;
+      prevComposerHeightRef.current = composerHeight;
       return;
     }
     const handle = virtualHandleRef.current;
@@ -233,28 +233,32 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // paint without ANY parent-driven re-snaps.
     if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
-      prevComposerTallRef.current = composerHeight > 64;
+      prevComposerHeightRef.current = composerHeight;
       return;
     }
 
     const keyboardChanged = prevKeyboardOpenRef.current !== isKeyboardOpen;
-    const isComposerTall = composerHeight > 64;
-    const composerGrewToReply = !prevComposerTallRef.current && isComposerTall;
+    const previousComposerHeight = prevComposerHeightRef.current;
+    const composerGrew = composerHeight - previousComposerHeight > 4;
     prevKeyboardOpenRef.current = isKeyboardOpen;
-    prevComposerTallRef.current = isComposerTall;
+    prevComposerHeightRef.current = composerHeight;
 
-    if (!keyboardChanged && !composerGrewToReply) return;
+    if (!keyboardChanged && !composerGrew) return;
 
-    const wasAtBottom = handle.isAtBottom();
-    if (!composerGrewToReply && !wasAtBottom) return;
+    const wasNearBottom = handle.isNearBottom(180);
+    if (!composerGrew && !wasNearBottom) return;
 
     const pin = () => handle.scrollToBottom("auto");
     pin();
-    // One late re-pin after keyboard animation settles on Android.
-    const t = window.setTimeout(() => {
-      if (handle.isAtBottom() || composerGrewToReply) pin();
-    }, 280);
-    return () => window.clearTimeout(t);
+    // Reply banners and mobile keyboards both resize the fixed composer in
+    // stages; keep re-pinning while that animation settles so the latest
+    // bubble remains above the input instead of underneath it.
+    const timers = [120, 280, 520].map((delay) =>
+      window.setTimeout(() => {
+        if (handle.isNearBottom(240) || composerGrew) pin();
+      }, delay),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef]);
 
   // Stable renderer identity — recreating it on every parent re-render
