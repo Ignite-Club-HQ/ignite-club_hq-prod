@@ -1729,15 +1729,19 @@ export default function MessagesPage() {
 
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
   const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus);
-  // Wait for fresh latest-message data before sorting/rendering, so the most recent
-  // thread is at the top on first paint (cached `lastActivity` may be stale).
-  // NOTE: Pro access is intentionally excluded from this gate — it's 4 serial DB
-  // trips and blocks first paint by 200–800ms. DM thread visibility settles in
-  // silently once it resolves.
+  // Wait for fresh latest-message data before sorting/rendering, so the most
+  // recent thread is at the top on first paint (cached `lastActivity` may be
+  // stale). We keep this gate even when cached data exists — otherwise the
+  // cached order paints first and threads visibly shuffle once fresh
+  // `lastActivity` timestamps arrive.
+  // NOTE: Pro access is intentionally excluded — it's 4 serial DB trips and
+  // would block first paint 200–800ms without affecting sort order. DM thread
+  // visibility is the only thing it gates, and DMs settle into the already-
+  // rendered list in-place (no re-sort jump) because they sort by their own
+  // lastActivity alongside the rest.
   const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched;
-  // Only block on fresh sort data when we have nothing cached to show. With
-  // cached data, render immediately and let fresh data re-sort silently.
-  const showSkeletonLoading = isLoadingFreshData || (!hasCachedData && !hasAnyDisplayData && !freshSortDataReady);
+  const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
+
 
 
   // Determine which data to display (prefer fresh, fallback to cached)
