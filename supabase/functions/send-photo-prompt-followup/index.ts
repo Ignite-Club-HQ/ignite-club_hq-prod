@@ -107,29 +107,6 @@ Deno.serve(async (req) => {
 
     for (const prompt of filteredPrompts) {
       try {
-        // Re-check that no photos have been uploaded for this event since.
-        const { data: existingPhotos, error: photosError } = await supabase
-          .from("photos")
-          .select("id")
-          .eq("event_id", prompt.event_id)
-          .is("deleted_at", null)
-          .limit(1);
-
-        if (photosError) {
-          console.error("[photo-prompt-followup] photos check failed", prompt.id, photosError);
-          errors++;
-          continue;
-        }
-
-        if ((existingPhotos ?? []).length > 0) {
-          await supabase
-            .from("gallery_chat_cards")
-            .update({ push_sent: true })
-            .eq("id", prompt.id);
-          skipped++;
-          continue;
-        }
-
         const { data: event } = await supabase
           .from("events")
           .select("id, title, opponent, type, team_id, start_time")
@@ -144,6 +121,35 @@ Deno.serve(async (req) => {
           skipped++;
           continue;
         }
+
+        // Re-check that no photos have been uploaded since the event started.
+        // Match either event-tagged photos OR team-scoped photos uploaded
+        // since kickoff — users often post to the team gallery without
+        // tagging the event.
+        const sinceIso = event.start_time
+          ? new Date(event.start_time as string).toISOString()
+          : new Date(new Date(prompt.created_at).getTime() - 6 * 60 * 60 * 1000).toISOString();
+
+        const [{ data: eventPhotos, error: eventPhotosErr }, { data: teamPhotos, error: teamPhotosErr }] = await Promise.all([
+          supabase.from("photos").select("id").eq("event_id", prompt.event_id).is("deleted_at", null).limit(1),
+          supabase.from("photos").select("id").eq("team_id", prompt.team_id).is("deleted_at", null).gte("created_at", sinceIso).limit(1),
+        ]);
+
+        if (eventPhotosErr || teamPhotosErr) {
+          console.error("[photo-prompt-followup] photos check failed", prompt.id, eventPhotosErr || teamPhotosErr);
+          errors++;
+          continue;
+        }
+
+        if ((eventPhotos ?? []).length > 0 || (teamPhotos ?? []).length > 0) {
+          await supabase
+            .from("gallery_chat_cards")
+            .update({ push_sent: true })
+            .eq("id", prompt.id);
+          skipped++;
+          continue;
+        }
+
 
         const { data: rsvps } = await supabase
           .from("rsvps")
