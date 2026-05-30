@@ -51,9 +51,14 @@ import App from "./App.tsx";
 import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
+import { initWebNotificationLaunchHandler } from "./lib/webNotificationLaunchHandler";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
 import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
+
+// Install BroadcastChannel + SW message listener immediately so notification
+// taps that fire before React/PushNotificationManager mount aren't lost.
+initWebNotificationLaunchHandler();
 
 // Install global Supabase fetch interceptor that refreshes the JWT once and
 // retries on 401, so a stale token mid-session can't silently empty Schedule /
