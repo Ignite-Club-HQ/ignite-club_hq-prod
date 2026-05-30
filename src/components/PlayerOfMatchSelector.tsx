@@ -70,28 +70,37 @@ export default function PlayerOfMatchSelector({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("player_of_match")
-        .select(`
-          *,
-          children:child_id (id, name)
-        `)
+        .select("*")
         .eq("event_id", eventId)
         .maybeSingle();
-      
+
       if (error) throw error;
       if (!data) return null;
 
-      // Fetch profile separately if user_id exists
-      let profile = null;
+      // Fetch related profile / child separately. The previous inline
+      // `children:child_id(...)` embed was silently returning null because
+      // PostgREST treated `child_id` as a table name, not an FK column hint,
+      // so the card rendered an empty name + "?" avatar.
+      let profile: any = null;
+      let child: any = null;
       if (data.user_id) {
-        const { data: profileData } = await supabase
+        const { data: p } = await supabase
           .from("profiles")
           .select("id, display_name, avatar_url")
           .eq("id", data.user_id)
-          .single();
-        profile = profileData;
+          .maybeSingle();
+        profile = p;
+      }
+      if (data.child_id) {
+        const { data: c } = await supabase
+          .from("children")
+          .select("id, name")
+          .eq("id", data.child_id)
+          .maybeSingle();
+        child = c;
       }
 
-      return { ...data, profiles: profile };
+      return { ...data, profiles: profile, children: child };
     },
   });
 
@@ -308,64 +317,71 @@ export default function PlayerOfMatchSelector({
 
       const pointsToDeduct = Number((playerOfMatch as any).points) || 0;
 
-      // Deduct points
-      if (playerOfMatch.user_id) {
-        // Atomic deduction
-        const { data: newBalance } = await (supabase.rpc as any)('increment_ignite_points', {
-          _user_id: playerOfMatch.user_id,
-          _amount: -pointsToDeduct,
-          _club_id: clubId,
-        });
-
-        if (pointsToDeduct > 0) {
-          await recordPointsHistory({
-            userId: playerOfMatch.user_id,
-            clubId,
-            amount: -pointsToDeduct,
-            balanceAfter: newBalance || 0,
-            sourceType: 'pom_removed',
-            sourceId: eventId,
-            description: 'Player of the Match award removed',
-            createdBy: user!.id,
-          });
-        }
-      } else if (playerOfMatch.child_id) {
-        // Atomic deduction for child
-        const { data: childNewBalance } = await (supabase.rpc as any)('increment_child_ignite_points', {
-          _child_id: playerOfMatch.child_id,
-          _amount: -pointsToDeduct,
-          _club_id: clubId,
-        });
-
-        if (pointsToDeduct > 0) {
-          await recordPointsHistory({
-            childId: playerOfMatch.child_id,
-            clubId,
-            amount: -pointsToDeduct,
-            balanceAfter: childNewBalance || 0,
-            sourceType: 'pom_removed',
-            sourceId: eventId,
-            description: 'Player of the Match award removed',
-            createdBy: user!.id,
-          });
-        }
-      }
-
-      // Delete POM record
-      const { error } = await supabase
+      // Delete the POM row FIRST so a points-side failure can't leave the
+      // award visible while points are already deducted (which previously
+      // caused "Failed to remove" loops + double-deductions on retry).
+      const { error: deleteError } = await supabase
         .from("player_of_match")
         .delete()
         .eq("id", playerOfMatch.id);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      // Best-effort points deduction + history. Failures here are logged
+      // but don't roll back the removal (the award is already gone in UI).
+      try {
+        if (playerOfMatch.user_id) {
+          const { data: newBalance } = await (supabase.rpc as any)('increment_ignite_points', {
+            _user_id: playerOfMatch.user_id,
+            _amount: -pointsToDeduct,
+            _club_id: clubId,
+          });
+          if (pointsToDeduct > 0) {
+            await recordPointsHistory({
+              userId: playerOfMatch.user_id,
+              clubId,
+              amount: -pointsToDeduct,
+              balanceAfter: newBalance || 0,
+              sourceType: 'pom_removed',
+              sourceId: eventId,
+              description: 'Player of the Match award removed',
+              createdBy: user!.id,
+            });
+          }
+        } else if (playerOfMatch.child_id) {
+          const { data: childNewBalance } = await (supabase.rpc as any)('increment_child_ignite_points', {
+            _child_id: playerOfMatch.child_id,
+            _amount: -pointsToDeduct,
+            _club_id: clubId,
+          });
+          if (pointsToDeduct > 0) {
+            await recordPointsHistory({
+              childId: playerOfMatch.child_id,
+              clubId,
+              amount: -pointsToDeduct,
+              balanceAfter: childNewBalance || 0,
+              sourceType: 'pom_removed',
+              sourceId: eventId,
+              description: 'Player of the Match award removed',
+              createdBy: user!.id,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[POM remove] points cleanup failed (award already removed):", e);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["player-of-match", eventId] });
       setRemoveDialogOpen(false);
       toast({ title: "Player of the Match removed" });
     },
-    onError: () => {
-      toast({ title: "Failed to remove Player of the Match", variant: "destructive" });
+    onError: (error: any) => {
+      console.error("[POM remove] failed", error);
+      toast({
+        title: error?.message || "Failed to remove Player of the Match",
+        variant: "destructive",
+      });
     },
   });
 
