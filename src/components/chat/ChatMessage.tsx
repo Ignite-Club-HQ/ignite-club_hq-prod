@@ -159,6 +159,8 @@ function ChatMessageInner({
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
+  const [showTapHint, setShowTapHint] = useState(false);
+  const tapHintTimer = useRef<NodeJS.Timeout | null>(null);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
