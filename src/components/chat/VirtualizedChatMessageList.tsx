@@ -1047,7 +1047,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // first-open measurement drift can make that false, leaving the real latest
   // message below the viewport. During the first few seconds only, keep
   // pinning to LAST while there has been no user scroll gesture.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!initialRevealReady || !lastMessageId) return;
     if (openPinStartedAtRef.current === null) openPinStartedAtRef.current = performance.now();
 
@@ -1074,17 +1074,26 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }
     };
 
-    requestAnimationFrame(() => requestAnimationFrame(run));
+    // SYNCHRONOUS first pass — commits in the same paint frame as the
+    // cached→fresh message swap, so the browser never paints a frame where
+    // the bottom row is partially scrolled off. Without this, Android WebView
+    // shows a single-frame "jolt" right after first login as the fresh page
+    // replaces the cached one. The rAF + delayed passes below remain as a
+    // safety net for late-hydrating row heights (avatars, link previews).
+    run();
+    const r = requestAnimationFrame(() => requestAnimationFrame(run));
     // Two follow-up passes are enough to absorb the network-fresh page
     // landing on top of cached messages. The previous 5-timer barrage
     // (160/420/900/1600/2600 ms) caused a visible series of jolts on
     // cold opens.
     const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
+      cancelAnimationFrame(r);
       timers.forEach((timer) => window.clearTimeout(timer));
     };
 
   }, [initialRevealReady, lastMessageId, bottomPinRevision]);
+
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
