@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
