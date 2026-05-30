@@ -762,7 +762,7 @@ function ChatMessageInner({
     <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-in fade-in-0 duration-200 ease-out"
+          className="fixed inset-0 dark:bg-black/[0.18] bg-black/[0.22] z-[99999] animate-in fade-in-0 duration-200 ease-out"
           onClick={(e) => {
             // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
             if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
@@ -898,12 +898,13 @@ function ChatMessageInner({
                 className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
-                  : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
+                  : `bg-card border border-border/40 ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
               } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${
                 isInteracting
-                  ? "ring-2 ring-primary/45 ring-offset-0 shadow-[0_14px_32px_-16px_rgba(0,0,0,0.38),0_3px_8px_-3px_rgba(0,0,0,0.14)] scale-[1.015] brightness-[1.02] dark:brightness-[1.08]"
+                  ? "ring-1 ring-primary/40 ring-offset-0 shadow-[0_28px_56px_-20px_rgba(0,0,0,0.55),0_8px_18px_-6px_rgba(0,0,0,0.22)] scale-[1.015] brightness-[1.04] dark:brightness-[1.14]"
                   : ""
-              } transition-[transform,box-shadow,filter] duration-200 ease-out will-change-transform`}
+              } transition-[transform,box-shadow,filter] duration-150 ease-out will-change-transform`}
+
               onPointerDown={(e) => e.preventDefault()}
               onContextMenu={(e) => e.preventDefault()}
               onDragStart={(e) => e.preventDefault()}

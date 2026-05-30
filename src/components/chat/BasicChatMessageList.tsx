@@ -137,7 +137,16 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   useImperativeHandle(
     ref,
     () => ({
-      scrollToBottom: (behavior) => scrollToBottomImpl(behavior),
+      scrollToBottom: (behavior) => {
+        // Defer two paints so optimistic messages committed via React
+        // Query inside `onMutate` are in the DOM and contribute to
+        // scrollHeight before we pin to bottom. Otherwise the freshly
+        // sent bubble lands below the viewport.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => scrollToBottomImpl(behavior)),
+        );
+      },
+
       scrollToIndex: (index, _align) => {
         const el = containerRef.current;
         if (!el) return;
@@ -193,6 +202,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   return (
     <div
       ref={containerRef}
+      data-chat-scroll-lock="true"
       className={className}
       onScroll={handleScroll}
       style={{

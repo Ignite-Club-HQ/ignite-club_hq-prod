@@ -123,13 +123,16 @@ export function MessageActionSheet({
   }, [open]);
 
   // ---------- Primary actions (kept intentionally short) ----------
+  // Only Reply lives in the top-level sheet — everything else (Copy, Forward,
+  // Pin, etc.) is one tap away behind "More…". This keeps the most common
+  // action visually dominant and reduces cognitive load on open.
   const primary: MessageAction[] = [];
 
   if (canReply) {
     primary.push({
       id: "reply",
       label: "Reply",
-      icon: <Reply className="h-[18px] w-[18px]" />,
+      icon: <Reply className="h-[20px] w-[20px]" />,
       onClick: onReply,
     });
   }
@@ -143,10 +146,15 @@ export function MessageActionSheet({
     });
   }
 
+
+  // ---------- Secondary actions (everything else lives behind More…) ----------
+  const secondary: MessageAction[] = [];
+
+  // Copy is the most common secondary action — keep it first inside More…
   if (messageText) {
     const cleanMessageText = stripMentionFormatting(messageText);
     const isMessageCopied = copiedText === cleanMessageText;
-    primary.push({
+    secondary.push({
       id: "copy-message",
       label: isMessageCopied ? "Copied!" : "Copy",
       icon: isMessageCopied
@@ -162,8 +170,6 @@ export function MessageActionSheet({
     });
   }
 
-  // ---------- Secondary actions (everything else lives behind More…) ----------
-  const secondary: MessageAction[] = [];
 
   if (hasImage && onViewImage) {
     secondary.push({
@@ -294,21 +300,26 @@ export function MessageActionSheet({
     onOpenChange(isOpen);
   };
 
-  const renderAction = (action: MessageAction) => (
-    <button
-      key={action.id}
-      className={`w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium active:bg-muted transition-colors ${
-        action.destructive ? "text-destructive" : "text-foreground"
-      }`}
-      onClick={() => {
-        handleOpenChange(false);
-        requestAnimationFrame(() => action.onClick());
-      }}
-    >
-      {action.icon}
-      {action.label}
-    </button>
-  );
+  const renderAction = (action: MessageAction) => {
+    const isReply = action.id === "reply";
+    return (
+      <button
+        key={action.id}
+        className={`w-full flex items-center gap-3 px-4 text-left transition-colors active:bg-muted ${
+          isReply
+            ? "h-11 text-[16px] font-semibold text-primary"
+            : `h-10 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
+        }`}
+        onClick={() => {
+          handleOpenChange(false);
+          requestAnimationFrame(() => action.onClick());
+        }}
+      >
+        {action.icon}
+        {action.label}
+      </button>
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -317,9 +328,13 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        className="px-0 pt-1 pb-1 rounded-t-3xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-12px_32px_-16px_rgba(0,0,0,0.22)] dark:shadow-[0_-12px_32px_-12px_rgba(0,0,0,0.55)] !duration-200 ease-out"
+        // Tight top/bottom padding — sheet hugs its content rather than reading
+        // as a generic oversized bottom sheet.
+        className="px-0 pt-1 pb-0 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
+        <SheetTitle className="sr-only">Message Actions</SheetTitle>
+
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
         {/* Reactions intentionally live in the floating pill ABOVE the selected
@@ -337,7 +352,7 @@ export function MessageActionSheet({
                     <div className="mx-4 border-t border-border/30" />
                   )}
                   <button
-                    className="w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                    className="w-full flex items-center gap-3 px-4 h-10 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
                     onClick={() => setShowMore(true)}
                   >
                     <MoreHorizontal className="h-[18px] w-[18px]" />

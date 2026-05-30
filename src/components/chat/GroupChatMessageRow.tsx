@@ -371,7 +371,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.18] bg-black/[0.22] z-[99999] animate-fade-in"
           style={{ animationDuration: '120ms' }}
           onClick={(e) => {
             // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
@@ -461,16 +461,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
-                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {
-                    boxShadow: '0 1px 2px 0 rgba(0,0,0,0.08)',
+                    boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
+                    transform: 'scale(1.015)',
                     filter: isDark
-                      ? (isOwnMessage ? 'brightness(1.08) saturate(1.03)' : 'brightness(1.08)')
-                      : (isOwnMessage ? 'brightness(1.06)' : 'brightness(0.97)'),
+                      ? (isOwnMessage ? 'brightness(1.14) saturate(1.04)' : 'brightness(1.14)')
+                      : (isOwnMessage ? 'brightness(1.07)' : 'brightness(1.03)'),
+                    transition: 'transform 150ms ease-out, box-shadow 150ms ease-out, filter 150ms ease-out',
                   };
                 })() : undefined}
+
                 onPointerDown={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}
                 onDragStart={(e) => e.preventDefault()}
@@ -557,8 +560,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
-            <div className="flex items-center gap-1.5 justify-end mt-0.5 px-0.5">
-              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+            <div className="flex items-baseline gap-1 justify-end mt-0.5 px-0.5">
+              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
               <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
@@ -566,8 +569,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5 px-0.5 flex items-center justify-end">
-              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+            <div className="mt-0.5 px-0.5 flex items-baseline gap-1 justify-end">
+              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
               <span
@@ -578,6 +581,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </span>
             </div>
           ) : null}
+
           {isOwnMessage && (
             <ReadReceiptSheet
               open={showReadReceipts}

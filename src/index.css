@@ -54,6 +54,9 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
     
     /* Warmer, slightly off-white with a hint of green undertone for richer light-mode depth */
     --background: 150 18% 97%;
+    /* Chat scroller surface — a touch cooler/darker than --background so
+       --card bubbles (white) read as elevated and the thread no longer feels flat. */
+    --chat-surface: 160 14% 94%;
     --foreground: 160 14% 12%;
 
     --card: 0 0% 100%;
@@ -124,6 +127,9 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
     --pitch-green: 130 55% 22%;
     
     --background: 160 15% 6%;
+    /* Chat scroller surface — slightly deeper than --background so --card
+       bubbles (10% L) sit a touch above and the thread reads as layered. */
+    --chat-surface: 160 15% 4%;
     --foreground: 160 5% 95%;
 
     --card: 160 15% 10%;
@@ -338,4 +344,12 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 }
 [data-chat-scroll-lock="true"] * {
   overflow-anchor: none;
+}
+
+/* Subtle tinted backdrop on the chat thread so bubbles (--card, white in
+   light / 10% L in dark) read as elevated above the scroller. Pure color
+   only — no gradients/blur — to stay safe on Android WebView per the
+   compositor-freeze rule. */
+[data-chat-scroll-lock="true"] {
+  background-color: hsl(var(--chat-surface));
 }

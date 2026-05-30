@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
@@ -83,11 +84,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 236; // hugs 6 emojis @ 32px + tight padding
+      const pickerWidth = 200; // hugs 6 emojis @ 32px + tight padding (~15% slimmer)
       const pickerHeight = 40;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 6;
+      const gap = -4; // Tightly anchor the pill to the bubble (~10px closer than the prior 6px gap) so the message → reactions → actions stack reads as one connected flow.
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
@@ -100,10 +101,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      // Center over bubble for a Messenger/WhatsApp feel, with a gentle bias
-      // toward the sender side so it doesn't drift off-screen on narrow bubbles.
-      const bubbleCenter = rect.left + rect.width / 2;
-      let left = bubbleCenter - pickerWidth / 2;
+      // Anchor to the bubble edge (left for incoming, right for outgoing) with
+      // a small inset so the picker feels physically attached to the message
+      // rather than floating centered on screen.
+      const edgeInset = 10;
+      let left = isOwnMessage
+        ? rect.right - pickerWidth + edgeInset
+        : rect.left - edgeInset;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
@@ -125,6 +129,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   const handleEmojiClick = (type: string) => {
     armReactionInteractionGuard();
+    hapticSelectionTick();
     onReact(type);
     // Defer close so the full-screen overlay stays mounted through the
     // touchend → synthetic-click cycle. If we close synchronously inside
@@ -203,8 +208,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
         {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
-        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1.5 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
-          <div className="flex items-center justify-between gap-0.5">
+        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
+          <div className="flex items-center justify-between gap-0">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -319,7 +324,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
             crowding the timestamp / read receipt row that follows. Solid
             surfaces only (no blur) per WebView perf rule. */}
         <div
-          className={`relative z-10 flex flex-wrap gap-[3px] mt-1 mb-1 px-0.5 ${
+          className={`relative z-10 flex flex-wrap gap-[3px] -mt-1 mb-1 px-0.5 ${
             isOwn ? "justify-end" : "justify-start"
           }`}
         >
