@@ -791,7 +791,7 @@ export function MentionInput({
             <div
               ref={highlightRef}
               aria-hidden="true"
-              className="absolute inset-0 pointer-events-none overflow-hidden pl-1.5 pr-1 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
+              className="absolute inset-0 pointer-events-none overflow-hidden pl-1 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
 
             >
