@@ -1078,16 +1078,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     const run = () => {
       const viewport = scrollerElRef.current;
+      if (!viewport) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      // Silent scrollTop write rather than `scrollToIndex` — the latter
+      // triggers a visible Virtuoso recompute/jump every time it fires,
+      // which on first-open stacks into a multi-step flicker as cached
+      // messages get replaced/extended by the network refresh.
+      const maxTop = viewport.scrollHeight - viewport.clientHeight;
+      if (Math.abs(viewport.scrollTop - maxTop) > 1) {
+        viewport.scrollTop = maxTop;
+      }
     };
 
     requestAnimationFrame(() => requestAnimationFrame(run));
-    const timers = [160, 420, 900, 1600, 2600].map((delay) => window.setTimeout(run, delay));
+    // Two follow-up passes are enough to absorb the network-fresh page
+    // landing on top of cached messages. The previous 5-timer barrage
+    // (160/420/900/1600/2600 ms) caused a visible series of jolts on
+    // cold opens.
+    const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
+
   }, [initialRevealReady, lastMessageId, bottomPinRevision]);
 
   // Only auto-follow new outgoing messages when the user is already at the
