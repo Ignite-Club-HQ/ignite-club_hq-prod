@@ -328,9 +328,9 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        // Extra top padding + thicker rounding creates a clearer visual gap
-        // from the floating reactions pill that sits above the bubble.
-        className="px-0 pt-3 pb-1 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
+        // Tight top/bottom padding — sheet hugs its content rather than reading
+        // as a generic oversized bottom sheet.
+        className="px-0 pt-1 pb-0 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
