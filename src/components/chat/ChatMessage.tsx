@@ -625,17 +625,19 @@ function ChatMessageInner({
         longPressTriggeredRef.current = false;
       });
     }
-    // Short tap on a text bubble is intentionally a no-op — long press is the
-    // primary interaction for message actions. Discovery is handled by the
-    // dismissible in-chat banner (ChatActionsOnboardingBanner); we no longer
-    // fire a bottom-center toast here because it overlapped the bottom nav
-    // and could appear stuck/unresponsive on Android.
-    // Inner content (images, links, polls, file cards) keeps its own tap
-    // handlers because we no longer call preventDefault on the short-tap path.
+    // Short tap on a text bubble does not open reply mode — long-press is the
+    // primary interaction. For users who haven't long-pressed yet, surface a
+    // contextual tooltip anchored to the bubble so they can discover the new
+    // gesture without a global toast.
+    else if (!isSystemMessage && shouldShowTapHint()) {
+      setShowTapHint(true);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
+      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 2500);
+    }
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
-  }, [armDismissGuard, swipeToReplyHandlers]);
+  }, [armDismissGuard, swipeToReplyHandlers, isSystemMessage]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     // Re-arm guard so any synthetic click iOS dispatches to underlying elements
