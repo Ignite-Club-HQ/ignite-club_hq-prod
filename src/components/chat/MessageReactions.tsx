@@ -101,10 +101,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      // Center over bubble for a Messenger/WhatsApp feel, with a gentle bias
-      // toward the sender side so it doesn't drift off-screen on narrow bubbles.
-      const bubbleCenter = rect.left + rect.width / 2;
-      let left = bubbleCenter - pickerWidth / 2;
+      // Anchor to the bubble edge (left for incoming, right for outgoing) with
+      // a small inset so the picker feels physically attached to the message
+      // rather than floating centered on screen.
+      const edgeInset = 10;
+      let left = isOwnMessage
+        ? rect.right - pickerWidth + edgeInset
+        : rect.left - edgeInset;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
