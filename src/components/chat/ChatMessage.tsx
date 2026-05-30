@@ -728,14 +728,16 @@ function ChatMessageInner({
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (isSystemMessage || isMembershipSystemText(text)) {
-    // Detect tappable [publish:<teamId>] CTA appended by the chat-photo
-    // gallery reminder cron and render it as a button under the pill.
-    const publishMatch = text.match(/\[publish:([0-9a-f-]{36})\]/i);
+    // Chat-photo gallery reminder cron appends a [publish:<teamId>] CTA token.
+    // Hide this specific reminder from chat (per product decision); the cron
+    // and DB rows are untouched.
+    if (/\[publish:([0-9a-f-]{36})\]/i.test(text)) {
+      return null;
+    }
     // Detect [rsvp:<eventId>] token appended by the auto-rsvp DM cron and
     // render Going / Maybe / Out pills under the pill bubble.
     const rsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
     const cleanedText = text
-      .replace(publishMatch ? publishMatch[0] : "", "")
       .replace(rsvpMatch ? rsvpMatch[0] : "", "")
       .trim();
     return (
@@ -743,17 +745,6 @@ function ChatMessageInner({
         <div className="max-w-[85%] rounded-2xl bg-muted/70 px-3 py-2 text-center text-[12px] text-muted-foreground whitespace-pre-line">
           {cleanedText}
         </div>
-        {publishMatch && (
-          <button
-            type="button"
-            onClick={() => {
-              navigate(`/teams/${publishMatch[1]}/publish-chat-photos`);
-            }}
-            className="rounded-full bg-primary text-primary-foreground text-xs font-medium px-4 py-1.5 shadow-sm hover:opacity-90 transition touch-manipulation"
-          >
-            Add to gallery
-          </button>
-        )}
         {rsvpMatch && <InlineRsvpActions eventId={rsvpMatch[1]} messageId={id} />}
       </div>
     );
