@@ -687,7 +687,11 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS, segments, displayValue]);
 
   return (
-    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ${bare ? "" : "ml-1"}`}>
+    {/* In bare mode, pull the emoji button toward the + attachment button so
+        they read as a single [+ 😊] control group (WhatsApp-style). The
+        textarea inside still expands via flex-1, so typing width is preserved. */}
+    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full self-stretch space-y-2 ${bare ? "-ml-2" : "ml-1"}`}>
+
 
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
