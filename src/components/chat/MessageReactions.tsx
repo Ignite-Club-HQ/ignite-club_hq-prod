@@ -87,7 +87,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const pickerHeight = 40;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 6;
+      const gap = -4; // Tightly anchor the pill to the bubble (~10px closer than the prior 6px gap) so the message → reactions → actions stack reads as one connected flow.
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
