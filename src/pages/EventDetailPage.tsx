@@ -3311,7 +3311,7 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             isAdmin={isAdmin || isAppAdmin || false}
             rsvps={rsvps || []}
-            childrenOnTeam={childrenOnTeam}
+            childrenOnTeam={allChildrenOnTeam || childrenOnTeam}
           />
         </>
       )}
