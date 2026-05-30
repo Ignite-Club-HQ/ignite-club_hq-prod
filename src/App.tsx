@@ -261,25 +261,53 @@ const App = () => {
   }, []);
 
   // Android WebView "lost surface" recovery: after long sleep the GPU compositor
-  // may not repaint until something invalidates it. Force a one-frame compositing
-  // layer toggle on every resume so the screen is never blank.
+  // may not repaint until something invalidates it, leaving a blank dark screen
+  // on resume. Force a multi-frame repaint cascade so the screen is never blank.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (Capacitor.getPlatform() !== 'android') return;
 
     let listener: { remove: () => void } | undefined;
 
+    const kickCompositor = () => {
+      try {
+        const root = document.getElementById('root');
+        if (!root) return;
+        // 1. Force a reflow + compositing-layer toggle on the React root.
+        root.style.transform = 'translateZ(0)';
+        // Touching offsetHeight forces synchronous layout.
+        void root.offsetHeight;
+        // 2. Briefly hide/show via opacity to invalidate the surface tile.
+        const prevOpacity = root.style.opacity;
+        root.style.opacity = '0.999';
+        requestAnimationFrame(() => {
+          root.style.opacity = prevOpacity || '';
+          root.style.transform = '';
+          // 3. Nudge scroll by 1px and back — most reliable WebView repaint trigger.
+          const y = window.scrollY;
+          window.scrollTo(0, y + 1);
+          requestAnimationFrame(() => {
+            window.scrollTo(0, y);
+          });
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+
     import('@capacitor/app').then(({ App: CapApp }) => {
       CapApp.addListener('resume', () => {
-        document.body.style.transform = 'translateZ(0)';
-        requestAnimationFrame(() => {
-          document.body.style.transform = '';
-        });
+        kickCompositor();
+        // Retry across the post-resume hydration window in case the first
+        // kick lands before the WebView has fully restored its surface.
+        setTimeout(kickCompositor, 120);
+        setTimeout(kickCompositor, 400);
       }).then(l => { listener = l; });
     });
 
     return () => { listener?.remove(); };
   }, []);
+
 
 
   return (
