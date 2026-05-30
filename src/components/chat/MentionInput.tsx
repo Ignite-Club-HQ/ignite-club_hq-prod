@@ -784,7 +784,7 @@ export function MentionInput({
         {showEmojiPicker && (
           // Sits flush against the textarea so the emoji icon reads as part
           // of the input field (WhatsApp-style). Hit target stays 36px.
-          <div className="flex items-center justify-center h-9 shrink-0 -mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-center h-9 shrink-0 -mr-3 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
