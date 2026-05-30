@@ -39,6 +39,8 @@ import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { markLongPressOnboardingCompleted } from "@/hooks/useChatActionsOnboarding";
+import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
+
 
 interface Reaction {
   id: string;
