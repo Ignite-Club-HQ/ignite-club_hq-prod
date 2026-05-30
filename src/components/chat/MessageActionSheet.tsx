@@ -150,6 +150,27 @@ export function MessageActionSheet({
   // ---------- Secondary actions (everything else lives behind More…) ----------
   const secondary: MessageAction[] = [];
 
+  // Copy is the most common secondary action — keep it first inside More…
+  if (messageText) {
+    const cleanMessageText = stripMentionFormatting(messageText);
+    const isMessageCopied = copiedText === cleanMessageText;
+    secondary.push({
+      id: "copy-message",
+      label: isMessageCopied ? "Copied!" : "Copy",
+      icon: isMessageCopied
+        ? <Check className="h-[18px] w-[18px] text-primary" />
+        : <Copy className="h-[18px] w-[18px]" />,
+      onClick: () => {
+        navigator.clipboard.writeText(cleanMessageText).then(() => {
+          setCopiedText(cleanMessageText);
+        }).catch(() => {
+          setCopiedText(null);
+        });
+      },
+    });
+  }
+
+
   if (hasImage && onViewImage) {
     secondary.push({
       id: "view-image",
