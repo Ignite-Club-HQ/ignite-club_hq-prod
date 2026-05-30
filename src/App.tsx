@@ -150,6 +150,11 @@ const queryClient = new QueryClient({
       retry: 1,
       retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
       refetchOnReconnect: true,
+      // Tighter defaults to reduce redundant refetches; per-query overrides
+      // (e.g. staleTime: 0, refetchOnWindowFocus: true) still win where declared.
+      staleTime: 30_000,
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
     },
     mutations: { networkMode: "offlineFirst" },
   },
