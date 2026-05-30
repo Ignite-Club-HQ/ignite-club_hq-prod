@@ -132,7 +132,35 @@ Deno.serve(async (req) => {
     let skipped = 0;
     let errors = 0;
 
+    // Gate: only nudge teams that had a game within the last 24h.
+    // Photos shared outside a match-day window shouldn't trigger this prompt.
+    const teamIds = Array.from(new Set(Array.from(groups.values()).map((g) => g.team_id)));
+    const gameWindowLower = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const gameWindowUpper = new Date(now).toISOString();
+    const teamsWithRecentGame = new Set<string>();
+    if (teamIds.length > 0) {
+      const { data: recentGames, error: gamesErr } = await supabase
+        .from("events")
+        .select("team_id")
+        .in("team_id", teamIds)
+        .eq("type", "game")
+        .eq("is_cancelled", false)
+        .gte("start_time", gameWindowLower)
+        .lte("start_time", gameWindowUpper);
+      if (gamesErr) {
+        console.warn("[chat-photo-reminders] recent games lookup failed", gamesErr);
+      } else {
+        for (const r of recentGames ?? []) {
+          if (r.team_id) teamsWithRecentGame.add(r.team_id as string);
+        }
+      }
+    }
+
     for (const g of groups.values()) {
+      if (!teamsWithRecentGame.has(g.team_id)) {
+        skipped++;
+        continue;
+      }
       const { data, error } = await supabase.rpc(
         "post_chat_photo_gallery_reminder",
         {
