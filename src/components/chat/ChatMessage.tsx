@@ -898,7 +898,7 @@ function ChatMessageInner({
                 className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
-                  : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
+                  : `bg-card border border-border/40 ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
               } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${
                 isInteracting
                   ? "ring-1 ring-primary/40 ring-offset-0 shadow-[0_28px_56px_-20px_rgba(0,0,0,0.55),0_8px_18px_-6px_rgba(0,0,0,0.22)] scale-[1.015] brightness-[1.04] dark:brightness-[1.14]"
