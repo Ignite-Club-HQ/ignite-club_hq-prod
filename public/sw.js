@@ -2,7 +2,7 @@
 // Enhanced reliability with aggressive recovery, better error handling, and auto-renewal
 // IMPORTANT: This file must be served from the root with proper MIME type
 
-const SW_VERSION = '6.1.0';
+const SW_VERSION = '6.2.0';
 
 // Retry configuration
 const MAX_NOTIFICATION_RETRIES = 2;
@@ -156,14 +156,18 @@ self.addEventListener('push', (event) => {
       }).catch(() => {});
     }
     
+    // Forward the full push payload in `data` so the client can preload
+    // the message into the chat cache for instant render on tap.
+    const { title: _t, body: _b, ...payloadRest } = data;
     const options = {
       body: data.body,
       icon: '/ignite-logo.png',
       badge: '/badge-96.png',
-      data: { 
+      data: {
         url: data.url,
         notificationId: data.notificationId,
         timestamp: Date.now(),
+        payload: payloadRest,
       },
       tag: notificationTag,
       renotify: true,
@@ -202,45 +206,40 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW v' + SW_VERSION + '] Notification clicked, action:', event.action);
   event.notification.close();
-  
+
   if (event.action === 'dismiss') {
     return;
   }
-  
+
   const url = event.notification.data?.url || '/';
+  const payload = event.notification.data?.payload || null;
   const fullUrl = new URL(url, self.location.origin).href;
-  
+
+  // Broadcast IMMEDIATELY (in parallel with focus) so any listening client can
+  // preload the message cache and start navigating without waiting for the
+  // focus() promise to resolve. Cuts ~50-300ms off the perceived tap latency.
+  try {
+    const bc = new BroadcastChannel('push-nav');
+    bc.postMessage({ url, data: payload });
+    bc.close();
+  } catch (e) {
+    console.warn('[SW v' + SW_VERSION + '] Early BroadcastChannel failed:', e);
+  }
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clients) => {
-        // Try to find an existing window and use postMessage for SPA navigation
         for (const client of clients) {
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-            return client.focus().then((focusedClient) => {
-              if (focusedClient) {
-                // Write to a broadcast channel AND postMessage as dual delivery
-                // postMessage can be lost if client is resuming from suspension
-                try {
-                  // Use BroadcastChannel as primary - more reliable than postMessage for suspended tabs
-                  const bc = new BroadcastChannel('push-nav');
-                  bc.postMessage({ url: url });
-                  bc.close();
-                  console.log('[SW v' + SW_VERSION + '] Sent navigate via BroadcastChannel:', url);
-                } catch (e) {
-                  console.warn('[SW v' + SW_VERSION + '] BroadcastChannel failed:', e);
-                }
-                
-                // Also send postMessage as backup
-                focusedClient.postMessage({
-                  type: 'NOTIFICATION_CLICK_NAVIGATE',
-                  url: url,
-                });
-                console.log('[SW v' + SW_VERSION + '] Sent navigate message to client:', url);
-              }
-              return focusedClient;
-            }).catch(() => {
-              return self.clients.openWindow(fullUrl);
-            });
+            // Send postMessage backup before focus so it's queued for the client
+            try {
+              client.postMessage({
+                type: 'NOTIFICATION_CLICK_NAVIGATE',
+                url,
+                data: payload,
+              });
+            } catch {}
+            return client.focus().catch(() => self.clients.openWindow(fullUrl));
           }
         }
         // No existing window - open new one
