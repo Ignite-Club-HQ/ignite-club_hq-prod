@@ -38,7 +38,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
-import { markLongPressOnboardingCompleted } from "@/hooks/useChatActionsOnboarding";
+import { markLongPressOnboardingCompleted, shouldShowTapHint } from "@/hooks/useChatActionsOnboarding";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
 
 
@@ -159,6 +159,8 @@ function ChatMessageInner({
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
+  const [showTapHint, setShowTapHint] = useState(false);
+  const tapHintTimer = useRef<NodeJS.Timeout | null>(null);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -623,17 +625,19 @@ function ChatMessageInner({
         longPressTriggeredRef.current = false;
       });
     }
-    // Short tap on a text bubble is intentionally a no-op — long press is the
-    // primary interaction for message actions. Discovery is handled by the
-    // dismissible in-chat banner (ChatActionsOnboardingBanner); we no longer
-    // fire a bottom-center toast here because it overlapped the bottom nav
-    // and could appear stuck/unresponsive on Android.
-    // Inner content (images, links, polls, file cards) keeps its own tap
-    // handlers because we no longer call preventDefault on the short-tap path.
+    // Short tap on a text bubble does not open reply mode — long-press is the
+    // primary interaction. For users who haven't long-pressed yet, surface a
+    // contextual tooltip anchored to the bubble so they can discover the new
+    // gesture without a global toast.
+    else if (!isSystemMessage && shouldShowTapHint()) {
+      setShowTapHint(true);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
+      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 2500);
+    }
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
-  }, [armDismissGuard, swipeToReplyHandlers]);
+  }, [armDismissGuard, swipeToReplyHandlers, isSystemMessage]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     // Re-arm guard so any synthetic click iOS dispatches to underlying elements
@@ -883,7 +887,7 @@ function ChatMessageInner({
           )}
           {/* Swipe-to-reply wrapper */}
           <div
-            className="min-w-0 max-w-full select-none"
+            className="relative min-w-0 max-w-full select-none"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
               transition: swipeState.isSwiping || swipeState.offsetX === 0 ? 'none' : 'transform 0.2s ease-out',
@@ -900,6 +904,16 @@ function ChatMessageInner({
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
+            {showTapHint && (
+              <div
+                className={`pointer-events-none absolute -top-7 z-20 whitespace-nowrap rounded-full bg-foreground/90 text-background px-2.5 py-1 text-[10.5px] font-medium shadow-md animate-fade-in ${
+                  isOwn && !isClubAnnouncement ? "right-2" : "left-2"
+                }`}
+                role="status"
+              >
+                Press and hold for reactions and replies
+              </div>
+            )}
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${

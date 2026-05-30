@@ -1,45 +1,44 @@
 import { useEffect, useState, useCallback } from "react";
-import { toast } from "sonner";
 
 /**
  * Lightweight, contextual onboarding for the long-press message interaction.
  *
- * Goal: help users discover that tapping a message no longer opens actions,
- * and that long-press is the new home for reactions, reply, edit and more.
+ * Two surfaces:
+ *   1. Compact dismissible banner above the composer (persists until the
+ *      user closes it OR until they successfully long-press a message).
+ *   2. Tap tooltip anchored to a tapped bubble (auto-dismiss ~2.5s, hidden
+ *      once the user has long-pressed once, capped per-session to avoid
+ *      repetition).
  *
- * Three signals are tracked in localStorage under a single `ignite_` key
- * (so it's swept by `clearUserScopedCaches`):
- *   - `completed`: user has performed a successful long-press at least once.
- *   - `bannerSessions`: how many distinct chat sessions have shown the banner.
- *   - `tapHints`: how many times the "press and hold" toast has fired.
- *
- * Once `completed` flips true we never show anything again unless the key
- * is manually cleared.
+ * State persisted in localStorage under one `ignite_` key so it is swept by
+ * `clearUserScopedCaches`:
+ *   - `completed`:  user performed a successful long-press at least once.
+ *   - `dismissed`:  user closed the banner explicitly.
+ *   - `tapHints`:   how many tap tooltips we've shown (cap to avoid noise).
  */
 
 const STORAGE_KEY = "ignite_chat_actions_onboarding_v1";
-const MAX_BANNER_SESSIONS = 4;
-const MAX_TAP_HINTS = 3;
-const TAP_HINT_COOLDOWN_MS = 25_000;
+const MAX_TAP_HINTS = 4;
+const TAP_HINT_COOLDOWN_MS = 20_000;
 
 interface OnboardingState {
   completed: boolean;
-  bannerSessions: number;
+  dismissed: boolean;
   tapHints: number;
 }
 
 function readState(): OnboardingState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { completed: false, bannerSessions: 0, tapHints: 0 };
+    if (!raw) return { completed: false, dismissed: false, tapHints: 0 };
     const parsed = JSON.parse(raw);
     return {
       completed: !!parsed.completed,
-      bannerSessions: Number(parsed.bannerSessions) || 0,
+      dismissed: !!parsed.dismissed,
       tapHints: Number(parsed.tapHints) || 0,
     };
   } catch {
-    return { completed: false, bannerSessions: 0, tapHints: 0 };
+    return { completed: false, dismissed: false, tapHints: 0 };
   }
 }
 
@@ -51,14 +50,23 @@ function writeState(next: OnboardingState) {
 
 let lastTapHintAt = 0;
 
-/** Side-effect helpers callable from anywhere (e.g. ChatMessage gesture handlers). */
+/** Marks the user as educated. Hides banner + future tap tooltips. */
 export function markLongPressOnboardingCompleted() {
   const s = readState();
   if (s.completed) return;
   writeState({ ...s, completed: true });
+  // Notify any mounted banners to hide immediately.
+  try {
+    window.dispatchEvent(new Event("ignite:chat-onboarding-changed"));
+  } catch {}
 }
 
-export function maybeShowTapHintToast(): boolean {
+/**
+ * Decide whether to show an inline tap tooltip near the tapped message.
+ * Returns true at most once per cooldown, and never after the user has
+ * long-pressed successfully or after the cap is reached.
+ */
+export function shouldShowTapHint(): boolean {
   const s = readState();
   if (s.completed) return false;
   if (s.tapHints >= MAX_TAP_HINTS) return false;
@@ -66,11 +74,6 @@ export function maybeShowTapHintToast(): boolean {
   if (now - lastTapHintAt < TAP_HINT_COOLDOWN_MS) return false;
   lastTapHintAt = now;
   writeState({ ...s, tapHints: s.tapHints + 1 });
-  toast("Press and hold for reactions and message actions", {
-    duration: 2400,
-    position: "bottom-center",
-    className: "text-xs",
-  });
   return true;
 }
 
@@ -79,24 +82,24 @@ export function useLongPressBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const s = readState();
-    if (s.completed || s.bannerSessions >= MAX_BANNER_SESSIONS) return;
+    const evaluate = () => {
+      const s = readState();
+      setVisible(!s.completed && !s.dismissed);
+    };
     // Defer a beat so the banner doesn't slam in during route transition.
-    const showTimer = setTimeout(() => {
-      setVisible(true);
-      writeState({ ...readState(), bannerSessions: readState().bannerSessions + 1 });
-    }, 350);
-    return () => clearTimeout(showTimer);
+    const t = setTimeout(evaluate, 250);
+    window.addEventListener("ignite:chat-onboarding-changed", evaluate);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("ignite:chat-onboarding-changed", evaluate);
+    };
   }, []);
 
-  // Auto-hide after a few seconds so it never lingers.
-  useEffect(() => {
-    if (!visible) return;
-    const t = setTimeout(() => setVisible(false), 6000);
-    return () => clearTimeout(t);
-  }, [visible]);
-
-  const dismiss = useCallback(() => setVisible(false), []);
+  const dismiss = useCallback(() => {
+    const s = readState();
+    writeState({ ...s, dismissed: true });
+    setVisible(false);
+  }, []);
 
   return { visible, dismiss };
 }

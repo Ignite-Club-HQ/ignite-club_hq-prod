@@ -988,45 +988,39 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // profiles, avatars, link previews). Keep the first-open bottom guard
     // alive long enough to absorb that settling without affecting a user who
     // has intentionally scrolled away.
-    const STAY_PINNED_MS = 3200;
+    const STAY_PINNED_MS = 2400;
     let lastScrollHeight = viewport.scrollHeight;
-    let pendingFrame: number | null = null;
 
-    const repinIfAtBottom = () => {
-      pendingFrame = null;
+    // SYNCHRONOUS delta compensation. The flicker comes from the gap
+    // between a layout-changing paint (image decode / link preview /
+    // reaction landing → scrollHeight grows) and the next animation frame
+    // where we'd write scrollTop. In that gap the browser paints one frame
+    // with content shifted down, then snaps back — visible as a jolt. By
+    // adjusting scrollTop synchronously inside the ResizeObserver callback
+    // (which fires before the layout-change paint commits) we move the
+    // viewport by the exact same delta the inner content grew, so the
+    // bottom row stays optically nailed in place.
+    const ro = new ResizeObserver(() => {
       if (cancelled) return;
-      // Hand off the viewport to the user the moment a real gesture lands.
       if (isViewportUserActive(viewport)) return;
-      // Stop once the user has actively scrolled away from the bottom.
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
-      // NOTE: deliberately do NOT bail on `!atBottomRef.current` alone.
-      // Late-hydrating avatars / link previews / reactions grow row heights
-      // AFTER reveal; Virtuoso then reports we're no longer at bottom — but
-      // that's the exact drift this guard exists to correct. As long as no
-      // real user gesture is active, re-pinning is safe.
+
       const sh = viewport.scrollHeight;
+      const delta = sh - lastScrollHeight;
+      lastScrollHeight = sh;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
       // ~1.5 s main-thread freeze on first open and a clean reveal.
-      if (Math.abs(sh - lastScrollHeight) < 4) return;
-      lastScrollHeight = sh;
-      virtuosoRef.current?.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
-    };
+      if (Math.abs(delta) < 2) return;
 
-    const ro = new ResizeObserver(() => {
-      if (cancelled) return;
-      // Coalesce: at most one re-pin per animation frame, regardless of how
-      // many ResizeObserver callbacks fire (image decode, link preview
-      // hydrate, reaction land, padding reflow can all fire in the same
-      // tick). Without this, every RO callback wrote scrollTop synchronously
-      // and re-triggered itself.
-      if (pendingFrame === null) {
-        pendingFrame = requestAnimationFrame(repinIfAtBottom);
+      // Apply the growth as a scrollTop delta — no scrollToIndex call, no
+      // Virtuoso recompute. This is invisible to the user.
+      const maxTop = sh - viewport.clientHeight;
+      const target = Math.min(maxTop, viewport.scrollTop + Math.max(0, delta));
+      if (Math.abs(viewport.scrollTop - target) > 0.5) {
+        viewport.scrollTop = target;
       }
+
       if (performance.now() - startedAt > STAY_PINNED_MS) {
         cancelled = true;
         ro.disconnect();
@@ -1037,19 +1031,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const stopTimer = window.setTimeout(() => {
       cancelled = true;
       ro.disconnect();
-      if (pendingFrame !== null) {
-        cancelAnimationFrame(pendingFrame);
-        pendingFrame = null;
-      }
     }, STAY_PINNED_MS + 50);
 
     return () => {
       cancelled = true;
       ro.disconnect();
       window.clearTimeout(stopTimer);
-      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     };
   }, [initialRevealReady, bottomPinRevision]);
+
 
   // Cold-open data refresh guard. On a fresh login we often render cached
   // messages first, then replace/extend them with the network-fresh latest
@@ -1071,16 +1061,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     const run = () => {
       const viewport = scrollerElRef.current;
+      if (!viewport) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      // Silent scrollTop write rather than `scrollToIndex` — the latter
+      // triggers a visible Virtuoso recompute/jump every time it fires,
+      // which on first-open stacks into a multi-step flicker as cached
+      // messages get replaced/extended by the network refresh.
+      const maxTop = viewport.scrollHeight - viewport.clientHeight;
+      if (Math.abs(viewport.scrollTop - maxTop) > 1) {
+        viewport.scrollTop = maxTop;
+      }
     };
 
     requestAnimationFrame(() => requestAnimationFrame(run));
-    const timers = [160, 420, 900, 1600, 2600].map((delay) => window.setTimeout(run, delay));
+    // Two follow-up passes are enough to absorb the network-fresh page
+    // landing on top of cached messages. The previous 5-timer barrage
+    // (160/420/900/1600/2600 ms) caused a visible series of jolts on
+    // cold opens.
+    const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
+
   }, [initialRevealReady, lastMessageId, bottomPinRevision]);
 
   // Only auto-follow new outgoing messages when the user is already at the
