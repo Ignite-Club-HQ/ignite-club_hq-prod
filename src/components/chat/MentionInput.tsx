@@ -784,7 +784,7 @@ export function MentionInput({
         {showEmojiPicker && (
           // Sits flush against the textarea so the emoji icon reads as part
           // of the input field (WhatsApp-style). Hit target stays 36px.
-          <div className="flex items-center justify-center h-9 shrink-0 -mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-center h-9 shrink-0 -mr-3 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
@@ -796,7 +796,7 @@ export function MentionInput({
             <div
               ref={highlightRef}
               aria-hidden="true"
-              className="absolute inset-0 pointer-events-none overflow-hidden pl-1 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
+              className="absolute inset-0 pointer-events-none overflow-hidden pl-0 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
 
             >
@@ -832,7 +832,7 @@ export function MentionInput({
             aria-label={placeholder || "Message"}
             aria-multiline="true"
             role="textbox"
-            className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-1 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
+            className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-0 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
 
           />
