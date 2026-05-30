@@ -485,19 +485,19 @@ export default function PlayerOfMatchSelector({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10 ring-2 ring-amber-500">
-                  {playerOfMatch.profiles?.avatar_url && (
-                    <AvatarImage src={playerOfMatch.profiles.avatar_url} />
+                  {playerOfMatchDisplay?.avatarUrl && (
+                    <AvatarImage src={playerOfMatchDisplay.avatarUrl} />
                   )}
                   <AvatarFallback className="bg-amber-500/20 text-amber-600">
-                    {(playerOfMatch.profiles?.display_name || playerOfMatch.children?.name || "?").charAt(0).toUpperCase()}
+                    {playerOfMatchDisplay?.initial || "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">
-                      {playerOfMatch.profiles?.display_name || playerOfMatch.children?.name}
+                      {playerOfMatchDisplay?.name || "Unknown player"}
                     </span>
-                    {playerOfMatch.child_id && (
+                    {playerOfMatchDisplay?.isChild && (
                       <Badge variant="outline" className="text-xs">Child</Badge>
                     )}
                   </div>
@@ -719,7 +719,7 @@ export default function PlayerOfMatchSelector({
             <AlertDialogTitle>Remove Player of the Match?</AlertDialogTitle>
             <AlertDialogDescription>
               This will remove the Player of the Match selection and deduct {(playerOfMatch as any)?.points ?? 0} points from{" "}
-              {playerOfMatch?.profiles?.display_name || playerOfMatch?.children?.name}.
+              {playerOfMatchDisplay?.name || "this player"}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
