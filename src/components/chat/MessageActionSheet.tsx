@@ -123,13 +123,16 @@ export function MessageActionSheet({
   }, [open]);
 
   // ---------- Primary actions (kept intentionally short) ----------
+  // Only Reply lives in the top-level sheet — everything else (Copy, Forward,
+  // Pin, etc.) is one tap away behind "More…". This keeps the most common
+  // action visually dominant and reduces cognitive load on open.
   const primary: MessageAction[] = [];
 
   if (canReply) {
     primary.push({
       id: "reply",
       label: "Reply",
-      icon: <Reply className="h-[18px] w-[18px]" />,
+      icon: <Reply className="h-[20px] w-[20px]" />,
       onClick: onReply,
     });
   }
@@ -143,24 +146,6 @@ export function MessageActionSheet({
     });
   }
 
-  if (messageText) {
-    const cleanMessageText = stripMentionFormatting(messageText);
-    const isMessageCopied = copiedText === cleanMessageText;
-    primary.push({
-      id: "copy-message",
-      label: isMessageCopied ? "Copied!" : "Copy",
-      icon: isMessageCopied
-        ? <Check className="h-[18px] w-[18px] text-primary" />
-        : <Copy className="h-[18px] w-[18px]" />,
-      onClick: () => {
-        navigator.clipboard.writeText(cleanMessageText).then(() => {
-          setCopiedText(cleanMessageText);
-        }).catch(() => {
-          setCopiedText(null);
-        });
-      },
-    });
-  }
 
   // ---------- Secondary actions (everything else lives behind More…) ----------
   const secondary: MessageAction[] = [];
