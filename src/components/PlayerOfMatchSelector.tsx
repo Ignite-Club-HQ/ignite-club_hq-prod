@@ -57,6 +57,30 @@ export default function PlayerOfMatchSelector({
     [clubId, teamId]
   );
 
+  const childNameFallbacks = useMemo(() => {
+    const names = new Map<string, string>();
+    [...(childrenOnTeam || []), ...(rsvps || []).map((rsvp: any) => rsvp.children)].forEach((child: any) => {
+      const id = child?.id || child?.child_id;
+      const name = typeof child?.name === "string" ? child.name.trim() : "";
+      if (id && name) names.set(id, name);
+    });
+    return names;
+  }, [childrenOnTeam, rsvps]);
+
+  const profileFallbacks = useMemo(() => {
+    const profiles = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+    (rsvps || []).forEach((rsvp: any) => {
+      const name = typeof rsvp.profiles?.display_name === "string" ? rsvp.profiles.display_name.trim() : "";
+      if (rsvp.user_id && name) {
+        profiles.set(rsvp.user_id, {
+          display_name: name,
+          avatar_url: rsvp.profiles?.avatar_url || null,
+        });
+      }
+    });
+    return profiles;
+  }, [rsvps]);
+
   const setSelectedRewardPersisted = (reward: any | null) => {
     setSelectedReward(reward);
     try {
@@ -89,7 +113,7 @@ export default function PlayerOfMatchSelector({
           .select("id, display_name, avatar_url")
           .eq("id", data.user_id)
           .maybeSingle();
-        profile = p;
+        profile = p || profileFallbacks.get(data.user_id) || null;
       }
       if (data.child_id) {
         const { data: c } = await supabase
@@ -97,12 +121,39 @@ export default function PlayerOfMatchSelector({
           .select("id, name")
           .eq("id", data.child_id)
           .maybeSingle();
-        child = c;
+        child = c || (childNameFallbacks.has(data.child_id)
+          ? { id: data.child_id, name: childNameFallbacks.get(data.child_id)! }
+          : null);
       }
 
       return { ...data, profiles: profile, children: child };
     },
   });
+
+  const playerOfMatchDisplay = useMemo(() => {
+    if (!playerOfMatch) return null;
+    const profileName = typeof playerOfMatch.profiles?.display_name === "string"
+      ? playerOfMatch.profiles.display_name.trim()
+      : "";
+    const childName = typeof playerOfMatch.children?.name === "string"
+      ? playerOfMatch.children.name.trim()
+      : "";
+    const fallbackProfile = playerOfMatch.user_id ? profileFallbacks.get(playerOfMatch.user_id) : null;
+    const fallbackProfileName = typeof fallbackProfile?.display_name === "string"
+      ? fallbackProfile.display_name.trim()
+      : "";
+    const fallbackChildName = playerOfMatch.child_id
+      ? childNameFallbacks.get(playerOfMatch.child_id) || ""
+      : "";
+    const name = profileName || childName || fallbackProfileName || fallbackChildName || "Unknown player";
+
+    return {
+      name,
+      avatarUrl: playerOfMatch.profiles?.avatar_url || fallbackProfile?.avatar_url || null,
+      initial: name.charAt(0).toUpperCase(),
+      isChild: !!playerOfMatch.child_id,
+    };
+  }, [childNameFallbacks, playerOfMatch, profileFallbacks]);
 
   // Fetch POM rewards - team-specific first, then club-level fallback
   const { data: pomRewards = [] } = useQuery({
