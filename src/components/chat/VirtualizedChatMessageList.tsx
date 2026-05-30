@@ -611,6 +611,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // unless the user has deliberately started reading history.
   const openPinStartedAtRef = useRef<number | null>(null);
   const openPinLastMessageIdRef = useRef<string | null>(null);
+  // Tracks the messages.length seen by the cold-open re-pin guard so it can
+  // detect cached→fresh page swaps where lastMessageId is unchanged but
+  // older rows get extended/replaced (which still shifts the bottom row).
+  const openPinMessagesLengthRef = useRef<number>(-1);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
@@ -736,6 +740,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         userHasScrolledAfterPinRef.current = false;
         openPinStartedAtRef.current = null;
         openPinLastMessageIdRef.current = null;
+        openPinMessagesLengthRef.current = -1;
         setBottomPinRevision((revision) => revision + 1);
       }
       debugLogAnchor("reset", {
@@ -1047,7 +1052,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // first-open measurement drift can make that false, leaving the real latest
   // message below the viewport. During the first few seconds only, keep
   // pinning to LAST while there has been no user scroll gesture.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!initialRevealReady || !lastMessageId) return;
     if (openPinStartedAtRef.current === null) openPinStartedAtRef.current = performance.now();
 
@@ -1057,7 +1062,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const OPEN_PIN_WINDOW_MS = 6000;
     const withinOpenWindow = performance.now() - openPinStartedAtRef.current <= OPEN_PIN_WINDOW_MS;
     if (!withinOpenWindow) return;
-    if (previousLastMessageId === lastMessageId && bottomPinReadyRef.current) return;
+    // NOTE: do NOT early-return when lastMessageId is unchanged. On first
+    // login the cached page often shares its last message id with the
+    // network-fresh page, but the fresh page extends/replaces older rows,
+    // which shifts the bottom row's pixel position. We still need to
+    // re-pin to LAST in that case — relying on lastMessageId alone misses
+    // the jolt entirely. Suppress only when the bottom is already nailed
+    // AND messages haven't grown since the last pass.
+    const messagesLengthChanged = openPinMessagesLengthRef.current !== messages.length;
+    openPinMessagesLengthRef.current = messages.length;
+    if (
+      previousLastMessageId === lastMessageId &&
+      !messagesLengthChanged &&
+      bottomPinReadyRef.current
+    ) return;
 
     const run = () => {
       const viewport = scrollerElRef.current;
@@ -1074,17 +1092,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }
     };
 
-    requestAnimationFrame(() => requestAnimationFrame(run));
+    // SYNCHRONOUS first pass — commits in the same paint frame as the
+    // cached→fresh message swap, so the browser never paints a frame where
+    // the bottom row is partially scrolled off. Without this, Android WebView
+    // shows a single-frame "jolt" right after first login as the fresh page
+    // replaces the cached one. The rAF + delayed passes below remain as a
+    // safety net for late-hydrating row heights (avatars, link previews).
+    run();
+    const r = requestAnimationFrame(() => requestAnimationFrame(run));
     // Two follow-up passes are enough to absorb the network-fresh page
     // landing on top of cached messages. The previous 5-timer barrage
     // (160/420/900/1600/2600 ms) caused a visible series of jolts on
     // cold opens.
     const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
+      cancelAnimationFrame(r);
       timers.forEach((timer) => window.clearTimeout(timer));
     };
 
-  }, [initialRevealReady, lastMessageId, bottomPinRevision]);
+  }, [initialRevealReady, lastMessageId, messages.length, bottomPinRevision]);
+
+
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
