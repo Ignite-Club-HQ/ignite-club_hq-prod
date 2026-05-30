@@ -15,7 +15,8 @@ const SLOW_THRESHOLD_MS = 5_000;
 
 // Local throttle so we don't spam the table from a single bad session
 // (one user on dropping wifi could otherwise log hundreds of rows/min).
-const LOCAL_RATE_LIMIT_MS = 2_000;
+// Bumped from 2s → 10s so the table reflects distinct incidents, not bursts.
+const LOCAL_RATE_LIMIT_MS = 10_000;
 let lastLogAt = 0;
 
 let cachedUserId: string | null = null;
@@ -74,6 +75,9 @@ export function maybeLogSlowFetch(opts: {
     // was paused by the OS (Android Doze / iOS background). These rows
     // dominate the slow-query log without representing real DB slowness.
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    // Skip known-benign aborts: if the device is offline at completion,
+    // the abort is just "user lost signal", not a DB performance issue.
+    if (opts.aborted && typeof navigator !== "undefined" && navigator.onLine === false) return;
     const now = Date.now();
     if (now - lastLogAt < LOCAL_RATE_LIMIT_MS) return;
     lastLogAt = now;
