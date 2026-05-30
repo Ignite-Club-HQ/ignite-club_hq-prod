@@ -461,18 +461,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
-                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "ring-2 ring-primary/60 border border-transparent" : "border border-transparent"}`}
+                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {
-                    boxShadow: '0 18px 36px -16px rgba(0,0,0,0.42), 0 3px 10px -3px rgba(0,0,0,0.16)',
-                    transform: 'scale(1.022)',
+                    boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
+                    transform: 'scale(1.015)',
                     filter: isDark
-                      ? (isOwnMessage ? 'brightness(1.18) saturate(1.04)' : 'brightness(1.18)')
-                      : (isOwnMessage ? 'brightness(1.10)' : 'brightness(1.04)'),
-                    transition: 'transform 200ms ease-out, box-shadow 200ms ease-out, filter 200ms ease-out',
+                      ? (isOwnMessage ? 'brightness(1.14) saturate(1.04)' : 'brightness(1.14)')
+                      : (isOwnMessage ? 'brightness(1.07)' : 'brightness(1.03)'),
+                    transition: 'transform 150ms ease-out, box-shadow 150ms ease-out, filter 150ms ease-out',
                   };
                 })() : undefined}
+
                 onPointerDown={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}
                 onDragStart={(e) => e.preventDefault()}
