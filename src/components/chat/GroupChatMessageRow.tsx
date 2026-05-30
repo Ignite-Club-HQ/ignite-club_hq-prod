@@ -560,8 +560,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
-            <div className="flex items-center gap-1.5 justify-end mt-0.5 px-0.5">
-              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+            <div className="flex items-baseline gap-1 justify-end mt-0.5 px-0.5">
+              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
               <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
@@ -569,8 +569,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
           ) : isOwnMessage ? (
-            <div className="mt-0.5 px-0.5 flex items-center justify-end">
-              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+            <div className="mt-0.5 px-0.5 flex items-baseline gap-1 justify-end">
+              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
               <span
@@ -581,6 +581,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </span>
             </div>
           ) : null}
+
           {isOwnMessage && (
             <ReadReceiptSheet
               open={showReadReceipts}
