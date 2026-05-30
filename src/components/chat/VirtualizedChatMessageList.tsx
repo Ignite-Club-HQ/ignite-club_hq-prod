@@ -1049,13 +1049,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     ref,
     () => ({
       scrollToBottom: (behavior = "auto") => {
-        if (messagesLengthRef.current <= 0) return;
-        virtuosoRef.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior,
-        });
+        // Defer to the next two animation frames. Send mutations call
+        // scrollToBottom synchronously inside `onMutate` — BEFORE React has
+        // committed the optimistic message into the cache and BEFORE
+        // Virtuoso has rendered the new row. Scrolling to "LAST" right
+        // then would land on the previous last message and leave the
+        // freshly-sent bubble below the viewport. Waiting one paint lets
+        // the new item mount; the second rAF guarantees Virtuoso has
+        // measured it so `index: "LAST"` resolves to the correct row.
+        const run = () => {
+          if (messagesLengthRef.current <= 0) return;
+          virtuosoRef.current?.scrollToIndex({
+            index: "LAST",
+            align: "end",
+            behavior,
+          });
+        };
+        requestAnimationFrame(() => requestAnimationFrame(run));
       },
+
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
