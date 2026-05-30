@@ -36,6 +36,8 @@ import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
+import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
+
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -187,7 +189,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
+      // Pull the selected bubble into the lower third so the reaction pill
+      // and the bottom-anchored action sheet read as one focused interaction.
+      requestAnimationFrame(() => scrollMessageIntoLowerThird(bubbleRef.current));
     }, 400);
+
   }, [armDismissGuard]);
 
   const handleReplyAction = useCallback(() => {

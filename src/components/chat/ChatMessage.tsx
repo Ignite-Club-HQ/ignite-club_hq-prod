@@ -39,6 +39,8 @@ import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { markLongPressOnboardingCompleted } from "@/hooks/useChatActionsOnboarding";
+import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
+
 
 interface Reaction {
   id: string;
@@ -552,7 +554,12 @@ function ChatMessageInner({
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
+      // Pull the selected bubble into the lower third so the reaction pill
+      // (just above it) and the bottom-anchored action sheet feel like one
+      // focused interaction rather than three disconnected layers.
+      requestAnimationFrame(() => scrollMessageIntoLowerThird(bubbleRef.current));
       markLongPressOnboardingCompleted();
+
     }, 400);
   }, [armDismissGuard]);
 
