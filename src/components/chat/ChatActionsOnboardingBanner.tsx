@@ -1,15 +1,29 @@
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useLongPressBanner } from "@/hooks/useChatActionsOnboarding";
 
 /**
  * Compact, dismissible educational banner shown above the composer.
  * Persists until the user closes it OR successfully long-presses a message.
  * Uses a "New" pill so existing users understand this is a recent change.
+ *
+ * Hidden entirely while the message action sheet is open so the onboarding
+ * tip never competes with the active long-press interaction.
  */
 export function ChatActionsOnboardingBanner() {
   const { visible, dismiss } = useLongPressBanner();
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
 
-  if (!visible) return null;
+  useEffect(() => {
+    const onToggle = (e: Event) => {
+      const detail = (e as CustomEvent<{ open: boolean }>).detail;
+      setActionSheetOpen(Boolean(detail?.open));
+    };
+    window.addEventListener("chat-action-sheet:toggle", onToggle as EventListener);
+    return () => window.removeEventListener("chat-action-sheet:toggle", onToggle as EventListener);
+  }, []);
+
+  if (!visible || actionSheetOpen) return null;
 
   return (
     <div className="px-2 pb-1 animate-fade-in">
