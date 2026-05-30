@@ -54,6 +54,9 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
     
     /* Warmer, slightly off-white with a hint of green undertone for richer light-mode depth */
     --background: 150 18% 97%;
+    /* Chat scroller surface — a touch cooler/darker than --background so
+       --card bubbles (white) read as elevated and the thread no longer feels flat. */
+    --chat-surface: 160 14% 94%;
     --foreground: 160 14% 12%;
 
     --card: 0 0% 100%;
