@@ -343,18 +343,13 @@ export function MessageActionSheet({
             <>
               {primary.map(renderAction)}
               {hasMore && (
-                <>
-                  {primary.length > 0 && (
-                    <div className="mx-4 border-t border-border/30" />
-                  )}
-                  <button
-                    className="w-full flex items-center gap-3 px-4 h-10 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                    onClick={() => setShowMore(true)}
-                  >
-                    <MoreHorizontal className="h-[18px] w-[18px]" />
-                    More…
-                  </button>
-                </>
+                <button
+                  className="w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                  onClick={() => setShowMore(true)}
+                >
+                  <MoreHorizontal className="h-[18px] w-[18px]" />
+                  More…
+                </button>
               )}
             </>
           ) : (
