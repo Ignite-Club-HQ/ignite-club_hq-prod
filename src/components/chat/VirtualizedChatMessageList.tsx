@@ -1068,8 +1068,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // re-pin to LAST in that case — relying on lastMessageId alone misses
     // the jolt entirely. Suppress only when the bottom is already nailed
     // AND messages haven't grown since the last pass.
-    const messagesLengthChanged = previousMessagesLengthRef.current !== messages.length;
-    previousMessagesLengthRef.current = messages.length;
+    const messagesLengthChanged = openPinMessagesLengthRef.current !== messages.length;
+    openPinMessagesLengthRef.current = messages.length;
     if (
       previousLastMessageId === lastMessageId &&
       !messagesLengthChanged &&
