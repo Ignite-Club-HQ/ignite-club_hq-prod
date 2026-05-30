@@ -1057,7 +1057,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const OPEN_PIN_WINDOW_MS = 6000;
     const withinOpenWindow = performance.now() - openPinStartedAtRef.current <= OPEN_PIN_WINDOW_MS;
     if (!withinOpenWindow) return;
-    if (previousLastMessageId === lastMessageId && bottomPinReadyRef.current) return;
+    // NOTE: do NOT early-return when lastMessageId is unchanged. On first
+    // login the cached page often shares its last message id with the
+    // network-fresh page, but the fresh page extends/replaces older rows,
+    // which shifts the bottom row's pixel position. We still need to
+    // re-pin to LAST in that case — relying on lastMessageId alone misses
+    // the jolt entirely. Suppress only when the bottom is already nailed
+    // AND messages haven't grown since the last pass.
+    const messagesLengthChanged = previousMessagesLengthRef.current !== messages.length;
+    previousMessagesLengthRef.current = messages.length;
+    if (
+      previousLastMessageId === lastMessageId &&
+      !messagesLengthChanged &&
+      bottomPinReadyRef.current
+    ) return;
 
     const run = () => {
       const viewport = scrollerElRef.current;
@@ -1092,7 +1105,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       timers.forEach((timer) => window.clearTimeout(timer));
     };
 
-  }, [initialRevealReady, lastMessageId, bottomPinRevision]);
+  }, [initialRevealReady, lastMessageId, messages.length, bottomPinRevision]);
+
 
 
   // Only auto-follow new outgoing messages when the user is already at the
