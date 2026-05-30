@@ -22,7 +22,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
       className={cn(
         // Clean bottom surface. Hairline top edge gives gentle separation
         // from the conversation without reading as a border.
-        "px-2 pt-2 pb-2 bg-background",
+        "px-1.5 pt-2 pb-2 bg-background",
         "shadow-[0_-1px_0_0_hsl(var(--border)/0.25)]",
         "dark:shadow-[0_-1px_0_0_hsl(var(--border)/0.4)]",
       )}
