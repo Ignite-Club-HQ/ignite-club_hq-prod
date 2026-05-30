@@ -182,6 +182,10 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   if (!path) return;
 
                   navigate(path);
+                  // Mark the launch-handler queue as handled so the post-auth
+                  // consumer + retry timers don't re-navigate to the same URL
+                  // and visibly bounce the user between routes.
+                  clearPendingNotificationNavigation();
 
                   if (isPitchBoard) {
                     // Store the notification type so the pitch board can handle expired subs
