@@ -605,6 +605,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // "scroll up, stop, then jump higher" symptom on cold open).
   const bottomPinReadyAtRef = useRef(0);
   const userHasScrolledAfterPinRef = useRef(false);
+  // Fresh-login / cold-open safety net: cached messages can mount first, then
+  // the fresh query appends the real latest row a moment later. Track the
+  // opening window so those first data swaps keep landing on the latest row,
+  // unless the user has deliberately started reading history.
+  const openPinStartedAtRef = useRef<number | null>(null);
+  const openPinLastMessageIdRef = useRef<string | null>(null);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
@@ -676,7 +682,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const START_INDEX = 1_000_000;
   const newFirstId = messages[0]?.id ?? null;
   const wasEmptyRef = useRef(messages.length === 0);
-  const bottomPinRevisionRef = useRef(0);
+  const [bottomPinRevision, setBottomPinRevision] = useState(0);
+  const lastMessageId = messages[messages.length - 1]?.id ?? null;
   const anchorRef = useRef<{ baseFirstId: string | null; baseFirstIndex: number }>({
     baseFirstId: newFirstId,
     baseFirstIndex: START_INDEX - messages.length,
@@ -703,7 +710,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     : anchorRef.current.baseFirstIndex;
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
-  const bottomPinRevision = bottomPinRevisionRef.current;
   wasEmptyRef.current = messages.length === 0;
 
   useEffect(() => {
@@ -728,7 +734,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
         userHasScrolledAfterPinRef.current = false;
-        bottomPinRevisionRef.current += 1;
+        openPinStartedAtRef.current = null;
+        openPinLastMessageIdRef.current = null;
+        setBottomPinRevision((revision) => revision + 1);
       }
       debugLogAnchor("reset", {
         previousBaseFirstId: prev.baseFirstId,
@@ -1039,6 +1047,40 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
   }, [initialRevealReady, bottomPinRevision]);
 
+  // Cold-open data refresh guard. On a fresh login we often render cached
+  // messages first, then replace/extend them with the network-fresh latest
+  // page. `followOutput` only follows when Virtuoso still reports bottom;
+  // first-open measurement drift can make that false, leaving the real latest
+  // message below the viewport. During the first few seconds only, keep
+  // pinning to LAST while there has been no user scroll gesture.
+  useEffect(() => {
+    if (!initialRevealReady || !lastMessageId) return;
+    if (openPinStartedAtRef.current === null) openPinStartedAtRef.current = performance.now();
+
+    const previousLastMessageId = openPinLastMessageIdRef.current;
+    openPinLastMessageIdRef.current = lastMessageId;
+
+    const OPEN_PIN_WINDOW_MS = 6000;
+    const withinOpenWindow = performance.now() - openPinStartedAtRef.current <= OPEN_PIN_WINDOW_MS;
+    if (!withinOpenWindow) return;
+    if (previousLastMessageId === lastMessageId && bottomPinReadyRef.current) return;
+
+    const run = () => {
+      const viewport = scrollerElRef.current;
+      if (isViewportUserActive(viewport)) return;
+      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+    };
+
+    requestAnimationFrame(() => requestAnimationFrame(run));
+    const t1 = window.setTimeout(run, 160);
+    const t2 = window.setTimeout(run, 420);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [initialRevealReady, lastMessageId, bottomPinRevision]);
+
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
   const followOutput = useCallback((isAtBottom: boolean) => {
@@ -1057,8 +1099,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         // freshly-sent bubble below the viewport. Waiting one paint lets
         // the new item mount; the second rAF guarantees Virtuoso has
         // measured it so `index: "LAST"` resolves to the correct row.
+        //
+        // We then schedule additional re-pins across the next ~500ms to
+        // absorb composer reflow that lands AFTER send commits: the reply
+        // pill clears, edit mode exits, the textarea collapses back to a
+        // single line, and the optimistic bubble's own height settles
+        // (image decode, link preview hydrate). Each of these shrinks or
+        // grows the bottomPadding (which mirrors composer height) AFTER
+        // the initial scroll, so without follow-up pins the freshly sent
+        // bubble ends up clipped behind the fixed composer.
         const run = () => {
           if (messagesLengthRef.current <= 0) return;
+          if (isViewportUserActive(scrollerElRef.current)) return;
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
@@ -1066,6 +1118,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           });
         };
         requestAnimationFrame(() => requestAnimationFrame(run));
+        // Trailing re-pins. Each is independently guarded so an active
+        // user gesture (finger drag / momentum) cancels them.
+        window.setTimeout(run, 120);
+        window.setTimeout(run, 280);
+        window.setTimeout(run, 500);
       },
 
       scrollToIndex: (index, align = "center") => {
