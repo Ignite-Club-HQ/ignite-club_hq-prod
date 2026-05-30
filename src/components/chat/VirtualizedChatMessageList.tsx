@@ -611,6 +611,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // unless the user has deliberately started reading history.
   const openPinStartedAtRef = useRef<number | null>(null);
   const openPinLastMessageIdRef = useRef<string | null>(null);
+  // Tracks the messages.length seen by the cold-open re-pin guard so it can
+  // detect cached→fresh page swaps where lastMessageId is unchanged but
+  // older rows get extended/replaced (which still shifts the bottom row).
+  const openPinMessagesLengthRef = useRef<number>(-1);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
