@@ -345,3 +345,11 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 [data-chat-scroll-lock="true"] * {
   overflow-anchor: none;
 }
+
+/* Subtle tinted backdrop on the chat thread so bubbles (--card, white in
+   light / 10% L in dark) read as elevated above the scroller. Pure color
+   only — no gradients/blur — to stay safe on Android WebView per the
+   compositor-freeze rule. */
+[data-chat-scroll-lock="true"] {
+  background-color: hsl(var(--chat-surface));
+}
