@@ -993,7 +993,7 @@ export default function EventsPage() {
       </div>
 
       {viewMode === "calendar" ? (
-        <div className="space-y-4">
+        <div className="space-y-2">
           <Card>
             <CardContent className="p-4">
               <Calendar

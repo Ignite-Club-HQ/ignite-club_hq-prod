@@ -165,40 +165,51 @@ export function ClubDaySummary({
     return Array.from(map.entries());
   }, [visible]);
 
+  const extraAcrossClub = scope === "my" && events ? Math.max(0, events.length - visible.length) : 0;
+  const primaryCount = games.length > 0 ? games.length : visible.length;
+  const primaryLabel = games.length > 0
+    ? `${primaryCount} game${primaryCount === 1 ? "" : "s"} today`
+    : `${primaryCount} event${primaryCount === 1 ? "" : "s"} today`;
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">
-          {format(selectedDate, "EEEE, MMMM d")}
-        </h2>
+    <div className="space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold tracking-tight text-foreground leading-tight truncate">
+            {format(selectedDate, "EEEE, MMMM d")}
+          </h2>
+          {visible.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {primaryLabel}
+              {extraAcrossClub > 0 && (
+                <> <span aria-hidden="true">•</span> {extraAcrossClub} more across club</>
+              )}
+            </p>
+          )}
+        </div>
         <ToggleGroup
           type="single"
           size="sm"
           value={scope}
           onValueChange={(v) => v && setScope(v as "my" | "club")}
-          className="shrink-0"
+          className="shrink-0 self-start opacity-80"
         >
-          <ToggleGroupItem value="my" className="h-7 px-2 text-xs gap-1">
-            <Users className="h-3 w-3" />
+          <ToggleGroupItem
+            value="my"
+            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
+          >
+            <Users className="h-2.5 w-2.5" />
             My teams
           </ToggleGroupItem>
-          <ToggleGroupItem value="club" className="h-7 px-2 text-xs gap-1">
-            <Building2 className="h-3 w-3" />
+          <ToggleGroupItem
+            value="club"
+            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
+          >
+            <Building2 className="h-2.5 w-2.5" />
             Whole club
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-
-      {visible.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {games.length} game{games.length === 1 ? "" : "s"} ·{" "}
-          {trainings.length} training
-          {socials.length > 0 && <> · {socials.length} social{socials.length === 1 ? "" : "s"}</>}
-          {scope === "my" && events && events.length > visible.length && (
-            <> · {events.length - visible.length} more across club</>
-          )}
-        </p>
-      )}
 
       {isLoading ? (
         <div className="space-y-2">

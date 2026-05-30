@@ -57,6 +57,17 @@ export function getPendingNotificationNavigation(): string | null {
 }
 
 /**
+ * Clear pending notification navigation without navigating. Use when another
+ * handler has already routed for this tap, to prevent the post-auth consumer
+ * or retry timers from firing a second navigate() and causing a visible jump.
+ */
+export function clearPendingNotificationNavigation() {
+  pendingNavigationUrl = null;
+  clearPersistedPendingNav();
+  navigationHandled = true;
+}
+
+/**
  * Peek at the pending notification URL without consuming it.
  */
 export function peekPendingNotificationNavigation(): string | null {
