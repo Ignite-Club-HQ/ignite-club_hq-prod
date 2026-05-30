@@ -7,6 +7,8 @@ import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
 import { useNativePush } from "@/hooks/useNativePush";
 import { getPlatform, isNativePlatform } from "@/lib/nativePush";
+import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
+import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub";
@@ -55,29 +57,42 @@ export function PushNotificationManager() {
   // BroadcastChannel is more reliable than postMessage for PWA clients resuming from suspension
   useEffect(() => {
     if (isNativePlatform()) return;
-    
+
+    // Drain any URL stashed by the early web launch handler (handles taps that
+    // fired before this component mounted, e.g. during auth bootstrap).
+    const pending = consumePendingWebPushNav();
+    if (pending) {
+      console.log('[PushManager] Consuming pending web push nav:', pending);
+      navigateToUrl(pending);
+    }
+
+    const handlePayload = (payload: any) => {
+      if (!payload?.url) return;
+      // Preload message cache so chat renders the new push at first paint.
+      try { preloadMessageFromNotification(payload.data || payload); } catch {}
+      navigateToUrl(payload.url);
+    };
+
     // Primary: BroadcastChannel (works even when client is resuming from suspension)
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('push-nav');
       bc.onmessage = (event) => {
-        if (event.data?.url) {
-          console.log('[PushManager] BroadcastChannel navigation received:', event.data.url);
-          navigateToUrl(event.data.url);
-        }
+        console.log('[PushManager] BroadcastChannel navigation received:', event.data?.url);
+        handlePayload(event.data);
       };
     } catch (e) {
       console.warn('[PushManager] BroadcastChannel not available:', e);
     }
-    
+
     // Backup: SW postMessage
     const handleSWMessage = (event: MessageEvent) => {
       if (event.data?.type === 'NOTIFICATION_CLICK_NAVIGATE' && event.data?.url) {
         console.log('[PushManager] SW postMessage navigation received:', event.data.url);
-        navigateToUrl(event.data.url);
+        handlePayload(event.data);
       }
     };
-    
+
     navigator.serviceWorker?.addEventListener('message', handleSWMessage);
     return () => {
       bc?.close();
