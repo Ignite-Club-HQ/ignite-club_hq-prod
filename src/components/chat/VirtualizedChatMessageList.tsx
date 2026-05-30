@@ -1010,12 +1010,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // ~1.5 s main-thread freeze on first open and a clean reveal.
       if (Math.abs(sh - lastScrollHeight) < 4) return;
       lastScrollHeight = sh;
-      virtuosoRef.current?.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
+      // Silent compensation: write scrollTop directly to the absolute
+      // bottom. Calling `virtuosoRef.scrollToIndex` here triggers a full
+      // Virtuoso recompute that paints as a visible jump/flicker each time
+      // a late image, link preview, or reaction expands a row. A raw
+      // scrollTop write is a single synchronous adjustment — invisible to
+      // the user — that keeps the last row pinned while content above
+      // grows.
+      const maxTop = viewport.scrollHeight - viewport.clientHeight;
+      if (Math.abs(viewport.scrollTop - maxTop) > 1) {
+        viewport.scrollTop = maxTop;
+      }
     };
+
 
     const ro = new ResizeObserver(() => {
       if (cancelled) return;
