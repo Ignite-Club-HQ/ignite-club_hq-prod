@@ -887,7 +887,7 @@ function ChatMessageInner({
           )}
           {/* Swipe-to-reply wrapper */}
           <div
-            className="min-w-0 max-w-full select-none"
+            className="relative min-w-0 max-w-full select-none"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
               transition: swipeState.isSwiping || swipeState.offsetX === 0 ? 'none' : 'transform 0.2s ease-out',
@@ -904,8 +904,17 @@ function ChatMessageInner({
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
+            {showTapHint && (
               <div
-                ref={bubbleRef}
+                className={`pointer-events-none absolute -top-7 z-20 whitespace-nowrap rounded-full bg-foreground/90 text-background px-2.5 py-1 text-[10.5px] font-medium shadow-md animate-fade-in ${
+                  isOwn && !isClubAnnouncement ? "right-2" : "left-2"
+                }`}
+                role="status"
+              >
+                Press and hold for reactions and replies
+              </div>
+            )}
+
                 className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
