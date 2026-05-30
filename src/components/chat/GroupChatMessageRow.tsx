@@ -36,6 +36,8 @@ import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
+import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
+
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
