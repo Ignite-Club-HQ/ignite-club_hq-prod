@@ -300,21 +300,26 @@ export function MessageActionSheet({
     onOpenChange(isOpen);
   };
 
-  const renderAction = (action: MessageAction) => (
-    <button
-      key={action.id}
-      className={`w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium active:bg-muted transition-colors ${
-        action.destructive ? "text-destructive" : "text-foreground"
-      }`}
-      onClick={() => {
-        handleOpenChange(false);
-        requestAnimationFrame(() => action.onClick());
-      }}
-    >
-      {action.icon}
-      {action.label}
-    </button>
-  );
+  const renderAction = (action: MessageAction) => {
+    const isReply = action.id === "reply";
+    return (
+      <button
+        key={action.id}
+        className={`w-full flex items-center gap-3 px-4 text-left transition-colors active:bg-muted ${
+          isReply
+            ? "h-12 text-[16px] font-semibold text-primary"
+            : `h-11 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
+        }`}
+        onClick={() => {
+          handleOpenChange(false);
+          requestAnimationFrame(() => action.onClick());
+        }}
+      >
+        {action.icon}
+        {action.label}
+      </button>
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -323,9 +328,13 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        className="px-0 pt-1 pb-1 rounded-t-3xl bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-12px_32px_-16px_rgba(0,0,0,0.22)] dark:shadow-[0_-12px_32px_-12px_rgba(0,0,0,0.55)] !duration-200 ease-out"
+        // Extra top padding + thicker rounding creates a clearer visual gap
+        // from the floating reactions pill that sits above the bubble.
+        className="px-0 pt-3 pb-1 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
+        <SheetTitle className="sr-only">Message Actions</SheetTitle>
+
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
         {/* Reactions intentionally live in the floating pill ABOVE the selected
