@@ -302,6 +302,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
         }
         // Internal URL - navigate via React Router
         navigate(normalizeNotificationPath(url));
+        clearPendingNotificationNavigation();
       }
     } catch (err) {
       console.error('[useNativePush] Error handling notification action:', err);
