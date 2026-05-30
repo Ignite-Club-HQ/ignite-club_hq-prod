@@ -1057,8 +1057,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         // freshly-sent bubble below the viewport. Waiting one paint lets
         // the new item mount; the second rAF guarantees Virtuoso has
         // measured it so `index: "LAST"` resolves to the correct row.
+        //
+        // We then schedule additional re-pins across the next ~500ms to
+        // absorb composer reflow that lands AFTER send commits: the reply
+        // pill clears, edit mode exits, the textarea collapses back to a
+        // single line, and the optimistic bubble's own height settles
+        // (image decode, link preview hydrate). Each of these shrinks or
+        // grows the bottomPadding (which mirrors composer height) AFTER
+        // the initial scroll, so without follow-up pins the freshly sent
+        // bubble ends up clipped behind the fixed composer.
         const run = () => {
           if (messagesLengthRef.current <= 0) return;
+          if (isViewportUserActive(scrollerElRef.current)) return;
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
@@ -1066,6 +1076,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           });
         };
         requestAnimationFrame(() => requestAnimationFrame(run));
+        // Trailing re-pins. Each is independently guarded so an active
+        // user gesture (finger drag / momentum) cancels them.
+        window.setTimeout(run, 120);
+        window.setTimeout(run, 280);
+        window.setTimeout(run, 500);
       },
 
       scrollToIndex: (index, align = "center") => {
