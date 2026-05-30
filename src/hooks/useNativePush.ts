@@ -17,7 +17,11 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { processPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
+import {
+  processPendingNotificationNavigation,
+  clearPendingNotificationNavigation,
+  isNotificationNavigationHandled,
+} from '@/lib/notificationLaunchHandler';
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
