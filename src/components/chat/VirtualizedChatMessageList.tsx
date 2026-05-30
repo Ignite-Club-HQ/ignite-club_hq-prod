@@ -740,6 +740,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         userHasScrolledAfterPinRef.current = false;
         openPinStartedAtRef.current = null;
         openPinLastMessageIdRef.current = null;
+        openPinMessagesLengthRef.current = -1;
         setBottomPinRevision((revision) => revision + 1);
       }
       debugLogAnchor("reset", {
