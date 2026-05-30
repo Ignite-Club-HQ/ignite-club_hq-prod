@@ -783,7 +783,7 @@ export function MentionInput({
           </div>
         )}
 
-        <div className="relative flex flex-1 min-w-0 max-w-full items-center overflow-hidden">
+        <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
           {/* Highlight overlay for mentions */}
           {!isNativeIOS && (
             <div
