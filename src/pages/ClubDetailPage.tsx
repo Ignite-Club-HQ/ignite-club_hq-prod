@@ -1709,6 +1709,31 @@ export default function ClubDetailPage() {
                     />
                   </div>
                 )}
+                {/* Member search */}
+                {Object.keys(clubMembers).length > 0 && (
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      value={memberSearchQuery}
+                      onChange={(e) => {
+                        setMemberSearchQuery(e.target.value);
+                        setDisplayCount(MEMBERS_PER_PAGE);
+                      }}
+                      placeholder="Search members by name, role or team"
+                      className="pl-9 pr-9 h-10"
+                    />
+                    {memberSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setMemberSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                        aria-label="Clear member search"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 {isMembersLoading ? (
                   <>
                     {[1, 2, 3].map((i) => (
