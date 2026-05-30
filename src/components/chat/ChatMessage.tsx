@@ -762,7 +762,7 @@ function ChatMessageInner({
     <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-in fade-in-0 duration-200 ease-out"
+          className="fixed inset-0 dark:bg-black/[0.18] bg-black/[0.22] z-[99999] animate-in fade-in-0 duration-200 ease-out"
           onClick={(e) => {
             // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
             if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
