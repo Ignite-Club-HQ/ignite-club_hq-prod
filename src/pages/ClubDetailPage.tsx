@@ -1762,64 +1762,83 @@ export default function ClubDetailPage() {
                       ))}
                     </>
                   )}
-                  {Object.entries(clubMembers).slice(0, displayCount).map(([userId, member]) => {
-                    // Get unique teams this member belongs to
-                    const memberTeams = member.roles
-                      .filter(r => r.teamId && r.teamName)
-                      .reduce((acc, r) => {
-                        if (!acc.find(t => t.id === r.teamId)) {
-                          acc.push({ id: r.teamId!, name: r.teamName! });
-                        }
-                        return acc;
-                      }, [] as { id: string; name: string }[]);
+                  {(() => {
+                    const q = memberSearchQuery.trim().toLowerCase();
+                    const allEntries = Object.entries(clubMembers);
+                    const filteredEntries = q
+                      ? allEntries.filter(([, member]) => {
+                          const name = member.profile?.display_name?.toLowerCase() || "";
+                          if (name.includes(q)) return true;
+                          return member.roles?.some((r) => {
+                            const role = r.role?.replace(/_/g, " ").toLowerCase() || "";
+                            const scope = r.scopeName?.toLowerCase() || "";
+                            const team = r.teamName?.toLowerCase() || "";
+                            return role.includes(q) || scope.includes(q) || team.includes(q);
+                          });
+                        })
+                      : allEntries;
+
+                    if (q && filteredEntries.length === 0) {
+                      return (
+                        <p className="text-muted-foreground text-sm py-3 text-center">
+                          No members match "{memberSearchQuery}"
+                        </p>
+                      );
+                    }
 
                     return (
-                    <Card key={userId}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarImage src={member.profile?.avatar_url || undefined} />
-                          <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                            {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                          {member.roles?.map((roleItem) => {
-                            const roleColors: Record<string, string> = {
-                              app_admin: "bg-red-500/15 text-red-400 dark:text-red-400 border-red-500/30",
-                              club_admin: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
-                              team_admin: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-                              coach: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-                              committee_member: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
-                              player: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-                              parent: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
-                              league_admin: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30",
-                              basic_user: "bg-muted text-muted-foreground border-border",
-                            };
-                            const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
-                            return (
-                              <Badge key={roleItem.id} variant="outline" className={`text-[10px] rounded-md border px-1.5 py-0.5 ${colorClass}`}>
-                                {roleItem.role?.replace(/_/g, " ") || "Member"}
-                                {roleItem.scopeName && ` • ${roleItem.scopeName}`}
-                              </Badge>
-                            );
-                          })}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <>
+                        {filteredEntries.slice(0, displayCount).map(([userId, member]) => {
+                          return (
+                          <Card key={userId}>
+                            <CardContent className="p-3 flex items-center gap-3">
+                              <Avatar className="h-8 w-8 shrink-0">
+                                <AvatarImage src={member.profile?.avatar_url || undefined} />
+                                <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                  {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                {member.roles?.map((roleItem) => {
+                                  const roleColors: Record<string, string> = {
+                                    app_admin: "bg-red-500/15 text-red-400 dark:text-red-400 border-red-500/30",
+                                    club_admin: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+                                    team_admin: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+                                    coach: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+                                    committee_member: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
+                                    player: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+                                    parent: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
+                                    league_admin: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30",
+                                    basic_user: "bg-muted text-muted-foreground border-border",
+                                  };
+                                  const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
+                                  return (
+                                    <Badge key={roleItem.id} variant="outline" className={`text-[10px] rounded-md border px-1.5 py-0.5 ${colorClass}`}>
+                                      {roleItem.role?.replace(/_/g, " ") || "Member"}
+                                      {roleItem.scopeName && ` • ${roleItem.scopeName}`}
+                                    </Badge>
+                                  );
+                                })}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                          );
+                        })}
+                        {filteredEntries.length > displayCount && (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setDisplayCount(prev => prev + MEMBERS_PER_PAGE)}
+                          >
+                            Show more ({filteredEntries.length - displayCount} remaining)
+                          </Button>
+                        )}
+                      </>
                     );
-                  })}
-                  {Object.keys(clubMembers).length > displayCount && (
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setDisplayCount(prev => prev + MEMBERS_PER_PAGE)}
-                    >
-                      Show more ({Object.keys(clubMembers).length - displayCount} remaining)
-                    </Button>
-                  )}
+                  })()}
                   </>
                 )}
               </div>
