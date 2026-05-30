@@ -136,7 +136,7 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
       return;
     }
 
-    const SW_VERSION = '4.0.1';
+    const SW_VERSION = '4.0.2';
     navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' })
       .then((registration) => {
         console.log('[Main] SW registered, scope:', registration.scope, 'version:', SW_VERSION);
