@@ -126,6 +126,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   const handleEmojiClick = (type: string) => {
     armReactionInteractionGuard();
+    hapticSelectionTick();
     onReact(type);
     // Defer close so the full-screen overlay stays mounted through the
     // touchend → synthetic-click cycle. If we close synchronously inside
