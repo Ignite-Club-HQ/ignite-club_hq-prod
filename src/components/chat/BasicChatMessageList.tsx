@@ -202,6 +202,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   return (
     <div
       ref={containerRef}
+      data-chat-scroll-lock="true"
       className={className}
       onScroll={handleScroll}
       style={{
