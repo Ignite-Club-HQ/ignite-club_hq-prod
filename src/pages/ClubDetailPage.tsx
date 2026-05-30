@@ -111,6 +111,7 @@ export default function ClubDetailPage() {
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
   const [broadcastingTeamId, setBroadcastingTeamId] = useState<string | null>(null);
 
