@@ -328,21 +328,17 @@ export function MessageActionSheet({
         hideCloseButton
         hideOverlay
         enableDragToClose
-        // Tight top/bottom padding — sheet hugs its content rather than reading
-        // as a generic oversized bottom sheet.
-        className="px-0 pt-1 pb-0 rounded-t-[28px] bg-muted/95 dark:bg-background/95 backdrop-blur-sm border-t-0 shadow-[0_-14px_36px_-14px_rgba(0,0,0,0.28)] dark:shadow-[0_-14px_36px_-12px_rgba(0,0,0,0.6)] !duration-200 ease-out"
+        // Anchored to the bottom edge. The sheet sizes only to its content
+        // (Reply + More…) so there is no large empty gap between the selected
+        // message and the action panel. Reactions live in the floating pill
+        // above the bubble — see MessageReactionsPopover.
+        className="px-0 pt-1 pb-[max(env(safe-area-inset-bottom,0px),8px)] rounded-t-[20px] bg-background/95 dark:bg-background/95 backdrop-blur-sm border-t border-border/40 shadow-[0_-12px_28px_-14px_rgba(0,0,0,0.25)] !duration-200 ease-out"
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
 
-        <SheetTitle className="sr-only">Message Actions</SheetTitle>
-
-        {/* Reactions intentionally live in the floating pill ABOVE the selected
-            message (MessageReactionsPopover). They are never duplicated here:
-            the action sheet is the dedicated "functional" container, separate
-            from the social/reactions container. */}
-
         <div className="py-0">
+
           {!showMore ? (
             <>
               {primary.map(renderAction)}

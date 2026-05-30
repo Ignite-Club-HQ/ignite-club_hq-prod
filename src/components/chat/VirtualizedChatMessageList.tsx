@@ -984,7 +984,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     let cancelled = false;
     const startedAt = performance.now();
-    const STAY_PINNED_MS = 1500;
+    // Cold post-login opens hydrate more slowly than normal re-opens (auth,
+    // profiles, avatars, link previews). Keep the first-open bottom guard
+    // alive long enough to absorb that settling without affecting a user who
+    // has intentionally scrolled away.
+    const STAY_PINNED_MS = 3200;
     let lastScrollHeight = viewport.scrollHeight;
     let pendingFrame: number | null = null;
 
@@ -1073,11 +1077,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
 
     requestAnimationFrame(() => requestAnimationFrame(run));
-    const t1 = window.setTimeout(run, 160);
-    const t2 = window.setTimeout(run, 420);
+    const timers = [160, 420, 900, 1600, 2600].map((delay) => window.setTimeout(run, delay));
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [initialRevealReady, lastMessageId, bottomPinRevision]);
 

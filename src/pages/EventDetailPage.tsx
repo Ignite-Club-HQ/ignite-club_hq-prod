@@ -1009,7 +1009,7 @@ export default function EventDetailPage() {
   // Match awards: captain, POTM, goalkeepers — used to show inline icons next to attendees
   const isGameEvent = event?.type === "game" && !!event?.team_id;
   const { data: matchCaptainRow } = useQuery({
-    queryKey: ["match-captain", id],
+    queryKey: ["match-captain", id, "marker"],
     enabled: !!id && isGameEvent,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1022,7 +1022,7 @@ export default function EventDetailPage() {
     },
   });
   const { data: potmRow } = useQuery({
-    queryKey: ["player-of-match", id],
+    queryKey: ["player-of-match", id, "marker"],
     enabled: !!id && isGameEvent,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -3311,7 +3311,7 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             isAdmin={isAdmin || isAppAdmin || false}
             rsvps={rsvps || []}
-            childrenOnTeam={childrenOnTeam}
+            childrenOnTeam={allChildrenOnTeam || childrenOnTeam}
           />
         </>
       )}

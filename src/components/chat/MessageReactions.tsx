@@ -84,11 +84,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 200; // hugs 6 emojis @ 32px + tight padding (~15% slimmer)
+      const pickerWidth = 240; // 6 emojis @ 32px + gap-1 (4px) × 5 + px-2 padding × 2 + border
       const pickerHeight = 40;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = -4; // Tightly anchor the pill to the bubble (~10px closer than the prior 6px gap) so the message → reactions → actions stack reads as one connected flow.
+      const gap = 10; // 8–12px breathing room between the bubble and the reaction pill so the pill reads as the primary, focal action without crowding the message.
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
@@ -208,8 +208,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
         {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
-        <div className="bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-1 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out">
-          <div className="flex items-center justify-between gap-0">
+        <div className="inline-block bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-2 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out max-w-[calc(100vw-16px)]">
+          <div className="flex items-center gap-1">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
