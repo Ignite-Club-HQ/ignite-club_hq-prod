@@ -284,9 +284,14 @@ export function useMessageReads(
     };
   }, [currentUserId, flushPendingReads]);
 
-  // Realtime: update counts and reader info from payload
+  // Realtime: update counts and reader info from payload.
+  // Narrowed via scope_key (populated by BEFORE INSERT trigger) so each
+  // open chat only receives reads for its own scope instead of every
+  // message_reads INSERT platform-wide.
   useEffect(() => {
-    if (messageIds.length === 0) return;
+    if (messageIds.length === 0 || !contextId) return;
+
+    const scopeKey = messageType === "broadcast" ? "broadcast" : contextId;
 
     const channel = supabase
       .channel(`message-reads-${messageType}-${contextId}`)
@@ -296,6 +301,7 @@ export function useMessageReads(
           event: "INSERT",
           schema: "public",
           table: "message_reads",
+          filter: `scope_key=eq.${scopeKey}`,
         },
         async (payload) => {
           const newRead = payload.new as Record<string, any>;
@@ -339,6 +345,7 @@ export function useMessageReads(
       supabase.removeChannel(channel);
     };
   }, [messageType, contextId, messageIdField, messageIdsKey, currentUserId]);
+
 
   return {
     readCounts,

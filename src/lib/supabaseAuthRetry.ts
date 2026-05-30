@@ -23,7 +23,7 @@
  * recurse).
  */
 
-const REST_GET_TIMEOUT_MS = 15_000;
+const REST_GET_TIMEOUT_MS = 25_000;
 
 
 import { supabase } from "@/integrations/supabase/client";

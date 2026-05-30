@@ -5028,6 +5028,7 @@ export type Database = {
           group_message_id: string | null
           id: string
           read_at: string
+          scope_key: string | null
           team_message_id: string | null
           user_id: string
         }
@@ -5039,6 +5040,7 @@ export type Database = {
           group_message_id?: string | null
           id?: string
           read_at?: string
+          scope_key?: string | null
           team_message_id?: string | null
           user_id: string
         }
@@ -5050,6 +5052,7 @@ export type Database = {
           group_message_id?: string | null
           id?: string
           read_at?: string
+          scope_key?: string | null
           team_message_id?: string | null
           user_id?: string
         }
@@ -9997,6 +10000,10 @@ export type Database = {
         Returns: undefined
       }
       mask_email: { Args: { _email: string }; Returns: string }
+      message_reads_compute_scope_key: {
+        Args: { _row: Database["public"]["Tables"]["message_reads"]["Row"] }
+        Returns: string
+      }
       move_child_to_team: {
         Args: {
           p_child_id: string

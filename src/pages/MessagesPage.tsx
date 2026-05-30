@@ -1728,15 +1728,21 @@ export default function MessagesPage() {
   );
 
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
-  const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
-  // Wait for fresh latest-message data before sorting/rendering, so the most recent
-  // thread is at the top on first paint (cached `lastActivity` may be stale).
-  const proAccessKnown = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && proAccessKnown && (!hasAnyProAccess || dmFetched);
-  // Always wait for fresh sort data before rendering the list, even when cached
-  // data exists. Otherwise the cached order paints first and threads visibly
-  // shuffle when fresh `lastActivity` timestamps arrive a moment later.
+  const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus);
+  // Wait for fresh latest-message data before sorting/rendering, so the most
+  // recent thread is at the top on first paint (cached `lastActivity` may be
+  // stale). We keep this gate even when cached data exists — otherwise the
+  // cached order paints first and threads visibly shuffle once fresh
+  // `lastActivity` timestamps arrive.
+  // NOTE: Pro access is intentionally excluded — it's 4 serial DB trips and
+  // would block first paint 200–800ms without affecting sort order. DM thread
+  // visibility is the only thing it gates, and DMs settle into the already-
+  // rendered list in-place (no re-sort jump) because they sort by their own
+  // lastActivity alongside the rest.
+  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && dmFetched;
   const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
+
+
 
   // Determine which data to display (prefer fresh, fallback to cached)
   const displayTeams = teams || cachedData?.teams || [];
