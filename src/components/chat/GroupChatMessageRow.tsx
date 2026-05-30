@@ -189,7 +189,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
+      // Pull the selected bubble into the lower third so the reaction pill
+      // and the bottom-anchored action sheet read as one focused interaction.
+      requestAnimationFrame(() => scrollMessageIntoLowerThird(bubbleRef.current));
     }, 400);
+
   }, [armDismissGuard]);
 
   const handleReplyAction = useCallback(() => {
