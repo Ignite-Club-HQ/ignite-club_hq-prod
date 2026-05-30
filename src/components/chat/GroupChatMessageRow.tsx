@@ -461,14 +461,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
-                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "ring-2 ring-primary/60 border border-transparent" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {
-                    boxShadow: '0 1px 2px 0 rgba(0,0,0,0.08)',
+                    boxShadow: '0 18px 36px -16px rgba(0,0,0,0.42), 0 3px 10px -3px rgba(0,0,0,0.16)',
+                    transform: 'scale(1.022)',
                     filter: isDark
-                      ? (isOwnMessage ? 'brightness(1.08) saturate(1.03)' : 'brightness(1.08)')
-                      : (isOwnMessage ? 'brightness(1.06)' : 'brightness(0.97)'),
+                      ? (isOwnMessage ? 'brightness(1.18) saturate(1.04)' : 'brightness(1.18)')
+                      : (isOwnMessage ? 'brightness(1.10)' : 'brightness(1.04)'),
+                    transition: 'transform 200ms ease-out, box-shadow 200ms ease-out, filter 200ms ease-out',
                   };
                 })() : undefined}
                 onPointerDown={(e) => e.preventDefault()}
