@@ -901,7 +901,7 @@ function ChatMessageInner({
                   : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
               } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${
                 isInteracting
-                  ? "ring-2 ring-primary/45 ring-offset-0 shadow-[0_14px_32px_-16px_rgba(0,0,0,0.38),0_3px_8px_-3px_rgba(0,0,0,0.14)] scale-[1.015] brightness-[1.02] dark:brightness-[1.08]"
+                  ? "ring-2 ring-primary/60 ring-offset-0 shadow-[0_22px_44px_-18px_rgba(0,0,0,0.45),0_4px_12px_-4px_rgba(0,0,0,0.18)] scale-[1.025] brightness-[1.06] dark:brightness-[1.18]"
                   : ""
               } transition-[transform,box-shadow,filter] duration-200 ease-out will-change-transform`}
               onPointerDown={(e) => e.preventDefault()}
