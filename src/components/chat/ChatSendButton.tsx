@@ -82,8 +82,8 @@ export function ChatSendButton({
     if (firedThisGestureRef.current) return;
     if (disabled || loading) return;
     firedThisGestureRef.current = true;
-    // Crisp selection tick — what iMessage/WhatsApp/Telegram do on send.
-    hapticSelectionTick();
+    // Clear light impact — matches WhatsApp/Telegram send feel (selectionChanged was too subtle to perceive).
+    hapticImpactLight();
     onSend();
     if (canSend) maybeShowHint();
     // Reset shortly after so subsequent gestures can fire.
