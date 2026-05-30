@@ -36,7 +36,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
           // an interactive control, not a flat strip. Slightly stronger in
           // dark mode where muted tokens compress.
           "rounded-[26px] bg-muted dark:bg-muted/60",
-          "pl-1.5 pr-2 py-1 min-h-[52px]",
+          "pl-1 pr-1.5 py-1 min-h-[52px]",
           "transition-[background-color] duration-150",
           "focus-within:bg-muted/90 dark:focus-within:bg-muted/75",
           className,
