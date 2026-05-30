@@ -122,6 +122,25 @@ export function MessageActionSheet({
     if (!open) setShowMore(false);
   }, [open]);
 
+  // While the action sheet is open, the user is in "message action mode",
+  // not "composition mode". Broadcast open state so the composer can dim and
+  // become non-interactive, and dismiss the soft keyboard if focused.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("chat-action-sheet:toggle", { detail: { open } }));
+    if (open) {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) {
+        active.blur();
+      }
+    }
+    return () => {
+      if (open) {
+        window.dispatchEvent(new CustomEvent("chat-action-sheet:toggle", { detail: { open: false } }));
+      }
+    };
+  }, [open]);
+
   // ---------- Primary actions (kept intentionally short) ----------
   // Only Reply lives in the top-level sheet — everything else (Copy, Forward,
   // Pin, etc.) is one tap away behind "More…". This keeps the most common
@@ -305,10 +324,10 @@ export function MessageActionSheet({
     return (
       <button
         key={action.id}
-        className={`w-full flex items-center gap-3 px-4 text-left transition-colors active:bg-muted ${
+        className={`w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] transition-colors active:bg-muted ${
           isReply
-            ? "h-11 text-[16px] font-semibold text-primary"
-            : `h-10 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
+            ? "font-semibold text-foreground [&>svg]:text-primary"
+            : `font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
         }`}
         onClick={() => {
           handleOpenChange(false);
@@ -343,18 +362,13 @@ export function MessageActionSheet({
             <>
               {primary.map(renderAction)}
               {hasMore && (
-                <>
-                  {primary.length > 0 && (
-                    <div className="mx-4 border-t border-border/30" />
-                  )}
-                  <button
-                    className="w-full flex items-center gap-3 px-4 h-10 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
-                    onClick={() => setShowMore(true)}
-                  >
-                    <MoreHorizontal className="h-[18px] w-[18px]" />
-                    More…
-                  </button>
-                </>
+                <button
+                  className="w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                  onClick={() => setShowMore(true)}
+                >
+                  <MoreHorizontal className="h-[18px] w-[18px]" />
+                  More…
+                </button>
               )}
             </>
           ) : (
