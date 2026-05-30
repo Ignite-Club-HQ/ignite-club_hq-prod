@@ -305,10 +305,10 @@ export function MessageActionSheet({
     return (
       <button
         key={action.id}
-        className={`w-full flex items-center gap-3 px-4 text-left transition-colors active:bg-muted ${
+        className={`w-full flex items-center gap-3 px-4 h-11 text-left text-[15px] transition-colors active:bg-muted ${
           isReply
-            ? "h-11 text-[16px] font-semibold text-primary"
-            : `h-10 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
+            ? "font-semibold text-foreground [&>svg]:text-primary"
+            : `font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
         }`}
         onClick={() => {
           handleOpenChange(false);
