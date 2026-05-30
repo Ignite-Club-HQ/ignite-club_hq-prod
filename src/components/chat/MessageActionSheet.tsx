@@ -307,8 +307,8 @@ export function MessageActionSheet({
         key={action.id}
         className={`w-full flex items-center gap-3 px-4 text-left transition-colors active:bg-muted ${
           isReply
-            ? "h-12 text-[16px] font-semibold text-primary"
-            : `h-11 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
+            ? "h-11 text-[16px] font-semibold text-primary"
+            : `h-10 text-[15px] font-medium ${action.destructive ? "text-destructive" : "text-foreground"}`
         }`}
         onClick={() => {
           handleOpenChange(false);
