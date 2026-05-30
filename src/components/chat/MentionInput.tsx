@@ -772,17 +772,18 @@ export function MentionInput({
       <div
         className={
           bare
-            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden gap-1 pl-0 pr-0 min-h-10"
+            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden gap-0 pl-0 pr-0 min-h-10"
             : "flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-9 ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150"
         }
       >
         {showEmojiPicker && (
-          // h-9 matches the attachment "+" trigger height so both icons sit
-          // on the exact same optical centre line as the textarea.
-          <div className="flex items-center justify-center h-9 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95">
+          // Sits flush against the textarea so the emoji icon reads as part
+          // of the input field (WhatsApp-style). Hit target stays 36px.
+          <div className="flex items-center justify-center h-9 shrink-0 -mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
+
 
         <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
           {/* Highlight overlay for mentions */}
