@@ -17,7 +17,11 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { processPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
+import {
+  processPendingNotificationNavigation,
+  clearPendingNotificationNavigation,
+  isNotificationNavigationHandled,
+} from '@/lib/notificationLaunchHandler';
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
@@ -107,11 +111,14 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                 console.log('[useNativePush] Processed pending notification navigation');
               } else {
                 // Retry with increasing delays for cold start timing.
-                // Android cold-start + auth bootstrap can take well over 3s,
-                // so retry generously (covers a slow token refresh on resume).
+                // Bail out as soon as the URL is consumed OR another handler
+                // (early action listener) has already marked it handled, so
+                // we never fire a second navigate() that would visibly jump
+                // the user between routes.
                 const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
                 retryDelays.forEach(delay => {
                   setTimeout(() => {
+                    if (isNotificationNavigationHandled()) return;
                     const wasProcessedRetry = processPendingNotificationNavigation(navigate);
                     if (wasProcessedRetry) {
                       console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
@@ -175,6 +182,10 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   if (!path) return;
 
                   navigate(path);
+                  // Mark the launch-handler queue as handled so the post-auth
+                  // consumer + retry timers don't re-navigate to the same URL
+                  // and visibly bounce the user between routes.
+                  clearPendingNotificationNavigation();
 
                   if (isPitchBoard) {
                     // Store the notification type so the pitch board can handle expired subs
@@ -291,6 +302,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
         }
         // Internal URL - navigate via React Router
         navigate(normalizeNotificationPath(url));
+        clearPendingNotificationNavigation();
       }
     } catch (err) {
       console.error('[useNativePush] Error handling notification action:', err);
