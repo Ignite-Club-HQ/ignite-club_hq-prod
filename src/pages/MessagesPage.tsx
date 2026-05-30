@@ -1739,7 +1739,7 @@ export default function MessagesPage() {
   // visibility is the only thing it gates, and DMs settle into the already-
   // rendered list in-place (no re-sort jump) because they sort by their own
   // lastActivity alongside the rest.
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched;
+  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && dmFetched;
   const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
 
 
