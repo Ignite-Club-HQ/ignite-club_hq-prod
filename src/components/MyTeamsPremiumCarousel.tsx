@@ -533,19 +533,21 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Total photo count per team (id-only query, grouped client-side) so the
-  // card label reflects the full gallery size, not just the thumbnail sample.
+  // Count of NEW photos per team (uploaded in the last 7 days) so the card
+  // label reflects fresh activity rather than the full gallery size.
   const { data: teamPhotoCounts = {} as Record<string, number> } = useQuery({
-    queryKey: ["team-photo-counts-premium", teamIds],
+    queryKey: ["team-photo-counts-premium-new", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {} as Record<string, number>;
       const counts: Record<string, number> = {};
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("photos")
         .select("team_id")
         .in("team_id", teamIds)
         .eq("show_in_feed", true)
         .is("deleted_at", null)
+        .gte("created_at", sinceIso)
         .limit(2000);
       if (data) {
         for (const row of data as { team_id: string | null }[]) {
