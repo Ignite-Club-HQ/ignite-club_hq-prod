@@ -210,6 +210,11 @@ export default function ManageRolesPage() {
     return acc;
   }, {} as Record<string, { profile: any; roles: any[] }>);
 
+  const q = searchQuery.trim().toLowerCase();
+  const filteredUserEntries = Object.entries(userRoles || {}).filter(([, { profile }]) =>
+    !q || (profile?.display_name || "").toLowerCase().includes(q)
+  );
+
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
