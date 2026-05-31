@@ -63,14 +63,17 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("chat:jump-hydration-start"));
   }
+  setChatJumpActive(true);
   let hydrationEnded = false;
   const endHydration = () => {
     if (hydrationEnded) return;
     hydrationEnded = true;
+    setChatJumpActive(false);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
     }
   };
+
 
   let attempts = 0;
   let cancelled = false;
