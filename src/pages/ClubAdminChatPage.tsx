@@ -762,7 +762,7 @@ export default function ClubAdminChatPage() {
   if (conversationLoading && !(localMessages && localMessages.length > 0)) return <PageLoading />;
 
 
-  if (!conversation) {
+  if (!conversation && !conversationLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <p className="text-muted-foreground">Conversation not found</p>
@@ -770,6 +770,7 @@ export default function ClubAdminChatPage() {
       </div>
     );
   }
+
 
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
