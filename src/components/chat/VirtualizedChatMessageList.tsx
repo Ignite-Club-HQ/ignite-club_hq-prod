@@ -787,12 +787,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
-      // Empty thread: only reveal immediately when the parent is NOT going to
-      // run a bottom-pin sequence. Otherwise keep opacity:0 so the incoming
-      // first batch of messages doesn't flash through the empty-list state
-      // and trigger a VCL unmount/remount cycle that loses the row-height
-      // cache for this session (causing the first-open jolt).
-      if (!initialBottomPinned) setInitialRevealReady(true);
+      // Empty thread: nothing to pin to. Reveal the wrapper immediately so
+      // the (empty) chat surface and any parent empty-state are visible —
+      // otherwise opacity stays 0 forever and the page looks frozen.
+      setInitialRevealReady(true);
       return;
     }
     if (!initialBottomPinned) {
@@ -866,10 +864,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      // Two rAFs: gives Virtuoso one extra frame to commit any final
-      // paddingTop correction + scrollTop snap after the LAST re-anchor
-      // above, so the opacity:1 paint always lands on the settled bottom.
-      requestAnimationFrame(() => requestAnimationFrame(() => setInitialRevealReady(true)));
+      requestAnimationFrame(() => setInitialRevealReady(true));
     };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
@@ -1146,12 +1141,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // safety net for late-hydrating row heights (avatars, link previews).
     if (!isChatJumpActive()) run();
     const r = requestAnimationFrame(() => requestAnimationFrame(run));
-    // A single follow-up pass at 200 ms is enough to absorb the network-fresh
-    // page landing on top of cached messages. The previous 600 ms second
-    // timer almost always fired into a Virtuoso that had finished settling,
-    // producing a redundant scrollTop write that the ResizeObserver guard
-    // then re-amplified — visible as a late "down-then-up" snap on cold open.
-    const timers = [200].map((delay) => window.setTimeout(run, delay));
+    // Two follow-up passes are enough to absorb the network-fresh page
+    // landing on top of cached messages. The previous 5-timer barrage
+    // (160/420/900/1600/2600 ms) caused a visible series of jolts on
+    // cold opens.
+    const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
       cancelAnimationFrame(r);
       timers.forEach((timer) => window.clearTimeout(timer));
