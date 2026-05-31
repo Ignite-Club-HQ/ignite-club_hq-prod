@@ -4,6 +4,7 @@ import {
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
+import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
