@@ -301,7 +301,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       ref={mountBoxRef}
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
-      style={{ opacity: messages.length === 0 || virtualReady ? 1 : 0, transition: "opacity 120ms ease-out" }}
     >
       {messages.length === 0 || virtualReady ? (
         <VirtualizedChatMessageList
