@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, UserPlus, Trash2, Shield, Check, X } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Shield, Check, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -57,6 +58,7 @@ export default function ManageRolesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: club, isLoading: loadingClub } = useQuery({
     queryKey: ["club", clubId],
@@ -208,6 +210,11 @@ export default function ManageRolesPage() {
     return acc;
   }, {} as Record<string, { profile: any; roles: any[] }>);
 
+  const q = searchQuery.trim().toLowerCase();
+  const filteredUserEntries = Object.entries(userRoles || {}).filter(([, { profile }]) =>
+    !q || (profile?.display_name || "").toLowerCase().includes(q)
+  );
+
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
@@ -235,22 +242,31 @@ export default function ManageRolesPage() {
         </TabsList>
 
         <TabsContent value="members" className="mt-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setDisplayCount(MEMBERS_PER_PAGE); }}
+              placeholder="Search members..."
+              className="pl-9"
+            />
+          </div>
           {loadingRoles ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
-          ) : Object.keys(userRoles || {}).length === 0 ? (
+          ) : filteredUserEntries.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="p-8 text-center">
                 <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No members yet</p>
+                <p className="text-muted-foreground">{q ? "No members match your search" : "No members yet"}</p>
               </CardContent>
             </Card>
           ) : (
             <>
-            {Object.entries(userRoles || {}).slice(0, displayCount).map(([userId, { profile, roles: userRoleList }]) => (
+            {filteredUserEntries.slice(0, displayCount).map(([userId, { profile, roles: userRoleList }]) => (
               <Card key={userId}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3 mb-3">
@@ -320,13 +336,13 @@ export default function ManageRolesPage() {
                 </CardContent>
               </Card>
             ))}
-            {Object.keys(userRoles || {}).length > displayCount && (
+            {filteredUserEntries.length > displayCount && (
               <Button 
                 variant="outline" 
                 className="w-full"
                 onClick={() => setDisplayCount(prev => prev + MEMBERS_PER_PAGE)}
               >
-                Show more ({Object.keys(userRoles || {}).length - displayCount} remaining)
+                Show more ({filteredUserEntries.length - displayCount} remaining)
               </Button>
             )}
             </>
