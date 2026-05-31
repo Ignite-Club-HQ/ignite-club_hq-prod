@@ -34,6 +34,8 @@ import {
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
+import { isChatJumpActive } from "@/lib/chatJumpActive";
+
 
 /**
  * Virtualised chat message list.
