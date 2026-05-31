@@ -30,6 +30,9 @@ export function PushNotificationManager() {
   
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);
+
+  // Sample realtime delivery latency (10% of sessions, batched writes)
+  useRealtimePerfSampler(user?.id);
   
   // Helper to navigate from a push notification URL
   const navigateToUrl = (url: string) => {
