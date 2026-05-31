@@ -1408,6 +1408,7 @@ export default function DirectMessagePage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
