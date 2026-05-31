@@ -241,16 +241,20 @@ export function getChatRowHeightCacheSize() {
 if (typeof window !== "undefined") {
   const flush = () => {
     if (!dirty) return;
+    const entries = Array.from(cache.entries());
     const ss = safeSessionStorage();
-    if (!ss) return;
-    try {
-      ss.setItem(STORAGE_KEY, JSON.stringify(Array.from(cache.entries())));
-      dirty = false;
-      if (persistTimer !== null) {
-        clearTimeout(persistTimer);
-        persistTimer = null;
-      }
-    } catch { /* ignore */ }
+    if (ss) {
+      try { ss.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+    }
+    const ls = safeLocalStorage();
+    if (ls) {
+      try { ls.setItem(LS_STORAGE_KEY, JSON.stringify({ ts: Date.now(), entries })); } catch { /* ignore */ }
+    }
+    dirty = false;
+    if (persistTimer !== null) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
   };
   window.addEventListener("pagehide", flush);
   window.addEventListener("visibilitychange", () => {
