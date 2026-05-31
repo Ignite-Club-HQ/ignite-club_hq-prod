@@ -491,7 +491,7 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch recent photos per team
+  // Fetch recent photos per team (3 thumbnails) + total photo count per team.
   const { data: teamPhotos = snapshot?.teamPhotos ?? {} } = useQuery({
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
@@ -505,10 +505,9 @@ export function MyTeamsPremiumCarousel() {
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(teamIds.length * 2);
+        .limit(teamIds.length * 3);
 
       if (data) {
-        // Collect raw URLs first, then resolve to signed URLs in one batch
         const rawUrls: string[] = [];
         const entries: { teamId: string; id: string; rawUrl: string }[] = [];
         for (const photo of data) {
@@ -516,7 +515,7 @@ export function MyTeamsPremiumCarousel() {
           const url = photo.file_url || photo.image_url;
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
-          if (entries.filter((e) => e.teamId === photo.team_id).length >= 2) continue;
+          if (entries.filter((e) => e.teamId === photo.team_id).length >= 3) continue;
           entries.push({ teamId: photo.team_id, id: photo.id, rawUrl: url });
           rawUrls.push(url);
         }
@@ -528,6 +527,33 @@ export function MyTeamsPremiumCarousel() {
       }
 
       return map;
+    },
+    enabled: teamIds.length > 0 && deferredReady,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  // Total photo count per team (id-only query, grouped client-side) so the
+  // card label reflects the full gallery size, not just the thumbnail sample.
+  const { data: teamPhotoCounts = {} as Record<string, number> } = useQuery({
+    queryKey: ["team-photo-counts-premium", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {} as Record<string, number>;
+      const counts: Record<string, number> = {};
+      const { data } = await supabase
+        .from("photos")
+        .select("team_id")
+        .in("team_id", teamIds)
+        .eq("show_in_feed", true)
+        .is("deleted_at", null)
+        .limit(2000);
+      if (data) {
+        for (const row of data as { team_id: string | null }[]) {
+          if (!row.team_id) continue;
+          counts[row.team_id] = (counts[row.team_id] || 0) + 1;
+        }
+      }
+      return counts;
     },
     enabled: teamIds.length > 0 && deferredReady,
     staleTime: 5 * 60 * 1000,
