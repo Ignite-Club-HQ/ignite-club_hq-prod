@@ -281,7 +281,7 @@ export default function RealtimeHealthPage() {
               <div>
                 <div className="font-medium">Not configured</div>
                 <div className="text-muted-foreground mt-1">
-                  {mgmtStats.reason}
+                  {(mgmtStats as { reason: string }).reason}
                 </div>
                 <div className="text-muted-foreground mt-2">
                   To enable: create a Personal Access Token at{" "}
