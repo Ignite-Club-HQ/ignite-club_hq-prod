@@ -8,7 +8,7 @@
  * page can render the new push message at first paint.
  */
 import { preloadMessageFromNotification } from "./notificationPreload";
-import { captureJumpFromNotification } from "./pendingChatJump";
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
 
 let pendingUrl: string | null = null;
 const SS_KEY = "ignite_pending_web_push_nav";
@@ -36,7 +36,8 @@ export function consumePendingWebPushNav(): string | null {
 
 function handlePayload(payload: any) {
   if (!payload) return;
-  const url: string | undefined = payload.url;
+  const rawUrl: string | undefined = payload.url;
+  const url = normalizeNotificationChatUrl(payload.data || payload, rawUrl) || rawUrl;
   if (url) {
     pendingUrl = url;
     persist(url);
