@@ -1643,8 +1643,8 @@ export default function TeamChatPage() {
       </button>
 
 
-      {/* Notification Nudge */}
-      {notificationNudge.shouldShowNudge && (
+      {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
+      {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">
           <NotificationNudgeBanner
             message="Enable notifications so you never miss team messages"
@@ -1654,23 +1654,28 @@ export default function TeamChatPage() {
         </div>
       )}
 
-      {/* Pinned vault banner */}
-      <PinnedVaultBanner
-        record={pinnedVault.record}
-        isAdmin={!!isAdmin}
-        onUnpin={
-          pinnedVault.record && (isAdmin || pinnedVault.record.set_by === user?.id)
-            ? () => pinnedVault.remove()
-            : undefined
-        }
-      />
+      {/* Pinned vault banner — deferred to prevent post-pin layout shift */}
+      {bannersReady && (
+        <PinnedVaultBanner
+          record={pinnedVault.record}
+          isAdmin={!!isAdmin}
+          onUnpin={
+            pinnedVault.record && (isAdmin || pinnedVault.record.set_by === user?.id)
+              ? () => pinnedVault.remove()
+              : undefined
+          }
+        />
+      )}
 
-      {/* Pinned messages banner */}
-      <PinnedMessagesBanner
-        pins={pinnedMessages}
-        onJumpToMessage={handleJumpToMessage}
-        onUnpin={unpinMessage}
-      />
+      {/* Pinned messages banner — deferred to prevent post-pin layout shift */}
+      {bannersReady && (
+        <PinnedMessagesBanner
+          pins={pinnedMessages}
+          onJumpToMessage={handleJumpToMessage}
+          onUnpin={unpinMessage}
+        />
+      )}
+
 
       {teamId && (
         <PinVaultSheet
