@@ -706,6 +706,7 @@ export function MyTeamsPremiumCarousel() {
               item={item}
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
+              photoCount={teamPhotoCounts[item.id]}
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
             />
