@@ -778,16 +778,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
-  // Public chat-page jump APIs pass a zero-based index in the rendered data
-  // array. Virtuoso's `firstItemIndex` shifts the actual item indexes into a
-  // large absolute range for anchored prepends, so imperative jumps must add
-  // that offset; otherwise deep links/search/pins scroll near the top of the
-  // loaded window instead of the requested row.
-  const firstItemIndexRef = useRef(firstItemIndex);
-  useLayoutEffect(() => {
-    firstItemIndexRef.current = firstItemIndex;
-  }, [firstItemIndex]);
-
   // Initial bottom pin happens while the wrapper is invisible. Reveal is held
   // until the actual scroll metrics are quiet, not just until a fixed timeout,
   // so first paint cannot show Virtuoso correcting an interim bottom anchor.
@@ -1214,7 +1204,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
         virtuosoRef.current?.scrollToIndex({
-          index: firstItemIndexRef.current + dataIndex,
+          // Virtuoso's public scrollToIndex expects a zero-based data index.
+          // `firstItemIndex` only affects item keys/ranges for prepend
+          // anchoring; adding it here produces a huge index that Virtuoso
+          // clamps to LAST, which is why notification taps landed at bottom.
+          index: dataIndex,
           align,
           behavior: "auto",
         });
