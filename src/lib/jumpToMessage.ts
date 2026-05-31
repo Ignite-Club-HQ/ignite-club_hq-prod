@@ -1,4 +1,7 @@
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
+import { setChatJumpActive } from "@/lib/chatJumpActive";
+
+
 
 /**
  * Virtuoso-driven jump-to-message used by every chat surface (Team / Group /
