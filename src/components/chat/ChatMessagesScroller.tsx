@@ -4,6 +4,7 @@ import {
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
+import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
@@ -250,7 +251,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const wasNearBottom = handle.isNearBottom(180);
     if (!composerGrew && !wasNearBottom) return;
 
-    const pin = () => handle.scrollToBottom("auto");
+    const pin = () => {
+      handle.scrollToBottom("auto");
+      markChatScrollWrite();
+    };
     pin();
     // Reply banners and mobile keyboards both resize the fixed composer in
     // stages; keep re-pinning while that animation settles so the latest
@@ -297,7 +301,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       ref={mountBoxRef}
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
-      style={{ opacity: messages.length === 0 || virtualReady ? 1 : 0, transition: "opacity 120ms ease-out" }}
     >
       {messages.length === 0 || virtualReady ? (
         <VirtualizedChatMessageList

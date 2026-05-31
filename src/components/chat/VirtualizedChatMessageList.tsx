@@ -35,6 +35,23 @@ import {
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
+import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+
+/**
+ * Hoisted Header/Footer components. Inline declarations inside `useMemo`
+ * (with topPadding/bottomPadding deps) generated a new component identity
+ * every time padding changed, forcing Virtuoso to remount the footer and
+ * apply a paddingTop correction — visible as an upward jolt. Reading the
+ * padding values from Virtuoso's `context` keeps the function identity
+ * stable across renders.
+ */
+type ChatVirtuosoContext = { topPadding: number; bottomPadding: number | string };
+const ChatVirtuosoHeader = ({ context }: { context?: ChatVirtuosoContext }) => (
+  <div style={{ height: context?.topPadding ?? 0, overflowAnchor: "none" }} />
+);
+const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
+  <div style={{ height: context?.bottomPadding ?? 0 }} />
+);
 
 
 /**
@@ -1012,6 +1029,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Coordinate with sibling writers (openPinWindow timers, parent
+      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
+      // so we don't apply an opposing micro-correction in the same frame.
+      if (isRecentChatScrollWrite(80)) return;
 
 
       const sh = viewport.scrollHeight;
@@ -1028,6 +1049,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const target = Math.min(maxTop, viewport.scrollTop + Math.max(0, delta));
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
+        markChatScrollWrite();
       }
 
       if (performance.now() - startedAt > STAY_PINNED_MS) {
@@ -1087,6 +1109,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
       // triggers a visible Virtuoso recompute/jump every time it fires,
       // which on first-open stacks into a multi-step flicker as cached
@@ -1094,6 +1117,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const maxTop = viewport.scrollHeight - viewport.clientHeight;
       if (Math.abs(viewport.scrollTop - maxTop) > 1) {
         viewport.scrollTop = maxTop;
+        markChatScrollWrite();
       }
     };
 
@@ -1256,12 +1280,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     () => ({
       Scroller: ChatVirtuosoScroller,
       Item: ChatVirtuosoItem,
-      // Keep the list header purely structural and independent of loading
-      // state. Rendering the spinner here makes Virtuoso re-measure header
-      // content exactly while it is trying to preserve a top anchor.
-      Header: () => <div style={{ height: topPadding, overflowAnchor: "none" }} />,
-      Footer: () => <div style={{ height: bottomPadding }} />,
+      Header: ChatVirtuosoHeader,
+      Footer: ChatVirtuosoFooter,
     }),
+    [],
+  );
+  const virtuosoContext = useMemo<ChatVirtuosoContext>(
+    () => ({ topPadding: topPadding ?? 0, bottomPadding: bottomPadding ?? 0 }),
     [topPadding, bottomPadding],
   );
 
@@ -1374,7 +1399,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       minOverscanItemCount={{ top: 12, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
-      components={components}
+      context={virtuosoContext}
+      components={components as any}
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
     </div>
