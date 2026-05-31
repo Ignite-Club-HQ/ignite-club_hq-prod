@@ -942,6 +942,77 @@ export default function GroupChatPage() {
     loadOlderMessagesRef.current = loadOlderMessages;
   }, [loadOlderMessages]);
 
+  // Notification deep-links can target a message that is older than the
+  // latest page currently in cache. Hydrate that exact row directly so the
+  // jump loop has something concrete to scroll to instead of timing out and
+  // leaving the user at the bottom of the thread.
+  useEffect(() => {
+    if (!targetMessageId || !groupId || !authReady) return;
+    if (localMessagesRef.current?.some((m) => m.id === targetMessageId)) return;
+
+    let cancelled = false;
+
+    const hydrateTargetMessage = async () => {
+      const { data: target, error } = await supabase
+        .from("group_messages")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .eq("id", targetMessageId)
+        .eq("group_id", groupId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (cancelled || error || !target) return;
+
+      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+        supabase
+          .from("message_reactions")
+          .select("id, user_id, reaction_type, group_message_id")
+          .eq("group_message_id", target.id),
+        target.reply_to_id
+          ? supabase
+              .from("group_messages")
+              .select("id, text, author_id")
+              .eq("id", target.reply_to_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null as any }),
+        fetchProfilesWithCache([target.author_id]),
+      ]);
+
+      if (cancelled) return;
+
+      const author = profilesMap.get(target.author_id);
+      const hydrated = {
+        ...target,
+        author: author ? { display_name: author.display_name, avatar_url: author.avatar_url } : null,
+        reply_to: replyToResult.data || null,
+        reactions: reactionsResult.data || [],
+      } as GroupMessage;
+
+      setLocalMessages((prev) => {
+        if (prev?.some((m) => m.id === hydrated.id)) return prev;
+        return [...(prev || []), hydrated].sort(
+          (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        );
+      });
+
+      queryClient.setQueryData<{ messages: GroupMessage[]; reactions: MessageReaction[]; hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+        if (old?.messages?.some((m: GroupMessage) => m.id === hydrated.id)) return old;
+        return {
+          ...(old || {}),
+          messages: [...(old?.messages || []), hydrated],
+          reactions: [...(old?.reactions || []), ...(reactionsResult.data || [])],
+          hasOlderMessages: old?.hasOlderMessages ?? true,
+        };
+      });
+    };
+
+    void hydrateTargetMessage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetMessageId, groupId, authReady, queryClient]);
+
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!groupId) return;
