@@ -85,21 +85,26 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
-    handle.scrollToIndex(idx, "center");
-    // Single deferred re-centre AFTER row mounts and any deferred sub-content
-    // (replies / link previews / reactions) has had a chance to commit. Doing
-    // multiple back-to-back scrollToIndex("center") calls (immediate + rAF +
-    // 350ms) is what produced the visible jitter on push-notification deep
-    // links: each call re-anchors to a different measured row height as
-    // sub-content hydrates. One settle pass is enough — the ResizeObserver
-    // height-compensator in chatScrollActivity handles late growth.
+    // When the target is the last (or near-last) message in the loaded set,
+    // "center" alignment can't actually centre it — there's no content below —
+    // so Virtuoso leaves it tucked behind the composer/keyboard. Use "end"
+    // alignment in that case so the row lands fully above the composer (and
+    // the viewport scrolls all the way to the bottom). "center" stays for
+    // older targets where there IS room below.
+    const total = getMessages().length;
+    const isNearEnd = total > 0 && idx >= total - 2;
+    const align: "center" | "end" = isNearEnd ? "end" : "center";
+    handle.scrollToIndex(idx, align);
     if (settleTimer) clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       if (cancelled) return;
       const h3 = getHandle();
-      const idx3 = getMessages().findIndex((m) => m.id === id);
-      if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
-      // Sub-content has had a chance to hydrate by now; lift the skeleton.
+      const messages3 = getMessages();
+      const idx3 = messages3.findIndex((m) => m.id === id);
+      if (h3 && idx3 >= 0) {
+        const isNearEnd3 = idx3 >= messages3.length - 2;
+        h3.scrollToIndex(idx3, isNearEnd3 ? "end" : "center");
+      }
       endHydration();
     }, 450);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
@@ -108,6 +113,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       setHighlightedMessageId(null);
     }, highlightDurationMs);
   };
+
 
   const tick = () => {
     if (cancelled) return;
