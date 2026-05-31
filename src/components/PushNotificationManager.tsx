@@ -6,6 +6,7 @@ import { usePushSubscriptionHealth } from "@/hooks/usePushSubscriptionHealth";
 import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
 import { useNativePush } from "@/hooks/useNativePush";
+import { useRealtimePerfSampler } from "@/hooks/useRealtimePerfSampler";
 import { getPlatform, isNativePlatform } from "@/lib/nativePush";
 import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
