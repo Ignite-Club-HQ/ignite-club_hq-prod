@@ -46,6 +46,11 @@ import "./lib/prodConsoleSilencer";
 // console.info is preserved in production so [TimerAudit] entries are captured.
 import { installTimerAuditCapture } from "./lib/timerAuditLog";
 installTimerAuditCapture();
+// On-device notification-tap → chat-jump diagnostics. No-op unless the user
+// visits `?notifdebug=1` once. Must install before push handlers so it
+// captures their earliest logs (cold-start tap path).
+import { installNotifDebugCapture } from "./lib/notifDebugLog";
+installNotifDebugCapture();
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
