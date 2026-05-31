@@ -23,7 +23,7 @@ import {
   isNotificationNavigationHandled,
 } from '@/lib/notificationLaunchHandler';
 import { preloadMessageFromNotification } from '@/lib/notificationPreload';
-import { captureJumpFromNotification } from '@/lib/pendingChatJump';
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from '@/lib/pendingChatJump';
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
@@ -142,7 +142,8 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   // Best-effort: preload message from payload so chat page renders it instantly
                   try { preloadMessageFromNotification(data); } catch {}
                   const type = data?.notificationType || data?.type;
-                  const url = data?.url || data?.link || data?.path;
+                  const rawUrl = data?.url || data?.link || data?.path;
+                  const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
                   const storeUrl = data?.store_url;
                   // Stash scroll target so chat pages can recover from a lost search param
                   try { captureJumpFromNotification(data, url); } catch {}
