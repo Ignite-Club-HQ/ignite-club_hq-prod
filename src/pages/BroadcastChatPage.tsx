@@ -157,8 +157,11 @@ export default function BroadcastChatPage() {
     virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
+
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
