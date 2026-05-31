@@ -6779,6 +6779,42 @@ export type Database = {
         }
         Relationships: []
       }
+      realtime_perf_samples: {
+        Row: {
+          channel: string
+          created_at: string
+          event: string
+          id: number
+          latency_ms: number
+          platform: string | null
+          received_at: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          event: string
+          id?: number
+          latency_ms: number
+          platform?: string | null
+          received_at?: string
+          sent_at: string
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          event?: string
+          id?: number
+          latency_ms?: number
+          platform?: string | null
+          received_at?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       reward_redemptions: {
         Row: {
           child_id: string | null
