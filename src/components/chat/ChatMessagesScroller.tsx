@@ -251,7 +251,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const wasNearBottom = handle.isNearBottom(180);
     if (!composerGrew && !wasNearBottom) return;
 
-    const pin = () => handle.scrollToBottom("auto");
+    const pin = () => {
+      handle.scrollToBottom("auto");
+      markChatScrollWrite();
+    };
     pin();
     // Reply banners and mobile keyboards both resize the fixed composer in
     // stages; keep re-pinning while that animation settles so the latest
