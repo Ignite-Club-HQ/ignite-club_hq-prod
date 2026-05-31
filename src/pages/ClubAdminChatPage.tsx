@@ -755,7 +755,12 @@ export default function ClubAdminChatPage() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [conversationId, queryClient, queryKey]);
 
-  if (conversationLoading) return <PageLoading />;
+  // Don't hard-gate on conversationLoading if we already have cached messages —
+  // the full-page loader would replace the chat tree mid-mount and force Virtuoso
+  // to re-pin against a fresh layout, causing a visible jolt. Render the shell
+  // immediately when we have cached content; only show PageLoading on true cold load.
+  if (conversationLoading && !(localMessages && localMessages.length > 0)) return <PageLoading />;
+
 
   if (!conversation) {
     return (
