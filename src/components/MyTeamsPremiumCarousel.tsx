@@ -188,7 +188,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
                 {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
               </span>
             </button>
-          ) : photos.length > 0 ? (
+          ) : photos.length > 0 && totalPhotos > 0 ? (
             <button
               type="button"
               className="group flex items-center gap-2 min-w-0 flex-1 rounded-sm -mx-1 px-1 py-1 transition-colors active:bg-muted/50"
