@@ -1020,6 +1020,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // as the user is still at the bottom and hasn't scrolled away.
   useEffect(() => {
     if (!initialRevealReady) return;
+    if (!initialBottomPinned) return;
     const viewport = scrollerElRef.current;
     if (!viewport) return;
     const inner = viewport.firstElementChild as HTMLElement | null;
@@ -1088,7 +1089,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       ro.disconnect();
       window.clearTimeout(stopTimer);
     };
-  }, [initialRevealReady, bottomPinRevision]);
+  }, [initialRevealReady, bottomPinRevision, initialBottomPinned]);
 
 
   // Cold-open data refresh guard. On a fresh login we often render cached
@@ -1099,6 +1100,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // pinning to LAST while there has been no user scroll gesture.
   useLayoutEffect(() => {
     if (!initialRevealReady || !lastMessageId) return;
+    if (!initialBottomPinned) return;
     if (openPinStartedAtRef.current === null) openPinStartedAtRef.current = performance.now();
 
     const previousLastMessageId = openPinLastMessageIdRef.current;
@@ -1159,7 +1161,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       timers.forEach((timer) => window.clearTimeout(timer));
     };
 
-  }, [initialRevealReady, lastMessageId, messages.length, bottomPinRevision]);
+  }, [initialRevealReady, lastMessageId, messages.length, bottomPinRevision, initialBottomPinned]);
 
 
 
