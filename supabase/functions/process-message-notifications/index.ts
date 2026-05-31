@@ -38,6 +38,7 @@ async function dispatchPushBatch(
     url: string;
     notificationId?: string;
     notificationType: string;
+    data?: Record<string, unknown>;
   }>,
   concurrency: number = 20
 ): Promise<{ sent: number; failed: number }> {
@@ -62,6 +63,7 @@ async function dispatchPushBatch(
             notificationId: n.notificationId,
             tag: `${n.notificationType}-${n.notificationId || Date.now()}`,
             notificationType: n.notificationType,
+            data: n.data,
           }),
         }).then(r => { const ok = r.ok; r.body?.cancel(); return ok; })
       )
@@ -473,6 +475,16 @@ Deno.serve(async (req) => {
       url: pushUrl,
       notificationId: n.id,
       notificationType: notificationType,
+      data: {
+        notificationType,
+        type: notificationType,
+        message_id: messageId,
+        related_id: messageId,
+        ...(contextId ? { context_id: contextId } : {}),
+        ...(payload.teamId ? { team_id: payload.teamId } : {}),
+        ...(payload.clubId ? { club_id: payload.clubId } : {}),
+        ...(payload.groupId ? { group_id: payload.groupId } : {}),
+      },
     }));
 
     const pushResult = await dispatchPushBatch(supabaseUrl, anonKey, pushPayloads);
