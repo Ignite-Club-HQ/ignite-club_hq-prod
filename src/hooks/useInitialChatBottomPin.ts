@@ -472,10 +472,12 @@ export function useInitialChatBottomPin({
       observer?.disconnect();
       observer = new MutationObserver(() => {
         if (cancelled || finalizing) return;
+        if (isChatJumpActive()) { scheduleFinalize(); return; }
         const vp = resolveChatScrollViewport(scrollContainerRef.current);
         if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
         scheduleFinalize();
       });
+
       observer.observe(viewport, { childList: true, subtree: true, characterData: true });
 
       resizeObserver?.disconnect();
