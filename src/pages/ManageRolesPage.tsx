@@ -242,22 +242,31 @@ export default function ManageRolesPage() {
         </TabsList>
 
         <TabsContent value="members" className="mt-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setDisplayCount(MEMBERS_PER_PAGE); }}
+              placeholder="Search members..."
+              className="pl-9"
+            />
+          </div>
           {loadingRoles ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
-          ) : Object.keys(userRoles || {}).length === 0 ? (
+          ) : filteredUserEntries.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="p-8 text-center">
                 <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No members yet</p>
+                <p className="text-muted-foreground">{q ? "No members match your search" : "No members yet"}</p>
               </CardContent>
             </Card>
           ) : (
             <>
-            {Object.entries(userRoles || {}).slice(0, displayCount).map(([userId, { profile, roles: userRoleList }]) => (
+            {filteredUserEntries.slice(0, displayCount).map(([userId, { profile, roles: userRoleList }]) => (
               <Card key={userId}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3 mb-3">
