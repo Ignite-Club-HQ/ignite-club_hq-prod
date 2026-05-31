@@ -2529,8 +2529,29 @@ export default function EventDetailPage() {
           })()}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
-            <span>{rsvps ? `${rsvps.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length + (eventGuests?.length || 0)} attending` : 'Loading...'}</span>
+            {rsvps ? (() => {
+              const goingRsvps = rsvps.filter(r => r.status === "going");
+              const guestCount = eventGuests?.length || 0;
+              if (event.type === "social") {
+                const adults = goingRsvps.filter(r => r.child_id == null).length + guestCount;
+                const children = goingRsvps.filter(r => r.child_id != null).length;
+                const total = adults + children;
+                return (
+                  <span>
+                    {total} attending
+                    {(adults > 0 || children > 0) && (
+                      <span className="text-muted-foreground">
+                        {" "}· {adults} adult{adults === 1 ? "" : "s"}, {children} {children === 1 ? "child" : "children"}
+                      </span>
+                    )}
+                  </span>
+                );
+              }
+              const count = goingRsvps.filter(r => r.child_id != null).length + guestCount;
+              return <span>{count} attending</span>;
+            })() : <span>Loading...</span>}
           </div>
+
           {/* Price for social events */}
           {event.type === "social" && eventPrice && eventPrice > 0 && (
             <div className="flex items-center gap-3">
