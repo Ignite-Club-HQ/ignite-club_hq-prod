@@ -1009,8 +1009,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // bottom row stays optically nailed in place.
     const ro = new ResizeObserver(() => {
       if (cancelled) return;
+      if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+
 
       const sh = viewport.scrollHeight;
       const delta = sh - lastScrollHeight;
