@@ -64,13 +64,15 @@ interface MemberSummary {
   avatars: string[];
 }
 
-function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
+function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members }: {
   item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
+  photoCount?: number;
   unreadMessages?: number;
   members?: MemberSummary;
 }) {
+  const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
 
   const handleCardClick = useCallback(() => {
