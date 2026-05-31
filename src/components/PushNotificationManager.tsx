@@ -10,6 +10,7 @@ import { useRealtimePerfSampler } from "@/hooks/useRealtimePerfSampler";
 import { getPlatform, isNativePlatform } from "@/lib/nativePush";
 import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
+import { captureJumpFromNotification } from "@/lib/pendingChatJump";
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub";
@@ -74,6 +75,7 @@ export function PushNotificationManager() {
       if (!payload?.url) return;
       // Preload message cache so chat renders the new push at first paint.
       try { preloadMessageFromNotification(payload.data || payload); } catch {}
+      try { captureJumpFromNotification(payload.data || payload, payload.url); } catch {}
       navigateToUrl(payload.url);
     };
 
