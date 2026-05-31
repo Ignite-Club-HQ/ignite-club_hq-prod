@@ -336,13 +336,13 @@ export default function ManageRolesPage() {
                 </CardContent>
               </Card>
             ))}
-            {Object.keys(userRoles || {}).length > displayCount && (
+            {filteredUserEntries.length > displayCount && (
               <Button 
                 variant="outline" 
                 className="w-full"
                 onClick={() => setDisplayCount(prev => prev + MEMBERS_PER_PAGE)}
               >
-                Show more ({Object.keys(userRoles || {}).length - displayCount} remaining)
+                Show more ({filteredUserEntries.length - displayCount} remaining)
               </Button>
             )}
             </>
