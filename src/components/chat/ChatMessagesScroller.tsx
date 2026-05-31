@@ -5,6 +5,7 @@ import {
 } from "@/components/chat/VirtualizedChatMessageList";
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+import { isChatJumpActive } from "@/lib/chatJumpActive";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
@@ -255,6 +256,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     if (!composerGrew && !wasNearBottom) return;
 
     const pin = () => {
+      if (isChatJumpActive()) return;
       handle.scrollToBottom("auto");
       markChatScrollWrite();
     };
