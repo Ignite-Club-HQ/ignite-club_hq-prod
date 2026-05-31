@@ -14,6 +14,8 @@
  * hijack a future page mount.
  */
 
+import { setFromNotificationFlag } from "@/lib/notificationPreload";
+
 const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
 
@@ -79,6 +81,11 @@ export function consumePendingChatJump(kind: ChatJumpKind, targetId: string | nu
 export function captureJumpFromNotification(data: any, url: string | null | undefined): void {
   if (!url) return;
   try {
+    const storeJump = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
+      setPendingChatJump(kind, targetId, messageId);
+      if (targetId) setFromNotificationFlag(kind, targetId);
+    };
+
     // Parse search params from the URL even when it's a relative path.
     const parsed = new URL(url, "https://placeholder.local");
     const path = parsed.pathname;
@@ -95,36 +102,36 @@ export function captureJumpFromNotification(data: any, url: string | null | unde
     // /messages/dm/{conversationId}
     let m = path.match(/^\/messages\/dm\/([^/]+)/);
     if (m) {
-      setPendingChatJump("dm", m[1], messageId);
+      storeJump("dm", m[1], messageId);
       return;
     }
     // /messages/club-admin/{conversationId}
     m = path.match(/^\/messages\/club-admin\/([^/]+)/);
     if (m) {
-      setPendingChatJump("club_admin", m[1], messageId);
+      storeJump("club_admin", m[1], messageId);
       return;
     }
     // /messages/club/{clubId}
     m = path.match(/^\/messages\/club\/([^/]+)/);
     if (m) {
-      setPendingChatJump("club", m[1], messageId);
+      storeJump("club", m[1], messageId);
       return;
     }
     // /messages/broadcast
     if (path === "/messages/broadcast" || path.startsWith("/messages/broadcast/")) {
-      setPendingChatJump("broadcast", null, messageId);
+      storeJump("broadcast", null, messageId);
       return;
     }
     // /groups/{groupId}
     m = path.match(/^\/groups\/([^/]+)/);
     if (m) {
-      setPendingChatJump("group", m[1], messageId);
+      storeJump("group", m[1], messageId);
       return;
     }
     // /messages/{teamId}  (must run AFTER the more-specific /messages/* cases above)
     m = path.match(/^\/messages\/([^/]+)/);
     if (m) {
-      setPendingChatJump("team", m[1], messageId);
+      storeJump("team", m[1], messageId);
       return;
     }
   } catch {
