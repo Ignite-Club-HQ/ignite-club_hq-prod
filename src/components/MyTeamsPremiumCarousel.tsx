@@ -227,10 +227,11 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
                     className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
                   >
                     <img
-                      src={photo.url}
+                      src={toThumb(photo.url)}
                       alt=""
                       className="h-full w-full object-cover"
                       loading="lazy"
+                      decoding="async"
                     />
                   </div>
                 ))}
