@@ -414,8 +414,15 @@ export function useInitialChatBottomPin({
 
     const settleAtBottom = (attemptsLeft = MAX_SETTLE_ATTEMPTS) => {
       if (cancelled) return;
+      // A jump-to-message is in flight — leave the viewport where the jump
+      // helper centered it; just reveal so the user can see the target.
+      if (isChatJumpActive()) {
+        reveal();
+        return;
+      }
 
       scrollChatToBottom(scrollContainerRef.current);
+
       rafId = requestAnimationFrame(() => {
         if (cancelled) return;
 
