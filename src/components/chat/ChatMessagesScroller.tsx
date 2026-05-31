@@ -153,7 +153,9 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // composer grows to ~100-140px with the reply pill) render off-screen
   // behind the input. Add a small breathing gap so the newest bubble
   // doesn't kiss the composer border.
-  const COMPOSER_GAP = 16;
+  // 36 instead of 16 so a reaction pill on the last message (which hangs
+  // ~20px below the bubble) doesn't get clipped by the composer.
+  const COMPOSER_GAP = 36;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
