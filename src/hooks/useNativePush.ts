@@ -22,6 +22,8 @@ import {
   clearPendingNotificationNavigation,
   isNotificationNavigationHandled,
 } from '@/lib/notificationLaunchHandler';
+import { preloadMessageFromNotification } from '@/lib/notificationPreload';
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from '@/lib/pendingChatJump';
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
@@ -138,20 +140,13 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   console.log('[useNativePush] Early action listener fired:', JSON.stringify(notification));
                   const data = notification.notification?.data;
                   // Best-effort: preload message from payload so chat page renders it instantly
-                  try {
-                    import('@/lib/notificationPreload').then(({ preloadMessageFromNotification }) => {
-                      preloadMessageFromNotification(data);
-                    });
-                  } catch {}
+                  try { preloadMessageFromNotification(data); } catch {}
                   const type = data?.notificationType || data?.type;
-                  const url = data?.url || data?.link || data?.path;
+                  const rawUrl = data?.url || data?.link || data?.path;
+                  const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
                   const storeUrl = data?.store_url;
                   // Stash scroll target so chat pages can recover from a lost search param
-                  try {
-                    import('@/lib/pendingChatJump').then(({ captureJumpFromNotification }) => {
-                      captureJumpFromNotification(data, url);
-                    });
-                  } catch {}
+                  try { captureJumpFromNotification(data, url); } catch {}
                   
                   // Handle store_url (e.g. from update reminders) — open externally
                   if (storeUrl) {
@@ -181,11 +176,11 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
 
                   if (!path) return;
 
-                  navigate(path);
                   // Mark the launch-handler queue as handled so the post-auth
                   // consumer + retry timers don't re-navigate to the same URL
                   // and visibly bounce the user between routes.
                   clearPendingNotificationNavigation();
+                  navigate(path);
 
                   if (isPitchBoard) {
                     // Store the notification type so the pitch board can handle expired subs

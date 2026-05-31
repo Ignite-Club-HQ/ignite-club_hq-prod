@@ -650,6 +650,24 @@ export default function TeamChatPage() {
     (!authReady && !(localMessages?.length)) ||
     (loadingMessages && !messagesData && !(localMessages?.length));
 
+  // Defer banner mounts until after the initial chat reveal has settled.
+  // Banners (notification nudge, pinned vault, pinned messages) resolve from
+  // async queries and can pop in above the messages region post-pin, shrinking
+  // it and causing a visible upward jolt. We wait until ~800ms after the
+  // messages region first reveals before mounting any of them. By then the
+  // initial bottom-pin window has elapsed and Virtuoso will absorb the
+  // followOutput re-pin smoothly.
+  const [bannersReady, setBannersReady] = useState(false);
+  useEffect(() => {
+    if (showLoading) {
+      setBannersReady(false);
+      return;
+    }
+    const t = window.setTimeout(() => setBannersReady(true), 800);
+    return () => window.clearTimeout(t);
+  }, [showLoading, teamId]);
+
+
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
     if (perfLoggedRef.current) return;
@@ -1625,8 +1643,8 @@ export default function TeamChatPage() {
       </button>
 
 
-      {/* Notification Nudge */}
-      {notificationNudge.shouldShowNudge && (
+      {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
+      {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">
           <NotificationNudgeBanner
             message="Enable notifications so you never miss team messages"
@@ -1636,23 +1654,28 @@ export default function TeamChatPage() {
         </div>
       )}
 
-      {/* Pinned vault banner */}
-      <PinnedVaultBanner
-        record={pinnedVault.record}
-        isAdmin={!!isAdmin}
-        onUnpin={
-          pinnedVault.record && (isAdmin || pinnedVault.record.set_by === user?.id)
-            ? () => pinnedVault.remove()
-            : undefined
-        }
-      />
+      {/* Pinned vault banner — deferred to prevent post-pin layout shift */}
+      {bannersReady && (
+        <PinnedVaultBanner
+          record={pinnedVault.record}
+          isAdmin={!!isAdmin}
+          onUnpin={
+            pinnedVault.record && (isAdmin || pinnedVault.record.set_by === user?.id)
+              ? () => pinnedVault.remove()
+              : undefined
+          }
+        />
+      )}
 
-      {/* Pinned messages banner */}
-      <PinnedMessagesBanner
-        pins={pinnedMessages}
-        onJumpToMessage={handleJumpToMessage}
-        onUnpin={unpinMessage}
-      />
+      {/* Pinned messages banner — deferred to prevent post-pin layout shift */}
+      {bannersReady && (
+        <PinnedMessagesBanner
+          pins={pinnedMessages}
+          onJumpToMessage={handleJumpToMessage}
+          onUnpin={unpinMessage}
+        />
+      )}
+
 
       {teamId && (
         <PinVaultSheet
@@ -1693,6 +1716,7 @@ export default function TeamChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;

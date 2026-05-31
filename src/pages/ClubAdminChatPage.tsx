@@ -308,8 +308,13 @@ export default function ClubAdminChatPage() {
   // Polls until the target renders so it works even if the message
   // arrives after the initial query settles. ClubAdmin has no
   // older-message pagination, so no tryLoadOlder is wired.
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    conversationId ? consumePendingChatJump("club_admin", conversationId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
+
   useEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
@@ -750,9 +755,14 @@ export default function ClubAdminChatPage() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [conversationId, queryClient, queryKey]);
 
-  if (conversationLoading) return <PageLoading />;
+  // Don't hard-gate on conversationLoading if we already have cached messages —
+  // the full-page loader would replace the chat tree mid-mount and force Virtuoso
+  // to re-pin against a fresh layout, causing a visible jolt. Render the shell
+  // immediately when we have cached content; only show PageLoading on true cold load.
+  if (conversationLoading && !(localMessages && localMessages.length > 0)) return <PageLoading />;
 
-  if (!conversation) {
+
+  if (!conversation && !conversationLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <p className="text-muted-foreground">Conversation not found</p>
@@ -760,6 +770,7 @@ export default function ClubAdminChatPage() {
       </div>
     );
   }
+
 
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
@@ -815,6 +826,7 @@ export default function ClubAdminChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;

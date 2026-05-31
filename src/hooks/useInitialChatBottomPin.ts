@@ -2,6 +2,8 @@ import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getChatScrollMetrics, resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 import { isViewportUserActive } from "@/lib/chatScrollIntent";
+import { isChatJumpActive } from "@/lib/chatJumpActive";
+
 
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
@@ -412,8 +414,15 @@ export function useInitialChatBottomPin({
 
     const settleAtBottom = (attemptsLeft = MAX_SETTLE_ATTEMPTS) => {
       if (cancelled) return;
+      // A jump-to-message is in flight — leave the viewport where the jump
+      // helper centered it; just reveal so the user can see the target.
+      if (isChatJumpActive()) {
+        reveal();
+        return;
+      }
 
       scrollChatToBottom(scrollContainerRef.current);
+
       rafId = requestAnimationFrame(() => {
         if (cancelled) return;
 
@@ -470,20 +479,24 @@ export function useInitialChatBottomPin({
       observer?.disconnect();
       observer = new MutationObserver(() => {
         if (cancelled || finalizing) return;
+        if (isChatJumpActive()) { scheduleFinalize(); return; }
         const vp = resolveChatScrollViewport(scrollContainerRef.current);
         if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
         scheduleFinalize();
       });
+
       observer.observe(viewport, { childList: true, subtree: true, characterData: true });
 
       resizeObserver?.disconnect();
       if (typeof ResizeObserver !== "undefined") {
         resizeObserver = new ResizeObserver(() => {
           if (cancelled || finalizing) return;
+          if (isChatJumpActive()) { scheduleFinalize(); return; }
           const vp = resolveChatScrollViewport(scrollContainerRef.current);
           if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
           scheduleFinalize();
         });
+
 
         resizeObserver.observe(viewport);
 

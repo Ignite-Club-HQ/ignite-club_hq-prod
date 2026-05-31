@@ -8,6 +8,7 @@
  * page can render the new push message at first paint.
  */
 import { preloadMessageFromNotification } from "./notificationPreload";
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
 
 let pendingUrl: string | null = null;
 const SS_KEY = "ignite_pending_web_push_nav";
@@ -35,10 +36,14 @@ export function consumePendingWebPushNav(): string | null {
 
 function handlePayload(payload: any) {
   if (!payload) return;
-  const url: string | undefined = payload.url;
+  const rawUrl: string | undefined = payload.url;
+  const url = normalizeNotificationChatUrl(payload.data || payload, rawUrl) || rawUrl;
   if (url) {
     pendingUrl = url;
     persist(url);
+    // Persist the exact message target before React navigation starts, so
+    // chat pages can still jump correctly if the search param is dropped.
+    try { captureJumpFromNotification(payload.data || payload, url); } catch {}
   }
   // Best-effort preload — payload may contain the full push data so the chat
   // page can render the new message instantly. Safe no-op if fields missing.

@@ -10,6 +10,8 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+import { preloadMessageFromNotification } from './notificationPreload';
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
@@ -110,7 +112,8 @@ export function initNotificationLaunchHandler() {
           
           // Extract the URL from notification data
           const data = notification.notification?.data;
-          const url = data?.url || data?.link || data?.path;
+          const rawUrl = data?.url || data?.link || data?.path;
+          const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
           const storeUrl = data?.store_url;
           const forceUpdatePrompt = data?.force_update_prompt;
           
@@ -154,20 +157,12 @@ export function initNotificationLaunchHandler() {
           // the chat page can render the new message at first paint instead of
           // waiting for the network refetch / realtime subscription. Safe no-op
           // if payload fields are missing.
-          try {
-            import('./notificationPreload').then(({ preloadMessageFromNotification }) => {
-              preloadMessageFromNotification(data);
-            });
-          } catch {}
+          try { preloadMessageFromNotification(data); } catch {}
 
           // Stash the message id so the chat page can still scroll to the new
           // message even if the URL `?message=` search param is lost during
           // the Android cold-start route shuffle.
-          try {
-            import('./pendingChatJump').then(({ captureJumpFromNotification }) => {
-              captureJumpFromNotification(data, url);
-            });
-          } catch {}
+          try { captureJumpFromNotification(data, url); } catch {}
 
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);

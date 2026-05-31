@@ -4,6 +4,8 @@ import {
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
+import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+import { isChatJumpActive } from "@/lib/chatJumpActive";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
@@ -28,6 +30,8 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   searchOpen: boolean;
   composerHeight: number;
   currentUserId?: string | null;
+  /** Disable the mount-time bottom pin when a deep-link jump owns first paint. */
+  initialBottomPinned?: boolean;
 
   /** Forwarded for parity with existing call sites; not used in virtual mode. */
   loadTriggerStyle?: CSSProperties;
@@ -141,6 +145,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     searchOpen,
     composerHeight,
     currentUserId,
+    initialBottomPinned = true,
     virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
@@ -224,6 +229,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
   const prevComposerHeightRef = useRef(composerHeight);
   useEffect(() => {
+    if (!initialBottomPinned) {
+      prevKeyboardOpenRef.current = isKeyboardOpen;
+      prevComposerHeightRef.current = composerHeight;
+      return;
+    }
     if (!virtualReady) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
       prevComposerHeightRef.current = composerHeight;
@@ -250,7 +260,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const wasNearBottom = handle.isNearBottom(180);
     if (!composerGrew && !wasNearBottom) return;
 
-    const pin = () => handle.scrollToBottom("auto");
+    const pin = () => {
+      if (isChatJumpActive()) return;
+      handle.scrollToBottom("auto");
+      markChatScrollWrite();
+    };
     pin();
     // Reply banners and mobile keyboards both resize the fixed composer in
     // stages; keep re-pinning while that animation settles so the latest
@@ -261,7 +275,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       }, delay),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef]);
+  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
@@ -297,7 +311,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       ref={mountBoxRef}
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
-      style={{ opacity: messages.length === 0 || virtualReady ? 1 : 0, transition: "opacity 120ms ease-out" }}
     >
       {messages.length === 0 || virtualReady ? (
         <VirtualizedChatMessageList
@@ -310,7 +323,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           topPadding={0}
           bottomPadding={bottomPad}
           scrollerRef={setVirtualScrollerRef}
-          initialBottomPinned={virtualReady || isPinned}
+          initialBottomPinned={initialBottomPinned && (virtualReady || isPinned)}
           currentUserId={currentUserId}
         />
       ) : null}

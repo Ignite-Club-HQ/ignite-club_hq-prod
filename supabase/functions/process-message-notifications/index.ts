@@ -38,6 +38,7 @@ async function dispatchPushBatch(
     url: string;
     notificationId?: string;
     notificationType: string;
+    data?: Record<string, unknown>;
   }>,
   concurrency: number = 20
 ): Promise<{ sent: number; failed: number }> {
@@ -62,6 +63,7 @@ async function dispatchPushBatch(
             notificationId: n.notificationId,
             tag: `${n.notificationType}-${n.notificationId || Date.now()}`,
             notificationType: n.notificationType,
+            data: n.data,
           }),
         }).then(r => { const ok = r.ok; r.body?.cancel(); return ok; })
       )
@@ -81,6 +83,7 @@ function buildPushUrl(messageType: string, contextId: string | null, messageId: 
   switch (messageType) {
     case 'team': return contextId ? `/messages/${contextId}${q}` : '/messages';
     case 'club': return contextId ? `/messages/club/${contextId}${q}` : '/messages';
+    case 'club_admin': return contextId ? `/messages/club-admin/${contextId}${q}` : '/messages';
     case 'group': return contextId ? `/groups/${contextId}${q}` : '/messages';
     case 'broadcast': return `/messages/broadcast${q}`;
     default: return '/messages';
@@ -473,6 +476,21 @@ Deno.serve(async (req) => {
       url: pushUrl,
       notificationId: n.id,
       notificationType: notificationType,
+      data: {
+        notificationType,
+        type: notificationType,
+        message_id: messageId,
+        related_id: messageId,
+        author_id: authorId,
+        text: (messageText || '').substring(0, 300),
+        created_at: new Date().toISOString(),
+        ...(imageUrl ? { image_url: imageUrl } : {}),
+        ...(replyToId ? { reply_to_id: replyToId } : {}),
+        ...(contextId ? { context_id: contextId } : {}),
+        ...(payload.teamId ? { team_id: payload.teamId } : {}),
+        ...(payload.clubId ? { club_id: payload.clubId } : {}),
+        ...(payload.groupId ? { group_id: payload.groupId } : {}),
+      },
     }));
 
     const pushResult = await dispatchPushBatch(supabaseUrl, anonKey, pushPayloads);

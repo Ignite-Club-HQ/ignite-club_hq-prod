@@ -207,8 +207,13 @@ export default function ClubChatPage() {
     virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    clubId ? consumePendingChatJump("club", clubId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
+
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
@@ -1458,6 +1463,7 @@ export default function ClubChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
