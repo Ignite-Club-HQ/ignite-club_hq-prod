@@ -1392,7 +1392,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       minOverscanItemCount={{ top: 12, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
-      components={components}
+      context={virtuosoContext}
+      components={components as any}
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
     </div>
