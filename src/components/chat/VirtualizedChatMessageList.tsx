@@ -803,6 +803,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       setInitialRevealReady(true);
       return;
     }
+    if (!initialBottomPinned) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      pinAttemptRevisionRef.current = null;
+      setInitialRevealReady(true);
+      return;
+    }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
     if (isChatJumpActive()) {
       bottomPinReadyRef.current = true;
@@ -918,7 +925,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // needs to fire when a new pin revision is requested or when the list
     // transitions between empty / non-empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, messages.length === 0]);
+  }, [bottomPinRevision, messages.length === 0, initialBottomPinned]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -1185,6 +1192,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         // bubble ends up clipped behind the fixed composer.
         const run = () => {
           if (messagesLengthRef.current <= 0) return;
+          if (isChatJumpActive()) return;
           if (isViewportUserActive(scrollerElRef.current)) return;
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
@@ -1371,7 +1379,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
+      initialTopMostItemIndex={initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
       // pins the BOTTOM of the viewport when content grows above the current

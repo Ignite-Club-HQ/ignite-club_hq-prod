@@ -11,7 +11,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { preloadMessageFromNotification } from './notificationPreload';
-import { captureJumpFromNotification } from './pendingChatJump';
+import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
@@ -112,7 +112,8 @@ export function initNotificationLaunchHandler() {
           
           // Extract the URL from notification data
           const data = notification.notification?.data;
-          const url = data?.url || data?.link || data?.path;
+          const rawUrl = data?.url || data?.link || data?.path;
+          const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
           const storeUrl = data?.store_url;
           const forceUpdatePrompt = data?.force_update_prompt;
           
