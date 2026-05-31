@@ -68,6 +68,7 @@ const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
 const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
+const RealtimeHealthPage = lazy(() => import("./pages/RealtimeHealthPage"));
 const AdminActiveGamesPage = lazy(() => import("./pages/AdminActiveGamesPage"));
 const AdminEngagementPage = lazy(() => import("./pages/AdminEngagementPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
@@ -397,6 +398,7 @@ const App = () => {
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/admin/online-users" element={<OnlineUsersPage />} />
+                  <Route path="/admin/realtime-health" element={<RealtimeHealthPage />} />
                   <Route path="/admin/active-games" element={<AdminActiveGamesPage />} />
                   <Route path="/admin/engagement" element={<AdminEngagementPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
