@@ -83,6 +83,7 @@ function buildPushUrl(messageType: string, contextId: string | null, messageId: 
   switch (messageType) {
     case 'team': return contextId ? `/messages/${contextId}${q}` : '/messages';
     case 'club': return contextId ? `/messages/club/${contextId}${q}` : '/messages';
+    case 'club_admin': return contextId ? `/messages/club-admin/${contextId}${q}` : '/messages';
     case 'group': return contextId ? `/groups/${contextId}${q}` : '/messages';
     case 'broadcast': return `/messages/broadcast${q}`;
     default: return '/messages';
@@ -480,6 +481,11 @@ Deno.serve(async (req) => {
         type: notificationType,
         message_id: messageId,
         related_id: messageId,
+        author_id: authorId,
+        text: (messageText || '').substring(0, 300),
+        created_at: new Date().toISOString(),
+        ...(imageUrl ? { image_url: imageUrl } : {}),
+        ...(replyToId ? { reply_to_id: replyToId } : {}),
         ...(contextId ? { context_id: contextId } : {}),
         ...(payload.teamId ? { team_id: payload.teamId } : {}),
         ...(payload.clubId ? { club_id: payload.clubId } : {}),
