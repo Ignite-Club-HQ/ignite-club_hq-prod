@@ -1109,6 +1109,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
       // triggers a visible Virtuoso recompute/jump every time it fires,
       // which on first-open stacks into a multi-step flicker as cached
@@ -1116,6 +1117,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const maxTop = viewport.scrollHeight - viewport.clientHeight;
       if (Math.abs(viewport.scrollTop - maxTop) > 1) {
         viewport.scrollTop = maxTop;
+        markChatScrollWrite();
       }
     };
 
