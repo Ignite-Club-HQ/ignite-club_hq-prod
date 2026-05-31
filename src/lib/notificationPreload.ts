@@ -27,11 +27,11 @@ interface ParsedPreload {
 function parsePayload(data: any): ParsedPreload | null {
   if (!data || typeof data !== "object") return null;
 
-  const messageId: string | undefined = data.message_id || data.messageId;
+  const messageId: string | undefined = data.message_id || data.messageId || data.related_id || data.relatedId;
   const text: string | undefined = typeof data.text === "string" ? data.text : data.body;
   const authorId: string | undefined = data.author_id || data.authorId || data.sender_id;
-  const createdAt: string | undefined = data.created_at || data.createdAt;
-  if (!messageId || !authorId || !createdAt) return null;
+  const createdAt: string | undefined = data.created_at || data.createdAt || new Date().toISOString();
+  if (!messageId || !authorId) return null;
 
   // Determine target conversation/chat. Order matters — DM first because some
   // payloads include both conversation_id and team_id (e.g. cross-posts).
@@ -46,6 +46,9 @@ function parsePayload(data: any): ParsedPreload | null {
   } else if (data.team_id || data.teamId) {
     kind = "team";
     targetId = data.team_id || data.teamId;
+  } else if ((data.notificationType || data.type) === "club_admin_message" && (data.context_id || data.contextId)) {
+    kind = "club_admin";
+    targetId = data.context_id || data.contextId;
   } else if (data.club_id || data.clubId) {
     kind = data.is_admin_thread ? "club_admin" : "club";
     targetId = data.club_id || data.clubId;
