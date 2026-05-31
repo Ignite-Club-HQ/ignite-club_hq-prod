@@ -749,36 +749,42 @@ export default function GroupChatPage() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [groupId, authReady, queryClient]);
 
-  // Always ensure profiles are loaded for messages with missing author data
+  // Backfill missing author profiles. Debounced so the rapid succession of
+  // setLocalMessages calls during the initial cached→fresh swap doesn't
+  // chain multiple async profile fetches → multiple setLocalMessages →
+  // multiple openPinWindow snaps (visible as the first-open scroll jolt).
   useEffect(() => {
     if (!localMessages?.length) return;
-    
-    // Find messages with missing profile data
+
     const messagesWithMissingProfiles = localMessages.filter(m => !m.author?.display_name);
     if (messagesWithMissingProfiles.length === 0) return;
-    
+
     const authorIds = [...new Set(messagesWithMissingProfiles.map(m => m.author_id).filter(Boolean))];
     if (authorIds.length === 0) return;
-    
-    // Fetch profiles and update local state
-    fetchProfilesWithCache(authorIds).then(profilesMap => {
-      setLocalMessages(prev => {
-        if (!prev) return prev;
-        let updated = false;
-        const newMessages = prev.map(msg => {
-          const profile = profilesMap.get(msg.author_id);
-          if (profile && (!msg.author?.display_name || msg.author.display_name === "Unknown")) {
-            updated = true;
-            return {
-              ...msg,
-              author: { display_name: profile.display_name, avatar_url: profile.avatar_url },
-            };
-          }
-          return msg;
+
+    // Debounce by one tick so a burst of localMessages updates collapses to
+    // one fetch instead of one per intermediate state.
+    const handle = setTimeout(() => {
+      fetchProfilesWithCache(authorIds).then(profilesMap => {
+        setLocalMessages(prev => {
+          if (!prev) return prev;
+          let updated = false;
+          const newMessages = prev.map(msg => {
+            const profile = profilesMap.get(msg.author_id);
+            if (profile && (!msg.author?.display_name || msg.author.display_name === "Unknown")) {
+              updated = true;
+              return {
+                ...msg,
+                author: { display_name: profile.display_name, avatar_url: profile.avatar_url },
+              };
+            }
+            return msg;
+          });
+          return updated ? newMessages : prev;
         });
-        return updated ? newMessages : prev;
       });
-    });
+    }, 80);
+    return () => clearTimeout(handle);
   }, [localMessages]);
 
 
