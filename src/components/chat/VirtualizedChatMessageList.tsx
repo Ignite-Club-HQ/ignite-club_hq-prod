@@ -34,6 +34,8 @@ import {
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
+import { isChatJumpActive } from "@/lib/chatJumpActive";
+
 
 /**
  * Virtualised chat message list.
@@ -1007,8 +1009,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // bottom row stays optically nailed in place.
     const ro = new ResizeObserver(() => {
       if (cancelled) return;
+      if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+
 
       const sh = viewport.scrollHeight;
       const delta = sh - lastScrollHeight;
@@ -1080,6 +1084,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const run = () => {
       const viewport = scrollerElRef.current;
       if (!viewport) return;
+      if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
@@ -1091,6 +1096,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         viewport.scrollTop = maxTop;
       }
     };
+
 
     // SYNCHRONOUS first pass — commits in the same paint frame as the
     // cached→fresh message swap, so the browser never paints a frame where

@@ -308,8 +308,13 @@ export default function ClubAdminChatPage() {
   // Polls until the target renders so it works even if the message
   // arrives after the initial query settles. ClubAdmin has no
   // older-message pagination, so no tryLoadOlder is wired.
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    conversationId ? consumePendingChatJump("club_admin", conversationId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
+
   useEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
