@@ -229,6 +229,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
   const prevComposerHeightRef = useRef(composerHeight);
   useEffect(() => {
+    if (!initialBottomPinned) {
+      prevKeyboardOpenRef.current = isKeyboardOpen;
+      prevComposerHeightRef.current = composerHeight;
+      return;
+    }
     if (!virtualReady) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
       prevComposerHeightRef.current = composerHeight;
@@ -270,7 +275,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       }, delay),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef]);
+  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
