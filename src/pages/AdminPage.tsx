@@ -273,6 +273,12 @@ export default function AdminPage() {
             />
             <AdminMenuItem
               icon={Activity}
+              label="Realtime Health"
+              description="Live connections vs Supabase plan cap"
+              onClick={() => navigate("/admin/realtime-health")}
+            />
+            <AdminMenuItem
+              icon={Activity}
               label="Active Games"
               description="Live coaching boards across every club & team"
               onClick={() => navigate("/admin/active-games")}
