@@ -285,7 +285,7 @@ export default function GroupChatPage() {
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
