@@ -188,7 +188,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
                 {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
               </span>
             </button>
-          ) : photos.length > 0 ? (
+          ) : photos.length > 0 && totalPhotos > 0 ? (
             <button
               type="button"
               className="group flex items-center gap-2 min-w-0 flex-1 rounded-sm -mx-1 px-1 py-1 transition-colors active:bg-muted/50"
@@ -213,7 +213,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
                 ))}
               </div>
               <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
-                View {totalPhotos} photo{totalPhotos !== 1 ? "s" : ""}
+                {totalPhotos} new photo{totalPhotos !== 1 ? "s" : ""}
               </span>
               <ChevronRight
                 className="ml-auto h-4 w-4 shrink-0 text-muted-foreground opacity-70 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -533,19 +533,21 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Total photo count per team (id-only query, grouped client-side) so the
-  // card label reflects the full gallery size, not just the thumbnail sample.
+  // Count of NEW photos per team (uploaded in the last 7 days) so the card
+  // label reflects fresh activity rather than the full gallery size.
   const { data: teamPhotoCounts = {} as Record<string, number> } = useQuery({
-    queryKey: ["team-photo-counts-premium", teamIds],
+    queryKey: ["team-photo-counts-premium-new", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {} as Record<string, number>;
       const counts: Record<string, number> = {};
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("photos")
         .select("team_id")
         .in("team_id", teamIds)
         .eq("show_in_feed", true)
         .is("deleted_at", null)
+        .gte("created_at", sinceIso)
         .limit(2000);
       if (data) {
         for (const row of data as { team_id: string | null }[]) {
