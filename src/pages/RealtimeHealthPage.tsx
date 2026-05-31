@@ -112,10 +112,10 @@ export default function RealtimeHealthPage() {
     refetchInterval: 15_000,
   });
 
-  const { data: mgmtStats, refetch: refetchMgmt, isFetching: mgmtFetching, error: mgmtError } = useQuery({
+  const { data: mgmtStats, refetch: refetchMgmt, isFetching: mgmtFetching, error: mgmtError } = useQuery<RealtimeStatsResponse>({
     queryKey: ["realtime-health-mgmt"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke<RealtimeStatsResponse>("realtime-stats");
+      const { data, error } = await supabase.functions.invoke("realtime-stats");
       if (error) throw error;
       return data as RealtimeStatsResponse;
     },
