@@ -804,6 +804,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       return;
     }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    if (isChatJumpActive()) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      setInitialRevealReady(true);
+      return;
+    }
     // Skip if a pin sequence for this revision is already in flight — a
     // re-render mid-stabilisation must not retrigger the synchronous
     // `jump("immediate")` below.
@@ -817,6 +823,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // expired), abort the jump rather than yanking them back.
       if (bottomPinReadyRef.current && !atBottomRef.current && phase !== "immediate") {
         debugLogBottomPin(bottomPinRevision, `${phase}-skipped-not-at-bottom`);
+        return;
+      }
+      if (isChatJumpActive()) {
+        debugLogBottomPin(bottomPinRevision, `${phase}-skipped-jump-active`);
         return;
       }
       debugLogBottomPin(bottomPinRevision, phase);
@@ -849,7 +859,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Final belt-and-braces re-anchor the frame before we reveal, so any
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      if (!isChatJumpActive()) {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      }
       if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
