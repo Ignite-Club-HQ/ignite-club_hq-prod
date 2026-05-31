@@ -1128,7 +1128,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // shows a single-frame "jolt" right after first login as the fresh page
     // replaces the cached one. The rAF + delayed passes below remain as a
     // safety net for late-hydrating row heights (avatars, link previews).
-    run();
+    if (!isChatJumpActive()) run();
     const r = requestAnimationFrame(() => requestAnimationFrame(run));
     // Two follow-up passes are enough to absorb the network-fresh page
     // landing on top of cached messages. The previous 5-timer barrage
