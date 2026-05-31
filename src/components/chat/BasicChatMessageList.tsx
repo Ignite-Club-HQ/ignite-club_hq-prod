@@ -180,10 +180,11 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   useLayoutEffect(() => {
     const prev = lastLengthRef.current;
     lastLengthRef.current = visible.length;
+    if (!initialBottomPinned) return;
     if (visible.length > prev && atBottomRef.current) {
       scrollToBottomImpl("auto");
     }
-  }, [visible.length, scrollToBottomImpl]);
+  }, [visible.length, initialBottomPinned, scrollToBottomImpl]);
 
   // Wire scrollerRef so chat pages' scroll hooks can observe the element.
   useEffect(() => {
