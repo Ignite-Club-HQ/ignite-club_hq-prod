@@ -650,6 +650,24 @@ export default function TeamChatPage() {
     (!authReady && !(localMessages?.length)) ||
     (loadingMessages && !messagesData && !(localMessages?.length));
 
+  // Defer banner mounts until after the initial chat reveal has settled.
+  // Banners (notification nudge, pinned vault, pinned messages) resolve from
+  // async queries and can pop in above the messages region post-pin, shrinking
+  // it and causing a visible upward jolt. We wait until ~800ms after the
+  // messages region first reveals before mounting any of them. By then the
+  // initial bottom-pin window has elapsed and Virtuoso will absorb the
+  // followOutput re-pin smoothly.
+  const [bannersReady, setBannersReady] = useState(false);
+  useEffect(() => {
+    if (showLoading) {
+      setBannersReady(false);
+      return;
+    }
+    const t = window.setTimeout(() => setBannersReady(true), 800);
+    return () => window.clearTimeout(t);
+  }, [showLoading, teamId]);
+
+
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
     if (perfLoggedRef.current) return;
