@@ -1029,6 +1029,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Coordinate with sibling writers (openPinWindow timers, parent
+      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
+      // so we don't apply an opposing micro-correction in the same frame.
+      if (isRecentChatScrollWrite(80)) return;
 
 
       const sh = viewport.scrollHeight;
@@ -1045,6 +1049,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const target = Math.min(maxTop, viewport.scrollTop + Math.max(0, delta));
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
+        markChatScrollWrite();
       }
 
       if (performance.now() - startedAt > STAY_PINNED_MS) {
