@@ -746,7 +746,10 @@ serve(async (req) => {
       body: body || 'You have a new notification',
       url: url || '/notifications',
       notificationId,
-      tag: tag || `notification-${notificationId || Date.now()}`
+      tag: tag || `notification-${notificationId || Date.now()}`,
+      notificationType,
+      type: notificationType,
+      ...(data || {})
     });
     
     let successCount = 0;
