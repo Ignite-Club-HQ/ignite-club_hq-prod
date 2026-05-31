@@ -64,13 +64,15 @@ interface MemberSummary {
   avatars: string[];
 }
 
-function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
+function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members }: {
   item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
+  photoCount?: number;
   unreadMessages?: number;
   members?: MemberSummary;
 }) {
+  const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
 
   const handleCardClick = useCallback(() => {
@@ -186,7 +188,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
                 {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
               </span>
             </button>
-          ) : photos.length > 0 ? (
+          ) : photos.length > 0 && totalPhotos > 0 ? (
             <button
               type="button"
               className="group flex items-center gap-2 min-w-0 flex-1 rounded-sm -mx-1 px-1 py-1 transition-colors active:bg-muted/50"
@@ -211,7 +213,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
                 ))}
               </div>
               <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
-                View {photos.length} new photo{photos.length > 1 ? "s" : ""}
+                {totalPhotos} new photo{totalPhotos !== 1 ? "s" : ""}
               </span>
               <ChevronRight
                 className="ml-auto h-4 w-4 shrink-0 text-muted-foreground opacity-70 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -489,7 +491,7 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch recent photos per team
+  // Fetch recent photos per team (3 thumbnails) + total photo count per team.
   const { data: teamPhotos = snapshot?.teamPhotos ?? {} } = useQuery({
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
@@ -503,10 +505,9 @@ export function MyTeamsPremiumCarousel() {
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(teamIds.length * 2);
+        .limit(teamIds.length * 3);
 
       if (data) {
-        // Collect raw URLs first, then resolve to signed URLs in one batch
         const rawUrls: string[] = [];
         const entries: { teamId: string; id: string; rawUrl: string }[] = [];
         for (const photo of data) {
@@ -514,7 +515,7 @@ export function MyTeamsPremiumCarousel() {
           const url = photo.file_url || photo.image_url;
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
-          if (entries.filter((e) => e.teamId === photo.team_id).length >= 2) continue;
+          if (entries.filter((e) => e.teamId === photo.team_id).length >= 3) continue;
           entries.push({ teamId: photo.team_id, id: photo.id, rawUrl: url });
           rawUrls.push(url);
         }
@@ -526,6 +527,35 @@ export function MyTeamsPremiumCarousel() {
       }
 
       return map;
+    },
+    enabled: teamIds.length > 0 && deferredReady,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  // Count of NEW photos per team (uploaded in the last 7 days) so the card
+  // label reflects fresh activity rather than the full gallery size.
+  const { data: teamPhotoCounts = {} as Record<string, number> } = useQuery({
+    queryKey: ["team-photo-counts-premium-new", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {} as Record<string, number>;
+      const counts: Record<string, number> = {};
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from("photos")
+        .select("team_id")
+        .in("team_id", teamIds)
+        .eq("show_in_feed", true)
+        .is("deleted_at", null)
+        .gte("created_at", sinceIso)
+        .limit(2000);
+      if (data) {
+        for (const row of data as { team_id: string | null }[]) {
+          if (!row.team_id) continue;
+          counts[row.team_id] = (counts[row.team_id] || 0) + 1;
+        }
+      }
+      return counts;
     },
     enabled: teamIds.length > 0 && deferredReady,
     staleTime: 5 * 60 * 1000,
@@ -678,6 +708,7 @@ export function MyTeamsPremiumCarousel() {
               item={item}
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
+              photoCount={teamPhotoCounts[item.id]}
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
             />
