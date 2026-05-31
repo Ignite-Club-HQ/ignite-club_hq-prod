@@ -35,6 +35,23 @@ import {
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
+import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+
+/**
+ * Hoisted Header/Footer components. Inline declarations inside `useMemo`
+ * (with topPadding/bottomPadding deps) generated a new component identity
+ * every time padding changed, forcing Virtuoso to remount the footer and
+ * apply a paddingTop correction — visible as an upward jolt. Reading the
+ * padding values from Virtuoso's `context` keeps the function identity
+ * stable across renders.
+ */
+type ChatVirtuosoContext = { topPadding: number; bottomPadding: number | string };
+const ChatVirtuosoHeader = ({ context }: { context?: ChatVirtuosoContext }) => (
+  <div style={{ height: context?.topPadding ?? 0, overflowAnchor: "none" }} />
+);
+const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
+  <div style={{ height: context?.bottomPadding ?? 0 }} />
+);
 
 
 /**
