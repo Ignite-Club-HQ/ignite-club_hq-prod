@@ -213,7 +213,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
                 ))}
               </div>
               <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
-                View {totalPhotos} new photo{totalPhotos !== 1 ? "s" : ""}
+                View {totalPhotos} photo{totalPhotos !== 1 ? "s" : ""}
               </span>
               <ChevronRight
                 className="ml-auto h-4 w-4 shrink-0 text-muted-foreground opacity-70 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
