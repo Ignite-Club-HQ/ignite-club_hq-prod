@@ -16,6 +16,29 @@ import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
 import { getCachedCarousel, setCachedCarousel } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
+// Render Supabase storage URLs through the image-transform endpoint at a tiny
+// width so the 28×28 avatar thumbnails don't download full-resolution originals.
+function toThumb(src: string, width = 96, quality = 60): string {
+  if (!src) return src;
+  const objectMatch = src.match(/\/storage\/v1\/object\/(public|sign|authenticated)\//);
+  const renderMatch = src.match(/\/storage\/v1\/render\/image\/(public|sign)\//);
+  if (!objectMatch && !renderMatch) return src;
+  let transformed = src;
+  if (objectMatch) {
+    transformed = src.replace(
+      `/storage/v1/object/${objectMatch[1]}/`,
+      `/storage/v1/render/image/${objectMatch[1] === "authenticated" ? "sign" : objectMatch[1]}/`,
+    );
+  }
+  const [base, query = ""] = transformed.split("?");
+  const params = new URLSearchParams(query);
+  params.delete("width"); params.delete("height"); params.delete("quality"); params.delete("resize");
+  params.set("width", String(width));
+  params.set("quality", String(quality));
+  params.set("resize", "cover");
+  return `${base}?${params.toString()}`;
+}
+
 interface TeamOrLeague {
   id: string;
   name: string;
