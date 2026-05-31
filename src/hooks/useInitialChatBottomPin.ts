@@ -484,10 +484,12 @@ export function useInitialChatBottomPin({
       if (typeof ResizeObserver !== "undefined") {
         resizeObserver = new ResizeObserver(() => {
           if (cancelled || finalizing) return;
+          if (isChatJumpActive()) { scheduleFinalize(); return; }
           const vp = resolveChatScrollViewport(scrollContainerRef.current);
           if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
           scheduleFinalize();
         });
+
 
         resizeObserver.observe(viewport);
 
