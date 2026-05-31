@@ -58,6 +58,7 @@ export default function ManageRolesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: club, isLoading: loadingClub } = useQuery({
     queryKey: ["club", clubId],
