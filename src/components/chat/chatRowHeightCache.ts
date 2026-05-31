@@ -42,30 +42,82 @@ function safeSessionStorage(): Storage | null {
   }
 }
 
+// localStorage fallback — sessionStorage is wiped on every native WebView
+// cold start, which is exactly when the "first open after login" jolt fires
+// (Virtuoso has no row heights, estimates wrongly, then corrects after the
+// opacity:1 reveal). Mirroring to localStorage (24 h TTL) lets row heights
+// survive between app launches so cold-start opens land at exact positions.
+// Project convention: per-device caches outside React Query use the `ignite_`
+// prefix.
+const LS_STORAGE_KEY = "ignite_chatRowHeightCache_v1";
+const LS_TTL_MS = 24 * 60 * 60 * 1000;
+
+function safeLocalStorage(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function restoreFromStorage() {
   if (restored) return;
   restored = true;
+  // Try sessionStorage first (warm reload within the same tab/process).
   const ss = safeSessionStorage();
-  if (!ss) return;
-  try {
-    const raw = ss.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return;
-    for (const entry of parsed) {
-      if (!Array.isArray(entry) || entry.length !== 2) continue;
-      const [id, h] = entry as [unknown, unknown];
-      if (typeof id !== "string" || !id) continue;
-      if (typeof h !== "number" || !Number.isFinite(h) || h <= 0) continue;
-      cache.set(id, Math.round(h));
-      if (cache.size > MAX_ENTRIES) {
-        const firstKey = cache.keys().next().value;
-        if (firstKey !== undefined) cache.delete(firstKey);
+  if (ss) {
+    try {
+      const raw = ss.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          for (const entry of parsed) {
+            if (!Array.isArray(entry) || entry.length !== 2) continue;
+            const [id, h] = entry as [unknown, unknown];
+            if (typeof id !== "string" || !id) continue;
+            if (typeof h !== "number" || !Number.isFinite(h) || h <= 0) continue;
+            cache.set(id, Math.round(h));
+            if (cache.size > MAX_ENTRIES) {
+              const firstKey = cache.keys().next().value;
+              if (firstKey !== undefined) cache.delete(firstKey);
+            }
+          }
+        }
       }
+    } catch {
+      try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     }
-  } catch {
-    // Corrupt payload — drop it silently.
-    try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
+  // Cold start: sessionStorage was empty. Hydrate from localStorage so the
+  // first chat open after login lands on exact heights instead of estimates.
+  if (cache.size === 0) {
+    const ls = safeLocalStorage();
+    if (!ls) return;
+    try {
+      const raw = ls.getItem(LS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { ts?: number; entries?: unknown };
+      if (!parsed || typeof parsed !== "object") return;
+      if (typeof parsed.ts !== "number" || Date.now() - parsed.ts > LS_TTL_MS) {
+        try { ls.removeItem(LS_STORAGE_KEY); } catch { /* ignore */ }
+        return;
+      }
+      if (!Array.isArray(parsed.entries)) return;
+      for (const entry of parsed.entries) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue;
+        const [id, h] = entry as [unknown, unknown];
+        if (typeof id !== "string" || !id) continue;
+        if (typeof h !== "number" || !Number.isFinite(h) || h <= 0) continue;
+        cache.set(id, Math.round(h));
+        if (cache.size > MAX_ENTRIES) {
+          const firstKey = cache.keys().next().value;
+          if (firstKey !== undefined) cache.delete(firstKey);
+        }
+      }
+    } catch {
+      try { ls.removeItem(LS_STORAGE_KEY); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -73,16 +125,22 @@ function schedulePersist() {
   dirty = true;
   if (persistTimer !== null) return;
   const ss = safeSessionStorage();
-  if (!ss) return;
+  const ls = safeLocalStorage();
+  if (!ss && !ls) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
     if (!dirty) return;
     dirty = false;
-    try {
-      const payload = JSON.stringify(Array.from(cache.entries()));
-      ss.setItem(STORAGE_KEY, payload);
-    } catch {
-      // Quota / serialisation failure — ignore; in-memory cache is still good.
+    const entries = Array.from(cache.entries());
+    if (ss) {
+      try {
+        ss.setItem(STORAGE_KEY, JSON.stringify(entries));
+      } catch { /* quota / serialisation failure — ignore */ }
+    }
+    if (ls) {
+      try {
+        ls.setItem(LS_STORAGE_KEY, JSON.stringify({ ts: Date.now(), entries }));
+      } catch { /* ignore */ }
     }
   }, PERSIST_DEBOUNCE_MS);
 }
@@ -162,6 +220,10 @@ export function clearChatRowHeightCache() {
   if (ss) {
     try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   }
+  const ls = safeLocalStorage();
+  if (ls) {
+    try { ls.removeItem(LS_STORAGE_KEY); } catch { /* ignore */ }
+  }
   dirty = false;
   if (persistTimer !== null) {
     clearTimeout(persistTimer);
@@ -179,16 +241,20 @@ export function getChatRowHeightCacheSize() {
 if (typeof window !== "undefined") {
   const flush = () => {
     if (!dirty) return;
+    const entries = Array.from(cache.entries());
     const ss = safeSessionStorage();
-    if (!ss) return;
-    try {
-      ss.setItem(STORAGE_KEY, JSON.stringify(Array.from(cache.entries())));
-      dirty = false;
-      if (persistTimer !== null) {
-        clearTimeout(persistTimer);
-        persistTimer = null;
-      }
-    } catch { /* ignore */ }
+    if (ss) {
+      try { ss.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+    }
+    const ls = safeLocalStorage();
+    if (ls) {
+      try { ls.setItem(LS_STORAGE_KEY, JSON.stringify({ ts: Date.now(), entries })); } catch { /* ignore */ }
+    }
+    dirty = false;
+    if (persistTimer !== null) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
   };
   window.addEventListener("pagehide", flush);
   window.addEventListener("visibilitychange", () => {
