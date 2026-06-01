@@ -436,7 +436,7 @@ export default function ClubAdminChatPage() {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ text, replyToId }: { text: string; replyToId?: string | null }) => {
+    mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl: string | null; replyToId?: string | null }) => {
       // Offline path: queue the message instead of failing
       if (!navigator.onLine) {
         const queued = queueMessage({
@@ -444,14 +444,14 @@ export default function ClubAdminChatPage() {
           targetId: conversationId!,
           authorId: user!.id,
           text,
-          imageUrl: null,
+          imageUrl: imageUrl ?? null,
           replyToId: replyToId || null,
           createdAt: new Date().toISOString(),
         });
         return {
           id: queued.id,
           text,
-          image_url: null,
+          image_url: imageUrl ?? null,
           conversation_id: conversationId!,
           author_id: user!.id,
           reply_to_id: replyToId || null,
@@ -465,6 +465,7 @@ export default function ClubAdminChatPage() {
           conversation_id: conversationId!,
           author_id: user!.id,
           text,
+          image_url: imageUrl ?? null,
           reply_to_id: replyToId || null,
         })
         .select()
