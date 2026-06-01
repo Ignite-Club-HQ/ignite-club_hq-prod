@@ -427,7 +427,9 @@ const AllReactionsContent = memo(function AllReactionsContent({
   }, [isOpen]);
 
   const getUserName = (userId: string) => {
-    return users.find(u => u.id === userId)?.display_name || "";
+    return users.find(u => u.id === userId)?.display_name
+      || getProfileFromCache(userId)?.display_name
+      || "";
   };
 
   const visibleReactions =
