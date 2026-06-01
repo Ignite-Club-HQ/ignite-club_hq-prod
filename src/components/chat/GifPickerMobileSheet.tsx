@@ -152,68 +152,33 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     }
   }, [layoutViewportHeight, open]);
 
-  const { sheetHeight, sheetTop, keyboardOpen } = useMemo(() => {
+  const { sheetTop, sheetBottom, keyboardOpen } = useMemo(() => {
     const nativeKeyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight);
     const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
-    // Native Android uses Keyboard.resize='none', so visualViewport can report
-    // a smaller bottom than the actual IME inset while typing in the search
-    // field. Trust the Capacitor keyboard plugin there; otherwise the sheet can
-    // collapse to its minimum height and show only a single row of GIFs.
     const keyboardHeight = isNativeAndroid
       ? nativeKeyboardHeight
       : Math.max(nativeKeyboardHeight, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
-    // While the GIF picker is open we ALWAYS want the sheet to expand up to
-    // just below the status bar so users get a tall multi-row grid. Only when
-    // the keyboard is closed AND the input has never been focused do we fall
-    // back to a compact panel.
-    const keyboardSessionActive = isKeyboardOpen || inputFocused || searchActive;
 
-    const nativeKeyboardTop = layoutViewportHeight - nativeKeyboardHeight;
-    const visualKeyboardTop = visualViewportBottom;
-    const measuredKeyboardTop = isNativeAndroid
-      ? layoutViewportHeight - keyboardHeight
-      : Math.min(nativeKeyboardTop, visualKeyboardTop);
-    const hasMeasuredKeyboardTop = measuredKeyboardTop < layoutViewportHeight - KEYBOARD_GAP;
-
-    if (hasMeasuredKeyboardTop) {
-      lastMeasuredKeyboardTopRef.current = measuredKeyboardTop;
-    } else if (!keyboardSessionActive) {
-      lastMeasuredKeyboardTopRef.current = layoutViewportHeight;
-    }
-
-    // When the keyboard is closed, prefer the visible viewport bottom (which
-    // already excludes browser chrome on mobile Safari) and subtract the
-    // home-indicator inset so the sheet never overlaps the iOS bottom bar.
-    const visibleBottom = isNativeAndroid
-      ? layoutViewportHeight
-      : Math.min(layoutViewportHeight, visualViewportBottom || layoutViewportHeight);
-    const closedBottom = Math.max(0, visibleBottom - (isNativeAndroid ? 0 : safeAreaBottom));
-
-    const keyboardTop = keyboardSessionActive
-      ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || closedBottom)
-      : closedBottom;
-
-    // Always size the sheet to fill the area between TOP_GAP and the
-    // keyboard (or visible bottom). This guarantees multiple rows of GIFs
-    // are visible even before the user has focused the search input.
-    const availableHeight = Math.max(SHEET_MIN_HEIGHT, keyboardTop - TOP_GAP - KEYBOARD_GAP);
-    const nextSheetHeight = availableHeight;
-    const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
+    // Pin the sheet's bottom directly to the top of the keyboard (or to the
+    // safe-area inset when the keyboard is closed). The sheet covers the
+    // chat composer while open — eliminating the empty gap that previously
+    // appeared between the GIF grid and the message input area.
+    const bottomInset = isKeyboardOpen
+      ? keyboardHeight
+      : (isNativeAndroid ? 0 : safeAreaBottom);
 
     return {
-      sheetHeight: nextSheetHeight,
-      sheetTop: nextSheetTop,
+      sheetTop: TOP_GAP,
+      sheetBottom: bottomInset,
       keyboardOpen: isKeyboardOpen,
     };
   }, [
     androidKeyboardHeight,
-    inputFocused,
     iosKeyboardHeight,
     layoutViewportHeight,
     safeAreaBottom,
-    searchActive,
     visualViewportHeight,
     visualViewportOffsetTop,
   ]);
