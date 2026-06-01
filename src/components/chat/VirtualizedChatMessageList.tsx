@@ -778,6 +778,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
+  // Tracks whether this mount has ever observed a non-empty messages array.
+  // Used to distinguish "empty thread (genuinely no messages)" from "first
+  // open after fresh login where the cache is cold and messages haven't
+  // streamed in yet". In the latter case, revealing the empty viewport at
+  // opacity 1 lets the user see the chat surface unpinned; when messages
+  // then arrive, the snap-to-LAST is visible as a downward jolt.
+  const hasEverHadMessagesRef = useRef(false);
+  if (messages.length > 0) hasEverHadMessagesRef.current = true;
+
   // Initial bottom pin happens while the wrapper is invisible. Reveal is held
   // until the actual scroll metrics are quiet, not just until a fixed timeout,
   // so first paint cannot show Virtuoso correcting an interim bottom anchor.
@@ -787,11 +796,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
-      // Empty thread: nothing to pin to. Reveal the wrapper immediately so
-      // the (empty) chat surface and any parent empty-state are visible —
-      // otherwise opacity stays 0 forever and the page looks frozen.
-      setInitialRevealReady(true);
-      return;
+      // Empty thread on first-ever mount (cold cache after fresh login):
+      // hold the reveal back briefly so that if messages stream in within
+      // the grace window we go straight into the pin sequence without
+      // ever painting an unpinned empty viewport. If the grace expires
+      // with still no messages, reveal so the empty-state is visible.
+      // Deep-link jump-to-message is unaffected: that path runs through
+      // the non-empty branch (messages exist by the time the jump fires)
+      // and is gated on `isChatJumpActive()` below.
+      if (!initialBottomPinned || hasEverHadMessagesRef.current) {
+        setInitialRevealReady(true);
+        return;
+      }
+      const graceTimer = window.setTimeout(() => setInitialRevealReady(true), 700);
+      return () => window.clearTimeout(graceTimer);
     }
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
