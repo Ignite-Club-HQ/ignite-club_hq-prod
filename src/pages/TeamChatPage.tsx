@@ -162,6 +162,13 @@ export default function TeamChatPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const previousOpenKeyRef = useRef<string | null>(null);
+  const revealImmediatelyForOpenRef = useRef(false);
+  const openKey = user?.id && teamId ? `${user.id}:${teamId}` : null;
+  if (previousOpenKeyRef.current !== openKey) {
+    previousOpenKeyRef.current = openKey;
+    revealImmediatelyForOpenRef.current = hasOpenedChatThread("team", openKey);
+  }
   const [searchParams] = useSearchParams();
   // Was this thread opened from a push notification within the last 60s? If
   // so, the prior React Query snapshot (`prev`) predates the new push and is
