@@ -734,6 +734,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
   wasEmptyRef.current = messages.length === 0;
+  const latestInitialSettleSignatureRef = useRef("");
+  latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -853,7 +855,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
     let frame: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
     let cancelled = false;
     let lastMetrics = "";
     // Hard deadline for the reveal. On Android, late-hydrating images / link
@@ -862,8 +867,44 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
     // visible to the user as a frozen, blank chat. After this deadline we
     // reveal regardless and let any remaining reflows happen in plain sight.
-    const REVEAL_DEADLINE_MS = 800;
+    const REVEAL_DEADLINE_MS = 1800;
+    const REVEAL_IDLE_MS = 320;
+    const IMAGE_WAIT_MAX_MS = 450;
     const startedAt = performance.now();
+    const waitForImages = (done: () => void) => {
+      const el = scrollerElRef.current;
+      if (!el) {
+        done();
+        return;
+      }
+      const pending = Array.from(el.querySelectorAll<HTMLImageElement>("img")).filter(
+        (img) => !(img.complete && img.naturalHeight > 0),
+      );
+      if (pending.length === 0) {
+        done();
+        return;
+      }
+      let remaining = pending.length;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        pending.forEach((img) => {
+          img.removeEventListener("load", onOne);
+          img.removeEventListener("error", onOne);
+        });
+        done();
+      };
+      const onOne = () => {
+        remaining -= 1;
+        if (remaining <= 0) finish();
+      };
+      pending.forEach((img) => {
+        img.addEventListener("load", onOne, { once: true });
+        img.addEventListener("error", onOne, { once: true });
+      });
+      window.setTimeout(finish, IMAGE_WAIT_MAX_MS);
+    };
     const doReveal = (reason: string) => {
       if (cancelled) return;
       cancelled = true;
@@ -871,6 +912,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         clearTimeout(revealTimer);
         revealTimer = null;
       }
+      if (deadlineTimer !== null) {
+        clearTimeout(deadlineTimer);
+        deadlineTimer = null;
+      }
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
       // Final belt-and-braces re-anchor the frame before we reveal, so any
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
@@ -882,32 +929,49 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      requestAnimationFrame(() => setInitialRevealReady(true));
+      waitForImages(() => {
+        if (isChatJumpActive()) {
+          requestAnimationFrame(() => setInitialRevealReady(true));
+          return;
+        }
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        requestAnimationFrame(() => {
+          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+          setInitialRevealReady(true);
+        });
+      });
     };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
-      // Hard deadline first — never poll past this regardless of metric churn.
-      if (performance.now() - startedAt >= REVEAL_DEADLINE_MS) {
-        doReveal("deadline");
-        return;
+      if (!isChatJumpActive()) {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
       }
-      const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
+      const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
         lastMetrics = metrics;
         if (revealTimer !== null) clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => doReveal("idle"), 320);
+        revealTimer = setTimeout(() => doReveal("idle"), REVEAL_IDLE_MS);
       }
-      // Only keep polling while we're still waiting for an idle window. Once
-      // `revealTimer` is armed we can stop the per-frame loop — any further
-      // metric change inside the 320 ms window will be picked up by the
-      // ResizeObserver-driven stay-pinned effect (and would just reschedule
-      // the timer anyway).
-      if (revealTimer === null) {
-        frame = requestAnimationFrame(armRevealWhenStable);
-      } else {
-        frame = null;
+      frame = null;
+    };
+    const scheduleStableCheck = () => {
+      if (cancelled || frame !== null) return;
+      frame = requestAnimationFrame(armRevealWhenStable);
+    };
+    const attachStabilityWatchers = () => {
+      const el = scrollerElRef.current;
+      if (!el) return;
+      if (typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(scheduleStableCheck);
+        resizeObserver.observe(el);
+        const inner = el.firstElementChild;
+        if (inner instanceof HTMLElement) resizeObserver.observe(inner);
       }
+      mutationObserver = new MutationObserver(scheduleStableCheck);
+      mutationObserver.observe(el, { childList: true, subtree: true, attributes: true, characterData: true });
+      deadlineTimer = window.setTimeout(() => doReveal("deadline"), REVEAL_DEADLINE_MS);
+      scheduleStableCheck();
     };
     let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
@@ -916,7 +980,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       r2 = requestAnimationFrame(() => {
         if (cancelled) return;
         jump("raf2");
-        armRevealWhenStable();
+        attachStabilityWatchers();
       });
     });
     return () => {
@@ -924,7 +988,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       cancelAnimationFrame(r1);
       if (r2 !== null) cancelAnimationFrame(r2);
       if (revealTimer !== null) clearTimeout(revealTimer);
+      if (deadlineTimer !== null) clearTimeout(deadlineTimer);
       if (frame !== null) cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
     };
     // Intentionally narrow deps: this effect must NOT re-run on every
     // parent render (Virtuoso paddingTop measurements cause many during
