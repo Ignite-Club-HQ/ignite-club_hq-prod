@@ -611,6 +611,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             <GroupReactionBadges
               messageReactions={messageReactions}
               userId={userId}
+              getProfile={getProfile}
               toggleReactionMutation={toggleReactionMutation}
               messageId={msg.id}
               isOwn={isOwnMessage}
@@ -725,12 +726,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 function GroupReactionBadges({
   messageReactions,
   userId,
+  getProfile,
   toggleReactionMutation,
   messageId,
   isOwn = false,
 }: {
   messageReactions: any[];
   userId?: string;
+  getProfile: (id: string) => { display_name: string | null; avatar_url: string | null } | null;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
   isOwn?: boolean;
