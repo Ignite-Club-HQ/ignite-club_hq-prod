@@ -938,7 +938,15 @@ export default function ClubAdminChatPage() {
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell>
-
+          <ChatImageInput
+            imageUrl={imageUrl}
+            onImageUploaded={setImageUrl}
+            disabled={false}
+            clubId={conversation?.club_id || undefined}
+            showVaultPicker={!!conversation?.club_id}
+            onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
+            hasText={!!message.trim()}
+          />
           <MentionInput
             bare
             value={message}
@@ -951,13 +959,14 @@ export default function ClubAdminChatPage() {
             disabled={false}
             clubId={conversation?.club_id || undefined}
             clubAdminMemberUserId={conversation?.member_user_id || undefined}
+            onGifSelect={setImageUrl}
           />
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !pendingPollId}
+            disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!pendingPollId}
+            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
         </ChatComposerShell>
         {scheduleTarget && (
