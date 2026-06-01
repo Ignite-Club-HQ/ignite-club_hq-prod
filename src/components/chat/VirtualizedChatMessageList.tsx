@@ -674,6 +674,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // double-fetch — the prepended page is then merged twice into the data
   // array, producing duplicate IDs and "ghost" rows in Virtuoso.
   const loadingOlderInFlightRef = useRef(false);
+  // `userHasScrolledAfterPinRef` is intentionally sticky for first-open pin
+  // suppression, but it must NOT be used as permission to keep paginating.
+  // After a fast flick stops, Virtuoso can re-fire `startReached` while it is
+  // reconciling prepended row measurements; requiring a very recent upward
+  // scroll event prevents those render-owned callbacks from queueing another
+  // older-page fetch after the user's thumb/inertia has actually settled.
+  const lastObservedScrollTopRef = useRef<number | null>(null);
+  const lastUserUpwardScrollAtRef = useRef(0);
+  const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
+  const hasRecentUserUpwardScroll = useCallback(() => {
+    return performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS;
+  }, []);
   // Min gap between two prepend fetches. After a page lands, fast upward
   // flings can immediately retrigger `startReached` / `atTopStateChange`
   // before the browser has rasterised the newly-mounted rows — producing a
@@ -1033,8 +1045,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "bottom-pin-not-ready");
       return;
     }
-    const userInitiatedTopReach =
-      userHasScrolledAfterPinRef.current || isViewportUserActive(scrollerElRef.current);
+    const userInitiatedTopReach = hasRecentUserUpwardScroll();
     // Trust window: suppress the very first upward fetch right after the
     // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
     // that visually teleports the viewport to older messages the user
@@ -1045,7 +1056,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (userInitiatedTopReach && startReachedRetryTimerRef.current === null) {
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
-          if (!userHasScrolledAfterPinRef.current && !isViewportUserActive(scrollerElRef.current)) return;
+          if (!hasRecentUserUpwardScroll()) return;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
           if (!isStillNearTop()) return;
           loadingOlderInFlightRef.current = true;
@@ -1086,7 +1097,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (startReachedRetryTimerRef.current === null) {
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
-          if (!isViewportUserActive(scrollerElRef.current)) {
+          if (!hasRecentUserUpwardScroll()) {
             debugLogStartReached(false, "cooldown-retry-user-idle");
             return;
           }
@@ -1103,7 +1114,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [hasOlder, isLoadingOlder, onLoadOlder, isStillNearTop]);
+  }, [hasOlder, isLoadingOlder, onLoadOlder, isStillNearTop, hasRecentUserUpwardScroll]);
 
   // Belt-and-braces upward pagination trigger. With top overscan,
   // `startReached` can fail to refire after a successful prepend because the
@@ -1123,26 +1134,33 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const handleAtTopStateChange = useCallback(
     (atTop: boolean) => {
       if (!atTop) return;
-      if (!isViewportUserActive(scrollerElRef.current)) return;
+      if (!hasRecentUserUpwardScroll()) return;
       if (atTopRafRef.current !== null) return;
       atTopRafRef.current = requestAnimationFrame(() => {
         atTopRafRef.current = null;
         handleStartReached();
       });
     },
-    [handleStartReached],
+    [handleStartReached, hasRecentUserUpwardScroll],
   );
 
 
   const handleScroll = useCallback(() => {
     if (!bottomPinReadyRef.current) return;
+    const el = scrollerElRef.current;
+    const currentTop = el?.scrollTop ?? 0;
+    const previousTop = lastObservedScrollTopRef.current;
+    lastObservedScrollTopRef.current = currentTop;
     // Only treat a scroll event as "user scrolled away" when there is a real
     // user gesture behind it. Programmatic `scrollToIndex` snaps (initial
     // pin, stay-pinned re-anchor, follow-output) also dispatch scroll events
     // and would otherwise permanently disable the post-reveal stay-pinned
     // guard — leaving the last message hidden behind the composer after
     // late avatar/image hydration on first cold-cache open.
-    if (!isViewportUserActive(scrollerElRef.current)) return;
+    if (!isViewportUserActive(el)) return;
+    if (previousTop !== null && currentTop < previousTop - 2) {
+      lastUserUpwardScrollAtRef.current = performance.now();
+    }
     userHasScrolledAfterPinRef.current = true;
   }, []);
 
