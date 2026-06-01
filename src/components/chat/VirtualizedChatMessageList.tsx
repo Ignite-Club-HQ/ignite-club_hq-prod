@@ -36,6 +36,7 @@ import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -881,45 +882,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
     // visible to the user as a frozen, blank chat. After this deadline we
     // reveal regardless and let any remaining reflows happen in plain sight.
-    const REVEAL_DEADLINE_MS = 1800;
-    const REVEAL_IDLE_MS = 320;
-    const IMAGE_WAIT_MAX_MS = 450;
-    const waitForImages = (done: () => void) => {
-      const el = scrollerElRef.current;
-      if (!el) {
-        done();
-        return;
-      }
-      const pending = Array.from(el.querySelectorAll<HTMLImageElement>("img")).filter(
-        (img) => !(img.complete && img.naturalHeight > 0),
-      );
-      if (pending.length === 0) {
-        done();
-        return;
-      }
-      let remaining = pending.length;
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        pending.forEach((img) => {
-          img.removeEventListener("load", onOne);
-          img.removeEventListener("error", onOne);
-        });
-        done();
-      };
-      const onOne = () => {
-        remaining -= 1;
-        if (remaining <= 0) finish();
-      };
-      pending.forEach((img) => {
-        img.addEventListener("load", onOne, { once: true });
-        img.addEventListener("error", onOne, { once: true });
-      });
-      window.setTimeout(finish, IMAGE_WAIT_MAX_MS);
-    };
+    const REVEAL_DEADLINE_MS = 3000;
+    const REVEAL_IDLE_MS = 520;
+    let visualSettleCleanup: (() => void) | null = null;
     const doReveal = (reason: string) => {
       if (cancelled) return;
+      const el = scrollerElRef.current;
       cancelled = true;
       if (revealTimer !== null) {
         clearTimeout(revealTimer);
@@ -942,7 +910,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      waitForImages(() => {
+      visualSettleCleanup?.();
+      visualSettleCleanup = waitForChatVisualContentSettle(el, { quietMs: 520, maxMs: 2400 }, () => {
         if (disposedAfterReveal) return;
         if (isChatJumpActive()) {
           requestAnimationFrame(() => setInitialRevealReady(true));
@@ -1005,6 +974,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (deadlineTimer !== null) clearTimeout(deadlineTimer);
       if (frame !== null) cancelAnimationFrame(frame);
+      visualSettleCleanup?.();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
     };
@@ -1106,7 +1076,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Virtuoso is settling its own row-height estimates produces a visible
   // up/down wobble after an upward fling stops ("jitters then lands").
 
-  // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
+    // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
   // late-hydrating content (images decoding, link previews mounting, reply
   // quotes inflating, reactions arriving) grows the heights of rows already
   // on screen. Virtuoso's `followOutput` only re-pins when NEW items are
@@ -1131,6 +1101,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // has intentionally scrolled away.
     const STAY_PINNED_MS = 2400;
     let lastScrollHeight = viewport.scrollHeight;
+    let lastClientHeight = viewport.clientHeight;
 
     // SYNCHRONOUS delta compensation. The flicker comes from the gap
     // between a layout-changing paint (image decode / link preview /
@@ -1153,12 +1124,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
 
       const sh = viewport.scrollHeight;
+      const ch = viewport.clientHeight;
       const delta = sh - lastScrollHeight;
+      const viewportDelta = ch - lastClientHeight;
       lastScrollHeight = sh;
+      lastClientHeight = ch;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
       // ~1.5 s main-thread freeze on first open and a clean reveal.
-      if (Math.abs(delta) < 2) return;
+      if (Math.abs(delta) < 2 && Math.abs(viewportDelta) < 2) return;
 
       // Re-pin to the true max scroll position for BOTH growth and shrink.
       // Cold-login row estimates can correct in either direction; only
@@ -1176,6 +1150,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         ro.disconnect();
       }
     });
+    ro.observe(viewport);
     ro.observe(inner);
 
     const stopTimer = window.setTimeout(() => {
