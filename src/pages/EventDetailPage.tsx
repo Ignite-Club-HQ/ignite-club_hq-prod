@@ -3596,11 +3596,6 @@ export default function EventDetailPage() {
           eventTitle={event.title}
         />
       )}
-      {(isAdmin || isAppAdmin) && id && (
-        <div className="px-4 pb-6">
-          <RsvpAuditLogSection eventId={id} />
-        </div>
-      )}
     </div>
   );
 }
