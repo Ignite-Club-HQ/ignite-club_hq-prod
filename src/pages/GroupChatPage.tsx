@@ -16,6 +16,7 @@ import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
@@ -44,6 +45,23 @@ import {
 
 
 const MESSAGES_PER_PAGE = 30;
+const CHAT_LOADING_SKELETON_ROWS = [82, 64, 96, 72, 88, 60, 78];
+
+function ChatLoadingSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex flex-1 flex-col justify-end gap-3 px-4 pb-6">
+      {CHAT_LOADING_SKELETON_ROWS.map((width, i) => (
+        <div
+          key={i}
+          className="flex"
+          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
+        >
+          <Skeleton className="h-10 rounded-2xl" style={{ width: `${width}%`, maxWidth: "75%" }} />
+        </div>
+      ))}
+    </div>
+  );
+}
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
@@ -1964,7 +1982,7 @@ export default function GroupChatPage() {
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
-          <p className="text-center text-muted-foreground">Loading messages...</p>
+          <ChatLoadingSkeleton />
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
