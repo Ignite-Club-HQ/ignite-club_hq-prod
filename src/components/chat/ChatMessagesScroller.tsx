@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
@@ -58,76 +58,6 @@ function useDebouncedNumber(value: number, delayMs: number) {
   }, [debounced, delayMs, value]);
 
   return debounced;
-}
-
-function useSettledChatMountBox(quietMs: number = 240) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [settled, setSettled] = useState(false);
-  const lastSizeRef = useRef({ width: 0, height: 0 });
-  const timerRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const clearTimer = () => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-
-    const arm = () => {
-      clearTimer();
-      timerRef.current = window.setTimeout(() => setSettled(true), quietMs);
-    };
-
-    const measure = (force = false) => {
-      rafRef.current = null;
-      const rect = element.getBoundingClientRect();
-      const next = {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      };
-
-      if (next.width <= 0 || next.height <= 0) {
-        clearTimer();
-        setSettled(false);
-        return;
-      }
-
-      const prev = lastSizeRef.current;
-      const changed = Math.abs(next.width - prev.width) > 1 || Math.abs(next.height - prev.height) > 1;
-      if (force || changed) {
-        lastSizeRef.current = next;
-        setSettled(false);
-        arm();
-      }
-    };
-
-    const onResize = () => {
-      if (rafRef.current !== null) return;
-      rafRef.current = window.requestAnimationFrame(() => measure(false));
-    };
-
-    measure(true);
-
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
-    observer?.observe(element);
-    window.addEventListener("resize", onResize);
-    window.visualViewport?.addEventListener("resize", onResize);
-
-    return () => {
-      clearTimer();
-      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
-      observer?.disconnect();
-      window.removeEventListener("resize", onResize);
-      window.visualViewport?.removeEventListener("resize", onResize);
-    };
-  }, [quietMs]);
-
-  return { ref, settled };
 }
 
 export function ChatMessagesScroller<TMessage extends { id: string }>(
