@@ -109,6 +109,8 @@ interface Props<TMessage extends { id: string }> {
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
   initialBottomPinned?: boolean;
+  /** True only when this thread opened with already-cached messages. */
+  revealImmediatelyOnMount?: boolean;
   /** Current user id, used only for row-height estimates (own messages have no author label). */
   currentUserId?: string | null;
 }
@@ -614,6 +616,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    revealImmediatelyOnMount,
     currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
@@ -633,8 +636,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Warm open: messages already present at mount (cache hit). Reveal
   // immediately and skip the visual-settle wait — the stabilisation
   // sequence is only needed on cold cache where rows hydrate in stages.
-  const warmOpenRef = useRef(messages.length > 0);
-  const [initialRevealReady, setInitialRevealReady] = useState(() => messages.length > 0);
+  const shouldRevealImmediatelyOnMount = revealImmediatelyOnMount ?? messages.length > 0;
+  const warmOpenRef = useRef(shouldRevealImmediatelyOnMount && messages.length > 0);
+  const [initialRevealReady, setInitialRevealReady] = useState(
+    () => shouldRevealImmediatelyOnMount && messages.length > 0,
+  );
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
