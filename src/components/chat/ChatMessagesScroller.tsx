@@ -158,8 +158,16 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const handle = virtualHandleRef.current;
     if (!handle) return;
     // Initial-mount quiet window: let Virtuoso's own bottom pin own first
-    // paint without ANY parent-driven re-snaps.
-    if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) {
+    // paint without ANY parent-driven re-snaps — EXCEPT for composer growth.
+    // The composer floor (56px) often resolves to ~110–140px once measured,
+    // and ignoring that growth visibly shifts the latest message upward on
+    // warm reopens of team / club / DM chats. We still allow the composer-
+    // grew branch below to re-pin during the quiet window.
+    const inQuietWindow =
+      performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS;
+    const composerGrewQuick =
+      composerHeight - prevComposerHeightRef.current > 4;
+    if (inQuietWindow && !composerGrewQuick) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
       prevComposerHeightRef.current = composerHeight;
       return;
