@@ -852,6 +852,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // `jump("immediate")` below.
     if (pinAttemptRevisionRef.current === bottomPinRevision) return;
     pinAttemptRevisionRef.current = bottomPinRevision;
+    // Warm open (cache hit): pin synchronously via Virtuoso's
+    // initialTopMostItemIndex and skip the skeleton/stabilisation wait —
+    // this is the "instant subsequent open" path. Only reset to false on
+    // genuinely cold opens where rows will hydrate in stages.
+    if (warmOpenRef.current) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      bottomPinReadyAtRef.current = performance.now();
+      setInitialRevealReady(true);
+      // Consume the warm flag so any future revision bumps go through
+      // the normal stabilisation path.
+      warmOpenRef.current = false;
+      return;
+    }
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
