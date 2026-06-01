@@ -194,14 +194,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Wait for real data, visual viewport height, wrapper size, and composer
-  // height to stop changing before mounting Virtuoso. If it mounts against an
-  // interim height, its initial bottom-pin can visibly correct down/up/down.
+  // Once message data exists, mount immediately. The list itself now handles
+  // first-paint bottom pinning; holding this wrapper for viewport/composer
+  // settle caused cached thread re-opens to show the skeleton unnecessarily.
   const viewportSettled = useViewportHeightSettled(180);
   const [initialViewportReleased, setInitialViewportReleased] = useState(false);
   const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
   const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
-  const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
+  const virtualReady = messages.length > 0;
 
   useEffect(() => {
     if (messages.length === 0) {
