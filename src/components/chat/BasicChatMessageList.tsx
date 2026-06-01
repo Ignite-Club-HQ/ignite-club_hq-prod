@@ -74,6 +74,7 @@ interface Props<TMessage extends { id: string }> {
   onAtBottomChange?: (atBottom: boolean) => void;
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   initialBottomPinned?: boolean;
+  revealImmediatelyOnMount?: boolean;
   currentUserId?: string | null;
 }
 
@@ -91,6 +92,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    revealImmediatelyOnMount,
   }: Props<TMessage>,
   ref: React.Ref<BasicChatMessageListHandle>,
 ) {
@@ -100,7 +102,8 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   const lastLengthRef = useRef(0);
   // Warm open: messages already in cache at mount — reveal immediately
   // instead of running the visual-settle skeleton sequence.
-  const [revealed, setRevealed] = useState(() => messages.length > 0);
+  const shouldRevealImmediatelyOnMount = revealImmediatelyOnMount ?? messages.length > 0;
+  const [revealed, setRevealed] = useState(() => shouldRevealImmediatelyOnMount && messages.length > 0);
   // How many of the most-recent messages to render. Starts at the admin-tunable
   // chunk size and grows by `chunkSize` each time the user taps "Load earlier".
   const [revealCount, setRevealCount] = useState(() => chunkSize || DEFAULT_CHUNK);
