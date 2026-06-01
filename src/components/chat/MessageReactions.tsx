@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -385,7 +385,17 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  // Seed from in-memory profile cache so names render instantly when available;
+  // avoids the brief "Unknown" flash before the async fetch resolves.
+  const initialUsers = (() => {
+    const seeded: Array<{ id: string; display_name: string | null }> = [];
+    for (const id of allUserIds) {
+      const p = getProfileFromCache(id);
+      if (p) seeded.push({ id: p.id, display_name: p.display_name });
+    }
+    return seeded;
+  })();
+  const { data: users = initialUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["all-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
@@ -397,6 +407,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
     },
     enabled: isOpen && allUserIds.length > 0,
     staleTime: 60_000,
+    initialData: initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
@@ -416,7 +427,9 @@ const AllReactionsContent = memo(function AllReactionsContent({
   }, [isOpen]);
 
   const getUserName = (userId: string) => {
-    return users.find(u => u.id === userId)?.display_name || "";
+    return users.find(u => u.id === userId)?.display_name
+      || getProfileFromCache(userId)?.display_name
+      || "";
   };
 
   const visibleReactions =
@@ -489,7 +502,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
           <>
             {visibleReactions.map((r) => {
               const isMe = r.user_id === currentUserId;
-              const name = getUserName(r.user_id) || "Unknown";
+              const name = getUserName(r.user_id);
               const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
               return (
                 <button
@@ -507,8 +520,12 @@ const AllReactionsContent = memo(function AllReactionsContent({
                   }`}
                 >
                   <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
-                    {name}
-                    {isMe && (
+                    {name ? (
+                      name
+                    ) : (
+                      <span className="inline-block h-3 w-24 align-middle rounded bg-foreground/[0.06] animate-pulse" />
+                    )}
+                    {isMe && name && (
                       <span className="ml-1 text-[11px] text-muted-foreground">
                         {`· tap to remove`}
                       </span>
