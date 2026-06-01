@@ -1425,7 +1425,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // every chat surface (Team/Group/Club/Broadcast/ClubAdmin/DM) gets the
   // mask without prop-drilling. Masks the visible re-anchor as deferred row
   // sub-content (link previews, replies, reactions) hydrates after scroll.
-  const [isJumpHydrating, setIsJumpHydrating] = useState(false);
+  // Seed from the module-level flag so push-notification jumps that fire
+  // `setChatJumpActive(true)` BEFORE this list mounts still show the
+  // overlay (the CustomEvent itself would have been dispatched before our
+  // listener was attached and silently lost).
+  const [isJumpHydrating, setIsJumpHydrating] = useState(() => isChatJumpActive());
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     const onStart = () => {
@@ -1443,9 +1447,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
+    // Also subscribe to the module-level flag so a jump that started
+    // before mount (push-notification deep link) flips the overlay on
+    // as soon as we subscribe, and a jump that ends during this mount
+    // still triggers the fade-out even if the CustomEvent was missed.
+    const unsubscribe = subscribeChatJumpActive((value) => {
+      if (value) onStart();
+      else onEnd();
+    });
     return () => {
       window.removeEventListener("chat:jump-hydration-start", onStart);
       window.removeEventListener("chat:jump-hydration-end", onEnd);
+      unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
     };
   }, []);
