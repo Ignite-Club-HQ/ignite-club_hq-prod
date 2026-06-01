@@ -98,7 +98,9 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   const containerRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const lastLengthRef = useRef(0);
-  const [revealed, setRevealed] = useState(false);
+  // Warm open: messages already in cache at mount — reveal immediately
+  // instead of running the visual-settle skeleton sequence.
+  const [revealed, setRevealed] = useState(() => messages.length > 0);
   // How many of the most-recent messages to render. Starts at the admin-tunable
   // chunk size and grows by `chunkSize` each time the user taps "Load earlier".
   const [revealCount, setRevealCount] = useState(() => chunkSize || DEFAULT_CHUNK);
