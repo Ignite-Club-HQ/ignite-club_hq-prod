@@ -164,6 +164,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   // Initial pin to bottom on mount when requested. Keep the fallback hidden
   // until row assets/placeholders have settled, matching the virtualised path.
   useLayoutEffect(() => {
+    if (revealed && visible.length > 0) return;
     settleCleanupRef.current?.();
     setRevealed(false);
     if (!initialBottomPinned) {
@@ -193,7 +194,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       settleCleanupRef.current?.();
       settleCleanupRef.current = null;
     };
-  }, [initialBottomPinned, scrollToBottomImpl, visible.length]);
+  }, [initialBottomPinned, scrollToBottomImpl, visible.length, revealed]);
 
   // Auto-stick to bottom when new messages arrive and user is already there.
   useLayoutEffect(() => {
