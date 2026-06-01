@@ -398,6 +398,14 @@ ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
 // row mounts it can no longer invalidate ancestor layout/paint, so the
 // 1400px upward overscan (which mounts many rows during a fast flick) stops
 // causing main-thread layout thrash.
+//
+// IMPORTANT: We use `contain: layout style` (NOT `content`) because `content`
+// implies `paint`, which promotes every row to its own rasterisation layer.
+// On Android WebView, mounting a paint-contained element during a prepend
+// causes a one-frame white flash before the layer's contents are rasterised
+// — this is the "flash when older messages load" the user reports. Layout
+// containment alone gives us the layout-isolation win without the per-row
+// rasterisation cost.
 const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
   ({ context: _context, style, ...props }, itemRef) => (
     <div
@@ -406,7 +414,7 @@ const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { co
       data-chat-virtuoso-item="true"
       style={{
         ...style,
-        contain: "content",
+        contain: "layout style",
       }}
     />
   ),
