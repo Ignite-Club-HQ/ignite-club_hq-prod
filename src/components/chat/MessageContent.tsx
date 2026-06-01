@@ -86,7 +86,6 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
-  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Reset image state when URL changes — but honour the decoded-cache so we
@@ -234,10 +233,6 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
-    const el = e.currentTarget as HTMLImageElement & HTMLVideoElement;
-    const w = (el as HTMLImageElement).naturalWidth ?? (el as HTMLVideoElement).videoWidth;
-    const h = (el as HTMLImageElement).naturalHeight ?? (el as HTMLVideoElement).videoHeight;
-    if (w > 0 && h > 0) setNaturalAspect(w / h);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
   }, [effectiveImageUrl, imageUrl]);
@@ -368,7 +363,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         >
           <div
             className="relative w-full bg-muted/40"
-            style={{ aspectRatio: naturalAspect ? String(naturalAspect) : '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            style={{ aspectRatio: '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
