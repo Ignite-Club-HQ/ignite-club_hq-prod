@@ -144,5 +144,5 @@ export function useNotificationNudge(userId: string | undefined, context: string
   // Never show nudge while still loading — prevents false flash
   const shouldShowNudge = !isLoading && hasPushEnabled === false && !isDismissed;
 
-  return { shouldShowNudge, hasPushEnabled, dismiss };
+  return { shouldShowNudge, hasPushEnabled, dismiss, isLoading };
 }
