@@ -855,7 +855,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
-    let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+    let deadlineTimer: number | null = null;
     let frame: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let mutationObserver: MutationObserver | null = null;
