@@ -651,22 +651,30 @@ export default function TeamChatPage() {
     (!authReady && !(localMessages?.length)) ||
     (loadingMessages && !messagesData && !(localMessages?.length));
 
-  // Defer banner mounts until after the initial chat reveal has settled.
-  // Banners (notification nudge, pinned vault, pinned messages) resolve from
-  // async queries and can pop in above the messages region post-pin, shrinking
-  // it and causing a visible upward jolt. We wait until ~800ms after the
-  // messages region first reveals before mounting any of them. By then the
-  // initial bottom-pin window has elapsed and Virtuoso will absorb the
-  // followOutput re-pin smoothly.
+  // Defer banner mounts until each banner's data has resolved. Banners
+  // (notification nudge, pinned vault, pinned messages) resolve from async
+  // queries and can pop in above the messages region post-pin, shrinking it
+  // and causing a visible upward jolt. We wait until all three queries have
+  // settled (with a 1500ms hard ceiling so a hanging query never blocks the
+  // chat) before mounting any of them, so the messages region mounts at its
+  // final height.
+  const bannersDataReady =
+    !notificationNudge.isLoading && !pinnedVault.isLoading && !pinnedMessagesLoading;
   const [bannersReady, setBannersReady] = useState(false);
   useEffect(() => {
     if (showLoading) {
       setBannersReady(false);
       return;
     }
-    const t = window.setTimeout(() => setBannersReady(true), 350);
+    if (bannersDataReady) {
+      // Yield one frame so the banner DOM commits before the scroller mounts.
+      const raf = requestAnimationFrame(() => setBannersReady(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    // Hard ceiling — never let a slow query block the chat from appearing.
+    const t = window.setTimeout(() => setBannersReady(true), 1500);
     return () => window.clearTimeout(t);
-  }, [showLoading, teamId]);
+  }, [showLoading, bannersDataReady, teamId]);
 
 
   // Log notification-tap → first-message-render latency once per mount.
