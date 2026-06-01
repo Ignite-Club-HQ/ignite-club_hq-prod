@@ -5,6 +5,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -196,6 +197,13 @@ export default function DirectMessagePage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const previousOpenKeyRef = useRef<string | null>(null);
+  const revealImmediatelyForOpenRef = useRef(false);
+  const openKey = user?.id && conversationId ? `${user.id}:${conversationId}` : null;
+  if (previousOpenKeyRef.current !== openKey) {
+    previousOpenKeyRef.current = openKey;
+    revealImmediatelyForOpenRef.current = hasOpenedChatThread("dm", openKey);
+  }
   // Read once on mount: was this thread opened from a push notification within
   // the last 60s? Stores the tap timestamp (ms epoch) so we can measure
   // tap → first-message-render latency below.
@@ -563,6 +571,11 @@ export default function DirectMessagePage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
+
+  useEffect(() => {
+    if (!openKey || showLoading) return;
+    markChatThreadOpened("dm", openKey);
+  }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1389,9 +1402,7 @@ export default function DirectMessagePage() {
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <ChatLoadingSkeleton />
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
@@ -1409,6 +1420,7 @@ export default function DirectMessagePage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
+            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;

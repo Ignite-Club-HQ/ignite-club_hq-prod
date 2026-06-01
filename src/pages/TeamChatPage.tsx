@@ -8,6 +8,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -162,6 +163,13 @@ export default function TeamChatPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const previousOpenKeyRef = useRef<string | null>(null);
+  const revealImmediatelyForOpenRef = useRef(false);
+  const openKey = user?.id && teamId ? `${user.id}:${teamId}` : null;
+  if (previousOpenKeyRef.current !== openKey) {
+    previousOpenKeyRef.current = openKey;
+    revealImmediatelyForOpenRef.current = hasOpenedChatThread("team", openKey);
+  }
   const [searchParams] = useSearchParams();
   // Was this thread opened from a push notification within the last 60s? If
   // so, the prior React Query snapshot (`prev`) predates the new push and is
@@ -676,6 +684,11 @@ export default function TeamChatPage() {
     return () => window.clearTimeout(t);
   }, [showLoading, bannersDataReady, teamId]);
 
+
+  useEffect(() => {
+    if (!openKey || showLoading) return;
+    markChatThreadOpened("team", openKey);
+  }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1700,11 +1713,7 @@ export default function TeamChatPage() {
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading || !bannersReady ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-16 w-3/4" />
-            ))}
-          </div>
+          <ChatLoadingSkeleton />
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
@@ -1726,6 +1735,7 @@ export default function TeamChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
+            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
