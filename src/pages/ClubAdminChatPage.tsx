@@ -35,6 +35,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
