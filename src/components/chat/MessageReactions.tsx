@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -29,6 +29,12 @@ const getReactionSignature = (reactions: Reaction[] = []) =>
     .map((reaction) => `${reaction.id}:${reaction.user_id}:${reaction.reaction_type}`)
     .sort()
     .join("|");
+
+const normalizeDisplayName = (name?: string | null) => {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return /^unknown(?: user)?$/i.test(trimmed) ? null : trimmed;
+};
 
 interface MessageReactionsProps {
   reactions: Reaction[];
@@ -73,7 +79,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     try {
       const sel = window.getSelection();
       sel?.removeAllRanges();
-    } catch {}
+    } catch {
+      // Selection cleanup is best-effort only.
+    }
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
@@ -385,18 +393,46 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  // Seed from in-memory profile cache so names render instantly when available;
+  // avoids the brief "Unknown" flash before the async fetch resolves.
+  const initialUsers = (() => {
+    const seeded: Array<{ id: string; display_name: string | null }> = [];
+    for (const id of allUserIds) {
+      const p = getProfileFromCache(id);
+      const displayName = normalizeDisplayName(p?.display_name);
+      if (p && displayName) seeded.push({ id: p.id, display_name: displayName });
+    }
+    return seeded;
+  })();
+  const { data: users = initialUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["all-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
       const map = await fetchProfilesWithCache(allUserIds);
-      return Array.from(map.values()).map((p) => ({
-        id: p.id,
-        display_name: p.display_name,
+      const unresolvedIds = allUserIds.filter((id) => !normalizeDisplayName(map.get(id)?.display_name));
+
+      if (unresolvedIds.length > 0) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", unresolvedIds);
+
+        if (data?.length) {
+          cacheProfiles(data);
+          for (const profile of data) {
+            map.set(profile.id, { ...profile, cached_at: Date.now() });
+          }
+        }
+      }
+
+      return allUserIds.map((id) => ({
+        id,
+        display_name: normalizeDisplayName(map.get(id)?.display_name),
       }));
     },
     enabled: isOpen && allUserIds.length > 0,
     staleTime: 60_000,
+    initialData: initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
@@ -416,7 +452,9 @@ const AllReactionsContent = memo(function AllReactionsContent({
   }, [isOpen]);
 
   const getUserName = (userId: string) => {
-    return users.find(u => u.id === userId)?.display_name || "";
+    return normalizeDisplayName(users.find(u => u.id === userId)?.display_name)
+      || normalizeDisplayName(getProfileFromCache(userId)?.display_name)
+      || "";
   };
 
   const visibleReactions =
@@ -489,7 +527,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
           <>
             {visibleReactions.map((r) => {
               const isMe = r.user_id === currentUserId;
-              const name = getUserName(r.user_id) || "Unknown";
+              const name = getUserName(r.user_id);
               const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
               return (
                 <button
@@ -507,8 +545,12 @@ const AllReactionsContent = memo(function AllReactionsContent({
                   }`}
                 >
                   <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
-                    {name}
-                    {isMe && (
+                    {name ? (
+                      name
+                    ) : (
+                      <span className="inline-block h-3 w-24 align-middle rounded bg-foreground/[0.06] animate-pulse" />
+                    )}
+                    {isMe && name && (
                       <span className="ml-1 text-[11px] text-muted-foreground">
                         {`· tap to remove`}
                       </span>

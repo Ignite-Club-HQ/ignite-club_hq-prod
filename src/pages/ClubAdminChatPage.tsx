@@ -35,6 +35,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
@@ -126,6 +127,7 @@ export default function ClubAdminChatPage() {
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -434,7 +436,7 @@ export default function ClubAdminChatPage() {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ text, replyToId }: { text: string; replyToId?: string | null }) => {
+    mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl: string | null; replyToId?: string | null }) => {
       // Offline path: queue the message instead of failing
       if (!navigator.onLine) {
         const queued = queueMessage({
@@ -442,14 +444,14 @@ export default function ClubAdminChatPage() {
           targetId: conversationId!,
           authorId: user!.id,
           text,
-          imageUrl: null,
+          imageUrl: imageUrl ?? null,
           replyToId: replyToId || null,
           createdAt: new Date().toISOString(),
         });
         return {
           id: queued.id,
           text,
-          image_url: null,
+          image_url: imageUrl ?? null,
           conversation_id: conversationId!,
           author_id: user!.id,
           reply_to_id: replyToId || null,
@@ -463,6 +465,7 @@ export default function ClubAdminChatPage() {
           conversation_id: conversationId!,
           author_id: user!.id,
           text,
+          image_url: imageUrl ?? null,
           reply_to_id: replyToId || null,
         })
         .select()
@@ -470,11 +473,11 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    onMutate: async ({ text, replyToId }) => {
+    onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
       const optimisticMessage: ClubAdminMessage = {
         id: `temp-${Date.now()}`,
         text,
-        image_url: null,
+        image_url: optImageUrl ?? null,
         created_at: new Date().toISOString(),
         author_id: user!.id,
         conversation_id: conversationId!,
@@ -524,10 +527,10 @@ export default function ClubAdminChatPage() {
       // Auto-sync any file/document links shared in this Club Admin Chat
       // into a dedicated "Club Admin Chat" vault folder (club admins only).
       const clubIdForSync = conversation?.club_id;
-      if (user && clubIdForSync && variables?.text) {
+      if (user && clubIdForSync && (variables?.text || variables?.imageUrl)) {
         import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
           syncChatAttachmentToVault({
-            imageUrl: null,
+            imageUrl: variables.imageUrl ?? null,
             text: variables.text,
             userId: user.id,
             clubId: clubIdForSync,
@@ -622,7 +625,7 @@ export default function ClubAdminChatPage() {
       return;
     }
 
-    if (!message.trim() && !pendingPollId) return;
+    if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -634,9 +637,11 @@ export default function ClubAdminChatPage() {
       : baseText;
     sendMessageMutation.mutate({
       text: finalText,
+      imageUrl,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
+    setImageUrl(null);
     setReplyTo(null);
     setPendingPollId(null);
   };
@@ -933,7 +938,15 @@ export default function ClubAdminChatPage() {
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell>
-
+          <ChatImageInput
+            imageUrl={imageUrl}
+            onImageUploaded={setImageUrl}
+            disabled={false}
+            clubId={conversation?.club_id || undefined}
+            showVaultPicker={!!conversation?.club_id}
+            onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
+            hasText={!!message.trim()}
+          />
           <MentionInput
             bare
             value={message}
@@ -946,13 +959,14 @@ export default function ClubAdminChatPage() {
             disabled={false}
             clubId={conversation?.club_id || undefined}
             clubAdminMemberUserId={conversation?.member_user_id || undefined}
+            onGifSelect={setImageUrl}
           />
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !pendingPollId}
+            disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!pendingPollId}
+            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
         </ChatComposerShell>
         {scheduleTarget && (
