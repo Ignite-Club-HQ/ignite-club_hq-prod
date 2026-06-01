@@ -3,7 +3,6 @@ import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
-import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
 
@@ -186,7 +185,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
-  const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
+  const { ref: mountBoxRef } = useSettledChatMountBox(260);
 
   // Virtuoso owns its own scroller; no external ref handover (legacy chat
   // hooks that mutated `scrollTop` directly are gone).
@@ -194,24 +193,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Once message data exists, mount immediately. The list itself now handles
+  // Once message data exists, mount immediately. The list itself handles
   // first-paint bottom pinning; holding this wrapper for viewport/composer
   // settle caused cached thread re-opens to show the skeleton unnecessarily.
-  const viewportSettled = useViewportHeightSettled(180);
-  const [initialViewportReleased, setInitialViewportReleased] = useState(false);
-  const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
-  const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
   const virtualReady = messages.length > 0;
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setInitialViewportReleased(false);
-      return;
-    }
-    if (messages.length > 0 && initialMountReady) {
-      setInitialViewportReleased(true);
-    }
-  }, [initialMountReady, messages.length]);
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
