@@ -530,7 +530,7 @@ export default function ClubAdminChatPage() {
       if (user && clubIdForSync && variables?.text) {
         import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
           syncChatAttachmentToVault({
-            imageUrl: null,
+            imageUrl: variables.imageUrl ?? null,
             text: variables.text,
             userId: user.id,
             clubId: clubIdForSync,
