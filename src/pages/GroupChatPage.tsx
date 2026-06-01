@@ -582,7 +582,7 @@ export default function GroupChatPage() {
 
   useEffect(() => {
     if (!openKey || showLoading) return;
-    openedGroupChatThreads.add(openKey);
+    markChatThreadOpened("group", openKey);
   }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
