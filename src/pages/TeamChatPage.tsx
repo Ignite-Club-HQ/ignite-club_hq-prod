@@ -663,7 +663,7 @@ export default function TeamChatPage() {
       setBannersReady(false);
       return;
     }
-    const t = window.setTimeout(() => setBannersReady(true), 800);
+    const t = window.setTimeout(() => setBannersReady(true), 350);
     return () => window.clearTimeout(t);
   }, [showLoading, teamId]);
 
