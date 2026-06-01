@@ -16,7 +16,6 @@ import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
@@ -45,7 +44,6 @@ import {
 
 
 const MESSAGES_PER_PAGE = 30;
-import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
@@ -211,13 +209,6 @@ export default function GroupChatPage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
-  const previousOpenKeyRef = useRef<string | null>(null);
-  const revealImmediatelyForOpenRef = useRef(false);
-  const openKey = user?.id && groupId ? `${user.id}:${groupId}` : null;
-  if (previousOpenKeyRef.current !== openKey) {
-    previousOpenKeyRef.current = openKey;
-    revealImmediatelyForOpenRef.current = hasOpenedChatThread("group", openKey);
-  }
   const openedFromNotificationRef = useRef<number | null>(
     groupId ? consumeFromNotificationFlag("group", groupId) : null,
   );
@@ -579,11 +570,6 @@ export default function GroupChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
-
-  useEffect(() => {
-    if (!openKey || showLoading) return;
-    markChatThreadOpened("group", openKey);
-  }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1978,7 +1964,7 @@ export default function GroupChatPage() {
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
-          <ChatLoadingSkeleton />
+          <p className="text-center text-muted-foreground">Loading messages...</p>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
@@ -2000,7 +1986,6 @@ export default function GroupChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
-            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
               const messageReactions = messageReactionsMap.get(msg.id) || [];

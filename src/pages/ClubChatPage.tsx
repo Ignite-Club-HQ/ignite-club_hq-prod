@@ -5,7 +5,6 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
-import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -143,13 +142,6 @@ export default function ClubChatPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
-  const previousOpenKeyRef = useRef<string | null>(null);
-  const revealImmediatelyForOpenRef = useRef(false);
-  const openKey = user?.id && clubId ? `${user.id}:${clubId}` : null;
-  if (previousOpenKeyRef.current !== openKey) {
-    previousOpenKeyRef.current = openKey;
-    revealImmediatelyForOpenRef.current = hasOpenedChatThread("club", openKey);
-  }
   const [searchParams] = useSearchParams();
   const openedFromNotificationRef = useRef<number | null>(
     clubId ? consumeFromNotificationFlag("club", clubId) : null,
@@ -501,11 +493,6 @@ export default function ClubChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (isLoading && !messagesData && !(localMessages?.length));
-
-  useEffect(() => {
-    if (!openKey || showLoading) return;
-    markChatThreadOpened("club", openKey);
-  }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1451,7 +1438,11 @@ export default function ClubChatPage() {
             ))}
           </div>
         ) : showLoading ? (
-          <ChatLoadingSkeleton />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 w-3/4" />
+            ))}
+          </div>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
@@ -1473,7 +1464,6 @@ export default function ClubChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
-            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
