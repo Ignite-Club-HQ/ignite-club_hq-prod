@@ -527,7 +527,7 @@ export default function ClubAdminChatPage() {
       // Auto-sync any file/document links shared in this Club Admin Chat
       // into a dedicated "Club Admin Chat" vault folder (club admins only).
       const clubIdForSync = conversation?.club_id;
-      if (user && clubIdForSync && variables?.text) {
+      if (user && clubIdForSync && (variables?.text || variables?.imageUrl)) {
         import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
           syncChatAttachmentToVault({
             imageUrl: variables.imageUrl ?? null,
