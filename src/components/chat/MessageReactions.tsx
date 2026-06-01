@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -29,6 +29,12 @@ const getReactionSignature = (reactions: Reaction[] = []) =>
     .map((reaction) => `${reaction.id}:${reaction.user_id}:${reaction.reaction_type}`)
     .sort()
     .join("|");
+
+const normalizeDisplayName = (name?: string | null) => {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return /^unknown(?: user)?$/i.test(trimmed) ? null : trimmed;
+};
 
 interface MessageReactionsProps {
   reactions: Reaction[];
@@ -73,7 +79,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     try {
       const sel = window.getSelection();
       sel?.removeAllRanges();
-    } catch {}
+    } catch {
+      // Selection cleanup is best-effort only.
+    }
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
@@ -391,7 +399,8 @@ const AllReactionsContent = memo(function AllReactionsContent({
     const seeded: Array<{ id: string; display_name: string | null }> = [];
     for (const id of allUserIds) {
       const p = getProfileFromCache(id);
-      if (p) seeded.push({ id: p.id, display_name: p.display_name });
+      const displayName = normalizeDisplayName(p?.display_name);
+      if (p && displayName) seeded.push({ id: p.id, display_name: displayName });
     }
     return seeded;
   })();
@@ -400,9 +409,25 @@ const AllReactionsContent = memo(function AllReactionsContent({
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
       const map = await fetchProfilesWithCache(allUserIds);
-      return Array.from(map.values()).map((p) => ({
-        id: p.id,
-        display_name: p.display_name,
+      const unresolvedIds = allUserIds.filter((id) => !normalizeDisplayName(map.get(id)?.display_name));
+
+      if (unresolvedIds.length > 0) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", unresolvedIds);
+
+        if (data?.length) {
+          cacheProfiles(data);
+          for (const profile of data) {
+            map.set(profile.id, { ...profile, cached_at: Date.now() });
+          }
+        }
+      }
+
+      return allUserIds.map((id) => ({
+        id,
+        display_name: normalizeDisplayName(map.get(id)?.display_name),
       }));
     },
     enabled: isOpen && allUserIds.length > 0,
@@ -427,8 +452,8 @@ const AllReactionsContent = memo(function AllReactionsContent({
   }, [isOpen]);
 
   const getUserName = (userId: string) => {
-    return users.find(u => u.id === userId)?.display_name
-      || getProfileFromCache(userId)?.display_name
+    return normalizeDisplayName(users.find(u => u.id === userId)?.display_name)
+      || normalizeDisplayName(getProfileFromCache(userId)?.display_name)
       || "";
   };
 
