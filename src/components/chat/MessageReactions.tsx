@@ -520,8 +520,12 @@ const AllReactionsContent = memo(function AllReactionsContent({
                   }`}
                 >
                   <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
-                    {name}
-                    {isMe && (
+                    {name ? (
+                      name
+                    ) : (
+                      <span className="inline-block h-3 w-24 align-middle rounded bg-foreground/[0.06] animate-pulse" />
+                    )}
+                    {isMe && name && (
                       <span className="ml-1 text-[11px] text-muted-foreground">
                         {`· tap to remove`}
                       </span>
