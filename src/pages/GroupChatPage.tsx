@@ -45,24 +45,7 @@ import {
 
 
 const MESSAGES_PER_PAGE = 30;
-const CHAT_LOADING_SKELETON_ROWS = [82, 64, 96, 72, 88, 60, 78];
-const openedGroupChatThreads = new Set<string>();
-
-function ChatLoadingSkeleton() {
-  return (
-    <div aria-hidden="true" className="flex flex-1 flex-col justify-end gap-3 px-4 pb-6">
-      {CHAT_LOADING_SKELETON_ROWS.map((width, i) => (
-        <div
-          key={i}
-          className="flex"
-          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
-        >
-          <Skeleton className="h-10 rounded-2xl" style={{ width: `${width}%`, maxWidth: "75%" }} />
-        </div>
-      ))}
-    </div>
-  );
-}
+import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
