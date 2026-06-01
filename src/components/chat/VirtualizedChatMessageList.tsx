@@ -909,7 +909,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      waitForImages(() => {
+      visualSettleCleanup?.();
+      visualSettleCleanup = waitForChatVisualContentSettle(el, { quietMs: 520, maxMs: 2400 }, () => {
         if (disposedAfterReveal) return;
         if (isChatJumpActive()) {
           requestAnimationFrame(() => setInitialRevealReady(true));
@@ -972,6 +973,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (deadlineTimer !== null) clearTimeout(deadlineTimer);
       if (frame !== null) cancelAnimationFrame(frame);
+      visualSettleCleanup?.();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
     };
