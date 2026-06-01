@@ -130,9 +130,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
-  // chat at the bottom on first paint, and `ChatMessagesScroller` holds the
-  // wrapper at opacity:0 until the visual viewport + composer height have
-  // settled. Any parent-driven `scrollToBottom` after that just re-pins
+  // chat at the bottom on first paint. Any parent-driven `scrollToBottom` just re-pins
   // against an already-pinned list and reads as content bouncing.
   //
   // We still react to POST-MOUNT transitions of `isKeyboardOpen` and to a
