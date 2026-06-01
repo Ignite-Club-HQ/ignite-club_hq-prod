@@ -199,12 +199,8 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       <div
         className="fixed left-0 right-0 z-[100001] flex flex-col overflow-hidden rounded-t-2xl border-x border-t bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
         style={{
-          // Span from sheetTop all the way down to the top of the keyboard
-          // (or visible viewport bottom when the keyboard is closed). Using
-          // `bottom` instead of a fixed height ensures the sheet is flush
-          // against the composer / keyboard with no visible gap.
           top: sheetTop,
-          bottom: Math.max(0, (typeof window !== "undefined" ? window.innerHeight : 0) - (sheetTop + sheetHeight)),
+          bottom: sheetBottom,
           paddingBottom: keyboardOpen ? 0 : "env(safe-area-inset-bottom, 0px)",
           transition:
             "top 180ms cubic-bezier(0.32, 0.72, 0, 1), bottom 180ms cubic-bezier(0.32, 0.72, 0, 1)",
