@@ -1456,6 +1456,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         position: "relative",
         height: "100%",
         width: "100%",
+      }}
+    >
+    {!initialRevealReady ? <JumpHydrationSkeleton /> : null}
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
         opacity: initialRevealReady ? 1 : 0,
         transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
       }}
