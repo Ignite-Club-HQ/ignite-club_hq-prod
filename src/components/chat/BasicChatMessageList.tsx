@@ -27,6 +27,33 @@ import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
 const DEFAULT_CHUNK = 100;
 
+function BasicChatLoadingSkeleton() {
+  const rows = [82, 64, 96, 72, 88, 60, 78];
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
+      style={{
+        background:
+          "linear-gradient(to bottom, hsl(var(--background) / 0.96), hsl(var(--background)))",
+      }}
+    >
+      {rows.map((width, i) => (
+        <div
+          key={i}
+          className="flex"
+          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
+        >
+          <div
+            className="h-10 rounded-2xl bg-muted animate-pulse"
+            style={{ width: `${width}%`, maxWidth: "75%" }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export interface BasicChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
