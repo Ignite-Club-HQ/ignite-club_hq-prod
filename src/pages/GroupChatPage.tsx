@@ -46,6 +46,7 @@ import {
 
 const MESSAGES_PER_PAGE = 30;
 const CHAT_LOADING_SKELETON_ROWS = [82, 64, 96, 72, 88, 60, 78];
+const openedGroupChatThreads = new Set<string>();
 
 function ChatLoadingSkeleton() {
   return (
@@ -227,6 +228,13 @@ export default function GroupChatPage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const previousOpenKeyRef = useRef<string | null>(null);
+  const revealImmediatelyForOpenRef = useRef(false);
+  const openKey = user?.id && groupId ? `${user.id}:${groupId}` : null;
+  if (previousOpenKeyRef.current !== openKey) {
+    previousOpenKeyRef.current = openKey;
+    revealImmediatelyForOpenRef.current = !!openKey && openedGroupChatThreads.has(openKey);
+  }
   const openedFromNotificationRef = useRef<number | null>(
     groupId ? consumeFromNotificationFlag("group", groupId) : null,
   );
@@ -588,6 +596,11 @@ export default function GroupChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
+
+  useEffect(() => {
+    if (!openKey || showLoading) return;
+    openedGroupChatThreads.add(openKey);
+  }, [openKey, showLoading]);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -2004,7 +2017,7 @@ export default function GroupChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
-            revealImmediatelyOnMount={(localMessages?.length ?? 0) > 0}
+            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
               const messageReactions = messageReactionsMap.get(msg.id) || [];
