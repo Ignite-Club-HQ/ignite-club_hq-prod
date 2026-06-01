@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
-import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
 
@@ -61,76 +60,6 @@ function useDebouncedNumber(value: number, delayMs: number) {
   return debounced;
 }
 
-function useSettledChatMountBox(quietMs: number = 240) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [settled, setSettled] = useState(false);
-  const lastSizeRef = useRef({ width: 0, height: 0 });
-  const timerRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const clearTimer = () => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-
-    const arm = () => {
-      clearTimer();
-      timerRef.current = window.setTimeout(() => setSettled(true), quietMs);
-    };
-
-    const measure = (force = false) => {
-      rafRef.current = null;
-      const rect = element.getBoundingClientRect();
-      const next = {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      };
-
-      if (next.width <= 0 || next.height <= 0) {
-        clearTimer();
-        setSettled(false);
-        return;
-      }
-
-      const prev = lastSizeRef.current;
-      const changed = Math.abs(next.width - prev.width) > 1 || Math.abs(next.height - prev.height) > 1;
-      if (force || changed) {
-        lastSizeRef.current = next;
-        setSettled(false);
-        arm();
-      }
-    };
-
-    const onResize = () => {
-      if (rafRef.current !== null) return;
-      rafRef.current = window.requestAnimationFrame(() => measure(false));
-    };
-
-    measure(true);
-
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
-    observer?.observe(element);
-    window.addEventListener("resize", onResize);
-    window.visualViewport?.addEventListener("resize", onResize);
-
-    return () => {
-      clearTimer();
-      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
-      observer?.disconnect();
-      window.removeEventListener("resize", onResize);
-      window.visualViewport?.removeEventListener("resize", onResize);
-    };
-  }, [quietMs]);
-
-  return { ref, settled };
-}
-
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
@@ -186,7 +115,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
-  const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
+  const mountBoxRef = useRef<HTMLDivElement>(null);
 
   // Virtuoso owns its own scroller; no external ref handover (legacy chat
   // hooks that mutated `scrollTop` directly are gone).
@@ -194,30 +123,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Wait for real data, visual viewport height, wrapper size, and composer
-  // height to stop changing before mounting Virtuoso. If it mounts against an
-  // interim height, its initial bottom-pin can visibly correct down/up/down.
-  const viewportSettled = useViewportHeightSettled(180);
-  const [initialViewportReleased, setInitialViewportReleased] = useState(false);
-  const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
-  const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
-  const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setInitialViewportReleased(false);
-      return;
-    }
-    if (messages.length > 0 && initialMountReady) {
-      setInitialViewportReleased(true);
-    }
-  }, [initialMountReady, messages.length]);
+  // Once message data exists, mount immediately. The list itself handles
+  // first-paint bottom pinning; holding this wrapper for viewport/composer
+  // settle caused cached thread re-opens to show the skeleton unnecessarily.
+  const virtualReady = messages.length > 0;
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
-  // chat at the bottom on first paint, and `ChatMessagesScroller` holds the
-  // wrapper at opacity:0 until the visual viewport + composer height have
-  // settled. Any parent-driven `scrollToBottom` after that just re-pins
+  // chat at the bottom on first paint. Any parent-driven `scrollToBottom` just re-pins
   // against an already-pinned list and reads as content bouncing.
   //
   // We still react to POST-MOUNT transitions of `isKeyboardOpen` and to a
@@ -312,7 +225,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
     >
-      {messages.length === 0 || virtualReady ? (
+      {virtualReady ? (
         <VirtualizedChatMessageList
           ref={virtualHandleRef}
           messages={messages}
