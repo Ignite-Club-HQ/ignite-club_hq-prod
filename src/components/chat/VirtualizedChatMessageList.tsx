@@ -747,6 +747,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     : anchorRef.current.baseFirstIndex;
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
+  const firstItemIndexRef = useRef(firstItemIndex);
+  firstItemIndexRef.current = firstItemIndex;
   wasEmptyRef.current = messages.length === 0;
   const latestInitialSettleSignatureRef = useRef("");
   latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
