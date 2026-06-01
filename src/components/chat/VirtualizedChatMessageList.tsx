@@ -263,8 +263,6 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 36);
-
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
@@ -281,6 +279,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     // Virtuoso correct the bottom anchor after first paint.
     return kind === "galleryprompt" ? 108 : 260;
   }
+
+  if (msg.is_system_message) return Math.max(52, height + 36);
 
   // Author / header line. ChatMessage hides the author name when the
   // previous visible row is from the SAME author within a short window
