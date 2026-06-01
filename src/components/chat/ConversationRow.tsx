@@ -120,7 +120,7 @@ function ConversationRowImpl({
                 {item.draftText ? (
                   <span className="flex items-center gap-1.5">
                     <span className="font-semibold text-destructive">Draft:</span>
-                    <span className="truncate">{item.draftText}</span>
+                    <span className="truncate">{stripMentionFormatting(item.draftText)}</span>
                   </span>
                 ) : (
                   <MessagePreview
@@ -247,7 +247,7 @@ function ConversationRowImpl({
                 {item.draftText ? (
                   <span className="flex items-center gap-1.5">
                     <span className="font-semibold text-destructive">Draft:</span>
-                    <span className="truncate">{item.draftText}</span>
+                    <span className="truncate">{stripMentionFormatting(item.draftText)}</span>
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5">
@@ -371,7 +371,7 @@ function ConversationRowImpl({
               {item.draftText ? (
                 <span className="flex items-center gap-1.5">
                   <span className="font-semibold text-destructive">Draft:</span>
-                  <span className="truncate">{item.draftText}</span>
+                  <span className="truncate">{stripMentionFormatting(item.draftText)}</span>
                 </span>
               ) : (
                 <MessagePreview
@@ -440,7 +440,7 @@ function ConversationRowImpl({
               {item.draftText ? (
                 <span className="flex items-center gap-1.5">
                   <span className="font-semibold text-destructive">Draft:</span>
-                  <span className="truncate">{item.draftText}</span>
+                  <span className="truncate">{stripMentionFormatting(item.draftText)}</span>
                 </span>
               ) : (
                 <MessagePreview

@@ -36,6 +36,7 @@ import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -746,6 +747,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     : anchorRef.current.baseFirstIndex;
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
+  const firstItemIndexRef = useRef(firstItemIndex);
+  firstItemIndexRef.current = firstItemIndex;
   wasEmptyRef.current = messages.length === 0;
   const latestInitialSettleSignatureRef = useRef("");
   latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
@@ -881,45 +884,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
     // visible to the user as a frozen, blank chat. After this deadline we
     // reveal regardless and let any remaining reflows happen in plain sight.
-    const REVEAL_DEADLINE_MS = 1800;
-    const REVEAL_IDLE_MS = 320;
-    const IMAGE_WAIT_MAX_MS = 450;
-    const waitForImages = (done: () => void) => {
-      const el = scrollerElRef.current;
-      if (!el) {
-        done();
-        return;
-      }
-      const pending = Array.from(el.querySelectorAll<HTMLImageElement>("img")).filter(
-        (img) => !(img.complete && img.naturalHeight > 0),
-      );
-      if (pending.length === 0) {
-        done();
-        return;
-      }
-      let remaining = pending.length;
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        pending.forEach((img) => {
-          img.removeEventListener("load", onOne);
-          img.removeEventListener("error", onOne);
-        });
-        done();
-      };
-      const onOne = () => {
-        remaining -= 1;
-        if (remaining <= 0) finish();
-      };
-      pending.forEach((img) => {
-        img.addEventListener("load", onOne, { once: true });
-        img.addEventListener("error", onOne, { once: true });
-      });
-      window.setTimeout(finish, IMAGE_WAIT_MAX_MS);
-    };
+    const REVEAL_DEADLINE_MS = 3000;
+    const REVEAL_IDLE_MS = 520;
+    let visualSettleCleanup: (() => void) | null = null;
     const doReveal = (reason: string) => {
       if (cancelled) return;
+      const el = scrollerElRef.current;
       cancelled = true;
       if (revealTimer !== null) {
         clearTimeout(revealTimer);
@@ -942,7 +912,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      waitForImages(() => {
+      visualSettleCleanup?.();
+      visualSettleCleanup = waitForChatVisualContentSettle(el, { quietMs: 520, maxMs: 2400 }, () => {
         if (disposedAfterReveal) return;
         if (isChatJumpActive()) {
           requestAnimationFrame(() => setInitialRevealReady(true));
@@ -1005,6 +976,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (deadlineTimer !== null) clearTimeout(deadlineTimer);
       if (frame !== null) cancelAnimationFrame(frame);
+      visualSettleCleanup?.();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
     };
@@ -1106,7 +1078,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Virtuoso is settling its own row-height estimates produces a visible
   // up/down wobble after an upward fling stops ("jitters then lands").
 
-  // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
+    // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
   // late-hydrating content (images decoding, link previews mounting, reply
   // quotes inflating, reactions arriving) grows the heights of rows already
   // on screen. Virtuoso's `followOutput` only re-pins when NEW items are
@@ -1131,6 +1103,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // has intentionally scrolled away.
     const STAY_PINNED_MS = 2400;
     let lastScrollHeight = viewport.scrollHeight;
+    let lastClientHeight = viewport.clientHeight;
 
     // SYNCHRONOUS delta compensation. The flicker comes from the gap
     // between a layout-changing paint (image decode / link preview /
@@ -1153,12 +1126,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
 
       const sh = viewport.scrollHeight;
+      const ch = viewport.clientHeight;
       const delta = sh - lastScrollHeight;
+      const viewportDelta = ch - lastClientHeight;
       lastScrollHeight = sh;
+      lastClientHeight = ch;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
       // ~1.5 s main-thread freeze on first open and a clean reveal.
-      if (Math.abs(delta) < 2) return;
+      if (Math.abs(delta) < 2 && Math.abs(viewportDelta) < 2) return;
 
       // Re-pin to the true max scroll position for BOTH growth and shrink.
       // Cold-login row estimates can correct in either direction; only
@@ -1176,6 +1152,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         ro.disconnect();
       }
     });
+    ro.observe(viewport);
     ro.observe(inner);
 
     const stopTimer = window.setTimeout(() => {
@@ -1312,12 +1289,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
+        // Virtuoso's `scrollToIndex` operates in the SHIFTED index space
+        // when `firstItemIndex` is non-zero (anchored reverse-infinite
+        // scroll). Passing a raw data index (e.g. 50) when firstItemIndex
+        // is ~999,900 lands the viewport on the oldest loaded row (Virtuoso
+        // clamps the out-of-range value to `firstItemIndex`), which is why
+        // notification taps and other deep-link jumps stopped routing to
+        // the target message. Adding `firstItemIndex` puts the index back
+        // into the space Virtuoso reasons about. This matches the official
+        // react-virtuoso reverse-chat example.
         virtuosoRef.current?.scrollToIndex({
-          // Virtuoso's public scrollToIndex expects a zero-based data index.
-          // `firstItemIndex` only affects item keys/ranges for prepend
-          // anchoring; adding it here produces a huge index that Virtuoso
-          // clamps to LAST, which is why notification taps landed at bottom.
-          index: dataIndex,
+          index: dataIndex + firstItemIndexRef.current,
           align,
           behavior: "auto",
         });
@@ -1474,6 +1456,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         position: "relative",
         height: "100%",
         width: "100%",
+      }}
+    >
+    {!initialRevealReady ? <JumpHydrationSkeleton /> : null}
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
         opacity: initialRevealReady ? 1 : 0,
         transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
       }}
@@ -1528,6 +1518,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       components={components as any}
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    </div>
     </div>
   );
 }

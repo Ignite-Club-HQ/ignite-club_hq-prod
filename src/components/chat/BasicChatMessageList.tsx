@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Loader2 } from "lucide-react";
 import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
+import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
@@ -25,6 +26,33 @@ import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
  */
 
 const DEFAULT_CHUNK = 100;
+
+function BasicChatLoadingSkeleton() {
+  const rows = [82, 64, 96, 72, 88, 60, 78];
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
+      style={{
+        background:
+          "linear-gradient(to bottom, hsl(var(--background) / 0.96), hsl(var(--background)))",
+      }}
+    >
+      {rows.map((width, i) => (
+        <div
+          key={i}
+          className="flex"
+          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
+        >
+          <div
+            className="h-10 rounded-2xl bg-muted animate-pulse"
+            style={{ width: `${width}%`, maxWidth: "75%" }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export interface BasicChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
@@ -77,6 +105,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   // Preserve scroll offset from bottom across reveals so the user's current
   // viewport doesn't jump when older rows are inserted above.
   const preserveBottomOffsetRef = useRef<number | null>(null);
+  const settleCleanupRef = useRef<(() => void) | null>(null);
 
   // Cap to most recent revealCount messages to keep the DOM small.
   const visible = useMemo(() => {
@@ -159,8 +188,12 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
     [isAtBottom, isNearBottom, scrollToBottomImpl],
   );
 
-  // Initial pin to bottom on mount when requested.
+  // Initial pin to bottom on mount when requested. Keep the fallback hidden
+  // until row assets/placeholders have settled, matching the virtualised path.
   useLayoutEffect(() => {
+    if (revealed && visible.length > 0) return;
+    settleCleanupRef.current?.();
+    setRevealed(false);
     if (!initialBottomPinned) {
       setRevealed(true);
       return;
@@ -171,10 +204,24 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       scrollToBottomImpl("auto");
       requestAnimationFrame(() => {
         scrollToBottomImpl("auto");
-        setRevealed(true);
+        settleCleanupRef.current = waitForChatVisualContentSettle(
+          containerRef.current,
+          { quietMs: 360, maxMs: 1800 },
+          () => {
+            scrollToBottomImpl("auto");
+            requestAnimationFrame(() => {
+              scrollToBottomImpl("auto");
+              setRevealed(true);
+            });
+          },
+        );
       });
     });
-  }, [initialBottomPinned, scrollToBottomImpl]);
+    return () => {
+      settleCleanupRef.current?.();
+      settleCleanupRef.current = null;
+    };
+  }, [initialBottomPinned, scrollToBottomImpl, visible.length, revealed]);
 
   // Auto-stick to bottom when new messages arrive and user is already there.
   useLayoutEffect(() => {
@@ -201,6 +248,8 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   }, [isAtBottom, onAtBottomChange]);
 
   return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    {!revealed ? <BasicChatLoadingSkeleton /> : null}
     <div
       ref={containerRef}
       data-chat-scroll-lock="true"
@@ -252,6 +301,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

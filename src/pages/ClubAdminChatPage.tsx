@@ -37,7 +37,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
-import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -207,10 +207,39 @@ export default function ClubAdminChatPage() {
   // Determine if current user is the member or an admin
   const isMember = conversation?.member_user_id === user?.id;
 
+  // Seed the header (name + avatar) from the already-loaded admin inbox cache
+  // or the shared profile cache, so the chat opens with the member's actual
+  // name on first paint instead of flashing "Member" for ~1s while the
+  // conversation→profile network round-trip resolves.
+  const inboxFallback = useMemo(() => {
+    if (!conversationId) return null;
+    const inboxQueries = queryClient.getQueriesData<any[]>({ queryKey: ["club-admin-inbox"] });
+    for (const [, rows] of inboxQueries) {
+      const match = Array.isArray(rows) ? rows.find((r) => r?.id === conversationId) : null;
+      if (match) return { name: match.member_name as string | null, avatar: match.member_avatar as string | null };
+    }
+    return null;
+  }, [conversationId, queryClient, conversation?.member_user_id]);
+
+  const cachedMemberProfile = useMemo(() => {
+    if (!conversation?.member_user_id) return null;
+    return getProfileFromCache(conversation.member_user_id);
+  }, [conversation?.member_user_id]);
+
+  const resolvedMemberName =
+    memberProfile?.display_name ||
+    cachedMemberProfile?.display_name ||
+    (inboxFallback?.name && inboxFallback.name !== "Member" ? inboxFallback.name : null);
+  const resolvedMemberAvatar =
+    memberProfile?.avatar_url ||
+    cachedMemberProfile?.avatar_url ||
+    inboxFallback?.avatar ||
+    null;
+
   // Chat title
   const chatTitle = isMember
     ? `${club?.name || "Club"} Admin`
-    : memberProfile?.display_name || "Member";
+    : resolvedMemberName || "Member";
 
   const chatSubtitle = isMember
     ? "Chat with club admins"
@@ -780,9 +809,9 @@ export default function ClubAdminChatPage() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <ChatBackButton />
           <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (memberProfile?.avatar_url || undefined)} />
+            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
             <AvatarFallback className="bg-primary/10 text-primary">
-              {(isMember ? club?.name : memberProfile?.display_name)?.charAt(0).toUpperCase() || "?"}
+              {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
