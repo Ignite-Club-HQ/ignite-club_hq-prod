@@ -95,8 +95,16 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     const isNearEnd = total > 0 && idx >= total - 2;
     const align: "center" | "end" = isNearEnd ? "end" : "center";
     handle.scrollToIndex(idx, align);
+    // Multi-pass settle: row heights shift as deferred sub-content (link
+    // previews, reply quotes, reactions, images) hydrates AFTER the initial
+    // scrollToIndex. Re-centre across a ~1.8s window with `isChatJumpActive`
+    // still true so the open-pin / stay-pinned compensators can't snap the
+    // viewport to bottom in between passes. Only the FINAL pass releases the
+    // jump-active flag.
     if (settleTimer) clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => {
+    const settlePasses: number[] = [250, 600, 1100, 1800];
+    const settleTimers: ReturnType<typeof setTimeout>[] = [];
+    const recenter = (release: boolean) => {
       if (cancelled) return;
       const h3 = getHandle();
       const messages3 = getMessages();
@@ -105,13 +113,20 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
         const isNearEnd3 = idx3 >= messages3.length - 2;
         h3.scrollToIndex(idx3, isNearEnd3 ? "end" : "center");
       }
-      endHydration();
-    }, 450);
+      if (release) endHydration();
+    };
+    settlePasses.forEach((delay, i) => {
+      const isLast = i === settlePasses.length - 1;
+      settleTimers.push(setTimeout(() => recenter(isLast), delay));
+    });
+    settleTimer = settleTimers[settleTimers.length - 1];
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
       if (cancelled) return;
       setHighlightedMessageId(null);
     }, highlightDurationMs);
+    // Track timers on cancel
+    (focusOn as any)._timers = settleTimers;
   };
 
 
