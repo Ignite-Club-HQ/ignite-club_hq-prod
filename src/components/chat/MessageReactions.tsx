@@ -502,7 +502,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
           <>
             {visibleReactions.map((r) => {
               const isMe = r.user_id === currentUserId;
-              const name = getUserName(r.user_id) || "Unknown";
+              const name = getUserName(r.user_id);
               const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
               return (
                 <button
