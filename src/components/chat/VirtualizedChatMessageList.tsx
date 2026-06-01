@@ -1076,7 +1076,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Virtuoso is settling its own row-height estimates produces a visible
   // up/down wobble after an upward fling stops ("jitters then lands").
 
-  // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
+    // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
   // late-hydrating content (images decoding, link previews mounting, reply
   // quotes inflating, reactions arriving) grows the heights of rows already
   // on screen. Virtuoso's `followOutput` only re-pins when NEW items are
@@ -1101,6 +1101,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // has intentionally scrolled away.
     const STAY_PINNED_MS = 2400;
     let lastScrollHeight = viewport.scrollHeight;
+    let lastClientHeight = viewport.clientHeight;
 
     // SYNCHRONOUS delta compensation. The flicker comes from the gap
     // between a layout-changing paint (image decode / link preview /
@@ -1123,12 +1124,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
 
       const sh = viewport.scrollHeight;
+      const ch = viewport.clientHeight;
       const delta = sh - lastScrollHeight;
+      const viewportDelta = ch - lastClientHeight;
       lastScrollHeight = sh;
+      lastClientHeight = ch;
       // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
       // dies quickly. On Android WebView this is the difference between a
       // ~1.5 s main-thread freeze on first open and a clean reveal.
-      if (Math.abs(delta) < 2) return;
+      if (Math.abs(delta) < 2 && Math.abs(viewportDelta) < 2) return;
 
       // Re-pin to the true max scroll position for BOTH growth and shrink.
       // Cold-login row estimates can correct in either direction; only
@@ -1146,6 +1150,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         ro.disconnect();
       }
     });
+    ro.observe(viewport);
     ro.observe(inner);
 
     const stopTimer = window.setTimeout(() => {
