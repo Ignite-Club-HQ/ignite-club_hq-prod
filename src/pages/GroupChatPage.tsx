@@ -216,7 +216,7 @@ export default function GroupChatPage() {
   const openKey = user?.id && groupId ? `${user.id}:${groupId}` : null;
   if (previousOpenKeyRef.current !== openKey) {
     previousOpenKeyRef.current = openKey;
-    revealImmediatelyForOpenRef.current = !!openKey && openedGroupChatThreads.has(openKey);
+    revealImmediatelyForOpenRef.current = hasOpenedChatThread("group", openKey);
   }
   const openedFromNotificationRef = useRef<number | null>(
     groupId ? consumeFromNotificationFlag("group", groupId) : null,
