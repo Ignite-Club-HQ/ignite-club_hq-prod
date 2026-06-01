@@ -473,11 +473,11 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    onMutate: async ({ text, replyToId }) => {
+    onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
       const optimisticMessage: ClubAdminMessage = {
         id: `temp-${Date.now()}`,
         text,
-        image_url: null,
+        image_url: optImageUrl ?? null,
         created_at: new Date().toISOString(),
         author_id: user!.id,
         conversation_id: conversationId!,
