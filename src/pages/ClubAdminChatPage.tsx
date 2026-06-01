@@ -625,7 +625,7 @@ export default function ClubAdminChatPage() {
       return;
     }
 
-    if (!message.trim() && !pendingPollId) return;
+    if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -637,9 +637,11 @@ export default function ClubAdminChatPage() {
       : baseText;
     sendMessageMutation.mutate({
       text: finalText,
+      imageUrl,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
+    setImageUrl(null);
     setReplyTo(null);
     setPendingPollId(null);
   };
