@@ -78,7 +78,7 @@ import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
 
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
-import { RsvpAuditLogSection } from "@/components/event/RsvpAuditLogSection";
+
 import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
@@ -3595,11 +3595,6 @@ export default function EventDetailPage() {
           userId={user.id}
           eventTitle={event.title}
         />
-      )}
-      {(isAdmin || isAppAdmin) && id && (
-        <div className="px-4 pb-6">
-          <RsvpAuditLogSection eventId={id} />
-        </div>
       )}
     </div>
   );
