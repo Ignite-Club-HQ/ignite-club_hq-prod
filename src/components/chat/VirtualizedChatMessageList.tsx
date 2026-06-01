@@ -778,6 +778,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
+  // Tracks whether this mount has ever observed a non-empty messages array.
+  // Used to distinguish "empty thread (genuinely no messages)" from "first
+  // open after fresh login where the cache is cold and messages haven't
+  // streamed in yet". In the latter case, revealing the empty viewport at
+  // opacity 1 lets the user see the chat surface unpinned; when messages
+  // then arrive, the snap-to-LAST is visible as a downward jolt.
+  const hasEverHadMessagesRef = useRef(false);
+  if (messages.length > 0) hasEverHadMessagesRef.current = true;
+
   // Initial bottom pin happens while the wrapper is invisible. Reveal is held
   // until the actual scroll metrics are quiet, not just until a fixed timeout,
   // so first paint cannot show Virtuoso correcting an interim bottom anchor.
@@ -787,13 +796,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
-      // Empty thread: only reveal immediately when the parent is NOT going to
-      // run a bottom-pin sequence. Otherwise keep opacity:0 so the incoming
-      // first batch of messages doesn't flash through the empty-list state
-      // and trigger a VCL unmount/remount cycle that loses the row-height
-      // cache for this session (causing the first-open jolt).
-      if (!initialBottomPinned) setInitialRevealReady(true);
-      return;
+      // Empty thread on first-ever mount (cold cache after fresh login):
+      // hold the reveal back briefly so that if messages stream in within
+      // the grace window we go straight into the pin sequence without
+      // ever painting an unpinned empty viewport. If the grace expires
+      // with still no messages, reveal so the empty-state is visible.
+      // Deep-link jump-to-message is unaffected: that path runs through
+      // the non-empty branch (messages exist by the time the jump fires)
+      // and is gated on `isChatJumpActive()` below.
+      if (!initialBottomPinned || hasEverHadMessagesRef.current) {
+        setInitialRevealReady(true);
+        return;
+      }
+      const graceTimer = window.setTimeout(() => setInitialRevealReady(true), 700);
+      return () => window.clearTimeout(graceTimer);
     }
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
@@ -866,10 +882,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      // Two rAFs: gives Virtuoso one extra frame to commit any final
-      // paddingTop correction + scrollTop snap after the LAST re-anchor
-      // above, so the opacity:1 paint always lands on the settled bottom.
-      requestAnimationFrame(() => requestAnimationFrame(() => setInitialRevealReady(true)));
+      requestAnimationFrame(() => setInitialRevealReady(true));
     };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
@@ -1146,12 +1159,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // safety net for late-hydrating row heights (avatars, link previews).
     if (!isChatJumpActive()) run();
     const r = requestAnimationFrame(() => requestAnimationFrame(run));
-    // A single follow-up pass at 200 ms is enough to absorb the network-fresh
-    // page landing on top of cached messages. The previous 600 ms second
-    // timer almost always fired into a Virtuoso that had finished settling,
-    // producing a redundant scrollTop write that the ResizeObserver guard
-    // then re-amplified — visible as a late "down-then-up" snap on cold open.
-    const timers = [200].map((delay) => window.setTimeout(run, delay));
+    // Two follow-up passes are enough to absorb the network-fresh page
+    // landing on top of cached messages. The previous 5-timer barrage
+    // (160/420/900/1600/2600 ms) caused a visible series of jolts on
+    // cold opens.
+    const timers = [200, 600].map((delay) => window.setTimeout(run, delay));
     return () => {
       cancelAnimationFrame(r);
       timers.forEach((timer) => window.clearTimeout(timer));
