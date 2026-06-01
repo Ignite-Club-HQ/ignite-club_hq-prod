@@ -174,6 +174,7 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
+  galleryprompt: 76,
   // Generic URL previews. Previously bumped to 160 after a p95 outlier
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
@@ -262,12 +263,24 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 36);
-
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
+
+  const systemGalleryCardMatch = msg.is_system_message
+    ? text.match(/^\s*\[(gallery|galleryprompt):[0-9a-f-]{36}\]\s*$/i)
+    : null;
+  if (systemGalleryCardMatch) {
+    const kind = systemGalleryCardMatch[1]?.toLowerCase();
+    // Gallery prompt system rows render as a compact card, not as the normal
+    // grey system pill. U8 Blue's first page contains one near the top of the
+    // initial data set; under-estimating it as a 52px system pill makes
+    // Virtuoso correct the bottom anchor after first paint.
+    return height + (kind === "galleryprompt" ? 76 : 220);
+  }
+
+  if (msg.is_system_message) return Math.max(52, height + 36);
 
   // Author / header line. ChatMessage hides the author name when the
   // previous visible row is from the SAME author within a short window
@@ -305,7 +318,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
     .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
     .trim();
 
   if (visibleText) {
@@ -324,7 +337,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   // Inline preview cards. Match each token type separately so per-type
   // reserved heights are accurate.
-  const tokenMatches = text.matchAll(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi);
+  const tokenMatches = text.matchAll(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi);
   let previewHeight = 0;
   let previewCount = 0;
   for (const match of tokenMatches) {
