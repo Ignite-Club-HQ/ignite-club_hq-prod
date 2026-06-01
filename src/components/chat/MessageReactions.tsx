@@ -79,7 +79,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     try {
       const sel = window.getSelection();
       sel?.removeAllRanges();
-    } catch {}
+    } catch {
+      // Selection cleanup is best-effort only.
+    }
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
