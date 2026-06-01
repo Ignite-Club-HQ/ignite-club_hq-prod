@@ -115,7 +115,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
-  const { ref: mountBoxRef } = useSettledChatMountBox(260);
+  const mountBoxRef = useRef<HTMLDivElement>(null);
 
   // Virtuoso owns its own scroller; no external ref handover (legacy chat
   // hooks that mutated `scrollTop` directly are gone).
