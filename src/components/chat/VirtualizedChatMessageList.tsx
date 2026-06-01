@@ -1017,6 +1017,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "bottom-pin-not-ready");
       return;
     }
+    const userInitiatedTopReach =
+      userHasScrolledAfterPinRef.current || isViewportUserActive(scrollerElRef.current);
     // Trust window: suppress the very first upward fetch right after the
     // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
     // that visually teleports the viewport to older messages the user
@@ -1024,15 +1026,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
       debugLogStartReached(false, "trust-window-deferred");
-      if (startReachedRetryTimerRef.current === null) {
+      if (userInitiatedTopReach && startReachedRetryTimerRef.current === null) {
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
+          if (!userHasScrolledAfterPinRef.current && !isViewportUserActive(scrollerElRef.current)) return;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
         }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
       }
+      return;
+    }
+    if (!userInitiatedTopReach) {
+      debugLogStartReached(false, "no-user-scroll");
       return;
     }
     if (!hasOlder) {
