@@ -871,7 +871,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const REVEAL_DEADLINE_MS = 1800;
     const REVEAL_IDLE_MS = 320;
     const IMAGE_WAIT_MAX_MS = 450;
-    const startedAt = performance.now();
     const waitForImages = (done: () => void) => {
       const el = scrollerElRef.current;
       if (!el) {
@@ -1141,10 +1140,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // ~1.5 s main-thread freeze on first open and a clean reveal.
       if (Math.abs(delta) < 2) return;
 
-      // Apply the growth as a scrollTop delta — no scrollToIndex call, no
-      // Virtuoso recompute. This is invisible to the user.
+      // Re-pin to the true max scroll position for BOTH growth and shrink.
+      // Cold-login row estimates can correct in either direction; only
+      // handling positive deltas leaves the browser to clamp negative deltas
+      // on the next paint, which reads as the down/up jolt the user reported.
       const maxTop = sh - viewport.clientHeight;
-      const target = Math.min(maxTop, viewport.scrollTop + Math.max(0, delta));
+      const target = Math.max(0, maxTop);
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
         markChatScrollWrite();
