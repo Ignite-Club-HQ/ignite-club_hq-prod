@@ -860,6 +860,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let resizeObserver: ResizeObserver | null = null;
     let mutationObserver: MutationObserver | null = null;
     let cancelled = false;
+    let disposedAfterReveal = false;
     let lastMetrics = "";
     // Hard deadline for the reveal. On Android, late-hydrating images / link
     // previews / reactions can keep `scrollHeight` ticking for far longer
@@ -930,6 +931,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
       waitForImages(() => {
+        if (disposedAfterReveal) return;
         if (isChatJumpActive()) {
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
@@ -984,6 +986,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     });
     return () => {
+      disposedAfterReveal = true;
       cancelled = true;
       cancelAnimationFrame(r1);
       if (r2 !== null) cancelAnimationFrame(r2);
