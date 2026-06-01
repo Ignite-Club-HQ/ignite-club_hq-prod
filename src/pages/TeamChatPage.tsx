@@ -270,6 +270,7 @@ export default function TeamChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
+    isLoading: pinnedMessagesLoading,
   } = usePinnedMessages("team", teamId);
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
