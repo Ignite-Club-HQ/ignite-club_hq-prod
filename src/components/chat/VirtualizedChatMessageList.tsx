@@ -674,10 +674,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // double-fetch — the prepended page is then merged twice into the data
   // array, producing duplicate IDs and "ghost" rows in Virtuoso.
   const loadingOlderInFlightRef = useRef(false);
+  // Min gap between two prepend fetches. After a page lands, fast upward
+  // flings can immediately retrigger `startReached` / `atTopStateChange`
+  // before the browser has rasterised the newly-mounted rows — producing a
+  // visible flicker as Virtuoso prepends a second page on top of an
+  // unsettled layout. We enforce a short cooldown so each prepend has time
+  // to paint before the next one is allowed.
+  const PREPEND_COOLDOWN_MS = 350;
+  const lastPrependLandedAtRef = useRef(0);
   // Once messages.length grows, the prepend has landed — release the guard.
   useEffect(() => {
     if (messages.length > messagesLengthRef.current) {
       loadingOlderInFlightRef.current = false;
+      lastPrependLandedAtRef.current = performance.now();
     }
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
@@ -696,6 +705,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     if (prevIsLoadingOlderRef.current && !isLoadingOlder) {
       loadingOlderInFlightRef.current = false;
+      lastPrependLandedAtRef.current = performance.now();
     }
     prevIsLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
