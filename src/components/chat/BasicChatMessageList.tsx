@@ -221,6 +221,8 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   }, [isAtBottom, onAtBottomChange]);
 
   return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    {!revealed ? <BasicChatLoadingSkeleton /> : null}
     <div
       ref={containerRef}
       data-chat-scroll-lock="true"
