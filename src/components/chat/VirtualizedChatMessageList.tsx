@@ -1289,12 +1289,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
+        // Virtuoso's `scrollToIndex` operates in the SHIFTED index space
+        // when `firstItemIndex` is non-zero (anchored reverse-infinite
+        // scroll). Passing a raw data index (e.g. 50) when firstItemIndex
+        // is ~999,900 lands the viewport on the oldest loaded row (Virtuoso
+        // clamps the out-of-range value to `firstItemIndex`), which is why
+        // notification taps and other deep-link jumps stopped routing to
+        // the target message. Adding `firstItemIndex` puts the index back
+        // into the space Virtuoso reasons about. This matches the official
+        // react-virtuoso reverse-chat example.
         virtuosoRef.current?.scrollToIndex({
-          // Virtuoso's public scrollToIndex expects a zero-based data index.
-          // `firstItemIndex` only affects item keys/ranges for prepend
-          // anchoring; adding it here produces a huge index that Virtuoso
-          // clamps to LAST, which is why notification taps landed at bottom.
-          index: dataIndex,
+          index: dataIndex + firstItemIndexRef.current,
           align,
           behavior: "auto",
         });
