@@ -277,7 +277,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     // grey system pill. U8 Blue's first page contains one near the top of the
     // initial data set; under-estimating it as a 52px system pill makes
     // Virtuoso correct the bottom anchor after first paint.
-    return kind === "galleryprompt" ? 108 : 260;
+    return height + (kind === "galleryprompt" ? 76 : 220);
   }
 
   if (msg.is_system_message) return Math.max(52, height + 36);
