@@ -385,7 +385,17 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  // Seed from in-memory profile cache so names render instantly when available;
+  // avoids the brief "Unknown" flash before the async fetch resolves.
+  const initialUsers = (() => {
+    const seeded: Array<{ id: string; display_name: string | null }> = [];
+    for (const id of allUserIds) {
+      const p = getProfileFromCache(id);
+      if (p) seeded.push({ id: p.id, display_name: p.display_name });
+    }
+    return seeded;
+  })();
+  const { data: users = initialUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["all-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
@@ -397,6 +407,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
     },
     enabled: isOpen && allUserIds.length > 0,
     staleTime: 60_000,
+    initialData: initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
