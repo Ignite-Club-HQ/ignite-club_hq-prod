@@ -174,6 +174,7 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
+  galleryprompt: 76,
   // Generic URL previews. Previously bumped to 160 after a p95 outlier
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
@@ -262,12 +263,24 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 36);
-
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
+
+  const systemGalleryCardMatch = msg.is_system_message
+    ? text.match(/^\s*\[(gallery|galleryprompt):[0-9a-f-]{36}\]\s*$/i)
+    : null;
+  if (systemGalleryCardMatch) {
+    const kind = systemGalleryCardMatch[1]?.toLowerCase();
+    // Gallery prompt system rows render as a compact card, not as the normal
+    // grey system pill. U8 Blue's first page contains one near the top of the
+    // initial data set; under-estimating it as a 52px system pill makes
+    // Virtuoso correct the bottom anchor after first paint.
+    return height + (kind === "galleryprompt" ? 76 : 220);
+  }
+
+  if (msg.is_system_message) return Math.max(52, height + 36);
 
   // Author / header line. ChatMessage hides the author name when the
   // previous visible row is from the SAME author within a short window
@@ -305,7 +318,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
     .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
     .trim();
 
   if (visibleText) {
@@ -324,7 +337,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   // Inline preview cards. Match each token type separately so per-type
   // reserved heights are accurate.
-  const tokenMatches = text.matchAll(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi);
+  const tokenMatches = text.matchAll(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi);
   let previewHeight = 0;
   let previewCount = 0;
   for (const match of tokenMatches) {
@@ -734,6 +747,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
   const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
   wasEmptyRef.current = messages.length === 0;
+  const latestInitialSettleSignatureRef = useRef("");
+  latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -853,8 +868,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let deadlineTimer: number | null = null;
     let frame: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
     let cancelled = false;
+    let disposedAfterReveal = false;
     let lastMetrics = "";
     // Hard deadline for the reveal. On Android, late-hydrating images / link
     // previews / reactions can keep `scrollHeight` ticking for far longer
@@ -862,8 +881,43 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
     // visible to the user as a frozen, blank chat. After this deadline we
     // reveal regardless and let any remaining reflows happen in plain sight.
-    const REVEAL_DEADLINE_MS = 800;
-    const startedAt = performance.now();
+    const REVEAL_DEADLINE_MS = 1800;
+    const REVEAL_IDLE_MS = 320;
+    const IMAGE_WAIT_MAX_MS = 450;
+    const waitForImages = (done: () => void) => {
+      const el = scrollerElRef.current;
+      if (!el) {
+        done();
+        return;
+      }
+      const pending = Array.from(el.querySelectorAll<HTMLImageElement>("img")).filter(
+        (img) => !(img.complete && img.naturalHeight > 0),
+      );
+      if (pending.length === 0) {
+        done();
+        return;
+      }
+      let remaining = pending.length;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        pending.forEach((img) => {
+          img.removeEventListener("load", onOne);
+          img.removeEventListener("error", onOne);
+        });
+        done();
+      };
+      const onOne = () => {
+        remaining -= 1;
+        if (remaining <= 0) finish();
+      };
+      pending.forEach((img) => {
+        img.addEventListener("load", onOne, { once: true });
+        img.addEventListener("error", onOne, { once: true });
+      });
+      window.setTimeout(finish, IMAGE_WAIT_MAX_MS);
+    };
     const doReveal = (reason: string) => {
       if (cancelled) return;
       cancelled = true;
@@ -871,6 +925,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         clearTimeout(revealTimer);
         revealTimer = null;
       }
+      if (deadlineTimer !== null) {
+        clearTimeout(deadlineTimer);
+        deadlineTimer = null;
+      }
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
       // Final belt-and-braces re-anchor the frame before we reveal, so any
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
@@ -882,32 +942,50 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       pinnedRevisionRef.current = bottomPinRevision;
       userHasScrolledAfterPinRef.current = false;
       debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
-      requestAnimationFrame(() => setInitialRevealReady(true));
+      waitForImages(() => {
+        if (disposedAfterReveal) return;
+        if (isChatJumpActive()) {
+          requestAnimationFrame(() => setInitialRevealReady(true));
+          return;
+        }
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        requestAnimationFrame(() => {
+          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+          setInitialRevealReady(true);
+        });
+      });
     };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
-      // Hard deadline first — never poll past this regardless of metric churn.
-      if (performance.now() - startedAt >= REVEAL_DEADLINE_MS) {
-        doReveal("deadline");
-        return;
+      if (!isChatJumpActive()) {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
       }
-      const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
+      const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
         lastMetrics = metrics;
         if (revealTimer !== null) clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => doReveal("idle"), 320);
+        revealTimer = setTimeout(() => doReveal("idle"), REVEAL_IDLE_MS);
       }
-      // Only keep polling while we're still waiting for an idle window. Once
-      // `revealTimer` is armed we can stop the per-frame loop — any further
-      // metric change inside the 320 ms window will be picked up by the
-      // ResizeObserver-driven stay-pinned effect (and would just reschedule
-      // the timer anyway).
-      if (revealTimer === null) {
-        frame = requestAnimationFrame(armRevealWhenStable);
-      } else {
-        frame = null;
+      frame = null;
+    };
+    const scheduleStableCheck = () => {
+      if (cancelled || frame !== null) return;
+      frame = requestAnimationFrame(armRevealWhenStable);
+    };
+    const attachStabilityWatchers = () => {
+      const el = scrollerElRef.current;
+      if (!el) return;
+      if (typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(scheduleStableCheck);
+        resizeObserver.observe(el);
+        const inner = el.firstElementChild;
+        if (inner instanceof HTMLElement) resizeObserver.observe(inner);
       }
+      mutationObserver = new MutationObserver(scheduleStableCheck);
+      mutationObserver.observe(el, { childList: true, subtree: true, attributes: true, characterData: true });
+      deadlineTimer = window.setTimeout(() => doReveal("deadline"), REVEAL_DEADLINE_MS);
+      scheduleStableCheck();
     };
     let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
@@ -916,15 +994,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       r2 = requestAnimationFrame(() => {
         if (cancelled) return;
         jump("raf2");
-        armRevealWhenStable();
+        attachStabilityWatchers();
       });
     });
     return () => {
+      disposedAfterReveal = true;
       cancelled = true;
       cancelAnimationFrame(r1);
       if (r2 !== null) cancelAnimationFrame(r2);
       if (revealTimer !== null) clearTimeout(revealTimer);
+      if (deadlineTimer !== null) clearTimeout(deadlineTimer);
       if (frame !== null) cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
     };
     // Intentionally narrow deps: this effect must NOT re-run on every
     // parent render (Virtuoso paddingTop measurements cause many during
@@ -948,6 +1030,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "bottom-pin-not-ready");
       return;
     }
+    const userInitiatedTopReach =
+      userHasScrolledAfterPinRef.current || isViewportUserActive(scrollerElRef.current);
     // Trust window: suppress the very first upward fetch right after the
     // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
     // that visually teleports the viewport to older messages the user
@@ -955,15 +1039,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
       debugLogStartReached(false, "trust-window-deferred");
-      if (startReachedRetryTimerRef.current === null) {
+      if (userInitiatedTopReach && startReachedRetryTimerRef.current === null) {
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
+          if (!userHasScrolledAfterPinRef.current && !isViewportUserActive(scrollerElRef.current)) return;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
         }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
       }
+      return;
+    }
+    if (!userInitiatedTopReach) {
+      debugLogStartReached(false, "no-user-scroll");
       return;
     }
     if (!hasOlder) {
@@ -1071,10 +1160,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // ~1.5 s main-thread freeze on first open and a clean reveal.
       if (Math.abs(delta) < 2) return;
 
-      // Apply the growth as a scrollTop delta — no scrollToIndex call, no
-      // Virtuoso recompute. This is invisible to the user.
+      // Re-pin to the true max scroll position for BOTH growth and shrink.
+      // Cold-login row estimates can correct in either direction; only
+      // handling positive deltas leaves the browser to clamp negative deltas
+      // on the next paint, which reads as the down/up jolt the user reported.
       const maxTop = sh - viewport.clientHeight;
-      const target = Math.min(maxTop, viewport.scrollTop + Math.max(0, delta));
+      const target = Math.max(0, maxTop);
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
         markChatScrollWrite();

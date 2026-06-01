@@ -33,7 +33,7 @@ describe("jumpToMessageInVirtualizedChat", () => {
 
     await vi.advanceTimersByTimeAsync(60);
 
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, "end");
     expect(setHighlight).toHaveBeenCalledWith("target");
     expect(document.getElementById).not.toHaveBeenCalled();
   });
@@ -98,7 +98,7 @@ describe("jumpToMessageInVirtualizedChat", () => {
     );
 
     await vi.advanceTimersByTimeAsync(60);
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(0, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(0, "end");
 
     // Drain the second jump's settle (350ms) and highlight-clear (2500ms).
     await vi.advanceTimersByTimeAsync(3000);
@@ -150,7 +150,7 @@ describe("jumpToMessageInVirtualizedChat", () => {
     // kicks in.
     await vi.advanceTimersByTimeAsync(200);
 
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "end");
     expect(setHighlight).toHaveBeenCalledWith("parent");
     expect(document.getElementById).not.toHaveBeenCalled();
   });
@@ -177,6 +177,6 @@ describe("jumpToMessageInVirtualizedChat", () => {
     await vi.advanceTimersByTimeAsync(200);
 
     expect(setHighlight).toHaveBeenCalledWith("reply");
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "end");
   });
 });
