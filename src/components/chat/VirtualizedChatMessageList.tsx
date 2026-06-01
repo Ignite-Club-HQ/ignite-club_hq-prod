@@ -1519,6 +1519,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
     </div>
+    </div>
   );
 }
 
