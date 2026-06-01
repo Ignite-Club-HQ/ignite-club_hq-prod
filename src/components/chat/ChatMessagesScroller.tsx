@@ -123,10 +123,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Once message data exists, mount immediately. The list itself handles
-  // first-paint bottom pinning; holding this wrapper for viewport/composer
-  // settle caused cached thread re-opens to show the skeleton unnecessarily.
-  const virtualReady = messages.length > 0;
+  // Always mount the list. When messages are already cached (warm open) the
+  // list reveals instantly. On a cold first open after login the list's own
+  // skeleton renders until messages arrive and the stabilisation completes.
+  const virtualReady = true;
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
