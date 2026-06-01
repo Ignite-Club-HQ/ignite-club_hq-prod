@@ -34,7 +34,7 @@ import {
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
-import { isChatJumpActive } from "@/lib/chatJumpActive";
+import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
