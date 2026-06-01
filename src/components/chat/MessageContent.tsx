@@ -99,8 +99,6 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
-      const img = imgRef.current;
-      if (img.naturalWidth > 0) setNaturalAspect(img.naturalWidth / img.naturalHeight);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
       if (imageUrl) decodedImageUrls.add(imageUrl);
     }
