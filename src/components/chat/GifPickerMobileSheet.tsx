@@ -4,8 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 
 import { GifGrid } from "@/components/chat/GifGrid";
-import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
-import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
 /**
  * Mobile GIPHY bottom sheet — fully keyboard-aware.
@@ -38,8 +37,7 @@ interface GifPickerMobileSheetProps {
 }
 
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
-  const { keyboardHeight: iosKeyboardHeight } = useNativeIOSKeyboardState();
-  const androidKeyboardHeight = useNativeAndroidKeyboardState();
+  const nativeKeyboardHeight = useNativeKeyboardHeight();
   const [layoutViewportHeight, setLayoutViewportHeight] = useState(() =>
     typeof window === "undefined" ? 0 : window.innerHeight,
   );
@@ -137,7 +135,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     }, 0);
     return () => window.clearTimeout(id);
-  }, [open, iosKeyboardHeight, androidKeyboardHeight]);
+  }, [open, nativeKeyboardHeight]);
 
   useEffect(() => {
     if (!open) {
@@ -153,7 +151,6 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
   }, [layoutViewportHeight, open]);
 
   const { sheetTop, sheetBottom, keyboardOpen } = useMemo(() => {
-    const nativeKeyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight);
     const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
     const keyboardHeight = isNativeAndroid
@@ -175,9 +172,8 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       keyboardOpen: isKeyboardOpen,
     };
   }, [
-    androidKeyboardHeight,
-    iosKeyboardHeight,
     layoutViewportHeight,
+    nativeKeyboardHeight,
     safeAreaBottom,
     visualViewportHeight,
     visualViewportOffsetTop,
