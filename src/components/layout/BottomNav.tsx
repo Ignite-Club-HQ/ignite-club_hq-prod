@@ -209,7 +209,7 @@ export function BottomNav() {
   }, [isNativeIOS, shouldStabilizeIOSLayout]);
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(nativeInsetFloorPx);
-  const [navInteractionLocked, setNavInteractionLocked] = useState(false);
+  const [, setNavInteractionLocked] = useState(false);
   const navGuardTimeoutRef = useRef<number | null>(null);
 
   const resolveBottomInsetPx = useCallback(() => {
