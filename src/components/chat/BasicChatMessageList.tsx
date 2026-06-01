@@ -275,6 +275,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         </div>
       ) : null}
     </div>
+    </div>
   );
 }
 
