@@ -887,6 +887,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let visualSettleCleanup: (() => void) | null = null;
     const doReveal = (reason: string) => {
       if (cancelled) return;
+      const el = scrollerElRef.current;
       cancelled = true;
       if (revealTimer !== null) {
         clearTimeout(revealTimer);
