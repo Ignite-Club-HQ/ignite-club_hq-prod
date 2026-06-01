@@ -37,6 +37,7 @@ import { MessageReactionsPopover } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
 
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
@@ -57,6 +58,12 @@ const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
 const normalizeGroupReactionType = (reactionType?: string | null) => {
   if (!reactionType) return "";
   return GROUP_REACTION_EMOJI_MAP[reactionType] || reactionType;
+};
+
+const normalizeDisplayName = (name?: string | null) => {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return /^unknown(?: user)?$/i.test(trimmed) ? null : trimmed;
 };
 
 interface GroupMessage {
@@ -779,6 +786,7 @@ function GroupReactionBadges({
         grouped={grouped}
         allUserIds={allUserIds}
         userId={userId}
+        getProfile={getProfile}
         toggleReactionMutation={toggleReactionMutation}
         messageId={messageId}
         viewingType={viewingType}
@@ -794,6 +802,7 @@ function GroupReactionsDialog({
   grouped,
   allUserIds,
   userId,
+  getProfile,
   toggleReactionMutation,
   messageId,
   viewingType,
@@ -804,16 +813,140 @@ function GroupReactionsDialog({
   grouped: Record<string, any[]>;
   allUserIds: string[];
   userId?: string;
+  getProfile: (id: string) => { display_name: string | null; avatar_url: string | null } | null;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
   viewingType: string | null;
   onClose: () => void;
   onChangeType: (type: string) => void;
 }) {
-  const { data: users = [] } = useQuery({
+  const initialUsers = (() => {
+    const seeded: Array<{ id: string; display_name: string | null }> = [];
+    for (const id of allUserIds) {
+      const displayName = normalizeDisplayName(getProfile(id)?.display_name)
+        || normalizeDisplayName(getProfileFromCache(id)?.display_name);
+      if (displayName) seeded.push({ id, display_name: displayName });
+    }
+    return seeded;
+  })();
+
+  const { data: users = initialUsers } = useQuery({
     queryKey: ["group-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
+      const map = await fetchProfilesWithCache(allUserIds);
+      const unresolvedIds = allUserIds.filter((id) => !normalizeDisplayName(map.get(id)?.display_name));
+
+      if (unresolvedIds.length > 0) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", unresolvedIds);
+        if (error) throw error;
+        if (data?.length) {
+          cacheProfiles(data);
+          for (const profile of data) {
+            map.set(profile.id, { ...profile, cached_at: Date.now() });
+          }
+        }
+      }
+
+      return allUserIds.map((id) => ({
+        id,
+        display_name: normalizeDisplayName(map.get(id)?.display_name),
+      }));
+    },
+    enabled: !!viewingType && allUserIds.length > 0,
+    staleTime: 60_000,
+    initialData: initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
+  });
+
+  const getUserName = (uid: string) =>
+    normalizeDisplayName(users.find((u: any) => u.id === uid)?.display_name)
+      || normalizeDisplayName(getProfile(uid)?.display_name)
+      || normalizeDisplayName(getProfileFromCache(uid)?.display_name)
+      || "";
+
+  const viewingReactors = viewingType ? (grouped[viewingType] || []) : [];
+  const viewingEmoji = viewingType ? normalizeGroupReactionType(viewingType) : "";
+
+  return (
+    <Dialog open={!!viewingType} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-xl">{viewingEmoji}</span>
+            <span>Reactions</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Reaction type tabs */}
+        <div className="flex gap-1 pb-2 border-b">
+          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+            const emoji = normalizeGroupReactionType(type);
+            return (
+              <Button
+                key={type}
+                variant={viewingType === type ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChangeType(type)}
+                className="h-8 px-2 gap-1"
+              >
+                <span>{emoji}</span>
+                <span className="text-xs">{items.length}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2">
+            {viewingReactors.map((r: any) => {
+              const isCurrentUser = r.user_id === userId;
+              const name = getUserName(r.user_id);
+              return (
+                <div key={r.id || r.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                      {name ? name.charAt(0).toUpperCase() : "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium flex-1 min-w-0">
+                    {name ? (
+                      <>
+                        <span className="truncate inline-block max-w-full align-bottom">{name}</span>
+                        {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
+                      </>
+                    ) : (
+                      <span className="inline-block h-4 w-28 align-middle rounded bg-foreground/[0.06] animate-pulse" />
+                    )}
+                  </span>
+                  {isCurrentUser && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleReactionMutation.mutate({ messageId, reactionType: r.reaction_type });
+                        onClose();
+                      }}
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {viewingReactors.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">No reactions</p>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
       const { data, error } = await supabase
         .from("profiles")
         .select("id, display_name")
