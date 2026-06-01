@@ -34,7 +34,7 @@ import {
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
-import { isChatJumpActive } from "@/lib/chatJumpActive";
+import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
@@ -398,6 +398,14 @@ ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
 // row mounts it can no longer invalidate ancestor layout/paint, so the
 // 1400px upward overscan (which mounts many rows during a fast flick) stops
 // causing main-thread layout thrash.
+//
+// IMPORTANT: We use `contain: layout style` (NOT `content`) because `content`
+// implies `paint`, which promotes every row to its own rasterisation layer.
+// On Android WebView, mounting a paint-contained element during a prepend
+// causes a one-frame white flash before the layer's contents are rasterised
+// — this is the "flash when older messages load" the user reports. Layout
+// containment alone gives us the layout-isolation win without the per-row
+// rasterisation cost.
 const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
   ({ context: _context, style, ...props }, itemRef) => (
     <div
@@ -406,7 +414,7 @@ const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { co
       data-chat-virtuoso-item="true"
       style={{
         ...style,
-        contain: "content",
+        contain: "layout style",
       }}
     />
   ),
@@ -666,10 +674,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // double-fetch — the prepended page is then merged twice into the data
   // array, producing duplicate IDs and "ghost" rows in Virtuoso.
   const loadingOlderInFlightRef = useRef(false);
+  // Min gap between two prepend fetches. After a page lands, fast upward
+  // flings can immediately retrigger `startReached` / `atTopStateChange`
+  // before the browser has rasterised the newly-mounted rows — producing a
+  // visible flicker as Virtuoso prepends a second page on top of an
+  // unsettled layout. We enforce a short cooldown so each prepend has time
+  // to paint before the next one is allowed.
+  const PREPEND_COOLDOWN_MS = 350;
+  const lastPrependLandedAtRef = useRef(0);
   // Once messages.length grows, the prepend has landed — release the guard.
   useEffect(() => {
     if (messages.length > messagesLengthRef.current) {
       loadingOlderInFlightRef.current = false;
+      lastPrependLandedAtRef.current = performance.now();
     }
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
@@ -688,6 +705,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     if (prevIsLoadingOlderRef.current && !isLoadingOlder) {
       loadingOlderInFlightRef.current = false;
+      lastPrependLandedAtRef.current = performance.now();
     }
     prevIsLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
@@ -1039,6 +1057,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "in-flight-guard");
       return;
     }
+    const sinceLastPrepend = performance.now() - lastPrependLandedAtRef.current;
+    if (
+      lastPrependLandedAtRef.current > 0 &&
+      sinceLastPrepend < PREPEND_COOLDOWN_MS
+    ) {
+      // Cooldown: a prepend just landed and the new rows may not yet be
+      // painted. Defer this fetch until the cooldown elapses so we don't
+      // stack a second prepend on top of an unsettled layout (the visible
+      // flicker on fast upward flings).
+      if (startReachedRetryTimerRef.current === null) {
+        startReachedRetryTimerRef.current = window.setTimeout(() => {
+          startReachedRetryTimerRef.current = null;
+          handleStartReached();
+        }, Math.max(0, PREPEND_COOLDOWN_MS - sinceLastPrepend));
+      }
+      debugLogStartReached(false, "cooldown-deferred");
+      return;
+    }
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
@@ -1050,12 +1086,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Virtuoso never sees a transition INTO the start. `atTopStateChange`
   // fires on every transition into/out of the top edge, so we use it to
   // re-invoke the same load logic. The `handleStartReached` body is fully
-  // idempotent (trust window + in-flight guard + `hasOlder` check), so
-  // calling it from both paths is safe.
+  // idempotent (trust window + cooldown + in-flight guard + `hasOlder`
+  // check), so calling it from both paths is safe. We coalesce rapid
+  // re-fires via rAF so a fast flick that produces multiple
+  // atTop=true→false→true transitions inside a single frame collapses to
+  // one call.
+  const atTopRafRef = useRef<number | null>(null);
   const handleAtTopStateChange = useCallback(
     (atTop: boolean) => {
       if (!atTop) return;
-      handleStartReached();
+      if (atTopRafRef.current !== null) return;
+      atTopRafRef.current = requestAnimationFrame(() => {
+        atTopRafRef.current = null;
+        handleStartReached();
+      });
     },
     [handleStartReached],
   );
@@ -1425,7 +1469,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // every chat surface (Team/Group/Club/Broadcast/ClubAdmin/DM) gets the
   // mask without prop-drilling. Masks the visible re-anchor as deferred row
   // sub-content (link previews, replies, reactions) hydrates after scroll.
-  const [isJumpHydrating, setIsJumpHydrating] = useState(false);
+  // Seed from the module-level flag so push-notification jumps that fire
+  // `setChatJumpActive(true)` BEFORE this list mounts still show the
+  // overlay (the CustomEvent itself would have been dispatched before our
+  // listener was attached and silently lost).
+  const [isJumpHydrating, setIsJumpHydrating] = useState(() => isChatJumpActive());
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     const onStart = () => {
@@ -1443,9 +1491,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
+    // Also subscribe to the module-level flag so a jump that started
+    // before mount (push-notification deep link) flips the overlay on
+    // as soon as we subscribe, and a jump that ends during this mount
+    // still triggers the fade-out even if the CustomEvent was missed.
+    const unsubscribe = subscribeChatJumpActive((value) => {
+      if (value) onStart();
+      else onEnd();
+    });
     return () => {
       window.removeEventListener("chat:jump-hydration-start", onStart);
       window.removeEventListener("chat:jump-hydration-end", onEnd);
+      unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
     };
   }, []);

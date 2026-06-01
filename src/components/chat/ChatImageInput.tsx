@@ -672,14 +672,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   e.preventDefault();
                 }
               }}
-              className={`inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+              className={`inline-flex items-center justify-center h-12 w-12 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation ${
                 menuOpen
                   ? "bg-muted/70 text-foreground/80"
                   : "text-foreground/55 hover:text-foreground hover:bg-muted/60 active:bg-muted/70"
               }`}
             >
               <Plus
-                className={`h-[18px] w-[18px] transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
+                className={`h-[22px] w-[22px] transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
                 strokeWidth={2}
                 aria-hidden="true"
               />

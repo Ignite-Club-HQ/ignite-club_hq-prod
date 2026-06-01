@@ -209,7 +209,7 @@ export function BottomNav() {
   }, [isNativeIOS, shouldStabilizeIOSLayout]);
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(nativeInsetFloorPx);
-  const [navInteractionLocked, setNavInteractionLocked] = useState(false);
+  const [, setNavInteractionLocked] = useState(false);
   const navGuardTimeoutRef = useRef<number | null>(null);
 
   const resolveBottomInsetPx = useCallback(() => {
@@ -398,11 +398,6 @@ export function BottomNav() {
               aria-label={label}
               aria-current={undefined}
               onPointerDown={() => prefetchRoute(to)}
-              onClick={(e) => {
-                if (navInteractionLocked) {
-                  e.preventDefault();
-                }
-              }}
               className={({ isActive }) =>
                 cn(
                   "flex flex-col items-center justify-center flex-1 py-2 transition-colors",
