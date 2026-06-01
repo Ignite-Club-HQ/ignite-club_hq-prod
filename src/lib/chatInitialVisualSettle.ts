@@ -1,4 +1,4 @@
-type Timer = ReturnType<typeof window.setTimeout>;
+type Timer = number;
 
 interface ChatVisualSettleOptions {
   quietMs?: number;
