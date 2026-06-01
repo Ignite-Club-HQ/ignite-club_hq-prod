@@ -1015,6 +1015,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
+  // Helper: is the scroller still visually close enough to the top that a
+  // deferred prepend is still warranted? After a cooldown delay the user
+  // may have stopped or reversed direction — in that case we MUST NOT fire
+  // a queued prepend, because the resulting `firstItemIndex` shift +
+  // paddingTop adjustment reads as "messages keep moving after I stopped".
+  const isStillNearTop = useCallback(() => {
+    const el = scrollerElRef.current;
+    if (!el) return false;
+    // 600px keeps the upward overscan window covered without re-triggering
+    // once the user has visibly settled mid-thread.
+    return el.scrollTop < 600;
+  }, []);
+
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
@@ -1034,6 +1047,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           startReachedRetryTimerRef.current = null;
           if (!userHasScrolledAfterPinRef.current && !isViewportUserActive(scrollerElRef.current)) return;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          if (!isStillNearTop()) return;
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
@@ -1065,12 +1079,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Cooldown: a prepend just landed and the new rows may not yet be
       // painted. Defer this fetch until the cooldown elapses so we don't
       // stack a second prepend on top of an unsettled layout (the visible
-      // flicker on fast upward flings).
+      // flicker on fast upward flings). CRITICAL: at retry time, re-verify
+      // the user is still actively scrolling AND still near the top — a
+      // queued fetch that fires after the user has stopped/reversed reads
+      // as "messages keep moving after I stopped".
       if (startReachedRetryTimerRef.current === null) {
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
+          if (!isViewportUserActive(scrollerElRef.current)) {
+            debugLogStartReached(false, "cooldown-retry-user-idle");
+            return;
+          }
+          if (!isStillNearTop()) {
+            debugLogStartReached(false, "cooldown-retry-left-top");
+            return;
+          }
           handleStartReached();
-        }, Math.max(0, PREPEND_COOLDOWN_MS - sinceLastPrepend));
+        }, Math.max(0, PREPEND_COOLDOWN_MS - sinceLastPrepend) + 50);
       }
       debugLogStartReached(false, "cooldown-deferred");
       return;
@@ -1078,7 +1103,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [hasOlder, isLoadingOlder, onLoadOlder]);
+  }, [hasOlder, isLoadingOlder, onLoadOlder, isStillNearTop]);
 
   // Belt-and-braces upward pagination trigger. With top overscan,
   // `startReached` can fail to refire after a successful prepend because the
@@ -1090,11 +1115,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // check), so calling it from both paths is safe. We coalesce rapid
   // re-fires via rAF so a fast flick that produces multiple
   // atTop=true→false→true transitions inside a single frame collapses to
-  // one call.
+  // one call. We also ignore atTop transitions that fire without an
+  // accompanying active user gesture — those are caused by the
+  // `firstItemIndex` shift after a prepend lands and would otherwise keep
+  // queueing new prepends after the user has stopped scrolling.
   const atTopRafRef = useRef<number | null>(null);
   const handleAtTopStateChange = useCallback(
     (atTop: boolean) => {
       if (!atTop) return;
+      if (!isViewportUserActive(scrollerElRef.current)) return;
       if (atTopRafRef.current !== null) return;
       atTopRafRef.current = requestAnimationFrame(() => {
         atTopRafRef.current = null;
@@ -1103,6 +1132,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     },
     [handleStartReached],
   );
+
 
   const handleScroll = useCallback(() => {
     if (!bottomPinReadyRef.current) return;
