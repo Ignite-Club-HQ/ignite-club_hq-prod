@@ -685,6 +685,11 @@ export default function TeamChatPage() {
   }, [showLoading, bannersDataReady, teamId]);
 
 
+  useEffect(() => {
+    if (!openKey || showLoading) return;
+    markChatThreadOpened("team", openKey);
+  }, [openKey, showLoading]);
+
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
     if (perfLoggedRef.current) return;
