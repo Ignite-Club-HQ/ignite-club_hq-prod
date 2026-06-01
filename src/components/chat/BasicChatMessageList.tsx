@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Loader2 } from "lucide-react";
 import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
+import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
@@ -77,6 +78,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   // Preserve scroll offset from bottom across reveals so the user's current
   // viewport doesn't jump when older rows are inserted above.
   const preserveBottomOffsetRef = useRef<number | null>(null);
+  const settleCleanupRef = useRef<(() => void) | null>(null);
 
   // Cap to most recent revealCount messages to keep the DOM small.
   const visible = useMemo(() => {
