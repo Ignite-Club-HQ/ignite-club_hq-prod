@@ -809,9 +809,9 @@ export default function ClubAdminChatPage() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <ChatBackButton />
           <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (memberProfile?.avatar_url || undefined)} />
+            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
             <AvatarFallback className="bg-primary/10 text-primary">
-              {(isMember ? club?.name : memberProfile?.display_name)?.charAt(0).toUpperCase() || "?"}
+              {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
