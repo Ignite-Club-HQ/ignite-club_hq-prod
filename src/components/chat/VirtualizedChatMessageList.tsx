@@ -630,7 +630,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // window (Virtuoso paddingTop measurements cause many such renders),
   // flooding telemetry and re-yanking scrollTop.
   const pinAttemptRevisionRef = useRef<number | null>(null);
-  const [initialRevealReady, setInitialRevealReady] = useState(false);
+  // Warm open: messages already present at mount (cache hit). Reveal
+  // immediately and skip the visual-settle wait — the stabilisation
+  // sequence is only needed on cold cache where rows hydrate in stages.
+  const warmOpenRef = useRef(messages.length > 0);
+  const [initialRevealReady, setInitialRevealReady] = useState(() => messages.length > 0);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
