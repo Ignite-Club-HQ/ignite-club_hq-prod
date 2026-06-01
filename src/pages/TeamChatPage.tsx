@@ -8,6 +8,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatLoadingSkeleton, hasOpenedChatThread, markChatThreadOpened } from "@/components/chat/ChatLoadingSkeleton";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -1707,11 +1708,7 @@ export default function TeamChatPage() {
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading || !bannersReady ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-16 w-3/4" />
-            ))}
-          </div>
+          <ChatLoadingSkeleton />
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
@@ -1733,6 +1730,7 @@ export default function TeamChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
+            revealImmediatelyOnMount={revealImmediatelyForOpenRef.current}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
