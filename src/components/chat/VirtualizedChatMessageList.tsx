@@ -882,43 +882,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
     // visible to the user as a frozen, blank chat. After this deadline we
     // reveal regardless and let any remaining reflows happen in plain sight.
-    const REVEAL_DEADLINE_MS = 1800;
-    const REVEAL_IDLE_MS = 320;
-    const IMAGE_WAIT_MAX_MS = 450;
-    const waitForImages = (done: () => void) => {
-      const el = scrollerElRef.current;
-      if (!el) {
-        done();
-        return;
-      }
-      const pending = Array.from(el.querySelectorAll<HTMLImageElement>("img")).filter(
-        (img) => !(img.complete && img.naturalHeight > 0),
-      );
-      if (pending.length === 0) {
-        done();
-        return;
-      }
-      let remaining = pending.length;
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        pending.forEach((img) => {
-          img.removeEventListener("load", onOne);
-          img.removeEventListener("error", onOne);
-        });
-        done();
-      };
-      const onOne = () => {
-        remaining -= 1;
-        if (remaining <= 0) finish();
-      };
-      pending.forEach((img) => {
-        img.addEventListener("load", onOne, { once: true });
-        img.addEventListener("error", onOne, { once: true });
-      });
-      window.setTimeout(finish, IMAGE_WAIT_MAX_MS);
-    };
+    const REVEAL_DEADLINE_MS = 3000;
+    const REVEAL_IDLE_MS = 520;
+    let visualSettleCleanup: (() => void) | null = null;
     const doReveal = (reason: string) => {
       if (cancelled) return;
       cancelled = true;
