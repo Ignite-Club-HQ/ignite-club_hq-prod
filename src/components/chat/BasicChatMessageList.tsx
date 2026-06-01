@@ -161,8 +161,11 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
     [isAtBottom, isNearBottom, scrollToBottomImpl],
   );
 
-  // Initial pin to bottom on mount when requested.
+  // Initial pin to bottom on mount when requested. Keep the fallback hidden
+  // until row assets/placeholders have settled, matching the virtualised path.
   useLayoutEffect(() => {
+    settleCleanupRef.current?.();
+    setRevealed(false);
     if (!initialBottomPinned) {
       setRevealed(true);
       return;
@@ -173,10 +176,24 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       scrollToBottomImpl("auto");
       requestAnimationFrame(() => {
         scrollToBottomImpl("auto");
-        setRevealed(true);
+        settleCleanupRef.current = waitForChatVisualContentSettle(
+          containerRef.current,
+          { quietMs: 360, maxMs: 1800 },
+          () => {
+            scrollToBottomImpl("auto");
+            requestAnimationFrame(() => {
+              scrollToBottomImpl("auto");
+              setRevealed(true);
+            });
+          },
+        );
       });
     });
-  }, [initialBottomPinned, scrollToBottomImpl]);
+    return () => {
+      settleCleanupRef.current?.();
+      settleCleanupRef.current = null;
+    };
+  }, [initialBottomPinned, scrollToBottomImpl, visible.length]);
 
   // Auto-stick to bottom when new messages arrive and user is already there.
   useLayoutEffect(() => {
