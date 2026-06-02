@@ -280,7 +280,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const pin = () => {
       if (isChatJumpActive()) return;
-      handle.scrollToBottom("auto");
+      handle.scrollToBottom("auto", { force: composerActivated });
       markChatScrollWrite();
     };
     pin();
