@@ -1511,7 +1511,7 @@ export default function DirectMessagePage() {
                     clubId={sharedClubId || undefined}
                     showEventPicker={!!sharedClubId}
                     onEventSelect={() => setEventPickerOpen(true)}
-                    showBoardPicker={true}
+                    showBoardPicker={false}
                     onBoardPick={() => setBoardPickerOpen(true)}
                     showVaultPicker={!!sharedClubId}
                     onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
