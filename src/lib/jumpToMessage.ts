@@ -99,12 +99,21 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
     // scrollToIndex. Re-centre across a ~1.8s window with `isChatJumpActive`
     // still true so the open-pin / stay-pinned compensators can't snap the
-    // viewport to bottom in between passes. Only the FINAL pass releases the
-    // jump-active flag.
+    // viewport to bottom in between passes.
+    //
+    // Then HOLD `isChatJumpActive` true for a long tail (~6.5s from jump
+    // start) before releasing. The virtualised list's open-pin window runs
+    // for 6s from chat mount, and its stay-pinned ResizeObserver runs for
+    // 2.4s from reveal; both schedule deferred timers that fire AFTER the
+    // initial settle window. Without the tail hold, those timers run with
+    // jump-active=false and yank the viewport back to the latest message —
+    // exactly the symptom reported when tapping a push-notification deep
+    // link: the target row is highlighted, but the viewport sits at bottom.
     if (settleTimer) clearTimeout(settleTimer);
-    const settlePasses: number[] = [250, 600, 1100, 1800];
+    const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
+    const TAIL_RELEASE_MS = 6500;
     const settleTimers: ReturnType<typeof setTimeout>[] = [];
-    const recenter = (release: boolean) => {
+    const recenter = () => {
       if (cancelled) return;
       const h3 = getHandle();
       const messages3 = getMessages();
@@ -113,12 +122,16 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
         const isNearEnd3 = idx3 >= messages3.length - 2;
         h3.scrollToIndex(idx3, isNearEnd3 ? "end" : "center");
       }
-      if (release) endHydration();
     };
-    settlePasses.forEach((delay, i) => {
-      const isLast = i === settlePasses.length - 1;
-      settleTimers.push(setTimeout(() => recenter(isLast), delay));
+    settlePasses.forEach((delay) => {
+      settleTimers.push(setTimeout(recenter, delay));
     });
+    // Tail: one final recenter, then release the jump-active flag so the
+    // chat returns to normal auto-pin behaviour for subsequent new messages.
+    settleTimers.push(setTimeout(() => {
+      recenter();
+      endHydration();
+    }, TAIL_RELEASE_MS));
     settleTimer = settleTimers[settleTimers.length - 1];
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
