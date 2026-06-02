@@ -103,30 +103,50 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     staleTime: 5 * 60 * 1000,
   });
 
-  // Only show the Share Live Board action when the user has access to at
-  // least one active game on a team they belong to. Mirrors BoardPickerSheet's
-  // `teams!inner` filter so an orphaned active_game owned by the user (no
-  // team membership) doesn't surface the action.
+  // Live Board is only shareable in team chats, and only when:
+  //   (a) there is an active game for THIS team, OR
+  //   (b) a game/training event for this team kicks off within the next 2 hours
+  //       (or started up to 4 hours ago — still "during" a typical match window).
   const { data: hasActiveBoard = false } = useQuery({
-    queryKey: ["chat-has-active-board", user?.id],
+    queryKey: ["chat-has-active-board", user?.id, teamId],
     queryFn: async () => {
-      if (!user?.id) return false;
-      const { count, error } = await supabase
+      if (!user?.id || !teamId) return false;
+
+      const { count: activeCount, error: activeErr } = await supabase
         .from("active_games")
-        .select("id, teams!inner(id)", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", teamId)
         .eq("is_active", true);
-      if (error) {
-        console.error("[ChatImageInput] active board count failed", error);
+      if (activeErr) {
+        console.error("[ChatImageInput] active board count failed", activeErr);
+      } else if ((activeCount ?? 0) > 0) {
+        return true;
+      }
+
+      const now = Date.now();
+      const windowStart = new Date(now - 4 * 60 * 60 * 1000).toISOString(); // up to 4h ago (in-progress)
+      const windowEnd = new Date(now + 2 * 60 * 60 * 1000).toISOString();   // up to 2h ahead
+
+      const { count: upcomingCount, error: upcomingErr } = await supabase
+        .from("events")
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", teamId)
+        .eq("is_cancelled", false)
+        .in("type", ["game"])
+        .gte("event_date", windowStart)
+        .lte("event_date", windowEnd);
+      if (upcomingErr) {
+        console.error("[ChatImageInput] upcoming game count failed", upcomingErr);
         return false;
       }
-      return (count ?? 0) > 0;
+      return (upcomingCount ?? 0) > 0;
     },
-    enabled: !!user?.id && showBoardPicker,
-    staleTime: 30 * 1000,
-    refetchInterval: menuOpen ? 15 * 1000 : false,
+    enabled: !!user?.id && !!teamId && showBoardPicker,
+    staleTime: 60 * 1000,
+    refetchInterval: menuOpen ? 30 * 1000 : false,
   });
 
-  const canShowBoardPicker = showBoardPicker && hasActiveBoard;
+  const canShowBoardPicker = showBoardPicker && !!teamId && hasActiveBoard;
 
   const boardSubtitle = (() => {
     const s = (clubSport || "").toLowerCase();
