@@ -253,6 +253,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     if (!keyboardChanged && !composerGrew) return;
 
+    // When the user activates the composer (keyboard opens) or the composer
+    // grows (reply pill, multi-line input), they have signalled intent to
+    // reply — release any in-flight notification/search jump so the keyboard
+    // compensator can pin the latest message above the input area. The jump
+    // landing has already served its purpose by this point.
+    if ((keyboardChanged && isKeyboardOpen) || composerGrew) {
+      if (isChatJumpActive()) setChatJumpActive(false);
+    }
+
     // A notification/search deep-link owns the viewport until the route is
     // left. Never issue a generic `scrollToBottom()` from composer/keyboard
     // preservation in that mode: it races the target-message `scrollToIndex`
@@ -264,7 +273,8 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const shouldPreserveBottom =
       wasNearBottom ||
       wasNearBottomBeforeLayoutRef.current ||
-      (keyboardChanged && handle.isNearBottom(720));
+      (keyboardChanged && handle.isNearBottom(720)) ||
+      (keyboardChanged && isKeyboardOpen);
     if (!composerGrew && !shouldPreserveBottom) return;
 
     const pin = () => {
