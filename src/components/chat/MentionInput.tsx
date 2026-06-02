@@ -784,7 +784,7 @@ export function MentionInput({
         {showEmojiPicker && (
           // Distinct 48px tap target. In bare mode we sit ~20px right of the
           // attachment "+"/preview so [+ 😊] read as a single left-side cluster.
-          <div className={`flex items-center justify-center h-12 shrink-0 mr-2 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "ml-3" : ""}`}>
+          <div className={`flex items-center justify-center h-12 shrink-0 mr-1 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1" : ""}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
