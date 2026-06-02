@@ -56,7 +56,7 @@ function BasicChatLoadingSkeleton() {
 }
 
 export interface BasicChatMessageListHandle {
-  scrollToBottom: (behavior?: "auto" | "smooth") => void;
+  scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
   isNearBottom: (thresholdPx: number) => boolean;
