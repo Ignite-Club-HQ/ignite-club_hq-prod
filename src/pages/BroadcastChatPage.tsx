@@ -1142,7 +1142,7 @@ export default function BroadcastChatPage() {
               disabled={false}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
-              showBoardPicker={true}
+              showBoardPicker={false}
               onBoardPick={() => setBoardPickerOpen(true)}
               hasText={!!message.trim()}
             />
