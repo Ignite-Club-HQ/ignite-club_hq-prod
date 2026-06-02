@@ -269,8 +269,36 @@ export function ChatParticipantsList({
           .from("group_members")
           .select("user_id")
           .eq("group_id", chatId);
-        if (error || !groupMembers?.length) return [];
-        const userIds = groupMembers.map((gm) => gm.user_id);
+        if (error) return [];
+
+        const memberIdSet = new Set<string>((groupMembers || []).map((gm) => gm.user_id));
+        const roleByUser = new Map<string, string | undefined>();
+        for (const id of memberIdSet) roleByUser.set(id, undefined);
+
+        // Manual club-scoped groups also grant access to club_admins (and app_admins)
+        // for moderation — surface them in the member list so read receipts reconcile.
+        if (clubId) {
+          const [{ data: clubAdmins }, { data: appAdmins }] = await Promise.all([
+            supabase
+              .from("user_roles")
+              .select("user_id, role")
+              .eq("club_id", clubId)
+              .eq("role", "club_admin"),
+            supabase
+              .from("user_roles")
+              .select("user_id, role")
+              .eq("role", "app_admin"),
+          ]);
+          for (const r of [...(clubAdmins || []), ...(appAdmins || [])]) {
+            if (!memberIdSet.has(r.user_id)) {
+              memberIdSet.add(r.user_id);
+              roleByUser.set(r.user_id, r.role);
+            }
+          }
+        }
+
+        const userIds = Array.from(memberIdSet);
+        if (userIds.length === 0) return [];
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, display_name, avatar_url")
@@ -279,7 +307,7 @@ export function ChatParticipantsList({
           id: p.id,
           display_name: p.display_name,
           avatar_url: p.avatar_url,
-          role: undefined,
+          role: roleByUser.get(p.id),
         })) as Member[];
       }
 
