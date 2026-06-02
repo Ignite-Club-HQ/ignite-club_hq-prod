@@ -229,11 +229,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
   const prevComposerHeightRef = useRef(composerHeight);
   useEffect(() => {
-    if (!initialBottomPinned) {
-      prevKeyboardOpenRef.current = isKeyboardOpen;
-      prevComposerHeightRef.current = composerHeight;
-      return;
-    }
     if (!virtualReady) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
       prevComposerHeightRef.current = composerHeight;
@@ -258,6 +253,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     if (!keyboardChanged && !composerGrew) return;
 
     const wasNearBottom = handle.isNearBottom(180);
+    // Deep-link opens (notifications/search) disable the mount-time bottom pin
+    // so older targets are not yanked to the latest message. Still, if the
+    // notification lands on the latest/near-latest row, keyboard and reply
+    // composer growth must keep that row visible above the fixed composer.
+    if (!initialBottomPinned && !wasNearBottom) return;
     if (!composerGrew && !wasNearBottom) return;
 
     const pin = () => {
