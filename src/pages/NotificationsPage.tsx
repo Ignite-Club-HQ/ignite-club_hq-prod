@@ -23,6 +23,26 @@ import { playNotificationSound, showBrowserNotification } from "@/lib/notificati
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
+import { setPendingChatJump, type ChatJumpKind } from "@/lib/pendingChatJump";
+
+/**
+ * Belt-and-braces: when navigating from a notification tap to a chat that
+ * should scroll to a specific message, also persist the target in
+ * sessionStorage. GroupChatPage / TeamChatPage / etc. read this as a fallback
+ * when `?message=` is missing (e.g. React Router strips the search param
+ * during an auth-gated redirect, or the user is already on the target chat
+ * and useSearchParams hasn't re-fired yet).
+ */
+function jumpAndNavigate(
+  navigate: (to: string) => void,
+  kind: ChatJumpKind,
+  targetId: string | null,
+  messageId: string,
+  to: string,
+) {
+  try { setPendingChatJump(kind, targetId, messageId); } catch { /* ignore */ }
+  navigate(to);
+}
 
 interface Notification {
   id: string;
