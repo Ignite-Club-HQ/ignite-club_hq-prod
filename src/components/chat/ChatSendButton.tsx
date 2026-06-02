@@ -181,7 +181,7 @@ export function ChatSendButton({
       >
         <span
           className={cn(
-            "flex items-center justify-center h-[34px] w-[34px] rounded-full transition-all duration-200 ease-out",
+            "flex items-center justify-center h-[30px] w-[30px] rounded-full transition-all duration-200 ease-out",
             canSend
               ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_6px_-2px_hsl(var(--primary)/0.40)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
               : "bg-transparent text-muted-foreground/85 shadow-none scale-95",
