@@ -228,6 +228,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // changes — Virtuoso's `followOutput` covers new appends when at-bottom.
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
   const prevComposerHeightRef = useRef(composerHeight);
+  const wasNearBottomBeforeLayoutRef = useRef(initialBottomPinned);
   useEffect(() => {
     if (!virtualReady) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
@@ -253,12 +254,16 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     if (!keyboardChanged && !composerGrew) return;
 
     const wasNearBottom = handle.isNearBottom(180);
+    const shouldPreserveBottom =
+      wasNearBottom ||
+      wasNearBottomBeforeLayoutRef.current ||
+      (keyboardChanged && handle.isNearBottom(720));
     // Deep-link opens (notifications/search) disable the mount-time bottom pin
     // so older targets are not yanked to the latest message. Still, if the
     // notification lands on the latest/near-latest row, keyboard and reply
     // composer growth must keep that row visible above the fixed composer.
-    if (!initialBottomPinned && !wasNearBottom) return;
-    if (!composerGrew && !wasNearBottom) return;
+    if (!initialBottomPinned && !shouldPreserveBottom) return;
+    if (!composerGrew && !shouldPreserveBottom) return;
 
     const pin = () => {
       if (isChatJumpActive()) return;
@@ -322,6 +327,9 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           renderItem={renderVirtualRow}
           topPadding={0}
           bottomPadding={bottomPad}
+          onAtBottomChange={(atBottom) => {
+            wasNearBottomBeforeLayoutRef.current = atBottom;
+          }}
           scrollerRef={setVirtualScrollerRef}
           initialBottomPinned={initialBottomPinned && (virtualReady || isPinned)}
           currentUserId={currentUserId}
