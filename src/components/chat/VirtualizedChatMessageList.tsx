@@ -1132,6 +1132,53 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder, isStillNearTop, hasRecentUserUpwardScroll]);
 
+  // When the scroller is already pinned at scrollTop≈0, iOS/Android often do
+  // not emit another scroll event for a repeated upward-history gesture. That
+  // means neither `startReached` nor `atTopStateChange` fires, so the chat can
+  // appear hard-stuck at a page boundary even though older rows exist. Listen
+  // directly for edge pull intent and route it through the same guarded loader.
+  useEffect(() => {
+    const el = scrollerElRef.current;
+    if (!el) return;
+
+    let lastTouchY: number | null = null;
+    let frame: number | null = null;
+    const requestEdgeLoad = () => {
+      lastUserUpwardScrollAtRef.current = performance.now();
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (scrollerElRef.current && scrollerElRef.current.scrollTop <= 8) handleStartReached();
+      });
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY ?? null;
+      if (y === null || lastTouchY === null) {
+        lastTouchY = y;
+        return;
+      }
+      const deltaY = y - lastTouchY;
+      lastTouchY = y;
+      if (deltaY > 3 && el.scrollTop <= 8) requestEdgeLoad();
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < -3 && el.scrollTop <= 8) requestEdgeLoad();
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("wheel", onWheel, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("wheel", onWheel);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [handleStartReached]);
+
   // Belt-and-braces upward pagination trigger. With top overscan,
   // `startReached` can fail to refire after a successful prepend because the
   // rendered range still spans data index 0 — the user scrolls up but
