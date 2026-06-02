@@ -40,7 +40,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
       <ChatActionsOnboardingBanner />
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-end gap-2 overflow-visible",
+          "flex w-full max-w-full min-w-0 items-center gap-2 overflow-visible",
           "rounded-[26px] bg-muted dark:bg-muted/60",
           "pl-1.5 pr-2.5 py-1 min-h-[44px]",
           "transition-[background-color] duration-150",
