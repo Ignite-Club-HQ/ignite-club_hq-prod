@@ -37,6 +37,7 @@ import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabl
 import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -1444,6 +1445,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
+        const offset = align === "end" ? -getChatBottomPaddingOffset(virtuosoContext.bottomPadding) : 0;
         // `scrollToIndex` expects the zero-based DATA index even when
         // `firstItemIndex` is used for reverse/prepend anchoring. Passing the
         // shifted absolute index gets clamped by Virtuoso to LAST, which is why
@@ -1452,6 +1454,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         virtuosoRef.current?.scrollToIndex({
           index: dataIndex,
           align,
+          offset,
           behavior: "auto",
         });
       },
@@ -1463,7 +1466,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [],
+    [virtuosoContext.bottomPadding],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
