@@ -176,23 +176,20 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     },
   });
 
-  const joinMutation = useMutation({
+  const requestMutation = useMutation({
     mutationFn: async (groupId: string) => {
-      const { data, error } = await (supabase as any).rpc("join_open_chat_group", {
+      const { data, error } = await (supabase as any).rpc("request_join_chat_group", {
         _group_id: groupId,
       });
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_id, groupId) => {
-      toast.success("You joined the group");
+    onSuccess: () => {
+      toast.success("Request sent — a current member must approve");
       queryClient.invalidateQueries({ queryKey: ["discover-open-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      navigate(`/groups/${groupId}`);
     },
     onError: (err: any) => {
-      toast.error(err?.message ?? "Could not join group");
+      toast.error(err?.message ?? "Could not send request");
     },
     onSettled: () => setJoiningId(null),
   });
