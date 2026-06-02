@@ -777,13 +777,14 @@ export function MentionInput({
       <div
         className={
           bare
-            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden gap-0 pl-0 pr-0 min-h-10"
+            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden gap-0 pl-0 pr-3 min-h-10"
             : "flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-9 ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150"
         }
       >
         {showEmojiPicker && (
-          // Distinct 48px tap target sitting flush-left of the textarea.
-          <div className="flex items-center justify-center h-12 shrink-0 mr-1 transition-all duration-200 animate-in fade-in zoom-in-95">
+          // Distinct 48px tap target. In bare mode we sit ~20px right of the
+          // attachment "+"/preview so [+ 😊] read as a single left-side cluster.
+          <div className={`flex items-center justify-center h-12 shrink-0 mr-1 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1" : ""}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}

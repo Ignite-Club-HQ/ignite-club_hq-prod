@@ -647,7 +647,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
+                    onFocus={(e) => {
+                      const el = e.currentTarget;
+                      setTimeout(() => {
+                        try {
+                          el.scrollIntoView({ block: "center", behavior: "smooth" });
+                        } catch {}
+                      }, 300);
+                    }}
                     maxLength={60}
+                    autoComplete="off"
                     className="h-11 rounded-xl"
                   />
                   {isCustomGroup && (() => {

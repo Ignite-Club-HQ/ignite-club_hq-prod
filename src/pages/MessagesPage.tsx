@@ -1434,35 +1434,110 @@ export default function MessagesPage() {
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
     });
 
+    // Web: patch the latestMessages cache IN PLACE so the preview text updates
+    // instantly (same trick the native channel uses below). Without this, the
+    // unread badge appears immediately (cheap COUNT RPC) but the preview text
+    // sits stale for seconds waiting on the heavier join RPC. The invalidate
+    // still runs afterward to backfill author display name + reconcile.
+    const previewAuthor = (authorId?: string) => {
+      if (!authorId) return "";
+      if (authorId === user.id) return "You";
+      const cached = getProfileFromCache(authorId);
+      return cached?.display_name || "";
+    };
+    const patchLatest = (key: any[], targetId: string, row: any, extra: Record<string, any> = {}) => {
+      queryClient.setQueryData(key, (old: any) => {
+        const base = old ?? { latestMessages: {} };
+        const prev = base.latestMessages?.[targetId];
+        const author = previewAuthor(row.author_id) || (prev?.author ?? "");
+        return {
+          ...base,
+          latestMessages: {
+            ...(base.latestMessages || {}),
+            [targetId]: {
+              text: row.text ?? '',
+              author,
+              created_at: row.created_at,
+              image_url: row.image_url ?? null,
+              ...extra,
+            },
+          },
+        };
+      });
+    };
+
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+        const row = payload.new;
         const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(payload.new?.team_id)) return;
+        if (ids.size && !ids.has(row?.team_id)) return;
+        if (row?.team_id) {
+          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+          patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+            author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
+            is_announcement: isAnnouncement,
+          });
+        }
         schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+        const row = payload.new;
         const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(payload.new?.club_id)) return;
+        if (ids.size && !ids.has(row?.club_id)) return;
+        if (row?.club_id) patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+        const row = payload.new;
         const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(payload.new?.group_id)) return;
+        if (ids.size && !ids.has(row?.group_id)) return;
+        if (row?.group_id) patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (row?.conversation_id) {
+          queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+            if (!Array.isArray(old)) return old;
+            const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+            if (idx === -1) return old;
+            const conv = old[idx];
+            const updated = {
+              ...conv,
+              updated_at: row.created_at,
+              last_message: {
+                text: row.text ?? '',
+                image_url: row.image_url ?? null,
+                created_at: row.created_at,
+                author_id: row.author_id,
+              },
+            };
+            const next = old.slice();
+            next.splice(idx, 1);
+            next.unshift(updated);
+            return next;
+          });
+        }
         schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
         bumpUnread();
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        const row = payload.new;
+        queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
+          text: row.text ?? '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+          profiles: old?.profiles ?? null,
+        }));
         queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
         bumpUnread();
       })
       .subscribe();
+
 
     return () => {
       supabase.removeChannel(channel);
