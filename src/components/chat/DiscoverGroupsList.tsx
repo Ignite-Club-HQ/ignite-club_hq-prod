@@ -350,7 +350,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               <p className="font-medium text-sm mb-1">How this works</p>
               <p className="text-muted-foreground">
                 Admins can mark <strong>Operations</strong> or <strong>Volunteers</strong> groups
-                as open. Any club member can tap <strong>Join</strong> — no approval needed.
+                as open. Tap <strong>Request</strong> — an existing group member must approve
+                before you're added.
               </p>
             </PopoverContent>
           </Popover>
