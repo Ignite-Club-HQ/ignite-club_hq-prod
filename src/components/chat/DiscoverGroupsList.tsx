@@ -38,6 +38,8 @@ interface OpenGroup {
   club_name: string | null;
   member_count: number;
   joined: boolean;
+  /** True when the current user has already submitted a pending request. */
+  requested: boolean;
   last_text: string | null;
   last_at: string | null;
 }
