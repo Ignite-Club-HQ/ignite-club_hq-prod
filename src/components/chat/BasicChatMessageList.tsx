@@ -194,7 +194,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       isAtBottom,
       isNearBottom,
     }),
-    [isAtBottom, isNearBottom, scrollToBottomImpl],
+    [bottomPadding, isAtBottom, isNearBottom, scrollToBottomImpl],
   );
 
   // Initial pin to bottom on mount when requested. Keep the fallback hidden
