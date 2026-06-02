@@ -11,6 +11,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
@@ -55,7 +56,7 @@ function BasicChatLoadingSkeleton() {
 }
 
 export interface BasicChatMessageListHandle {
-  scrollToBottom: (behavior?: "auto" | "smooth") => void;
+  scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
   isNearBottom: (thresholdPx: number) => boolean;
@@ -176,16 +177,24 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         );
       },
 
-      scrollToIndex: (index, _align) => {
+      scrollToIndex: (index, align = "center") => {
         const el = containerRef.current;
         if (!el) return;
         const child = el.querySelector<HTMLElement>(`[data-basic-row-index="${index}"]`);
-        if (child) child.scrollIntoView({ block: "center" });
+        if (!child) return;
+        const reservedBottom = getChatBottomPaddingOffset(bottomPadding);
+        const targetTop =
+          align === "end"
+            ? child.offsetTop + child.offsetHeight - el.clientHeight + reservedBottom
+            : align === "start"
+            ? child.offsetTop
+            : child.offsetTop - Math.max(0, (el.clientHeight - child.offsetHeight) / 2);
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
       },
       isAtBottom,
       isNearBottom,
     }),
-    [isAtBottom, isNearBottom, scrollToBottomImpl],
+    [bottomPadding, isAtBottom, isNearBottom, scrollToBottomImpl],
   );
 
   // Initial pin to bottom on mount when requested. Keep the fallback hidden

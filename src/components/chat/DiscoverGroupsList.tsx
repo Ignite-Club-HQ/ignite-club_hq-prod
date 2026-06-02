@@ -38,6 +38,8 @@ interface OpenGroup {
   club_name: string | null;
   member_count: number;
   joined: boolean;
+  /** True when the current user has already submitted a pending request. */
+  requested: boolean;
   last_text: string | null;
   last_at: string | null;
 }
@@ -122,7 +124,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (rows.length === 0) return [];
 
       const ids = rows.map((r) => r.id);
-      const [{ data: mine }, { data: members }, { data: msgs }] = await Promise.all([
+      const [{ data: mine }, { data: members }, { data: msgs }, { data: myReqs }] = await Promise.all([
         supabase
           .from("group_members")
           .select("group_id")
@@ -139,8 +141,15 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(200),
+        supabase
+          .from("chat_group_join_requests" as any)
+          .select("group_id")
+          .eq("user_id", user!.id)
+          .eq("status", "pending")
+          .in("group_id", ids),
       ]);
       const joined = new Set((mine ?? []).map((m: any) => m.group_id));
+      const requested = new Set((myReqs ?? []).map((m: any) => m.group_id));
       const counts = new Map<string, number>();
       (members ?? []).forEach((m: any) => {
         counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1);
@@ -160,29 +169,27 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         club_name: (r.clubs && (Array.isArray(r.clubs) ? r.clubs[0]?.name : r.clubs.name)) ?? null,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
+        requested: requested.has(r.id),
         last_text: lastByGroup.get(r.id)?.text ?? null,
         last_at: lastByGroup.get(r.id)?.at ?? null,
       }));
     },
   });
 
-  const joinMutation = useMutation({
+  const requestMutation = useMutation({
     mutationFn: async (groupId: string) => {
-      const { data, error } = await (supabase as any).rpc("join_open_chat_group", {
+      const { data, error } = await (supabase as any).rpc("request_join_chat_group", {
         _group_id: groupId,
       });
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_id, groupId) => {
-      toast.success("You joined the group");
+    onSuccess: () => {
+      toast.success("Request sent — a current member must approve");
       queryClient.invalidateQueries({ queryKey: ["discover-open-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      navigate(`/groups/${groupId}`);
     },
     onError: (err: any) => {
-      toast.error(err?.message ?? "Could not join group");
+      toast.error(err?.message ?? "Could not send request");
     },
     onSettled: () => setJoiningId(null),
   });
@@ -286,6 +293,10 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             <Check className="h-3 w-3" strokeWidth={3} />
             Joined
           </span>
+        ) : g.requested ? (
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+            Pending
+          </span>
         ) : (
           <Button
             size="sm"
@@ -295,10 +306,10 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             onClick={(e) => {
               e.stopPropagation();
               setJoiningId(g.id);
-              joinMutation.mutate(g.id);
+              requestMutation.mutate(g.id);
             }}
           >
-            {joiningId === g.id ? "…" : "+ Join"}
+            {joiningId === g.id ? "…" : "Request"}
           </Button>
         )}
       </button>
@@ -339,7 +350,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               <p className="font-medium text-sm mb-1">How this works</p>
               <p className="text-muted-foreground">
                 Admins can mark <strong>Operations</strong> or <strong>Volunteers</strong> groups
-                as open. Any club member can tap <strong>Join</strong> — no approval needed.
+                as open. Tap <strong>Request</strong> — an existing group member must approve
+                before you're added.
               </p>
             </PopoverContent>
           </Popover>

@@ -80,53 +80,64 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let lastLoadOlderAttempt = -1;
   let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
-  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimers: ReturnType<typeof setTimeout>[] = [];
   let landedOnParent = false;
+
+  const clearSettleTimers = () => {
+    settleTimers.forEach((timer) => clearTimeout(timer));
+    settleTimers = [];
+  };
 
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
-    // When the target is the last (or near-last) message in the loaded set,
-    // "center" alignment can't actually centre it — there's no content below —
-    // so Virtuoso leaves it tucked behind the composer/keyboard. Use "end"
-    // alignment in that case so the row lands fully above the composer (and
-    // the viewport scrolls all the way to the bottom). "center" stays for
-    // older targets where there IS room below.
-    const total = getMessages().length;
-    const isNearEnd = total > 0 && idx >= total - 2;
-    const align: "center" | "end" = isNearEnd ? "end" : "center";
+    // Notification/search/reply jumps should land the target at the bottom of
+    // the visible chat viewport, just above the fixed composer. Virtuoso's
+    // `end` alignment accounts for the list Footer, whose height mirrors the
+    // composer + safe-area padding. Using `center` for older targets was the
+    // source of the observed behaviour: the correct row highlighted, but it
+    // was not consistently visible in the expected bottom slot.
+    const align: "end" = "end";
     handle.scrollToIndex(idx, align);
     // Multi-pass settle: row heights shift as deferred sub-content (link
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
     // scrollToIndex. Re-centre across a ~1.8s window with `isChatJumpActive`
     // still true so the open-pin / stay-pinned compensators can't snap the
-    // viewport to bottom in between passes. Only the FINAL pass releases the
-    // jump-active flag.
-    if (settleTimer) clearTimeout(settleTimer);
-    const settlePasses: number[] = [250, 600, 1100, 1800];
-    const settleTimers: ReturnType<typeof setTimeout>[] = [];
-    const recenter = (release: boolean) => {
+    // viewport to bottom in between passes.
+    //
+    // Then HOLD `isChatJumpActive` true for a long tail (~6.5s from jump
+    // start) before releasing. The virtualised list's open-pin window runs
+    // for 6s from chat mount, and its stay-pinned ResizeObserver runs for
+    // 2.4s from reveal; both schedule deferred timers that fire AFTER the
+    // initial settle window. Without the tail hold, those timers run with
+    // jump-active=false and yank the viewport back to the latest message —
+    // exactly the symptom reported when tapping a push-notification deep
+    // link: the target row is highlighted, but the viewport sits at bottom.
+    clearSettleTimers();
+    const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
+    const TAIL_RELEASE_MS = 6500;
+    const recenter = () => {
       if (cancelled) return;
       const h3 = getHandle();
       const messages3 = getMessages();
       const idx3 = messages3.findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) {
-        const isNearEnd3 = idx3 >= messages3.length - 2;
-        h3.scrollToIndex(idx3, isNearEnd3 ? "end" : "center");
+        h3.scrollToIndex(idx3, align);
       }
-      if (release) endHydration();
     };
-    settlePasses.forEach((delay, i) => {
-      const isLast = i === settlePasses.length - 1;
-      settleTimers.push(setTimeout(() => recenter(isLast), delay));
+    settlePasses.forEach((delay) => {
+      settleTimers.push(setTimeout(recenter, delay));
     });
-    settleTimer = settleTimers[settleTimers.length - 1];
+    // Tail: one final recenter, then release the jump-active flag so the
+    // chat returns to normal auto-pin behaviour for subsequent new messages.
+    settleTimers.push(setTimeout(() => {
+      recenter();
+      endHydration();
+    }, TAIL_RELEASE_MS));
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
       if (cancelled) return;
       setHighlightedMessageId(null);
     }, highlightDurationMs);
-    // Track timers on cancel
-    (focusOn as any)._timers = settleTimers;
   };
 
 
@@ -189,7 +200,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   const cancel = () => {
     cancelled = true;
     if (nextTickTimer) clearTimeout(nextTickTimer);
-    if (settleTimer) clearTimeout(settleTimer);
+    clearSettleTimers();
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     endHydration();
     if (activeCancel === cancel) activeCancel = null;

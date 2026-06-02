@@ -30,6 +30,7 @@ import {
 } from "./chatRowHeightCache";
 import {
   installChatScrollIntentTracking,
+  isViewportTouching,
   isViewportUserActive,
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
@@ -37,6 +38,7 @@ import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabl
 import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -79,7 +81,7 @@ const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
  */
 
 export interface VirtualizedChatMessageListHandle {
-  scrollToBottom: (behavior?: "auto" | "smooth") => void;
+  scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
   /**
@@ -1405,7 +1407,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useImperativeHandle(
     ref,
     () => ({
-      scrollToBottom: (behavior = "auto") => {
+      scrollToBottom: (behavior = "auto", options) => {
         // Defer to the next two animation frames. Send mutations call
         // scrollToBottom synchronously inside `onMutate` — BEFORE React has
         // committed the optimistic message into the cache and BEFORE
@@ -1426,13 +1428,26 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         const run = () => {
           if (messagesLengthRef.current <= 0) return;
           if (isChatJumpActive()) return;
-          if (isViewportUserActive(scrollerElRef.current)) return;
+          const viewport = scrollerElRef.current;
+          if (options?.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
+            offset: getChatBottomPaddingOffset(bottomPadding),
             behavior,
           });
+          requestAnimationFrame(() => {
+            const el = scrollerElRef.current;
+            if (!el || isChatJumpActive()) return;
+            if (options?.force ? isViewportTouching(el) : isViewportUserActive(el)) return;
+            const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+            if (Math.abs(el.scrollTop - maxTop) > 1) {
+              el.scrollTop = maxTop;
+              markChatScrollWrite();
+            }
+          });
         };
+        run();
         requestAnimationFrame(() => requestAnimationFrame(run));
         // Trailing re-pins. Each is independently guarded so an active
         // user gesture (finger drag / momentum) cancels them.
@@ -1444,18 +1459,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
-        // Virtuoso's `scrollToIndex` operates in the SHIFTED index space
-        // when `firstItemIndex` is non-zero (anchored reverse-infinite
-        // scroll). Passing a raw data index (e.g. 50) when firstItemIndex
-        // is ~999,900 lands the viewport on the oldest loaded row (Virtuoso
-        // clamps the out-of-range value to `firstItemIndex`), which is why
-        // notification taps and other deep-link jumps stopped routing to
-        // the target message. Adding `firstItemIndex` puts the index back
-        // into the space Virtuoso reasons about. This matches the official
-        // react-virtuoso reverse-chat example.
+        const offset = align === "end" && dataIndex !== last ? getChatBottomPaddingOffset(bottomPadding) : 0;
+        // `scrollToIndex` expects the zero-based DATA index even when
+        // `firstItemIndex` is used for reverse/prepend anchoring. Passing the
+        // shifted absolute index gets clamped by Virtuoso to LAST, which is why
+        // notification jumps highlighted the right row but kept the viewport at
+        // the bottom of the committee chat.
         virtuosoRef.current?.scrollToIndex({
-          index: dataIndex + firstItemIndexRef.current,
+          index: dataIndex,
           align,
+          offset,
           behavior: "auto",
         });
       },
@@ -1467,7 +1480,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [],
+    [bottomPadding],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two

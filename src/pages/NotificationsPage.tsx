@@ -23,6 +23,26 @@ import { playNotificationSound, showBrowserNotification } from "@/lib/notificati
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
+import { setPendingChatJump, type ChatJumpKind } from "@/lib/pendingChatJump";
+
+/**
+ * Belt-and-braces: when navigating from a notification tap to a chat that
+ * should scroll to a specific message, also persist the target in
+ * sessionStorage. GroupChatPage / TeamChatPage / etc. read this as a fallback
+ * when `?message=` is missing (e.g. React Router strips the search param
+ * during an auth-gated redirect, or the user is already on the target chat
+ * and useSearchParams hasn't re-fired yet).
+ */
+function jumpAndNavigate(
+  navigate: (to: string) => void,
+  kind: ChatJumpKind,
+  targetId: string | null,
+  messageId: string,
+  to: string,
+) {
+  try { setPendingChatJump(kind, targetId, messageId); } catch { /* ignore */ }
+  navigate(to);
+}
 
 interface Notification {
   id: string;
@@ -508,7 +528,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (teamMessage?.team_id) {
-          navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "team", teamMessage.team_id, relatedId, `/messages/${teamMessage.team_id}?message=${relatedId}`);
           break;
         }
         // Try club message
@@ -518,7 +538,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (clubMsgForReaction?.club_id) {
-          navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club", clubMsgForReaction.club_id, relatedId, `/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
           break;
         }
         // Try group message
@@ -528,7 +548,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (groupMsgForReaction?.group_id) {
-          navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "group", groupMsgForReaction.group_id, relatedId, `/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
           break;
         }
         // Try direct message
@@ -538,7 +558,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (dmMsgForReaction?.conversation_id) {
-          navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "dm", dmMsgForReaction.conversation_id, relatedId, `/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
           break;
         }
         // Try broadcast
@@ -548,7 +568,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (broadcastMsg) {
-          navigate(`/messages/broadcast?message=${relatedId}`);
+          jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         }
         break;
       case "club_message":
@@ -558,7 +578,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .single();
         if (clubMessage?.club_id) {
-          navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club", clubMessage.club_id, relatedId, `/messages/club/${clubMessage.club_id}?message=${relatedId}`);
         }
         break;
       case "group_message":
@@ -568,7 +588,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .single();
         if (groupMessage?.group_id) {
-          navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "group", groupMessage.group_id, relatedId, `/groups/${groupMessage.group_id}?message=${relatedId}`);
         }
         break;
       case "club_admin_message": {
@@ -579,7 +599,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (caMsg?.conversation_id) {
-          navigate(`/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club_admin", caMsg.conversation_id, relatedId, `/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
         } else {
           // Fallback: related_id might already be a conversation id
           const { data: convCheck } = await (supabase as any)
@@ -593,7 +613,7 @@ export default function NotificationsPage() {
         break;
       }
       case "broadcast":
-        navigate(`/messages/broadcast?message=${relatedId}`);
+        jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         break;
       case "direct_message":
         // related_id is the conversation_id

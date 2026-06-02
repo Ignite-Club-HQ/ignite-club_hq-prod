@@ -5,7 +5,7 @@ import {
 } from "@/components/chat/VirtualizedChatMessageList";
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
-import { isChatJumpActive } from "@/lib/chatJumpActive";
+import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
@@ -253,21 +253,34 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     if (!keyboardChanged && !composerGrew) return;
 
+    // When the user activates the composer (keyboard opens) or the composer
+    // grows (reply pill, multi-line input), they have signalled intent to
+    // reply — release any in-flight notification/search jump so the keyboard
+    // compensator can pin the latest message above the input area. The jump
+    // landing has already served its purpose by this point.
+    if ((keyboardChanged && isKeyboardOpen) || composerGrew) {
+      if (isChatJumpActive()) setChatJumpActive(false);
+    }
+
+    // A notification/search deep-link owns the viewport until the user
+    // explicitly activates the composer/reply UI. Before that, never issue a
+    // generic `scrollToBottom()` because it races the target-message
+    // `scrollToIndex`; after activation, the user's intent has changed to
+    // replying, so the latest message should be pinned above the keyboard.
+    const composerActivated = (keyboardChanged && isKeyboardOpen) || composerGrew;
+    if (!initialBottomPinned && !composerActivated) return;
+
     const wasNearBottom = handle.isNearBottom(180);
     const shouldPreserveBottom =
       wasNearBottom ||
       wasNearBottomBeforeLayoutRef.current ||
-      (keyboardChanged && handle.isNearBottom(720));
-    // Deep-link opens (notifications/search) disable the mount-time bottom pin
-    // so older targets are not yanked to the latest message. Still, if the
-    // notification lands on the latest/near-latest row, keyboard and reply
-    // composer growth must keep that row visible above the fixed composer.
-    if (!initialBottomPinned && !shouldPreserveBottom) return;
+      (keyboardChanged && handle.isNearBottom(720)) ||
+      composerActivated;
     if (!composerGrew && !shouldPreserveBottom) return;
 
     const pin = () => {
       if (isChatJumpActive()) return;
-      handle.scrollToBottom("auto");
+      handle.scrollToBottom("auto", { force: composerActivated });
       markChatScrollWrite();
     };
     pin();

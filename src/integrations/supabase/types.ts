@@ -643,6 +643,50 @@ export type Database = {
           },
         ]
       }
+      chat_group_join_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          group_id: string
+          id: string
+          message: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          group_id: string
+          id?: string
+          message?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          group_id?: string
+          id?: string
+          message?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_group_join_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_groups: {
         Row: {
           allow_forwarding: boolean
@@ -9080,6 +9124,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_chat_group_join_request: {
+        Args: { _request_id: string }
+        Returns: string
+      }
       approve_role_request: {
         Args: { p_request_id: string }
         Returns: undefined
@@ -10170,6 +10218,14 @@ export type Database = {
         Returns: undefined
       }
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
+      reject_chat_group_join_request: {
+        Args: { _request_id: string }
+        Returns: undefined
+      }
+      request_join_chat_group: {
+        Args: { _group_id: string; _message?: string }
+        Returns: string
+      }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }

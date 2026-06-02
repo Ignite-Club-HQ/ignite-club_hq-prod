@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
+import { ChatGroupJoinRequests } from "@/components/chat/ChatGroupJoinRequests";
 import { ChatMediaViewer } from "@/components/chat/ChatMediaViewer";
 import { FullscreenImageViewer } from "@/components/chat/FullscreenImageViewer";
 import { SecureImage } from "@/components/SecureImage";
@@ -291,6 +292,9 @@ export function ChatDetailsSheet({
             {/* Participants */}
             {showParticipants && (
               <Section title="" noPadding>
+                {chatType === "group" && (
+                  <ChatGroupJoinRequests groupId={chatId} enabled={open} />
+                )}
                 <ChatParticipantsList
                   chatType={chatType as "team" | "club" | "group"}
                   chatId={chatId}

@@ -262,16 +262,16 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const handleNotificationAction = useCallback((notification: any) => {
     try {
       const data = notification.notification?.data;
-      const url = data?.url || data?.link || data?.path;
+      const rawUrl = data?.url || data?.link || data?.path;
+      const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
       const storeUrl = data?.store_url;
 
-      // Stash scroll target before navigation so chat pages can recover from a
-      // lost search param even on warm-resume taps.
-      try {
-        import('@/lib/pendingChatJump').then(({ captureJumpFromNotification }) => {
-          captureJumpFromNotification(data, url);
-        });
-      } catch {}
+      // Stash/preload synchronously before navigation. This listener can fire
+      // after the early launch listener and used to re-navigate with the raw
+      // URL, stripping the normalized ?message= target and leaving chat pinned
+      // at the latest row.
+      try { preloadMessageFromNotification(data); } catch {}
+      try { captureJumpFromNotification(data, url); } catch {}
 
       // Handle store_url (e.g. from update reminders) — open externally
       if (storeUrl) {
