@@ -11,6 +11,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
@@ -181,9 +182,10 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         if (!el) return;
         const child = el.querySelector<HTMLElement>(`[data-basic-row-index="${index}"]`);
         if (!child) return;
+        const reservedBottom = getChatBottomPaddingOffset(bottomPadding);
         const targetTop =
           align === "end"
-            ? child.offsetTop + child.offsetHeight - el.clientHeight
+            ? child.offsetTop + child.offsetHeight - el.clientHeight + reservedBottom
             : align === "start"
             ? child.offsetTop
             : child.offsetTop - Math.max(0, (el.clientHeight - child.offsetHeight) / 2);
@@ -192,7 +194,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       isAtBottom,
       isNearBottom,
     }),
-    [isAtBottom, isNearBottom, scrollToBottomImpl],
+    [bottomPadding, isAtBottom, isNearBottom, scrollToBottomImpl],
   );
 
   // Initial pin to bottom on mount when requested. Keep the fallback hidden
