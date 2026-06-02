@@ -119,7 +119,13 @@ function scheduleFlush(key: string): void {
 // Get cached messages for a specific chat
 export function getCachedMessages(type: ChatType, targetId: string): CachedMessage[] {
   const entry = ensureLoaded(getCacheKey(type, targetId));
-  return entry ? entry.messages : [];
+  if (!entry) return [];
+  return [...entry.messages].sort((a, b) => {
+    const at = new Date(a.created_at).getTime();
+    const bt = new Date(b.created_at).getTime();
+    if (at !== bt) return at - bt;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 // Save messages to cache.
@@ -139,19 +145,17 @@ export function getCachedMessages(type: ChatType, targetId: string): CachedMessa
 export function cacheMessages(type: ChatType, targetId: string, messages: CachedMessage[]): void {
   try {
     const key = getCacheKey(type, targetId);
-    const normalised = messages.length <= MAX_CACHED_MESSAGES
-      ? messages
-      : (() => {
-          // Only sort + slice when we actually need to trim — keeps the hot
-          // path cheap for the common case (<100 messages).
-          const sortedAsc = [...messages].sort((a, b) => {
-            const at = new Date(a.created_at).getTime();
-            const bt = new Date(b.created_at).getTime();
-            if (at !== bt) return at - bt;
-            return a.id.localeCompare(b.id);
-          });
-          return sortedAsc.slice(-MAX_CACHED_MESSAGES);
-        })();
+    // Always normalise, even under the cap. Some callers pass descending
+    // Supabase pages and others pass ascending merged render state; persisting
+    // mixed order makes a cache-only first paint look like a broken history
+    // boundary until the network query repairs it.
+    const sortedAsc = [...messages].sort((a, b) => {
+      const at = new Date(a.created_at).getTime();
+      const bt = new Date(b.created_at).getTime();
+      if (at !== bt) return at - bt;
+      return a.id.localeCompare(b.id);
+    });
+    const normalised = sortedAsc.slice(-MAX_CACHED_MESSAGES);
     const entry: CacheEntry = {
       messages: normalised,
       timestamp: Date.now(),

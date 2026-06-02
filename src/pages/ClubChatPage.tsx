@@ -461,7 +461,7 @@ export default function ClubChatPage() {
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedClubMessages(clubId);
         if (cachedMessages.length) {
-          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+          return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
         }
       }
       if (prev) return prev;
@@ -469,7 +469,7 @@ export default function ClubChatPage() {
       const cachedMessages = getCachedClubMessages(clubId);
       if (!cachedMessages.length) return undefined;
 
-      return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+      return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
     },
   });
 
@@ -686,9 +686,11 @@ export default function ClubChatPage() {
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
-      setHasOlderMessages((messagesData as any).hasOlderMessages ?? false);
+      const data = messagesData as any;
+      const messageCount = Array.isArray(data.messages) ? data.messages.length : 0;
+      setHasOlderMessages(data.fromCache ? isOnline && messageCount > 0 : data.hasOlderMessages ?? false);
     }
-  }, [messagesData]);
+  }, [messagesData, isOnline]);
 
   // Keep a ref to localMessages so loadOlderMessages doesn't churn
   const localMessagesRef = useRef<Message[] | undefined>(localMessages);
