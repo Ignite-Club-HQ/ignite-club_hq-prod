@@ -189,10 +189,10 @@ export function ChatSendButton({
           )}
         >
           {loading ? (
-            <Loader2 className="h-[20px] w-[20px] animate-spin" strokeWidth={2.4} />
+            <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.4} />
           ) : (
             // Optical nudge: Send icon's visual mass sits right-of-center, so shift left ~1px
-            <Send className="h-[20px] w-[20px] -ml-px" strokeWidth={2.4} />
+            <Send className="h-[18px] w-[18px] -ml-px" strokeWidth={2.4} />
           )}
         </span>
       </button>
