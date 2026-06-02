@@ -2202,8 +2202,9 @@ export default function MessagesPage() {
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, clubAdminConversations, user?.id, showIgniteSupport, systemMessage, allDrafts,
+    filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
+
 
   // Resolve event titles referenced in any conversation preview so they
   // display the actual event name instead of a generic "Event" placeholder.
