@@ -30,6 +30,7 @@ import {
 } from "./chatRowHeightCache";
 import {
   installChatScrollIntentTracking,
+  isViewportTouching,
   isViewportUserActive,
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
@@ -80,7 +81,7 @@ const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
  */
 
 export interface VirtualizedChatMessageListHandle {
-  scrollToBottom: (behavior?: "auto" | "smooth") => void;
+  scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
   /**
@@ -1406,7 +1407,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useImperativeHandle(
     ref,
     () => ({
-      scrollToBottom: (behavior = "auto") => {
+      scrollToBottom: (behavior = "auto", options) => {
         // Defer to the next two animation frames. Send mutations call
         // scrollToBottom synchronously inside `onMutate` — BEFORE React has
         // committed the optimistic message into the cache and BEFORE
@@ -1427,7 +1428,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         const run = () => {
           if (messagesLengthRef.current <= 0) return;
           if (isChatJumpActive()) return;
-          if (isViewportUserActive(scrollerElRef.current)) return;
+          const viewport = scrollerElRef.current;
+          if (options?.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
