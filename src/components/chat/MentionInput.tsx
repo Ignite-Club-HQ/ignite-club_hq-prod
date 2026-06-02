@@ -331,7 +331,9 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    const maxHeight = 120;
+    // Cap growth at ~4-5 lines (20px line-height + 20px vertical padding)
+    // then scroll internally — keeps more conversation history on screen.
+    const maxHeight = 100;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
     if (highlightRef.current) {
