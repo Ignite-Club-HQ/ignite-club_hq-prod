@@ -262,19 +262,20 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       if (isChatJumpActive()) setChatJumpActive(false);
     }
 
-    // A notification/search deep-link owns the viewport until the route is
-    // left. Never issue a generic `scrollToBottom()` from composer/keyboard
-    // preservation in that mode: it races the target-message `scrollToIndex`
-    // and is what made the correct highlighted row appear while the viewport
-    // still sat on the latest message.
-    if (!initialBottomPinned) return;
+    // A notification/search deep-link owns the viewport until the user
+    // explicitly activates the composer/reply UI. Before that, never issue a
+    // generic `scrollToBottom()` because it races the target-message
+    // `scrollToIndex`; after activation, the user's intent has changed to
+    // replying, so the latest message should be pinned above the keyboard.
+    const composerActivated = (keyboardChanged && isKeyboardOpen) || composerGrew;
+    if (!initialBottomPinned && !composerActivated) return;
 
     const wasNearBottom = handle.isNearBottom(180);
     const shouldPreserveBottom =
       wasNearBottom ||
       wasNearBottomBeforeLayoutRef.current ||
       (keyboardChanged && handle.isNearBottom(720)) ||
-      (keyboardChanged && isKeyboardOpen);
+      composerActivated;
     if (!composerGrew && !shouldPreserveBottom) return;
 
     const pin = () => {
