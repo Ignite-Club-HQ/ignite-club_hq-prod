@@ -57,6 +57,12 @@ export function ChatGroupJoinRequests({ groupId, enabled = true }: ChatGroupJoin
         _request_id: requestId,
       });
       if (error) throw error;
+      // Notify the requester (in-app + push). Best-effort; never block UI.
+      await supabase.functions
+        .invoke("notify-join-request-decision", {
+          body: { requestId, decision: "approved" },
+        })
+        .catch((e) => console.warn("[join-request] notify failed", e));
     },
     onSuccess: () => {
       toast.success("Request approved");
@@ -71,6 +77,11 @@ export function ChatGroupJoinRequests({ groupId, enabled = true }: ChatGroupJoin
         _request_id: requestId,
       });
       if (error) throw error;
+      await supabase.functions
+        .invoke("notify-join-request-decision", {
+          body: { requestId, decision: "rejected" },
+        })
+        .catch((e) => console.warn("[join-request] notify failed", e));
     },
     onSuccess: () => {
       toast.success("Request rejected");
