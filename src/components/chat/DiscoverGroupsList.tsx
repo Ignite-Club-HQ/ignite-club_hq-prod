@@ -124,7 +124,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (rows.length === 0) return [];
 
       const ids = rows.map((r) => r.id);
-      const [{ data: mine }, { data: members }, { data: msgs }] = await Promise.all([
+      const [{ data: mine }, { data: members }, { data: msgs }, { data: myReqs }] = await Promise.all([
         supabase
           .from("group_members")
           .select("group_id")
@@ -141,8 +141,15 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(200),
+        supabase
+          .from("chat_group_join_requests" as any)
+          .select("group_id")
+          .eq("user_id", user!.id)
+          .eq("status", "pending")
+          .in("group_id", ids),
       ]);
       const joined = new Set((mine ?? []).map((m: any) => m.group_id));
+      const requested = new Set((myReqs ?? []).map((m: any) => m.group_id));
       const counts = new Map<string, number>();
       (members ?? []).forEach((m: any) => {
         counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1);
@@ -162,6 +169,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         club_name: (r.clubs && (Array.isArray(r.clubs) ? r.clubs[0]?.name : r.clubs.name)) ?? null,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
+        requested: requested.has(r.id),
         last_text: lastByGroup.get(r.id)?.text ?? null,
         last_at: lastByGroup.get(r.id)?.at ?? null,
       }));
