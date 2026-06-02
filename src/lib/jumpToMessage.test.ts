@@ -38,6 +38,22 @@ describe("jumpToMessageInVirtualizedChat", () => {
     expect(document.getElementById).not.toHaveBeenCalled();
   });
 
+  it("lands older targets at the bottom of the viewport above the composer", async () => {
+    const messages: Msg[] = [{ id: "a" }, { id: "target" }, { id: "c" }, { id: "d" }, { id: "e" }];
+    const handle = makeHandle();
+
+    jumpToMessageInVirtualizedChat(
+      "target",
+      () => messages,
+      () => handle as any,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(60);
+
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "end");
+  });
+
   it("never falls back to document.getElementById even when the target is missing", async () => {
     const handle = makeHandle();
     jumpToMessageInVirtualizedChat(
