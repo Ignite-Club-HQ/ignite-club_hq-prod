@@ -331,7 +331,9 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    const maxHeight = 120;
+    // Cap growth at ~4-5 lines (20px line-height + 20px vertical padding)
+    // then scroll internally — keeps more conversation history on screen.
+    const maxHeight = 100;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
     if (highlightRef.current) {
@@ -784,7 +786,7 @@ export function MentionInput({
         {showEmojiPicker && (
           // Distinct 48px tap target. In bare mode we sit ~20px right of the
           // attachment "+"/preview so [+ 😊] read as a single left-side cluster.
-          <div className={`flex items-center justify-center h-12 shrink-0 mr-1 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1" : ""}`}>
+          <div className={`flex items-center justify-center h-10 shrink-0 mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1" : ""}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
@@ -797,7 +799,7 @@ export function MentionInput({
               ref={highlightRef}
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none overflow-hidden pl-0 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
-              style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
+              style={{ maxHeight: '100px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
 
             >
               <div className="w-full">
@@ -833,7 +835,7 @@ export function MentionInput({
             aria-multiline="true"
             role="textbox"
             className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-0 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
-            style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
+            style={{ width: '100%', maxHeight: '100px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
 
           />
         </div>
