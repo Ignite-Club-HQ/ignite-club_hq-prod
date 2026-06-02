@@ -176,11 +176,18 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         );
       },
 
-      scrollToIndex: (index, _align) => {
+      scrollToIndex: (index, align = "center") => {
         const el = containerRef.current;
         if (!el) return;
         const child = el.querySelector<HTMLElement>(`[data-basic-row-index="${index}"]`);
-        if (child) child.scrollIntoView({ block: "center" });
+        if (!child) return;
+        const targetTop =
+          align === "end"
+            ? child.offsetTop + child.offsetHeight - el.clientHeight
+            : align === "start"
+            ? child.offsetTop
+            : child.offsetTop - Math.max(0, (el.clientHeight - child.offsetHeight) / 2);
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
       },
       isAtBottom,
       isNearBottom,

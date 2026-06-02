@@ -253,16 +253,18 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     if (!keyboardChanged && !composerGrew) return;
 
+    // A notification/search deep-link owns the viewport until the route is
+    // left. Never issue a generic `scrollToBottom()` from composer/keyboard
+    // preservation in that mode: it races the target-message `scrollToIndex`
+    // and is what made the correct highlighted row appear while the viewport
+    // still sat on the latest message.
+    if (!initialBottomPinned) return;
+
     const wasNearBottom = handle.isNearBottom(180);
     const shouldPreserveBottom =
       wasNearBottom ||
       wasNearBottomBeforeLayoutRef.current ||
       (keyboardChanged && handle.isNearBottom(720));
-    // Deep-link opens (notifications/search) disable the mount-time bottom pin
-    // so older targets are not yanked to the latest message. Still, if the
-    // notification lands on the latest/near-latest row, keyboard and reply
-    // composer growth must keep that row visible above the fixed composer.
-    if (!initialBottomPinned && !shouldPreserveBottom) return;
     if (!composerGrew && !shouldPreserveBottom) return;
 
     const pin = () => {

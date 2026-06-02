@@ -80,20 +80,23 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let lastLoadOlderAttempt = -1;
   let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
-  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimers: ReturnType<typeof setTimeout>[] = [];
   let landedOnParent = false;
+
+  const clearSettleTimers = () => {
+    settleTimers.forEach((timer) => clearTimeout(timer));
+    settleTimers = [];
+  };
 
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
-    // When the target is the last (or near-last) message in the loaded set,
-    // "center" alignment can't actually centre it — there's no content below —
-    // so Virtuoso leaves it tucked behind the composer/keyboard. Use "end"
-    // alignment in that case so the row lands fully above the composer (and
-    // the viewport scrolls all the way to the bottom). "center" stays for
-    // older targets where there IS room below.
-    const total = getMessages().length;
-    const isNearEnd = total > 0 && idx >= total - 2;
-    const align: "center" | "end" = isNearEnd ? "end" : "center";
+    // Notification/search/reply jumps should land the target at the bottom of
+    // the visible chat viewport, just above the fixed composer. Virtuoso's
+    // `end` alignment accounts for the list Footer, whose height mirrors the
+    // composer + safe-area padding. Using `center` for older targets was the
+    // source of the observed behaviour: the correct row highlighted, but it
+    // was not consistently visible in the expected bottom slot.
+    const align: "end" = "end";
     handle.scrollToIndex(idx, align);
     // Multi-pass settle: row heights shift as deferred sub-content (link
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
@@ -109,18 +112,16 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // jump-active=false and yank the viewport back to the latest message —
     // exactly the symptom reported when tapping a push-notification deep
     // link: the target row is highlighted, but the viewport sits at bottom.
-    if (settleTimer) clearTimeout(settleTimer);
+    clearSettleTimers();
     const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
     const TAIL_RELEASE_MS = 6500;
-    const settleTimers: ReturnType<typeof setTimeout>[] = [];
     const recenter = () => {
       if (cancelled) return;
       const h3 = getHandle();
       const messages3 = getMessages();
       const idx3 = messages3.findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) {
-        const isNearEnd3 = idx3 >= messages3.length - 2;
-        h3.scrollToIndex(idx3, isNearEnd3 ? "end" : "center");
+        h3.scrollToIndex(idx3, align);
       }
     };
     settlePasses.forEach((delay) => {
@@ -132,14 +133,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       recenter();
       endHydration();
     }, TAIL_RELEASE_MS));
-    settleTimer = settleTimers[settleTimers.length - 1];
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
       if (cancelled) return;
       setHighlightedMessageId(null);
     }, highlightDurationMs);
-    // Track timers on cancel
-    (focusOn as any)._timers = settleTimers;
   };
 
 
@@ -202,7 +200,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   const cancel = () => {
     cancelled = true;
     if (nextTickTimer) clearTimeout(nextTickTimer);
-    if (settleTimer) clearTimeout(settleTimer);
+    clearSettleTimers();
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     endHydration();
     if (activeCancel === cancel) activeCancel = null;
