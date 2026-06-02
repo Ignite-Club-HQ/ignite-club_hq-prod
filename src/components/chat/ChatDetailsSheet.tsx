@@ -292,6 +292,9 @@ export function ChatDetailsSheet({
             {/* Participants */}
             {showParticipants && (
               <Section title="" noPadding>
+                {chatType === "group" && (
+                  <ChatGroupJoinRequests groupId={chatId} enabled={open} />
+                )}
                 <ChatParticipantsList
                   chatType={chatType as "team" | "club" | "group"}
                   chatId={chatId}
