@@ -2070,7 +2070,7 @@ export default function GroupChatPage() {
             onEventSelect={() => setEventPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
-            showBoardPicker={true}
+            showBoardPicker={false}
             onBoardPick={() => setBoardPickerOpen(true)}
             showVaultPicker={!!group?.club_id}
             onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}

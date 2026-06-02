@@ -1558,7 +1558,7 @@ export default function ClubChatPage() {
               onEventSelect={() => setEventPickerOpen(true)}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
-              showBoardPicker={true}
+              showBoardPicker={false}
               onBoardPick={() => setBoardPickerOpen(true)}
               showVaultPicker={true}
               onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
