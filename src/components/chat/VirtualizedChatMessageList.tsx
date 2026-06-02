@@ -1445,7 +1445,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollToIndex: (index, align = "center") => {
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
-        const offset = align === "end" ? -getChatBottomPaddingOffset(bottomPadding) : 0;
+        const offset = align === "end" && dataIndex !== last ? getChatBottomPaddingOffset(bottomPadding) : 0;
         // `scrollToIndex` expects the zero-based DATA index even when
         // `firstItemIndex` is used for reverse/prepend anchoring. Passing the
         // shifted absolute index gets clamped by Virtuoso to LAST, which is why
