@@ -293,6 +293,10 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             <Check className="h-3 w-3" strokeWidth={3} />
             Joined
           </span>
+        ) : g.requested ? (
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+            Pending
+          </span>
         ) : (
           <Button
             size="sm"
@@ -302,10 +306,10 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             onClick={(e) => {
               e.stopPropagation();
               setJoiningId(g.id);
-              joinMutation.mutate(g.id);
+              requestMutation.mutate(g.id);
             }}
           >
-            {joiningId === g.id ? "…" : "+ Join"}
+            {joiningId === g.id ? "…" : "Request"}
           </Button>
         )}
       </button>
