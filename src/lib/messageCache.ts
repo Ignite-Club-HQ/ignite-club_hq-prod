@@ -119,7 +119,13 @@ function scheduleFlush(key: string): void {
 // Get cached messages for a specific chat
 export function getCachedMessages(type: ChatType, targetId: string): CachedMessage[] {
   const entry = ensureLoaded(getCacheKey(type, targetId));
-  return entry ? entry.messages : [];
+  if (!entry) return [];
+  return [...entry.messages].sort((a, b) => {
+    const at = new Date(a.created_at).getTime();
+    const bt = new Date(b.created_at).getTime();
+    if (at !== bt) return at - bt;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 // Save messages to cache.
