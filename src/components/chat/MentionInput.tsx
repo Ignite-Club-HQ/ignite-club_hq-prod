@@ -835,7 +835,7 @@ export function MentionInput({
             aria-multiline="true"
             role="textbox"
             className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-0 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
-            style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
+            style={{ width: '100%', maxHeight: '100px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
 
           />
         </div>
