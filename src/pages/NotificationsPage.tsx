@@ -599,7 +599,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (caMsg?.conversation_id) {
-          navigate(`/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club_admin", caMsg.conversation_id, relatedId, `/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
         } else {
           // Fallback: related_id might already be a conversation id
           const { data: convCheck } = await (supabase as any)
@@ -613,7 +613,7 @@ export default function NotificationsPage() {
         break;
       }
       case "broadcast":
-        navigate(`/messages/broadcast?message=${relatedId}`);
+        jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         break;
       case "direct_message":
         // related_id is the conversation_id
