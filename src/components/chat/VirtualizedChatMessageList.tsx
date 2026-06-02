@@ -1433,9 +1433,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
+            offset: getChatBottomPaddingOffset(bottomPadding),
             behavior,
           });
+          requestAnimationFrame(() => {
+            const el = scrollerElRef.current;
+            if (!el || isChatJumpActive()) return;
+            if (options?.force ? isViewportTouching(el) : isViewportUserActive(el)) return;
+            const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+            if (Math.abs(el.scrollTop - maxTop) > 1) {
+              el.scrollTop = maxTop;
+              markChatScrollWrite();
+            }
+          });
         };
+        run();
         requestAnimationFrame(() => requestAnimationFrame(run));
         // Trailing re-pins. Each is independently guarded so an active
         // user gesture (finger drag / momentum) cancels them.
