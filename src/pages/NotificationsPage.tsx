@@ -528,7 +528,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (teamMessage?.team_id) {
-          navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "team", teamMessage.team_id, relatedId, `/messages/${teamMessage.team_id}?message=${relatedId}`);
           break;
         }
         // Try club message
@@ -538,7 +538,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (clubMsgForReaction?.club_id) {
-          navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club", clubMsgForReaction.club_id, relatedId, `/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
           break;
         }
         // Try group message
@@ -548,7 +548,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (groupMsgForReaction?.group_id) {
-          navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "group", groupMsgForReaction.group_id, relatedId, `/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
           break;
         }
         // Try direct message
@@ -558,7 +558,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (dmMsgForReaction?.conversation_id) {
-          navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "dm", dmMsgForReaction.conversation_id, relatedId, `/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
           break;
         }
         // Try broadcast
@@ -568,7 +568,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .maybeSingle();
         if (broadcastMsg) {
-          navigate(`/messages/broadcast?message=${relatedId}`);
+          jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         }
         break;
       case "club_message":
@@ -578,7 +578,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .single();
         if (clubMessage?.club_id) {
-          navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "club", clubMessage.club_id, relatedId, `/messages/club/${clubMessage.club_id}?message=${relatedId}`);
         }
         break;
       case "group_message":
@@ -588,7 +588,7 @@ export default function NotificationsPage() {
           .eq("id", relatedId)
           .single();
         if (groupMessage?.group_id) {
-          navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
+          jumpAndNavigate(navigate, "group", groupMessage.group_id, relatedId, `/groups/${groupMessage.group_id}?message=${relatedId}`);
         }
         break;
       case "club_admin_message": {
