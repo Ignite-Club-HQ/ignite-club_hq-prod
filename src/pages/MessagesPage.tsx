@@ -2133,8 +2133,16 @@ export default function MessagesPage() {
       });
     });
 
-    // Club admin conversations
-    clubAdminConversations.forEach((conv) => {
+    // Club admin conversations (filter by search query against member name / club name / last message)
+    const filteredAdminConvs = query
+      ? clubAdminConversations.filter((conv) => {
+          const name = conv.member_name?.toLowerCase() || "";
+          const club = conv.club_name?.toLowerCase() || "";
+          const text = conv.last_text?.toLowerCase() || "";
+          return name.includes(query) || club.includes(query) || text.includes(query);
+        })
+      : clubAdminConversations;
+    filteredAdminConvs.forEach((conv) => {
       items.push({
         type: 'admin_group',
         id: conv.id,
@@ -2154,6 +2162,7 @@ export default function MessagesPage() {
         category: 'Admin Groups',
       });
     });
+
 
     // Ignite Support system message (if not already shown as a DM)
     if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
