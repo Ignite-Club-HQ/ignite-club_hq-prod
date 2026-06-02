@@ -684,8 +684,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const lastUserUpwardScrollAtRef = useRef(0);
   const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
   const hasRecentUserUpwardScroll = useCallback(() => {
-    return performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS;
+    if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
+      return true;
+    }
+    // Edge-pin fallback: once scrollTop hits 0 (or near-0), the browser
+    // stops emitting further upward scroll deltas — so `lastUserUpward
+    // ScrollAtRef` ages out within 220ms even while the user's thumb is
+    // still actively dragging up at the top edge. That used to leave the
+    // chat "stuck" at a prepend boundary: every subsequent `startReached`
+    // / `atTopStateChange` bailed with "no-user-scroll" and the next page
+    // never loaded until the user released, scrolled DOWN, then back up.
+    // If the viewport is pinned at the top AND still in an active user
+    // gesture window (touch / momentum) per `isViewportUserActive`, treat
+    // that as a continuing upward intent so pagination keeps flowing.
+    const el = scrollerElRef.current;
+    if (el && el.scrollTop <= 4 && isViewportUserActive(el)) return true;
+    return false;
   }, []);
+
   // Min gap between two prepend fetches. After a page lands, fast upward
   // flings can immediately retrigger `startReached` / `atTopStateChange`
   // before the browser has rasterised the newly-mounted rows — producing a
