@@ -501,7 +501,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // If there's an image attached, always show the preview regardless of hasText
   if (displayUrl) {
     return (
-      <div className="flex shrink-0 items-center gap-2 self-end">
+      <div className="flex shrink-0 items-center gap-1 self-end pl-0.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -512,44 +512,44 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         />
         <div className="relative inline-block">
           {previewFailed ? (
-            <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-              <ImagePlus className="h-5 w-5 text-muted-foreground" />
+            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
+              <ImagePlus className="h-4 w-4 text-muted-foreground" />
             </div>
           ) : isVideoUrl(displayUrl) ? (
-            <div className="relative h-10 w-10 rounded overflow-hidden bg-black">
+            <div className="relative h-8 w-8 rounded overflow-hidden bg-black">
               <video
                 src={displayUrl}
-                className="h-10 w-10 object-cover"
+                className="h-8 w-8 object-cover"
                 muted
                 playsInline
                 preload="metadata"
                 onError={() => setPreviewFailed(true)}
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-                <Play className="h-3.5 w-3.5 fill-white text-white" />
+                <Play className="h-3 w-3 fill-white text-white" />
               </div>
             </div>
           ) : (
             <img
               src={displayUrl}
               alt="Attachment preview"
-              className="h-10 w-10 object-cover rounded"
+              className="h-8 w-8 object-cover rounded"
               onError={() => setPreviewFailed(true)}
             />
           )}
           {uploading && (
             <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             </div>
           )}
           <button
             type="button"
-            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+            className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
             onClick={handleRemoveImage}
             disabled={disabled}
             aria-label="Remove attachment"
           >
-            <X className="h-2.5 w-2.5" />
+            <X className="h-2 w-2" strokeWidth={3} />
           </button>
         </div>
       </div>
