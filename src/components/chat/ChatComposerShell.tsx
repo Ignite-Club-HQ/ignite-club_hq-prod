@@ -29,7 +29,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
   return (
     <div
       className={cn(
-        "px-1 pt-2 pb-2 bg-background",
+        "px-1 pt-2 pb-4 bg-background",
         "shadow-[0_-1px_0_0_hsl(var(--border)/0.25)]",
         "dark:shadow-[0_-1px_0_0_hsl(var(--border)/0.4)]",
         "transition-opacity duration-150",
@@ -40,9 +40,9 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
       <ChatActionsOnboardingBanner />
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-center gap-2 overflow-visible",
+          "flex w-full max-w-full min-w-0 items-end gap-0 overflow-visible",
           "rounded-[26px] bg-muted dark:bg-muted/60",
-          "pl-1.5 pr-2.5 py-1 min-h-[44px]",
+          "pl-0.5 pr-2 py-1 min-h-[44px]",
           "transition-[background-color] duration-150",
           "focus-within:bg-muted/90 dark:focus-within:bg-muted/75",
           className,
