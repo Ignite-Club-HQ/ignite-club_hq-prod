@@ -505,8 +505,35 @@ export default function NotificationsPage() {
     if (!relatedId) return;
 
     switch (notification.type) {
-      case "message_reaction":
-        // For reactions, related_id is the container ID (team_id, club_id, group_id, conversation_id)
+      case "message_reaction": {
+        // New notifications: related_id is the reacted MESSAGE id — look up the
+        // container and deep-link with ?message= so we scroll to the message.
+        const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle();
+        if (tMsg?.team_id) {
+          jumpAndNavigate(navigate, "team", tMsg.team_id, relatedId, `/messages/${tMsg.team_id}?message=${relatedId}`);
+          break;
+        }
+        const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
+        if (cMsg?.club_id) {
+          jumpAndNavigate(navigate, "club", cMsg.club_id, relatedId, `/messages/club/${cMsg.club_id}?message=${relatedId}`);
+          break;
+        }
+        const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
+        if (gMsg?.group_id) {
+          jumpAndNavigate(navigate, "group", gMsg.group_id, relatedId, `/groups/${gMsg.group_id}?message=${relatedId}`);
+          break;
+        }
+        const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
+        if (dMsg?.conversation_id) {
+          jumpAndNavigate(navigate, "dm", dMsg.conversation_id, relatedId, `/messages/dm/${dMsg.conversation_id}?message=${relatedId}`);
+          break;
+        }
+        const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
+        if (bMsg) {
+          jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
+          break;
+        }
+        // Backward-compat: old notifications stored container id as related_id.
         const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
         if (teamCheck) { navigate(`/messages/${relatedId}`); break; }
         const { data: clubCheck } = await supabase.from("clubs").select("id").eq("id", relatedId).maybeSingle();
@@ -517,6 +544,7 @@ export default function NotificationsPage() {
         if (convCheck) { navigate(`/messages/dm/${relatedId}`); break; }
         navigate("/messages");
         break;
+      }
       case "team_message":
       case "message_reply":
       case "message_mention":
