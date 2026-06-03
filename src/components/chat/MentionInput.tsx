@@ -332,17 +332,24 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    // Grow naturally up to ~4-5 lines (20px line-height + 24px vertical
-    // padding ≈ 112px) then lock height and scroll internally. Keeps
-    // more conversation visible while editing long messages, matching
-    // WhatsApp/Messenger behaviour.
-    const maxHeight = 112;
+    // Cap at ~4 visible lines (20px line-height × 4 + 12px top + 12px bottom
+    // padding = 104px). Keeps composer compact so more conversation stays
+    // visible above the keyboard, matching WhatsApp/Messenger.
+    const maxHeight = 104;
     const overflowing = textarea.scrollHeight > maxHeight;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = overflowing ? 'auto' : 'hidden';
     // Allow vertical pan/drag inside the textarea when content overflows so
     // the user can scroll back to the top of a long draft (matches native).
     textarea.style.touchAction = overflowing ? 'pan-y' : 'auto';
+    // Keep the caret visible while typing: if the cursor is at the end of
+    // the draft, follow it to the bottom of the scroll region.
+    if (overflowing) {
+      const atEnd = textarea.selectionStart === textarea.value.length;
+      if (atEnd) {
+        textarea.scrollTop = textarea.scrollHeight;
+      }
+    }
     if (highlightRef.current) {
       highlightRef.current.scrollTop = textarea.scrollTop;
     }
