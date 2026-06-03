@@ -180,7 +180,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           title="Insert emoji"
           aria-haspopup="dialog"
           aria-expanded={open}
-          className="h-12 w-12 shrink-0 rounded-full text-foreground/60 hover:text-foreground hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation"
+          className="h-11 w-11 shrink-0 rounded-full text-foreground/60 hover:text-foreground hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation"
           disabled={disabled}
         >
           <Smile className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden="true" />
