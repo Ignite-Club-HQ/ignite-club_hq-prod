@@ -531,7 +531,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
             onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
             placeholder="Search by team name"
           />
-        </div>
+
           {selectedTeam ? (
             <div className="mt-2 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div className="text-sm">
