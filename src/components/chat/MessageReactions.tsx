@@ -106,11 +106,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 240; // 6 emojis @ 32px + gap-1 (4px) × 5 + px-2 padding × 2 + border
-      const pickerHeight = 40;
+      const pickerWidth = 300; // 6 emojis @ 44px + gap-0.5 (2px) × 5 + px-4 padding × 2
+      const pickerHeight = 44;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 10; // 8–12px breathing room between the bubble and the reaction pill so the pill reads as the primary, focal action without crowding the message.
+      const gap = 6; // tight 6px gap so the popup feels physically attached to the bubble
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
@@ -123,13 +123,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      // Anchor to the bubble edge (left for incoming, right for outgoing) with
-      // a small inset so the picker feels physically attached to the message
-      // rather than floating centered on screen.
-      const edgeInset = 10;
-      let left = isOwnMessage
-        ? rect.right - pickerWidth + edgeInset
-        : rect.left - edgeInset;
+      // Centre the popup over the message bubble, clamped to viewport edges
+      const bubbleCenter = (rect.left + rect.right) / 2;
+      let left = bubbleCenter - pickerWidth / 2;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
