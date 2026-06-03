@@ -523,9 +523,10 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
             </>
           )}
         </div>
-        <div>
-          <Label>Find team</Label>
+        <div className="space-y-1.5 scroll-mt-24">
+          <Label htmlFor="competition-invite-team-search">Find team</Label>
           <Input
+            id="competition-invite-team-search"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
             placeholder="Search by team name"
