@@ -76,6 +76,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   preventIfGuarded,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const lastTouchReactionAtRef = useRef<{ at: number; type: string } | null>(null);
   // Ignore dismiss events for a short window after mount.
   const mountedAtRef = useRef(0);
