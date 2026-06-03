@@ -331,12 +331,17 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    // Grow naturally up to ~5-6 lines (20px line-height + 20px vertical
-    // padding ≈ 140px) then lock height and scroll internally. Keeps
-    // conversation visible while editing long messages.
-    const maxHeight = 140;
+    // Grow naturally up to ~4-5 lines (20px line-height + 24px vertical
+    // padding ≈ 112px) then lock height and scroll internally. Keeps
+    // more conversation visible while editing long messages, matching
+    // WhatsApp/Messenger behaviour.
+    const maxHeight = 112;
+    const overflowing = textarea.scrollHeight > maxHeight;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    textarea.style.overflowY = overflowing ? 'auto' : 'hidden';
+    // Allow vertical pan/drag inside the textarea when content overflows so
+    // the user can scroll back to the top of a long draft (matches native).
+    textarea.style.touchAction = overflowing ? 'pan-y' : 'auto';
     if (highlightRef.current) {
       highlightRef.current.scrollTop = textarea.scrollTop;
     }
