@@ -149,7 +149,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   const handleEmojiClick = (type: string) => {
     armReactionInteractionGuard();
     hapticSelectionTick();
+    setSelectedType(type);
     onReact(type);
+    // Brief selection-pop feedback before the picker dismisses
+    setTimeout(() => setSelectedType(null), 200);
     // Defer close so the full-screen overlay stays mounted through the
     // touchend → synthetic-click cycle. If we close synchronously inside
     // onTouchStart, the portal unmounts before touchend fires and Android
