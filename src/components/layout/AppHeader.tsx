@@ -25,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
+import { setPendingChatJump } from "@/lib/pendingChatJump";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
