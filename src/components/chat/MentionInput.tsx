@@ -331,9 +331,10 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    // Cap growth at ~4-5 lines (20px line-height + 20px vertical padding)
-    // then scroll internally — keeps more conversation history on screen.
-    const maxHeight = 100;
+    // Grow naturally up to ~5-6 lines (20px line-height + 20px vertical
+    // padding ≈ 140px) then lock height and scroll internally. Keeps
+    // conversation visible while editing long messages.
+    const maxHeight = 140;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
     if (highlightRef.current) {
@@ -779,27 +780,26 @@ export function MentionInput({
       <div
         className={
           bare
-            ? "flex w-full min-w-0 max-w-full items-center overflow-hidden gap-0 pl-0 pr-3 min-h-10"
+            ? "flex w-full min-w-0 max-w-full items-end overflow-hidden gap-0 pl-0 pr-1 min-h-10"
             : "flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-9 ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150"
         }
       >
         {showEmojiPicker && (
-          // Distinct 48px tap target. In bare mode we sit ~20px right of the
-          // attachment "+"/preview so [+ 😊] read as a single left-side cluster.
-          <div className={`flex items-center justify-center h-10 shrink-0 mr-0.5 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1" : ""}`}>
+          // Distinct 44px tap target sitting tight to the "+" on the left.
+          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1.5 mr-0" : "mr-0.5"}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
 
 
-        <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
+        <div className={`relative flex-1 min-w-0 max-w-full overflow-hidden ${bare ? "-ml-1" : ""}`}>
           {/* Highlight overlay for mentions */}
           {!isNativeIOS && (
             <div
               ref={highlightRef}
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none overflow-hidden pl-0 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
-              style={{ maxHeight: '100px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
+              style={{ maxHeight: '140px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px' }}
 
             >
               <div className="w-full">
@@ -835,7 +835,7 @@ export function MentionInput({
             aria-multiline="true"
             role="textbox"
             className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-0 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
-            style={{ width: '100%', maxHeight: '100px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
+            style={{ width: '100%', maxHeight: '140px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'middle' } as React.CSSProperties}
 
           />
         </div>
