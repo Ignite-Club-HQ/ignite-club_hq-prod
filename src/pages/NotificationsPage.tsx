@@ -61,6 +61,15 @@ type ChatTarget = {
   path: string;
 };
 
+type MessageReactionTargetRow = {
+  team_message_id?: string | null;
+  club_message_id?: string | null;
+  group_message_id?: string | null;
+  direct_message_id?: string | null;
+  broadcast_message_id?: string | null;
+  club_admin_message_id?: string | null;
+};
+
 const chatTargetPath = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
   switch (kind) {
     case "team": return targetId ? `/messages/${targetId}?message=${messageId}` : "/messages";
@@ -88,7 +97,7 @@ const resolveChatTargetForMessageId = async (messageId: string): Promise<ChatTar
   const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", messageId).maybeSingle();
   if (bMsg) return { kind: "broadcast", targetId: null, messageId, path: chatTargetPath("broadcast", null, messageId) };
 
-  const { data: caMsg } = await (supabase as any).from("club_admin_messages").select("conversation_id").eq("id", messageId).maybeSingle();
+  const { data: caMsg } = await supabase.from("club_admin_messages").select("conversation_id").eq("id", messageId).maybeSingle();
   if (caMsg?.conversation_id) return { kind: "club_admin", targetId: caMsg.conversation_id, messageId, path: chatTargetPath("club_admin", caMsg.conversation_id, messageId) };
 
   return null;
@@ -101,7 +110,7 @@ const resolveLegacyReactionTarget = async (notification: Notification): Promise<
   const from = new Date(at - 5000).toISOString();
   const to = new Date(at + 5000).toISOString();
 
-  const { data: reactions } = await (supabase as any)
+  const { data: reactions } = await supabase
     .from("message_reactions")
     .select("team_message_id, club_message_id, group_message_id, direct_message_id, broadcast_message_id, club_admin_message_id, created_at")
     .gte("created_at", from)
@@ -109,8 +118,8 @@ const resolveLegacyReactionTarget = async (notification: Notification): Promise<
     .order("created_at", { ascending: false })
     .limit(30);
 
-  const rows = Array.isArray(reactions) ? reactions : [];
-  const pick = (key: string) => rows.map((r: any) => r[key]).filter(Boolean);
+  const rows: MessageReactionTargetRow[] = Array.isArray(reactions) ? reactions : [];
+  const pick = (key: keyof MessageReactionTargetRow) => rows.map((r) => r[key]).filter((id): id is string => Boolean(id));
   const relatedId = notification.related_id;
   const authorId = notification.user_id;
 
@@ -151,7 +160,7 @@ const resolveLegacyReactionTarget = async (notification: Notification): Promise<
 
   const clubAdminIds = pick("club_admin_message_id");
   if (clubAdminIds.length) {
-    const { data } = await (supabase as any).from("club_admin_messages").select("id, conversation_id").in("id", clubAdminIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
+    const { data } = await supabase.from("club_admin_messages").select("id, conversation_id").in("id", clubAdminIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
     const msg = data?.[0];
     if (msg?.id && msg.conversation_id) return { kind: "club_admin", targetId: msg.conversation_id, messageId: msg.id, path: chatTargetPath("club_admin", msg.conversation_id, msg.id) };
   }
