@@ -75,11 +75,44 @@ export function useNativeAndroidKeyboardState(): number {
       .then((handle) => { keyboardDidHideHandle = handle; })
       .catch(() => {});
 
+    // Safety net: Capacitor's keyboardDidHide can be missed on Android when
+    // the user navigates away (system back, in-app nav) before the keyboard
+    // finishes its hide animation — leaving the cached height > 0 forever
+    // and the BottomNav permanently translated off-screen. If focus leaves
+    // every editable element and nothing else picks it up shortly after,
+    // force-reset to 0.
+    const isEditable = (el: Element | null): boolean => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      return (el as HTMLElement).isContentEditable === true;
+    };
+
+    let focusoutTimer = 0;
+    const handleFocusOut = () => {
+      window.clearTimeout(focusoutTimer);
+      focusoutTimer = window.setTimeout(() => {
+        if (!isEditable(document.activeElement)) applyHeight(0);
+      }, 250);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !isEditable(document.activeElement)) {
+        applyHeight(0);
+      }
+    };
+
+    document.addEventListener("focusout", handleFocusOut, true);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       keyboardWillShowHandle?.remove();
       keyboardDidShowHandle?.remove();
       keyboardWillHideHandle?.remove();
       keyboardDidHideHandle?.remove();
+      document.removeEventListener("focusout", handleFocusOut, true);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearTimeout(focusoutTimer);
       cancelAnimationFrame(rafRef.current);
     };
   }, []);
