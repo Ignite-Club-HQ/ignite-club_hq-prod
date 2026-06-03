@@ -804,7 +804,7 @@ export function MentionInput({
               ref={highlightRef}
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none overflow-hidden pl-0 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
-              style={{ maxHeight: '140px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px' }}
+              style={{ maxHeight: '112px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px' }}
 
             >
               <div className="w-full">
