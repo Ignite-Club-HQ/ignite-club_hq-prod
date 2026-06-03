@@ -87,6 +87,18 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
     // browser to wait on a passive:false JS handler before continuing
     // inertia, which made upward scroll feel slow and chunky and produced a
     // jolt when the fling stopped.
+    const canEditableConsumeGesture = (target: HTMLElement, deltaY: number) => {
+      const editable = target.closest<HTMLInputElement | HTMLTextAreaElement | HTMLElement>(INPUT_SELECTOR);
+      if (!editable) return false;
+      const maxScrollTop = editable.scrollHeight - editable.clientHeight;
+      if (maxScrollTop <= 1) return false;
+
+      // Finger moving down means the textarea needs to scroll toward its top;
+      // finger moving up means it needs to scroll toward its bottom. Let the
+      // editable consume those gestures so long drafts can be reviewed.
+      return deltaY > 0 ? editable.scrollTop > 0 : editable.scrollTop < maxScrollTop - 1;
+    };
+
     const handleTouchMove = (event: TouchEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
@@ -96,7 +108,9 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       if (!target.closest('[data-chat-chrome="true"]')) return;
       const currentY = event.touches[0]?.clientY;
       if (currentY == null) return;
-      if (currentY - touchStartYRef.current > 0) {
+      const deltaY = currentY - touchStartYRef.current;
+      if (canEditableConsumeGesture(target, deltaY)) return;
+      if (deltaY > 0) {
         event.preventDefault();
       }
     };
