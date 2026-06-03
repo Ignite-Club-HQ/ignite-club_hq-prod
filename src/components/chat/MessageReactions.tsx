@@ -12,9 +12,23 @@ import { hapticSelectionTick } from "@/lib/haptics";
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
   { type: "like", emoji: "❤️" },
+  { type: "laugh", emoji: "😂" },
+  { type: "celebrate", emoji: "🎉" },
+  { type: "wow", emoji: "😮" },
+  { type: "sad", emoji: "😢" },
   { type: "fire", emoji: "🔥" },
   { type: "clap", emoji: "👏" },
+];
+
+/** Quick-reaction set shown in the floating popup above chat bubbles.
+ *  Keep this at 6 items so the popup stays compact; a "+" slot can be
+ *  appended later to open the full emoji picker. */
+const QUICK_REACTION_EMOJIS = [
+  { type: "thumbsup", emoji: "👍" },
+  { type: "like", emoji: "❤️" },
   { type: "laugh", emoji: "😂" },
+  { type: "celebrate", emoji: "🎉" },
+  { type: "wow", emoji: "😮" },
   { type: "sad", emoji: "😢" },
 ];
 
