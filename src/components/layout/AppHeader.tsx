@@ -603,14 +603,26 @@ export function AppHeader() {
         case "message_reply":
         case "message_mention":
         case "message_forwarded": {
+          // For plain "sent a message" notifications, a single notification row
+          // can represent several subsequent messages from the same sender
+          // (dedupe / batching). Anchoring to the original related_id then
+          // lands the user on an OLD message instead of the latest unread.
+          // Only anchor to the exact message for replies/mentions/forwards —
+          // for plain team_message just open the chat and let the unread
+          // anchor / latest-message logic take over.
+          const anchor = notification.type !== "team_message";
           const { data: teamMessage } = await supabase
             .from("team_messages")
             .select("team_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (teamMessage?.team_id) {
-            setPendingChatJump("team", teamMessage.team_id, relatedId);
-            navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+            if (anchor) {
+              setPendingChatJump("team", teamMessage.team_id, relatedId);
+              navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+            } else {
+              navigate(`/messages/${teamMessage.team_id}`);
+            }
             return;
           }
           const { data: clubMsgForReaction } = await supabase
@@ -619,8 +631,12 @@ export function AppHeader() {
             .eq("id", relatedId)
             .maybeSingle();
           if (clubMsgForReaction?.club_id) {
-            setPendingChatJump("club", clubMsgForReaction.club_id, relatedId);
-            navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+            if (anchor) {
+              setPendingChatJump("club", clubMsgForReaction.club_id, relatedId);
+              navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+            } else {
+              navigate(`/messages/club/${clubMsgForReaction.club_id}`);
+            }
             return;
           }
           const { data: groupMsgForReaction } = await supabase
@@ -629,8 +645,12 @@ export function AppHeader() {
             .eq("id", relatedId)
             .maybeSingle();
           if (groupMsgForReaction?.group_id) {
-            setPendingChatJump("group", groupMsgForReaction.group_id, relatedId);
-            navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+            if (anchor) {
+              setPendingChatJump("group", groupMsgForReaction.group_id, relatedId);
+              navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+            } else {
+              navigate(`/groups/${groupMsgForReaction.group_id}`);
+            }
             return;
           }
           const { data: dmMsgForReaction } = await supabase
@@ -639,8 +659,12 @@ export function AppHeader() {
             .eq("id", relatedId)
             .maybeSingle();
           if (dmMsgForReaction?.conversation_id) {
-            setPendingChatJump("dm", dmMsgForReaction.conversation_id, relatedId);
-            navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
+            if (anchor) {
+              setPendingChatJump("dm", dmMsgForReaction.conversation_id, relatedId);
+              navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
+            } else {
+              navigate(`/messages/dm/${dmMsgForReaction.conversation_id}`);
+            }
             return;
           }
           const { data: broadcastMsg } = await supabase
@@ -649,34 +673,40 @@ export function AppHeader() {
             .eq("id", relatedId)
             .maybeSingle();
           if (broadcastMsg) {
-            setPendingChatJump("broadcast", null, relatedId);
-            navigate(`/messages/broadcast?message=${relatedId}`);
+            if (anchor) {
+              setPendingChatJump("broadcast", null, relatedId);
+              navigate(`/messages/broadcast?message=${relatedId}`);
+            } else {
+              navigate(`/messages/broadcast`);
+            }
             return;
           }
           break;
         }
         case "club_message": {
+          // Plain "sent a message" — open the chat at latest/first-unread
+          // rather than anchoring to the original (possibly old) related_id.
           const { data: clubMessage } = await supabase
             .from("club_messages")
             .select("club_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (clubMessage?.club_id) {
-            setPendingChatJump("club", clubMessage.club_id, relatedId);
-            navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
+            navigate(`/messages/club/${clubMessage.club_id}`);
             return;
           }
           break;
         }
         case "group_message": {
+          // Plain "sent a message" — open the chat at latest/first-unread
+          // rather than anchoring to the original (possibly old) related_id.
           const { data: groupMessage } = await supabase
             .from("group_messages")
             .select("group_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (groupMessage?.group_id) {
-            setPendingChatJump("group", groupMessage.group_id, relatedId);
-            navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
+            navigate(`/groups/${groupMessage.group_id}`);
             return;
           }
           break;
