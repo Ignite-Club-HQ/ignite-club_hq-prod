@@ -12,9 +12,23 @@ import { hapticSelectionTick } from "@/lib/haptics";
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
   { type: "like", emoji: "❤️" },
+  { type: "laugh", emoji: "😂" },
+  { type: "celebrate", emoji: "🎉" },
+  { type: "wow", emoji: "😮" },
+  { type: "sad", emoji: "😢" },
   { type: "fire", emoji: "🔥" },
   { type: "clap", emoji: "👏" },
+];
+
+/** Quick-reaction set shown in the floating popup above chat bubbles.
+ *  Keep this at 6 items so the popup stays compact; a "+" slot can be
+ *  appended later to open the full emoji picker. */
+const QUICK_REACTION_EMOJIS = [
+  { type: "thumbsup", emoji: "👍" },
+  { type: "like", emoji: "❤️" },
   { type: "laugh", emoji: "😂" },
+  { type: "celebrate", emoji: "🎉" },
+  { type: "wow", emoji: "😮" },
   { type: "sad", emoji: "😢" },
 ];
 
@@ -62,6 +76,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   preventIfGuarded,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const lastTouchReactionAtRef = useRef<{ at: number; type: string } | null>(null);
   // Ignore dismiss events for a short window after mount.
   const mountedAtRef = useRef(0);
@@ -92,11 +107,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 240; // 6 emojis @ 32px + gap-1 (4px) × 5 + px-2 padding × 2 + border
-      const pickerHeight = 40;
+      const pickerWidth = 300; // 6 emojis @ 44px + gap-0.5 (2px) × 5 + px-4 padding × 2
+      const pickerHeight = 44;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 10; // 8–12px breathing room between the bubble and the reaction pill so the pill reads as the primary, focal action without crowding the message.
+      const gap = 6; // tight 6px gap so the popup feels physically attached to the bubble
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight + gap && spaceBelow >= pickerHeight + gap;
@@ -109,13 +124,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         Math.min(unclampedTop, bottomBoundary - pickerHeight)
       );
 
-      // Anchor to the bubble edge (left for incoming, right for outgoing) with
-      // a small inset so the picker feels physically attached to the message
-      // rather than floating centered on screen.
-      const edgeInset = 10;
-      let left = isOwnMessage
-        ? rect.right - pickerWidth + edgeInset
-        : rect.left - edgeInset;
+      // Centre the popup over the message bubble, clamped to viewport edges
+      const bubbleCenter = (rect.left + rect.right) / 2;
+      let left = bubbleCenter - pickerWidth / 2;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
       setPosition({ top, left, width: pickerWidth });
@@ -138,7 +149,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   const handleEmojiClick = (type: string) => {
     armReactionInteractionGuard();
     hapticSelectionTick();
+    setSelectedType(type);
     onReact(type);
+    // Brief selection-pop feedback before the picker dismisses
+    setTimeout(() => setSelectedType(null), 200);
     // Defer close so the full-screen overlay stays mounted through the
     // touchend → synthetic-click cycle. If we close synchronously inside
     // onTouchStart, the portal unmounts before touchend fires and Android
@@ -216,9 +230,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
         {/* No backdrop-blur: this hovers over the chat scroller and would re-rasterise on every scroll frame on Android WebView. Use solid bg-card / bg-popover for a brighter, more elevated feel. */}
-        <div className="inline-block bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-2 py-1 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150 ease-out max-w-[calc(100vw-16px)]">
-          <div className="flex items-center gap-1">
-            {REACTION_EMOJIS.map(({ type, emoji }) => {
+        <div className="inline-block bg-card dark:bg-popover border border-border/50 dark:border-border/30 rounded-full px-4 py-0 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.28)] dark:shadow-[0_10px_28px_-8px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-90 slide-in-from-bottom-1 duration-200 ease-out max-w-[calc(100vw-16px)]">
+          <div className="flex items-center gap-0.5">
+            {QUICK_REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
               );
@@ -258,9 +272,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     WebkitUserSelect: "none",
                     userSelect: "none",
                   }}
-                  className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-[17px] leading-none shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
+                  className={`inline-flex items-center justify-center h-11 w-11 rounded-full text-[19px] leading-none shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[1.18] touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
-                  }`}
+                  } ${selectedType === type ? "scale-[1.18]" : ""}`}
                 >
                   {emoji}
                 </button>

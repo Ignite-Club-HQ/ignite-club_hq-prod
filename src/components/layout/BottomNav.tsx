@@ -103,7 +103,29 @@ export function BottomNav() {
 
   // Hide the nav whenever the on-screen keyboard is up so it doesn't cover
   // the focused input on form pages (and stays out of the way in chat threads).
-  const shouldHideNav = isKeyboardOpen || nativeKbHeight > 0;
+  // Safety override: if no editable element is focused, never treat the
+  // keyboard as open — protects against missed Capacitor keyboardDidHide
+  // events on Android after fast navigation away from a chat thread.
+  const [hasEditableFocus, setHasEditableFocus] = useState(false);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const isEditable = (el: Element | null) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      return (el as HTMLElement).isContentEditable === true;
+    };
+    const update = () => setHasEditableFocus(isEditable(document.activeElement));
+    update();
+    document.addEventListener("focusin", update, true);
+    document.addEventListener("focusout", update, true);
+    return () => {
+      document.removeEventListener("focusin", update, true);
+      document.removeEventListener("focusout", update, true);
+    };
+  }, [location.pathname]);
+
+  const shouldHideNav = (isKeyboardOpen || nativeKbHeight > 0) && hasEditableFocus;
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
