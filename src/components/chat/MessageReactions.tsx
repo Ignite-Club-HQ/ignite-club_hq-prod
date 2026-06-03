@@ -272,9 +272,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     WebkitUserSelect: "none",
                     userSelect: "none",
                   }}
-                  className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-[17px] leading-none shrink-0 transition-transform duration-100 ease-out active:scale-110 touch-manipulation outline-none focus:outline-none ${
+                  className={`inline-flex items-center justify-center h-11 w-11 rounded-full text-[19px] leading-none shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[1.18] touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
-                  }`}
+                  } ${selectedType === type ? "scale-[1.18]" : ""}`}
                 >
                   {emoji}
                 </button>
