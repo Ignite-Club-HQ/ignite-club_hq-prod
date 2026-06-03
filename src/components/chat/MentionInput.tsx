@@ -331,12 +331,17 @@ export function MentionInput({
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    // Grow naturally up to ~5-6 lines (20px line-height + 20px vertical
-    // padding ≈ 140px) then lock height and scroll internally. Keeps
-    // conversation visible while editing long messages.
-    const maxHeight = 140;
+    // Grow naturally up to ~4-5 lines (20px line-height + 24px vertical
+    // padding ≈ 112px) then lock height and scroll internally. Keeps
+    // more conversation visible while editing long messages, matching
+    // WhatsApp/Messenger behaviour.
+    const maxHeight = 112;
+    const overflowing = textarea.scrollHeight > maxHeight;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    textarea.style.overflowY = overflowing ? 'auto' : 'hidden';
+    // Allow vertical pan/drag inside the textarea when content overflows so
+    // the user can scroll back to the top of a long draft (matches native).
+    textarea.style.touchAction = overflowing ? 'pan-y' : 'auto';
     if (highlightRef.current) {
       highlightRef.current.scrollTop = textarea.scrollTop;
     }
@@ -786,20 +791,20 @@ export function MentionInput({
       >
         {showEmojiPicker && (
           // Distinct 44px tap target sitting tight to the "+" on the left.
-          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1.5 mr-0" : "mr-0.5"}`}>
+          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1.5 mr-2" : "mr-2"}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
 
 
-        <div className={`relative flex-1 min-w-0 max-w-full overflow-hidden ${bare ? "-ml-1" : ""}`}>
+        <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
           {/* Highlight overlay for mentions */}
           {!isNativeIOS && (
             <div
               ref={highlightRef}
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none overflow-hidden pl-0 pr-0.5 text-[16px] whitespace-pre-wrap break-words text-transparent flex items-center"
-              style={{ maxHeight: '140px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px' }}
+              style={{ maxHeight: '112px', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px' }}
 
             >
               <div className="w-full">
@@ -835,7 +840,7 @@ export function MentionInput({
             aria-multiline="true"
             role="textbox"
             className={`relative block w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent pl-0 pr-0.5 text-[16px] outline-none placeholder:text-foreground/35 placeholder:font-normal dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
-            style={{ width: '100%', maxHeight: '140px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px', verticalAlign: 'middle' } as React.CSSProperties}
+            style={{ width: '100%', maxHeight: '112px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px', verticalAlign: 'middle', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
 
           />
         </div>
