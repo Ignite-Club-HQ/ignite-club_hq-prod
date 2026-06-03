@@ -621,17 +621,17 @@ export function AppHeader() {
           // team_messages
           const { data: teamMessage } = await supabase
             .from("team_messages")
-            .select("team_id, sender_id")
+            .select("team_id, author_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (teamMessage?.team_id) {
             let targetId = relatedId;
-            if (isPlainMessage && teamMessage.sender_id) {
+            if (isPlainMessage && teamMessage.author_id) {
               const { data: latest } = await supabase
                 .from("team_messages")
                 .select("id")
                 .eq("team_id", teamMessage.team_id)
-                .eq("sender_id", teamMessage.sender_id)
+                .eq("author_id", teamMessage.author_id)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -644,17 +644,17 @@ export function AppHeader() {
           // club_messages
           const { data: clubMsg } = await supabase
             .from("club_messages")
-            .select("club_id, sender_id")
+            .select("club_id, author_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (clubMsg?.club_id) {
             let targetId = relatedId;
-            if (isPlainMessage && clubMsg.sender_id) {
+            if (isPlainMessage && clubMsg.author_id) {
               const { data: latest } = await supabase
                 .from("club_messages")
                 .select("id")
                 .eq("club_id", clubMsg.club_id)
-                .eq("sender_id", clubMsg.sender_id)
+                .eq("author_id", clubMsg.author_id)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -667,17 +667,17 @@ export function AppHeader() {
           // group_messages
           const { data: groupMsg } = await supabase
             .from("group_messages")
-            .select("group_id, sender_id")
+            .select("group_id, author_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (groupMsg?.group_id) {
             let targetId = relatedId;
-            if (isPlainMessage && groupMsg.sender_id) {
+            if (isPlainMessage && groupMsg.author_id) {
               const { data: latest } = await supabase
                 .from("group_messages")
                 .select("id")
                 .eq("group_id", groupMsg.group_id)
-                .eq("sender_id", groupMsg.sender_id)
+                .eq("author_id", groupMsg.author_id)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -690,17 +690,17 @@ export function AppHeader() {
           // direct_messages
           const { data: dmMsg } = await supabase
             .from("direct_messages")
-            .select("conversation_id, sender_id")
+            .select("conversation_id, author_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (dmMsg?.conversation_id) {
             let targetId = relatedId;
-            if (isPlainMessage && dmMsg.sender_id) {
+            if (isPlainMessage && dmMsg.author_id) {
               const { data: latest } = await supabase
                 .from("direct_messages")
                 .select("id")
                 .eq("conversation_id", dmMsg.conversation_id)
-                .eq("sender_id", dmMsg.sender_id)
+                .eq("author_id", dmMsg.author_id)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
