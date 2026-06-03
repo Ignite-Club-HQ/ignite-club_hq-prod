@@ -523,15 +523,15 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
             </>
           )}
         </div>
-        <div className="space-y-1.5 scroll-mt-24">
+        <div className="space-y-1.5">
           <Label htmlFor="competition-invite-team-search">Find team</Label>
           <Input
             id="competition-invite-team-search"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
             placeholder="Search by team name"
-            autoFocus
           />
+
           {selectedTeam ? (
             <div className="mt-2 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div className="text-sm">
