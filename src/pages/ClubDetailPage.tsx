@@ -1138,7 +1138,7 @@ export default function ClubDetailPage() {
       )}
 
       {/* Recent Games — basketball + netball only, hides itself if empty */}
-      {!isSoccerClub && <ClubRecentGames clubId={id!} />}
+      
 
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (
