@@ -46,12 +46,131 @@ function jumpAndNavigate(
 
 interface Notification {
   id: string;
+  user_id: string;
   type: string;
   message: string;
   read: boolean;
   created_at: string;
   related_id: string | null;
 }
+
+type ChatTarget = {
+  kind: ChatJumpKind;
+  targetId: string | null;
+  messageId: string;
+  path: string;
+};
+
+type MessageReactionTargetRow = {
+  team_message_id?: string | null;
+  club_message_id?: string | null;
+  group_message_id?: string | null;
+  direct_message_id?: string | null;
+  broadcast_message_id?: string | null;
+  club_admin_message_id?: string | null;
+};
+
+const chatTargetPath = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
+  switch (kind) {
+    case "team": return targetId ? `/messages/${targetId}?message=${messageId}` : "/messages";
+    case "club": return targetId ? `/messages/club/${targetId}?message=${messageId}` : "/messages";
+    case "group": return targetId ? `/groups/${targetId}?message=${messageId}` : "/messages";
+    case "dm": return targetId ? `/messages/dm/${targetId}?message=${messageId}` : "/messages";
+    case "club_admin": return targetId ? `/messages/club-admin/${targetId}?message=${messageId}` : "/messages";
+    case "broadcast": return `/messages/broadcast?message=${messageId}`;
+  }
+};
+
+const resolveChatTargetForMessageId = async (messageId: string): Promise<ChatTarget | null> => {
+  const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", messageId).maybeSingle();
+  if (tMsg?.team_id) return { kind: "team", targetId: tMsg.team_id, messageId, path: chatTargetPath("team", tMsg.team_id, messageId) };
+
+  const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", messageId).maybeSingle();
+  if (cMsg?.club_id) return { kind: "club", targetId: cMsg.club_id, messageId, path: chatTargetPath("club", cMsg.club_id, messageId) };
+
+  const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", messageId).maybeSingle();
+  if (gMsg?.group_id) return { kind: "group", targetId: gMsg.group_id, messageId, path: chatTargetPath("group", gMsg.group_id, messageId) };
+
+  const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", messageId).maybeSingle();
+  if (dMsg?.conversation_id) return { kind: "dm", targetId: dMsg.conversation_id, messageId, path: chatTargetPath("dm", dMsg.conversation_id, messageId) };
+
+  const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", messageId).maybeSingle();
+  if (bMsg) return { kind: "broadcast", targetId: null, messageId, path: chatTargetPath("broadcast", null, messageId) };
+
+  const { data: caMsg } = await supabase.from("club_admin_messages").select("conversation_id").eq("id", messageId).maybeSingle();
+  if (caMsg?.conversation_id) return { kind: "club_admin", targetId: caMsg.conversation_id, messageId, path: chatTargetPath("club_admin", caMsg.conversation_id, messageId) };
+
+  return null;
+};
+
+const resolveLegacyReactionTarget = async (notification: Notification): Promise<ChatTarget | null> => {
+  if (!notification.related_id) return null;
+  const at = new Date(notification.created_at).getTime();
+  if (!Number.isFinite(at)) return null;
+  const from = new Date(at - 5000).toISOString();
+  const to = new Date(at + 5000).toISOString();
+
+  const { data: reactions } = await supabase
+    .from("message_reactions")
+    .select("team_message_id, club_message_id, group_message_id, direct_message_id, broadcast_message_id, club_admin_message_id, created_at")
+    .gte("created_at", from)
+    .lte("created_at", to)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const rows: MessageReactionTargetRow[] = Array.isArray(reactions) ? reactions : [];
+  const pick = (key: keyof MessageReactionTargetRow) => rows.map((r) => r[key]).filter((id): id is string => Boolean(id));
+  const relatedId = notification.related_id;
+  const authorId = notification.user_id;
+
+  const teamIds = pick("team_message_id");
+  if (teamIds.length) {
+    const { data } = await supabase.from("team_messages").select("id, team_id").in("id", teamIds).eq("team_id", relatedId).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id && msg.team_id) return { kind: "team", targetId: msg.team_id, messageId: msg.id, path: chatTargetPath("team", msg.team_id, msg.id) };
+  }
+
+  const clubIds = pick("club_message_id");
+  if (clubIds.length) {
+    const { data } = await supabase.from("club_messages").select("id, club_id").in("id", clubIds).eq("club_id", relatedId).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id && msg.club_id) return { kind: "club", targetId: msg.club_id, messageId: msg.id, path: chatTargetPath("club", msg.club_id, msg.id) };
+  }
+
+  const groupIds = pick("group_message_id");
+  if (groupIds.length) {
+    const { data } = await supabase.from("group_messages").select("id, group_id").in("id", groupIds).eq("group_id", relatedId).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id && msg.group_id) return { kind: "group", targetId: msg.group_id, messageId: msg.id, path: chatTargetPath("group", msg.group_id, msg.id) };
+  }
+
+  const dmIds = pick("direct_message_id");
+  if (dmIds.length) {
+    const { data } = await supabase.from("direct_messages").select("id, conversation_id").in("id", dmIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id && msg.conversation_id) return { kind: "dm", targetId: msg.conversation_id, messageId: msg.id, path: chatTargetPath("dm", msg.conversation_id, msg.id) };
+  }
+
+  const broadcastIds = pick("broadcast_message_id");
+  if (broadcastIds.length) {
+    const { data } = await supabase.from("broadcast_messages").select("id").in("id", broadcastIds).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id) return { kind: "broadcast", targetId: null, messageId: msg.id, path: chatTargetPath("broadcast", null, msg.id) };
+  }
+
+  const clubAdminIds = pick("club_admin_message_id");
+  if (clubAdminIds.length) {
+    const { data } = await supabase.from("club_admin_messages").select("id, conversation_id").in("id", clubAdminIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
+    const msg = data?.[0];
+    if (msg?.id && msg.conversation_id) return { kind: "club_admin", targetId: msg.conversation_id, messageId: msg.id, path: chatTargetPath("club_admin", msg.conversation_id, msg.id) };
+  }
+
+  return null;
+};
+
+const navigateToChatTarget = (navigate: (to: string) => void, target: ChatTarget) => {
+  jumpAndNavigate(navigate, target.kind, target.targetId, target.messageId, target.path);
+};
 
 // Helper component for rendering notification icons with read state
 function NotificationIconWrapper({ type, isRead }: { type: string; isRead: boolean }) {
@@ -506,33 +625,13 @@ export default function NotificationsPage() {
 
     switch (notification.type) {
       case "message_reaction": {
-        // New notifications: related_id is the reacted MESSAGE id — look up the
-        // container and deep-link with ?message= so we scroll to the message.
-        const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle();
-        if (tMsg?.team_id) {
-          jumpAndNavigate(navigate, "team", tMsg.team_id, relatedId, `/messages/${tMsg.team_id}?message=${relatedId}`);
-          break;
-        }
-        const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
-        if (cMsg?.club_id) {
-          jumpAndNavigate(navigate, "club", cMsg.club_id, relatedId, `/messages/club/${cMsg.club_id}?message=${relatedId}`);
-          break;
-        }
-        const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
-        if (gMsg?.group_id) {
-          jumpAndNavigate(navigate, "group", gMsg.group_id, relatedId, `/groups/${gMsg.group_id}?message=${relatedId}`);
-          break;
-        }
-        const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
-        if (dMsg?.conversation_id) {
-          jumpAndNavigate(navigate, "dm", dMsg.conversation_id, relatedId, `/messages/dm/${dMsg.conversation_id}?message=${relatedId}`);
-          break;
-        }
-        const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
-        if (bMsg) {
-          jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
-          break;
-        }
+        // Current notifications store the reacted message id. Some older rows
+        // stored only the chat/container id, so recover the exact message from
+        // the reaction row created at the same instant.
+        const messageTarget = await resolveChatTargetForMessageId(relatedId);
+        if (messageTarget) { navigateToChatTarget(navigate, messageTarget); break; }
+        const legacyReactionTarget = await resolveLegacyReactionTarget(notification);
+        if (legacyReactionTarget) { navigateToChatTarget(navigate, legacyReactionTarget); break; }
         // Backward-compat: old notifications stored container id as related_id.
         const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
         if (teamCheck) { navigate(`/messages/${relatedId}`); break; }
