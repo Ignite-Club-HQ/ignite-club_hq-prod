@@ -600,9 +600,16 @@ export function AppHeader() {
           return;
         }
         case "team_message":
+        case "club_message":
+        case "group_message":
         case "message_reply":
         case "message_mention":
         case "message_forwarded": {
+          // Always anchor to the exact message the notification was created
+          // for. Each notification row carries its own related_id pointing to
+          // the specific message — so when the same sender has multiple
+          // notifications, each one routes to its own message rather than
+          // collapsing to the latest.
           const { data: teamMessage } = await supabase
             .from("team_messages")
             .select("team_id")
@@ -613,34 +620,34 @@ export function AppHeader() {
             navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
-          const { data: clubMsgForReaction } = await supabase
+          const { data: clubMsg } = await supabase
             .from("club_messages")
             .select("club_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (clubMsgForReaction?.club_id) {
-            setPendingChatJump("club", clubMsgForReaction.club_id, relatedId);
-            navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+          if (clubMsg?.club_id) {
+            setPendingChatJump("club", clubMsg.club_id, relatedId);
+            navigate(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
             return;
           }
-          const { data: groupMsgForReaction } = await supabase
+          const { data: groupMsg } = await supabase
             .from("group_messages")
             .select("group_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (groupMsgForReaction?.group_id) {
-            setPendingChatJump("group", groupMsgForReaction.group_id, relatedId);
-            navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+          if (groupMsg?.group_id) {
+            setPendingChatJump("group", groupMsg.group_id, relatedId);
+            navigate(`/groups/${groupMsg.group_id}?message=${relatedId}`);
             return;
           }
-          const { data: dmMsgForReaction } = await supabase
+          const { data: dmMsg } = await supabase
             .from("direct_messages")
             .select("conversation_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (dmMsgForReaction?.conversation_id) {
-            setPendingChatJump("dm", dmMsgForReaction.conversation_id, relatedId);
-            navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
+          if (dmMsg?.conversation_id) {
+            setPendingChatJump("dm", dmMsg.conversation_id, relatedId);
+            navigate(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
             return;
           }
           const { data: broadcastMsg } = await supabase
@@ -655,32 +662,7 @@ export function AppHeader() {
           }
           break;
         }
-        case "club_message": {
-          const { data: clubMessage } = await supabase
-            .from("club_messages")
-            .select("club_id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (clubMessage?.club_id) {
-            setPendingChatJump("club", clubMessage.club_id, relatedId);
-            navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
-            return;
-          }
-          break;
-        }
-        case "group_message": {
-          const { data: groupMessage } = await supabase
-            .from("group_messages")
-            .select("group_id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (groupMessage?.group_id) {
-            setPendingChatJump("group", groupMessage.group_id, relatedId);
-            navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
-            return;
-          }
-          break;
-        }
+
         case "broadcast":
           setPendingChatJump("broadcast", null, relatedId);
           navigate(`/messages/broadcast?message=${relatedId}`);

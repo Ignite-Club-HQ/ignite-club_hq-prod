@@ -490,7 +490,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
           <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
         </div>
         <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
-        <div>
+        <div className="space-y-1.5">
           <Label>Filter by club (optional)</Label>
           {selectedClub ? (
             <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
