@@ -600,113 +600,125 @@ export function AppHeader() {
           return;
         }
         case "team_message":
+        case "club_message":
+        case "group_message":
         case "message_reply":
         case "message_mention":
         case "message_forwarded": {
-          // For plain "sent a message" notifications, a single notification row
-          // can represent several subsequent messages from the same sender
-          // (dedupe / batching). Anchoring to the original related_id then
-          // lands the user on an OLD message instead of the latest unread.
-          // Only anchor to the exact message for replies/mentions/forwards —
-          // for plain team_message just open the chat and let the unread
-          // anchor / latest-message logic take over.
-          const anchor = notification.type !== "team_message";
+          // A single "X sent a message" notification row can cover multiple
+          // subsequent messages from the same sender (dedupe). The stored
+          // related_id is the FIRST such message, so anchoring to it lands
+          // the user on an old message. For plain *_message notifications,
+          // resolve the LATEST message from the same sender in the same
+          // scope and jump to that instead. Reply/mention/forward still
+          // anchor to the exact related_id since they address a specific
+          // message.
+          const isPlainMessage =
+            notification.type === "team_message" ||
+            notification.type === "club_message" ||
+            notification.type === "group_message";
+
+          // team_messages
           const { data: teamMessage } = await supabase
             .from("team_messages")
-            .select("team_id")
+            .select("team_id, sender_id")
             .eq("id", relatedId)
             .maybeSingle();
           if (teamMessage?.team_id) {
-            if (anchor) {
-              setPendingChatJump("team", teamMessage.team_id, relatedId);
-              navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
-            } else {
-              navigate(`/messages/${teamMessage.team_id}`);
+            let targetId = relatedId;
+            if (isPlainMessage && teamMessage.sender_id) {
+              const { data: latest } = await supabase
+                .from("team_messages")
+                .select("id")
+                .eq("team_id", teamMessage.team_id)
+                .eq("sender_id", teamMessage.sender_id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latest?.id) targetId = latest.id;
             }
+            setPendingChatJump("team", teamMessage.team_id, targetId);
+            navigate(`/messages/${teamMessage.team_id}?message=${targetId}`);
             return;
           }
-          const { data: clubMsgForReaction } = await supabase
+          // club_messages
+          const { data: clubMsg } = await supabase
             .from("club_messages")
-            .select("club_id")
+            .select("club_id, sender_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (clubMsgForReaction?.club_id) {
-            if (anchor) {
-              setPendingChatJump("club", clubMsgForReaction.club_id, relatedId);
-              navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
-            } else {
-              navigate(`/messages/club/${clubMsgForReaction.club_id}`);
+          if (clubMsg?.club_id) {
+            let targetId = relatedId;
+            if (isPlainMessage && clubMsg.sender_id) {
+              const { data: latest } = await supabase
+                .from("club_messages")
+                .select("id")
+                .eq("club_id", clubMsg.club_id)
+                .eq("sender_id", clubMsg.sender_id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latest?.id) targetId = latest.id;
             }
+            setPendingChatJump("club", clubMsg.club_id, targetId);
+            navigate(`/messages/club/${clubMsg.club_id}?message=${targetId}`);
             return;
           }
-          const { data: groupMsgForReaction } = await supabase
+          // group_messages
+          const { data: groupMsg } = await supabase
             .from("group_messages")
-            .select("group_id")
+            .select("group_id, sender_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (groupMsgForReaction?.group_id) {
-            if (anchor) {
-              setPendingChatJump("group", groupMsgForReaction.group_id, relatedId);
-              navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
-            } else {
-              navigate(`/groups/${groupMsgForReaction.group_id}`);
+          if (groupMsg?.group_id) {
+            let targetId = relatedId;
+            if (isPlainMessage && groupMsg.sender_id) {
+              const { data: latest } = await supabase
+                .from("group_messages")
+                .select("id")
+                .eq("group_id", groupMsg.group_id)
+                .eq("sender_id", groupMsg.sender_id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latest?.id) targetId = latest.id;
             }
+            setPendingChatJump("group", groupMsg.group_id, targetId);
+            navigate(`/groups/${groupMsg.group_id}?message=${targetId}`);
             return;
           }
-          const { data: dmMsgForReaction } = await supabase
+          // direct_messages
+          const { data: dmMsg } = await supabase
             .from("direct_messages")
-            .select("conversation_id")
+            .select("conversation_id, sender_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (dmMsgForReaction?.conversation_id) {
-            if (anchor) {
-              setPendingChatJump("dm", dmMsgForReaction.conversation_id, relatedId);
-              navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
-            } else {
-              navigate(`/messages/dm/${dmMsgForReaction.conversation_id}`);
+          if (dmMsg?.conversation_id) {
+            let targetId = relatedId;
+            if (isPlainMessage && dmMsg.sender_id) {
+              const { data: latest } = await supabase
+                .from("direct_messages")
+                .select("id")
+                .eq("conversation_id", dmMsg.conversation_id)
+                .eq("sender_id", dmMsg.sender_id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latest?.id) targetId = latest.id;
             }
+            setPendingChatJump("dm", dmMsg.conversation_id, targetId);
+            navigate(`/messages/dm/${dmMsg.conversation_id}?message=${targetId}`);
             return;
           }
+          // broadcast_messages
           const { data: broadcastMsg } = await supabase
             .from("broadcast_messages")
             .select("id")
             .eq("id", relatedId)
             .maybeSingle();
           if (broadcastMsg) {
-            if (anchor) {
-              setPendingChatJump("broadcast", null, relatedId);
-              navigate(`/messages/broadcast?message=${relatedId}`);
-            } else {
-              navigate(`/messages/broadcast`);
-            }
-            return;
-          }
-          break;
-        }
-        case "club_message": {
-          // Plain "sent a message" — open the chat at latest/first-unread
-          // rather than anchoring to the original (possibly old) related_id.
-          const { data: clubMessage } = await supabase
-            .from("club_messages")
-            .select("club_id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (clubMessage?.club_id) {
-            navigate(`/messages/club/${clubMessage.club_id}`);
-            return;
-          }
-          break;
-        }
-        case "group_message": {
-          // Plain "sent a message" — open the chat at latest/first-unread
-          // rather than anchoring to the original (possibly old) related_id.
-          const { data: groupMessage } = await supabase
-            .from("group_messages")
-            .select("group_id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (groupMessage?.group_id) {
-            navigate(`/groups/${groupMessage.group_id}`);
+            setPendingChatJump("broadcast", null, relatedId);
+            navigate(`/messages/broadcast?message=${relatedId}`);
             return;
           }
           break;
