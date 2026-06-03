@@ -320,6 +320,7 @@ export function MentionInput({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const touchYRef = useRef<number | null>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Parse segments from raw value
@@ -350,6 +351,56 @@ export function MentionInput({
   useEffect(() => {
     adjustHeight();
   }, [value, adjustHeight]);
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    const syncHighlightScroll = () => {
+      if (highlightRef.current) {
+        highlightRef.current.scrollTop = textarea.scrollTop;
+      }
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchYRef.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const previousY = touchYRef.current;
+      const currentY = event.touches[0]?.clientY ?? null;
+      if (previousY == null || currentY == null) return;
+
+      const maxScrollTop = textarea.scrollHeight - textarea.clientHeight;
+      if (maxScrollTop <= 1) return;
+
+      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, textarea.scrollTop + previousY - currentY));
+      touchYRef.current = currentY;
+
+      if (Math.abs(nextScrollTop - textarea.scrollTop) < 0.5) return;
+
+      textarea.scrollTop = nextScrollTop;
+      syncHighlightScroll();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const handleTouchEnd = () => {
+      touchYRef.current = null;
+    };
+
+    textarea.addEventListener("touchstart", handleTouchStart, { passive: true });
+    textarea.addEventListener("touchmove", handleTouchMove, { passive: false });
+    textarea.addEventListener("touchend", handleTouchEnd);
+    textarea.addEventListener("touchcancel", handleTouchEnd);
+
+    return () => {
+      textarea.removeEventListener("touchstart", handleTouchStart);
+      textarea.removeEventListener("touchmove", handleTouchMove);
+      textarea.removeEventListener("touchend", handleTouchEnd);
+      textarea.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, []);
 
   const detectedUrls = useMemo(() => {
     const matches = value.match(URL_REGEX) || [];
