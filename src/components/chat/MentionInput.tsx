@@ -791,13 +791,13 @@ export function MentionInput({
       >
         {showEmojiPicker && (
           // Distinct 44px tap target sitting tight to the "+" on the left.
-          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1.5 mr-0" : "mr-0.5"}`}>
+          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1.5 mr-2" : "mr-2"}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
 
 
-        <div className={`relative flex-1 min-w-0 max-w-full overflow-hidden ${bare ? "-ml-1" : ""}`}>
+        <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
           {/* Highlight overlay for mentions */}
           {!isNativeIOS && (
             <div
