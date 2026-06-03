@@ -1430,10 +1430,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           if (isChatJumpActive()) return;
           const viewport = scrollerElRef.current;
           if (options?.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
+          // NOTE: do NOT pass `offset` here. The bottomPadding is already
+          // rendered as Virtuoso's Footer inside the list, so it already
+          // reserves the composer space above the scroll viewport bottom.
+          // Passing offset would apply the composer padding twice and push
+          // the last message (and the composer's visual baseline) high up
+          // the screen.
           virtuosoRef.current?.scrollToIndex({
             index: "LAST",
             align: "end",
-            offset: getChatBottomPaddingOffset(bottomPadding),
             behavior,
           });
           requestAnimationFrame(() => {
