@@ -1030,7 +1030,10 @@ export function AppHeader() {
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <ScrollArea className="max-h-[350px]">
+              <div
+                className="max-h-[350px] overflow-y-auto overscroll-contain"
+                style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+              >
                 {recentNotifications.length === 0 ? (
                   <div className="py-6 px-4 text-center text-sm text-muted-foreground">
                     No notifications yet
@@ -1061,7 +1064,7 @@ export function AppHeader() {
                     </DropdownMenuItem>
                   ))
                 )}
-              </ScrollArea>
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onSelect={(e) => { e.preventDefault(); setNotificationsOpen(false); navigate("/notifications"); }}
