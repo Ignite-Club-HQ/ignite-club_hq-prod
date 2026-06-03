@@ -286,12 +286,15 @@ export default function HomePage() {
         supabase
           .from("events")
           .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
-          // event_date is a DATE column — compare against a date-only string
-          // (YYYY-MM-DD) so today's events are always included regardless of
-          // the current UTC time. Using a full ISO timestamp here previously
-          // caused today's events to drop out of Next Up after ~midday UTC
-          // while still appearing on the Upcoming Schedule page.
-          .gte("event_date", now.toISOString().split("T")[0])
+          // event_date is a DATE column — compare against the user's LOCAL
+          // date (YYYY-MM-DD), not UTC. Using toISOString() previously caused
+          // yesterday's events to leak into Next Up for users east of UTC
+          // (e.g. AU/NZ), where the UTC date is still "yesterday" through
+          // mid-morning local time.
+          .gte(
+            "event_date",
+            `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+          )
           .order("event_date", { ascending: true })
           .limit(50),
       ]);
