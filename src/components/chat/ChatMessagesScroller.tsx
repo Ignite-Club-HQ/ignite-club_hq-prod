@@ -158,9 +158,12 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // composer grows to ~100-140px with the reply pill) render off-screen
   // behind the input. Add a small breathing gap so the newest bubble
   // doesn't kiss the composer border.
-  // 36 instead of 16 so a reaction pill on the last message (which hangs
-  // ~20px below the bubble) doesn't get clipped by the composer.
-  const COMPOSER_GAP = 36;
+  // Matches WhatsApp / Messenger: the latest bubble sits ~16px above the
+  // composer. The reaction pill that hangs ~20px below the bubble is allowed
+  // to overlap the composer's translucent top edge (it's still readable, and
+  // a 36px reserved gap made every sent message look stranded mid-screen
+  // — feedback received from users comparing against Messenger).
+  const COMPOSER_GAP = 16;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
