@@ -1795,6 +1795,33 @@ export default function MessagesPage() {
     };
   }, [user?.id, queryClient]);
 
+  // Force-refresh inbox previews on mount and whenever the page becomes
+  // visible again. The realtime channels above can miss inserts while the
+  // tab/app was backgrounded (especially on Android WebView), leaving the
+  // unread badge correctly bumped by the notifications channel but the
+  // preview text stuck on an older message. A cheap RPC refetch on visibility
+  // brings the latest-message text in sync with the unread badge.
+  useEffect(() => {
+    if (!user?.id) return;
+    const refreshPreviews = () => {
+      queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+    };
+    // Run once on mount so the cached preview is reconciled with the server.
+    refreshPreviews();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshPreviews();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [user?.id, queryClient]);
+
+
+
   // Check if we have cached data to show immediately
   const hasCachedData = cachedData && (
     cachedData.teams?.length > 0 || 
