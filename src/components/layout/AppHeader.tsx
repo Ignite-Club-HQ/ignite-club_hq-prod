@@ -25,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
+import { setPendingChatJump } from "@/lib/pendingChatJump";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -601,12 +602,14 @@ export function AppHeader() {
         case "team_message":
         case "message_reply":
         case "message_mention":
+        case "message_forwarded": {
           const { data: teamMessage } = await supabase
             .from("team_messages")
             .select("team_id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (teamMessage?.team_id) {
+            setPendingChatJump("team", teamMessage.team_id, relatedId);
             navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
@@ -614,8 +617,9 @@ export function AppHeader() {
             .from("club_messages")
             .select("club_id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (clubMsgForReaction?.club_id) {
+            setPendingChatJump("club", clubMsgForReaction.club_id, relatedId);
             navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
             return;
           }
@@ -623,44 +627,62 @@ export function AppHeader() {
             .from("group_messages")
             .select("group_id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (groupMsgForReaction?.group_id) {
+            setPendingChatJump("group", groupMsgForReaction.group_id, relatedId);
             navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+            return;
+          }
+          const { data: dmMsgForReaction } = await supabase
+            .from("direct_messages")
+            .select("conversation_id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (dmMsgForReaction?.conversation_id) {
+            setPendingChatJump("dm", dmMsgForReaction.conversation_id, relatedId);
+            navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
             return;
           }
           const { data: broadcastMsg } = await supabase
             .from("broadcast_messages")
             .select("id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (broadcastMsg) {
+            setPendingChatJump("broadcast", null, relatedId);
             navigate(`/messages/broadcast?message=${relatedId}`);
             return;
           }
           break;
-        case "club_message":
+        }
+        case "club_message": {
           const { data: clubMessage } = await supabase
             .from("club_messages")
             .select("club_id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (clubMessage?.club_id) {
+            setPendingChatJump("club", clubMessage.club_id, relatedId);
             navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
             return;
           }
           break;
-        case "group_message":
+        }
+        case "group_message": {
           const { data: groupMessage } = await supabase
             .from("group_messages")
             .select("group_id")
             .eq("id", relatedId)
-            .single();
+            .maybeSingle();
           if (groupMessage?.group_id) {
+            setPendingChatJump("group", groupMessage.group_id, relatedId);
             navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
             return;
           }
           break;
+        }
         case "broadcast":
+          setPendingChatJump("broadcast", null, relatedId);
           navigate(`/messages/broadcast?message=${relatedId}`);
           return;
         case "direct_message":
