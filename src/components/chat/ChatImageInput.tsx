@@ -692,7 +692,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   e.preventDefault();
                 }
               }}
-              className={`inline-flex items-center justify-center h-12 w-12 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation ${
+              className={`inline-flex items-center justify-center h-11 w-11 -ml-0.5 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation ${
                 menuOpen
                   ? "bg-muted/70 text-foreground/80"
                   : "text-foreground/55 hover:text-foreground hover:bg-muted/60 active:bg-muted/70"
