@@ -18,8 +18,13 @@ import { useEffect, useState, useCallback } from "react";
  */
 
 const STORAGE_KEY = "ignite_chat_actions_onboarding_v1";
-const MAX_TAP_HINTS = 4;
-const TAP_HINT_COOLDOWN_MS = 20_000;
+// Show the tap-hint tooltip on every short tap until the user has actually
+// long-pressed a message at least once. We only debounce by a short cooldown
+// to prevent flicker from accidental rapid taps / double-taps on the same
+// bubble — there is no hard cap, otherwise users who never discover the
+// gesture stop getting reminded after a few taps and report it as "broken".
+const MAX_TAP_HINTS = Number.POSITIVE_INFINITY;
+const TAP_HINT_COOLDOWN_MS = 1_200;
 
 interface OnboardingState {
   completed: boolean;
