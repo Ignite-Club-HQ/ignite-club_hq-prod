@@ -907,6 +907,8 @@ export default function ClubDetailPage() {
                        club?.sport?.toLowerCase().includes("football") || 
                        club?.sport?.toLowerCase().includes("futsal");
 
+  const { hasProFootball } = useClubProAccess(id);
+
 
   if (isLoading) {
     return (
