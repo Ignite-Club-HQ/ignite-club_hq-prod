@@ -382,22 +382,34 @@ serve(async (req) => {
           .from("profiles")
           .upsert({ id: memberId, display_name: m.name }, { onConflict: "id" });
 
-        // Club-level role (coach/parent/player at club scope)
-        await supabase
-          .from("user_roles")
-          .upsert(
-            { user_id: memberId, role: m.role, club_id: clubId, team_id: null },
-            { onConflict: "user_id,role,club_id,team_id" }
-          );
+        // Helper: insert role if no equivalent row already exists. We can't
+        // rely on .upsert(onConflict: …) because the table's unique index uses
+        // COALESCE(team_id, sentinel) which Postgres won't match to a plain
+        // ON CONFLICT (user_id, role, club_id, team_id) target.
+        const ensureRole = async (team_id: string | null) => {
+          const query = supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", memberId)
+            .eq("role", m.role)
+            .eq("club_id", clubId);
+          const { data: existingRole } = team_id
+            ? await query.eq("team_id", team_id).maybeSingle()
+            : await query.is("team_id", null).maybeSingle();
+          if (existingRole) return;
+          const { error: insErr } = await supabase
+            .from("user_roles")
+            .insert({ user_id: memberId, role: m.role, club_id: clubId, team_id });
+          if (insErr) {
+            results.push(`Role insert failed for ${m.email} (team=${team_id ?? "null"}): ${insErr.message}`);
+          }
+        };
 
+        // Club-level role
+        await ensureRole(null);
         // Team-level role if a team exists
         if (m.attachTeam && teamId) {
-          await supabase
-            .from("user_roles")
-            .upsert(
-              { user_id: memberId, role: m.role, club_id: clubId, team_id: teamId },
-              { onConflict: "user_id,role,club_id,team_id" }
-            );
+          await ensureRole(teamId);
         }
 
         seededMembers.push({ email: m.email, name: m.name, role: m.role, id: memberId });
