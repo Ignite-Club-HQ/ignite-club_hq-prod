@@ -716,9 +716,11 @@ export function AppHeader() {
           setPendingChatJump("broadcast", null, relatedId);
           navigate(`/messages/broadcast?message=${relatedId}`);
           return;
-        case "direct_message":
-          navigate(`/messages/dm/${relatedId}`);
+        case "direct_message": {
+          const opened = await openDirectMessageNotification(relatedId, notification.created_at);
+          if (!opened) navigate("/messages");
           return;
+        }
         case "event_invite":
         case "event_cancelled":
         case "event_updated":
