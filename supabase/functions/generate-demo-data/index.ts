@@ -241,6 +241,113 @@ serve(async (req) => {
       );
     }
 
+    // PUBLIC ACTION - create-free-tier-demo (idempotent setup of a single
+    // free-tier club + club_admin demo user). Safe because it only ever
+    // touches the one well-known account & club; rate-limited above.
+    if (action === "create-free-tier-demo") {
+      const clientId = getRateLimitKey(req);
+      const rateLimit = checkRateLimit(clientId);
+      if (!rateLimit.allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rateLimit.retryAfter || 60) } }
+        );
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const DEMO_NAME = "Free Tier Demo Admin";
+      const DEMO_EMAIL = "demo_free_1@demo.local";
+      const DEMO_CLUB_NAME = "Free Tier Demo Club";
+      const results: string[] = [];
+
+      // 1. Ensure club exists (free tier — no subscription row needed, defaults to free)
+      let clubId: string;
+      const { data: existingClub } = await supabase
+        .from("clubs")
+        .select("id")
+        .eq("name", DEMO_CLUB_NAME)
+        .maybeSingle();
+      if (existingClub) {
+        clubId = existingClub.id;
+        results.push(`Reused existing club ${clubId}`);
+      } else {
+        const { data: newClub, error: clubErr } = await supabase
+          .from("clubs")
+          .insert({ name: DEMO_CLUB_NAME, sport: "football" })
+          .select("id")
+          .single();
+        if (clubErr || !newClub) {
+          return new Response(JSON.stringify({ error: "club_create_failed", detail: clubErr?.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        clubId = newClub.id;
+        results.push(`Created club ${clubId}`);
+      }
+
+      // 1b. Ensure no Pro override on this club (force free tier)
+      await supabase
+        .from("club_subscriptions")
+        .upsert({
+          club_id: clubId,
+          is_pro: false,
+          is_pro_football: false,
+          admin_pro_override: false,
+          admin_pro_football_override: false,
+          expires_at: null,
+        }, { onConflict: "club_id" });
+
+      // 2. Ensure auth user exists
+      let userId: string;
+      const { data: listed } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const found = listed?.users?.find((u: any) => u.email === DEMO_EMAIL);
+      if (found) {
+        userId = found.id;
+        results.push(`Reused existing auth user ${userId}`);
+        // Reset password to known value
+        await supabase.auth.admin.updateUserById(userId, { password: DEMO_PASSWORD, email_confirm: true });
+      } else {
+        const { data: created, error: userErr } = await supabase.auth.admin.createUser({
+          email: DEMO_EMAIL,
+          password: DEMO_PASSWORD,
+          email_confirm: true,
+          user_metadata: { display_name: DEMO_NAME },
+        });
+        if (userErr || !created?.user) {
+          return new Response(JSON.stringify({ error: "user_create_failed", detail: userErr?.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        userId = created.user.id;
+        results.push(`Created auth user ${userId}`);
+      }
+
+      // 3. Ensure profile
+      await supabase
+        .from("profiles")
+        .upsert({ id: userId, display_name: DEMO_NAME }, { onConflict: "id" });
+
+      // 4. Ensure club_admin role on the free club, and only that role
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      const { error: roleErr } = await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: "club_admin", club_id: clubId });
+      if (roleErr) {
+        return new Response(JSON.stringify({ error: "role_create_failed", detail: roleErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      results.push("Assigned club_admin role on free-tier club");
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          email: DEMO_EMAIL,
+          password: DEMO_PASSWORD,
+          name: DEMO_NAME,
+          club_id: clubId,
+          club_name: DEMO_CLUB_NAME,
+          user_id: userId,
+          results,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get the user from the auth header for protected actions
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
