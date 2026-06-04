@@ -500,6 +500,8 @@ export default function EventsPage() {
           if (selectedMiniLeagueId) return event.mini_league_id === selectedMiniLeagueId;
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
+          // Club admins can see any team event within their club.
+          if (clubAdminClubIds.includes(event.club_id)) return true;
           if (selectedTeamIdFilter && selectedTeamIdFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
             return true;
           }
