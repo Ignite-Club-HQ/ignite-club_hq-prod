@@ -58,6 +58,7 @@ import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -337,6 +338,9 @@ export default function GroupChatPage() {
     enabled: !!groupId,
     staleTime: 5 * 60 * 1000,
   });
+
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
+  const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
 
   // Sync active club to this group's owning club so push-launched threads
   // don't leave the user inside the wrong club context.
@@ -1894,11 +1898,21 @@ export default function GroupChatPage() {
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
-                (isAdmin || group.created_by === user?.id) ? () => setPinVaultSheetOpen(true) : undefined
+                (isAdmin || group.created_by === user?.id)
+                  ? () => {
+                      if (pinnedVaultLocked) {
+                        toast.info("Pinned vault is a Pro feature");
+                        if (group.club_id) navigate(`/clubs/${group.club_id}/upgrade`);
+                        return;
+                      }
+                      setPinVaultSheetOpen(true);
+                    }
+                  : undefined
               }
+              pinnedVaultLocked={!!(isAdmin || group.created_by === user?.id) && pinnedVaultLocked}
               pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
               onTogglePinnedVault={
-                pinnedVault.record && (isAdmin || group.created_by === user?.id)
+                pinnedVault.record && (isAdmin || group.created_by === user?.id) && !pinnedVaultLocked
                   ? (v) => pinnedVault.toggleEnabled(v)
                   : undefined
               }

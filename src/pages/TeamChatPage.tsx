@@ -43,6 +43,7 @@ import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -384,6 +385,8 @@ export default function TeamChatPage() {
 
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const pinnedVault = useChatPinnedVault("team", teamId);
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null);
+  const pinnedVaultLocked = !clubProLoading && !clubHasPro;
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
     if (!teamId || !isAdmin || memberUserId === user?.id) return;
@@ -1614,10 +1617,22 @@ export default function TeamChatPage() {
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
-              onManagePinnedVault={isAdmin ? () => setPinVaultSheetOpen(true) : undefined}
+              onManagePinnedVault={
+                isAdmin
+                  ? () => {
+                      if (pinnedVaultLocked) {
+                        toast.info("Pinned vault is a Pro feature");
+                        if (team?.club_id) navigate(`/clubs/${team.club_id}/upgrade`);
+                        return;
+                      }
+                      setPinVaultSheetOpen(true);
+                    }
+                  : undefined
+              }
+              pinnedVaultLocked={!!isAdmin && pinnedVaultLocked}
               pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
               onTogglePinnedVault={
-                pinnedVault.record && isAdmin ? (v) => pinnedVault.toggleEnabled(v) : undefined
+                pinnedVault.record && isAdmin && !pinnedVaultLocked ? (v) => pinnedVault.toggleEnabled(v) : undefined
               }
             />
           </>
