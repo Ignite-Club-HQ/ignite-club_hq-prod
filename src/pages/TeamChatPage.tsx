@@ -385,6 +385,8 @@ export default function TeamChatPage() {
 
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const pinnedVault = useChatPinnedVault("team", teamId);
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null);
+  const pinnedVaultLocked = !clubProLoading && !clubHasPro;
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
     if (!teamId || !isAdmin || memberUserId === user?.id) return;

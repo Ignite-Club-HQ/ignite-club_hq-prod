@@ -169,6 +169,8 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const pinnedVault = useChatPinnedVault("club", clubId ?? undefined);
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null);
+  const pinnedVaultLocked = !clubProLoading && !clubHasPro;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
   const useVirtualizedChat = true;

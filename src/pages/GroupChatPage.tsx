@@ -233,6 +233,8 @@ export default function GroupChatPage() {
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const pinnedVault = useChatPinnedVault("group", groupId);
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
+  const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
