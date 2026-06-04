@@ -25,7 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
-import { setPendingChatJump } from "@/lib/pendingChatJump";
+import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -568,7 +568,7 @@ export function AppHeader() {
       .maybeSingle();
     if (directMsg?.conversation_id) {
       setPendingChatJump("dm", directMsg.conversation_id, directMsg.id);
-      navigate(`/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`);
+      navigate(withChatJumpNonce(`/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`));
       return true;
     }
 
@@ -601,7 +601,7 @@ export function AppHeader() {
 
     if (nearestMsg?.id) {
       setPendingChatJump("dm", relatedId, nearestMsg.id);
-      navigate(`/messages/dm/${relatedId}?message=${nearestMsg.id}`);
+      navigate(withChatJumpNonce(`/messages/dm/${relatedId}?message=${nearestMsg.id}`));
     } else {
       navigate(`/messages/dm/${relatedId}`);
     }
