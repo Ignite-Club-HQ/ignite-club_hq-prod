@@ -1148,7 +1148,7 @@ function ChatMessageInner({
                     <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
                   </div>
               )
-            : <p className={`text-[10px] text-muted-foreground/55 mt-0.5 px-0.5 tabular-nums tracking-tight ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : <p className={`text-[10px] text-muted-foreground/55 mt-px px-0.5 tabular-nums tracking-tight ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
