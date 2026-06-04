@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +20,8 @@ interface ChatHeaderMenuProps {
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
   pinnedVaultEnabled?: boolean | null;
   onTogglePinnedVault?: (enabled: boolean) => void;
+  /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
+  pinnedVaultLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
