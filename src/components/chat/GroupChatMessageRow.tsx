@@ -314,6 +314,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
     return () => {
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
       window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
   }, [clearDismissGuard, showReactionPicker]);
