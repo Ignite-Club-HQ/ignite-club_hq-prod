@@ -525,37 +525,40 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="competition-invite-team-search">Find team</Label>
-          <Input
-            id="competition-invite-team-search"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
-            placeholder="Search by team name"
-          />
-
           {selectedTeam ? (
-            <div className="mt-2 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+            <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div className="text-sm">
                 <span className="font-medium">{selectedTeam.name}</span>
                 {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setTeamId("")}>Change</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
             </div>
-          ) : (search.trim().length > 0 || clubFilterId) && (
-            <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
-              {teams.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
-              ) : teams.map((t: any) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTeamId(t.id)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                >
-                  <div className="font-medium">{t.name}</div>
-                  {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
-                </button>
-              ))}
-            </div>
+          ) : (
+            <>
+              <Input
+                id="competition-invite-team-search"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
+                placeholder="Search by team name"
+              />
+              {(search.trim().length > 0 || clubFilterId) && (
+                <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+                  {teams.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
+                  ) : teams.map((t: any) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => { setTeamId(t.id); setSearch(""); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    >
+                      <div className="font-medium">{t.name}</div>
+                      {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
         {divisions.length > 0 && (
