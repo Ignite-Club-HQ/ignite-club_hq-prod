@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
-import { consumePendingChatJump } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -277,10 +277,14 @@ export default function GroupChatPage() {
   }, []);
 
   const urlMessageId = searchParams.get("message");
+  const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
+  useEffect(() => subscribePendingChatJump(setLiveJump), []);
+  const liveJumpId = liveJump?.kind === "group" && liveJump.targetId === groupId ? liveJump.messageId : null;
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     groupId ? consumePendingChatJump("group", groupId) : null,
   );
-  const targetMessageId = urlMessageId ?? fallbackJumpId;
+  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
@@ -298,7 +302,7 @@ export default function GroupChatPage() {
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId]);
+  }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages
   const {
