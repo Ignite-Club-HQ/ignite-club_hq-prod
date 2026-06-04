@@ -212,11 +212,11 @@ export default function ClubChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "club" && liveJump.targetId === clubId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
+  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     clubId ? consumePendingChatJump("club", clubId) : null,
   );
-  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
+  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
 

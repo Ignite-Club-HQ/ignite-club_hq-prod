@@ -281,11 +281,11 @@ export default function GroupChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "group" && liveJump.targetId === groupId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
+  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     groupId ? consumePendingChatJump("group", groupId) : null,
   );
-  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
+  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).

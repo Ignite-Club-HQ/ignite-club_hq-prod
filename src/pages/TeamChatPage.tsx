@@ -241,11 +241,11 @@ export default function TeamChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "team" && liveJump.targetId === teamId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
+  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     teamId ? consumePendingChatJump("team", teamId) : null,
   );
-  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
+  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (push /
