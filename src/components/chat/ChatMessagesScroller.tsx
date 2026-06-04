@@ -163,7 +163,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // to overlap the composer's translucent top edge (it's still readable, and
   // a 36px reserved gap made every sent message look stranded mid-screen
   // — feedback received from users comparing against Messenger).
-  const COMPOSER_GAP = 16;
+  const COMPOSER_GAP = 20;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
