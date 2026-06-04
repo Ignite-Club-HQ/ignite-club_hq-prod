@@ -240,7 +240,8 @@ export default function TeamChatPage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "team" && liveJump.targetId === teamId ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
   const [fallbackJumpId] = useState(() =>
     teamId ? consumePendingChatJump("team", teamId) : null,
   );
