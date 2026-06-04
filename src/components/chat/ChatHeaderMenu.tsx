@@ -33,6 +33,7 @@ export function ChatHeaderMenu({
   onManagePinnedVault,
   pinnedVaultEnabled,
   onTogglePinnedVault,
+  pinnedVaultLocked = false,
 }: ChatHeaderMenuProps) {
   const hasAnyAction =
     !!onRefresh
