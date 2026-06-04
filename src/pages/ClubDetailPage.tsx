@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 
