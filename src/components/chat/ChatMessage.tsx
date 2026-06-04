@@ -836,7 +836,7 @@ function ChatMessageInner({
         </button>
       )}
 
-      <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full min-w-0 max-w-[82%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {/* Always reserve the name-row height for non-own, non-announcement
             messages so late profile hydration on first-ever open of a thread
             does not cause cumulative vertical layout shift (which the chat
