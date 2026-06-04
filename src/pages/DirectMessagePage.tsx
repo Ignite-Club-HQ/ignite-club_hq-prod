@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
-import { consumePendingChatJump } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -255,10 +255,14 @@ export default function DirectMessagePage() {
   }, []);
 
   const urlMessageId = searchParams.get("message");
+  const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
+  useEffect(() => subscribePendingChatJump(setLiveJump), []);
+  const liveJumpId = liveJump?.kind === "dm" && liveJump.targetId === conversationId ? liveJump.messageId : null;
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     conversationId ? consumePendingChatJump("dm", conversationId) : null,
   );
-  const targetMessageId = urlMessageId ?? fallbackJumpId;
+  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
@@ -274,7 +278,7 @@ export default function DirectMessagePage() {
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId]);
+  }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages (DM)
   const {
