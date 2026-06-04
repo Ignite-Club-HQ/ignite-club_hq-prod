@@ -613,6 +613,45 @@ export default function NotificationsPage() {
     },
   });
 
+  const openDirectMessageNotification = async (relatedId: string, createdAt?: string | null) => {
+    const { data: directMsg } = await supabase
+      .from("direct_messages")
+      .select("id, conversation_id")
+      .eq("id", relatedId)
+      .maybeSingle();
+    if (directMsg?.conversation_id) {
+      jumpAndNavigate(navigate, "dm", directMsg.conversation_id, directMsg.id, `/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`);
+      return true;
+    }
+
+    const { data: conversation } = await supabase
+      .from("direct_conversations")
+      .select("id")
+      .eq("id", relatedId)
+      .maybeSingle();
+    if (!conversation) return false;
+
+    const clickedAt = createdAt ? new Date(createdAt) : null;
+    const upperBound = clickedAt && !Number.isNaN(clickedAt.getTime())
+      ? new Date(clickedAt.getTime() + 30_000).toISOString()
+      : null;
+    let messageQuery = supabase
+      .from("direct_messages")
+      .select("id, conversation_id")
+      .eq("conversation_id", relatedId)
+      .is("deleted_at", null);
+    if (user?.id) messageQuery = messageQuery.neq("author_id", user.id);
+    if (upperBound) messageQuery = messageQuery.lte("created_at", upperBound);
+    const { data: nearestMsg } = await messageQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+    if (nearestMsg?.id) {
+      jumpAndNavigate(navigate, "dm", relatedId, nearestMsg.id, `/messages/dm/${relatedId}?message=${nearestMsg.id}`);
+    } else {
+      navigate(`/messages/dm/${relatedId}`);
+    }
+    return true;
+  };
+
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read first
     if (!notification.read) {
@@ -743,8 +782,7 @@ export default function NotificationsPage() {
         jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         break;
       case "direct_message":
-        // related_id is the conversation_id
-        navigate(`/messages/dm/${relatedId}`);
+        if (!(await openDirectMessageNotification(relatedId, notification.created_at))) navigate("/messages");
         break;
       case "event_invite":
       case "event_cancelled":
