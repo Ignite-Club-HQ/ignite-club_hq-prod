@@ -559,6 +559,55 @@ export function AppHeader() {
     },
   });
 
+  const openDirectMessageNotification = async (relatedId: string, createdAt?: string | null) => {
+    // Current rows store related_id as the exact direct_messages.id.
+    const { data: directMsg } = await supabase
+      .from("direct_messages")
+      .select("id, conversation_id")
+      .eq("id", relatedId)
+      .maybeSingle();
+    if (directMsg?.conversation_id) {
+      setPendingChatJump("dm", directMsg.conversation_id, directMsg.id);
+      navigate(`/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`);
+      return true;
+    }
+
+    // Backward compatibility: older DM notifications stored related_id as the
+    // conversation id. Resolve the message nearest the notification timestamp
+    // from the other participant, not the latest message in the thread.
+    const { data: conversation } = await supabase
+      .from("direct_conversations")
+      .select("id")
+      .eq("id", relatedId)
+      .maybeSingle();
+    if (!conversation) return false;
+
+    const clickedAt = createdAt ? new Date(createdAt) : null;
+    const upperBound = clickedAt && !Number.isNaN(clickedAt.getTime())
+      ? new Date(clickedAt.getTime() + 30_000).toISOString()
+      : null;
+
+    let messageQuery = supabase
+      .from("direct_messages")
+      .select("id, conversation_id")
+      .eq("conversation_id", relatedId)
+      .is("deleted_at", null);
+    if (user?.id) messageQuery = messageQuery.neq("author_id", user.id);
+    if (upperBound) messageQuery = messageQuery.lte("created_at", upperBound);
+    const { data: nearestMsg } = await messageQuery
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (nearestMsg?.id) {
+      setPendingChatJump("dm", relatedId, nearestMsg.id);
+      navigate(`/messages/dm/${relatedId}?message=${nearestMsg.id}`);
+    } else {
+      navigate(`/messages/dm/${relatedId}`);
+    }
+    return true;
+  };
+
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
       // Mark as read first - use mutateAsync to ensure it completes before navigation
@@ -584,7 +633,7 @@ export function AppHeader() {
           const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
           if (gMsg?.group_id) { navigate(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
           const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
-          if (dMsg?.conversation_id) { navigate(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
+          if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigate(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
           const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
           if (bMsg) { navigate(`/messages/broadcast?message=${relatedId}`); return; }
           // Backward-compat: very old rows stored container_id as related_id.
@@ -667,9 +716,11 @@ export function AppHeader() {
           setPendingChatJump("broadcast", null, relatedId);
           navigate(`/messages/broadcast?message=${relatedId}`);
           return;
-        case "direct_message":
-          navigate(`/messages/dm/${relatedId}`);
+        case "direct_message": {
+          const opened = await openDirectMessageNotification(relatedId, notification.created_at);
+          if (!opened) navigate("/messages");
           return;
+        }
         case "event_invite":
         case "event_cancelled":
         case "event_updated":
