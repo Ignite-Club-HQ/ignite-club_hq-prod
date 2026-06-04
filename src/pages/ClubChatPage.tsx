@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { consumePendingChatJump } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -208,10 +208,14 @@ export default function ClubChatPage() {
   }, []);
 
   const urlMessageId = searchParams.get("message");
+  const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
+  useEffect(() => subscribePendingChatJump(setLiveJump), []);
+  const liveJumpId = liveJump?.kind === "club" && liveJump.targetId === clubId ? liveJump.messageId : null;
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     clubId ? consumePendingChatJump("club", clubId) : null,
   );
-  const targetMessageId = urlMessageId ?? fallbackJumpId;
+  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
 
@@ -230,7 +234,7 @@ export default function ClubChatPage() {
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId]);
+  }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages
   const {
