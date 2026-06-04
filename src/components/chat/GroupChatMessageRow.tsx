@@ -480,6 +480,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               onTouchEnd={handleLongPressEnd}
               onContextMenu={handleContextMenu}
             >
+              {showTapHint && (
+                <div
+                  className={`pointer-events-none absolute -top-7 z-20 whitespace-nowrap rounded-full bg-foreground/90 text-background px-2.5 py-1 text-[10.5px] font-medium shadow-md animate-fade-in ${
+                    isOwnMessage ? "right-2" : "left-2"
+                  }`}
+                  role="status"
+                >
+                  Press and hold for reactions and replies
+                </div>
+              )}
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
