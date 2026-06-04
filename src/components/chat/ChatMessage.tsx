@@ -836,7 +836,7 @@ function ChatMessageInner({
         </button>
       )}
 
-      <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full min-w-0 max-w-[82%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {/* Always reserve the name-row height for non-own, non-announcement
             messages so late profile hydration on first-ever open of a thread
             does not cause cumulative vertical layout shift (which the chat
@@ -1118,7 +1118,7 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-0.5 px-1 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end" : ""}`}>
+          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-1.5 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end pr-2.5" : "pl-2.5"}`}>
 
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
@@ -1148,7 +1148,7 @@ function ChatMessageInner({
                     <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
                   </div>
               )
-            : <p className={`text-[10px] text-muted-foreground/55 mt-0.5 px-0.5 tabular-nums tracking-tight ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : <p className={`text-[10px] text-muted-foreground/55 mt-1.5 tabular-nums tracking-tight ${isOwn ? "text-right pr-2.5" : "pl-2.5"}`}>Sent</p>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet

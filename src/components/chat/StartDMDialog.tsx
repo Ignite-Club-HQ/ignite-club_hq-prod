@@ -739,13 +739,13 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               )}
 
 
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="relative px-0.5 pt-0.5">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search members..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="h-11 rounded-xl pl-9"
                 />
               </div>
 

@@ -26,13 +26,13 @@ export function ChatActionsOnboardingBanner() {
   if (!visible || actionSheetOpen) return null;
 
   return (
-    <div className="px-2 pb-1 animate-fade-in">
-      <div className="mx-auto flex max-w-md items-center gap-2 rounded-full bg-muted/60 dark:bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground">
-        <span className="shrink-0 rounded-full bg-primary/15 text-primary px-1.5 py-[1px] text-[9.5px] font-semibold uppercase tracking-wide leading-none">
+    <div className="px-2 pb-0.5 animate-fade-in">
+      <div className="mx-auto flex max-w-md items-center gap-1.5 rounded-full bg-muted/45 dark:bg-muted/30 px-2 py-[2px] text-[10.5px] text-muted-foreground/85">
+        <span className="shrink-0 rounded-full bg-primary/15 text-primary px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-wide leading-none">
           New
         </span>
         <span className="flex-1 leading-tight tracking-tight truncate">
-          Press and hold messages for reactions and replies
+          Press &amp; hold messages for reactions and replies
         </span>
         <button
           type="button"

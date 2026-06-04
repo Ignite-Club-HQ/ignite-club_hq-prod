@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { consumePendingChatJump } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -158,8 +158,12 @@ export default function BroadcastChatPage() {
   }, []);
 
   const urlMessageId = searchParams.get("message");
+  const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
+  useEffect(() => subscribePendingChatJump(setLiveJump), []);
+  const liveJumpId = liveJump?.kind === "broadcast" ? liveJump.messageId : null;
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
-  const targetMessageId = urlMessageId ?? fallbackJumpId;
+  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
 
@@ -178,7 +182,7 @@ export default function BroadcastChatPage() {
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId]);
+  }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Check if user is app admin
   const { data: isAppAdmin } = useQuery({

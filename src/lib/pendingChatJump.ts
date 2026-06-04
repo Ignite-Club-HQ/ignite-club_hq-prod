@@ -18,6 +18,7 @@ import { setFromNotificationFlag } from "@/lib/notificationPreload";
 
 const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
+const JUMP_EVENT = "ignite:pending-chat-jump";
 
 export type ChatJumpKind = "team" | "club" | "group" | "dm" | "broadcast" | "club_admin";
 
@@ -32,6 +33,18 @@ interface ChatJumpTarget {
   kind: ChatJumpKind;
   targetId: string | null;
   messageId: string;
+}
+
+export type PendingChatJumpPayload = StoredJump;
+
+export function subscribePendingChatJump(handler: (jump: PendingChatJumpPayload) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<PendingChatJumpPayload>).detail;
+    if (detail?.kind && detail?.messageId) handler(detail);
+  };
+  window.addEventListener(JUMP_EVENT, listener);
+  return () => window.removeEventListener(JUMP_EVENT, listener);
 }
 
 function read(): StoredJump | null {
@@ -52,30 +65,42 @@ function read(): StoredJump | null {
 }
 
 export function setPendingChatJump(kind: ChatJumpKind, targetId: string | null, messageId: string): void {
+  const payload: StoredJump = { kind, targetId, messageId, ts: Date.now() };
   try {
     if (typeof sessionStorage === "undefined") return;
-    const payload: StoredJump = { kind, targetId, messageId, ts: Date.now() };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(JUMP_EVENT, { detail: payload }));
+    }
   } catch {
     /* ignore */
   }
 }
 
 function pickMessageId(data: any, parsed?: URL): string | null {
-  return (
+  const explicitMessageId =
     parsed?.searchParams.get("message") ||
     data?.message_id ||
     data?.messageId ||
     data?.messageID ||
     data?.target_message_id ||
     data?.targetMessageId ||
-    // Message notification rows store the message id in related_id. Keep this
-    // as a last resort because some older direct-message notifications used
-    // related_id for the conversation id instead.
-    data?.related_id ||
-    data?.relatedId ||
-    null
-  );
+    null;
+  if (explicitMessageId) return explicitMessageId;
+
+  // Direct-message notifications historically stored the conversation id in
+  // related_id. Never treat that as a message id unless an explicit message id
+  // is also present, otherwise multiple pushes from the same sender can all
+  // collapse to an arbitrary/latest message in that conversation.
+  const type = String(data?.notificationType || data?.type || "");
+  if (type === "direct_message") return null;
+
+  // Other message notification rows store the exact message id in related_id.
+  return data?.related_id || data?.relatedId || null;
 }
 
 function getJumpTarget(data: any, url: string | null | undefined): ChatJumpTarget | null {
