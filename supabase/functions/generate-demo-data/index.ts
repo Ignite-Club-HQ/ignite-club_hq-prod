@@ -332,6 +332,71 @@ serve(async (req) => {
       }
       results.push("Assigned club_admin role on free-tier club");
 
+      // 5. Seed a few demo members on the free-tier club. If a team already
+      //    exists in the club (e.g. "Test"), attach them there too. Idempotent.
+      const FREE_TIER_MEMBERS: Array<{ name: string; email: string; role: string; attachTeam: boolean }> = [
+        { name: "Free Tier Demo Coach", email: "demo_free_coach@demo.local", role: "coach", attachTeam: true },
+        { name: "Free Tier Demo Team Admin", email: "demo_free_teamadmin@demo.local", role: "team_admin", attachTeam: true },
+        { name: "Free Tier Demo Parent A", email: "demo_free_parent_a@demo.local", role: "parent", attachTeam: true },
+        { name: "Free Tier Demo Parent B", email: "demo_free_parent_b@demo.local", role: "parent", attachTeam: true },
+        { name: "Free Tier Demo Player", email: "demo_free_player@demo.local", role: "player", attachTeam: true },
+      ];
+
+      // Find first team in club (if admin already created one in-app)
+      const { data: clubTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId)
+        .limit(1);
+      const teamId = clubTeams && clubTeams.length > 0 ? clubTeams[0].id : null;
+
+      const seededMembers: Array<{ email: string; name: string; role: string; id: string }> = [];
+      for (const m of FREE_TIER_MEMBERS) {
+        let memberId: string;
+        const existing = listed?.users?.find((u: any) => u.email === m.email);
+        if (existing) {
+          memberId = existing.id;
+          await supabase.auth.admin.updateUserById(memberId, { password: DEMO_PASSWORD, email_confirm: true });
+        } else {
+          const { data: createdMember, error: memberErr } = await supabase.auth.admin.createUser({
+            email: m.email,
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+            user_metadata: { display_name: m.name },
+          });
+          if (memberErr || !createdMember?.user) {
+            results.push(`Skipped ${m.email}: ${memberErr?.message ?? "unknown"}`);
+            continue;
+          }
+          memberId = createdMember.user.id;
+        }
+
+        await supabase
+          .from("profiles")
+          .upsert({ id: memberId, display_name: m.name }, { onConflict: "id" });
+
+        // Club-level role (coach/parent/player at club scope)
+        await supabase
+          .from("user_roles")
+          .upsert(
+            { user_id: memberId, role: m.role, club_id: clubId, team_id: null },
+            { onConflict: "user_id,role,club_id,team_id" }
+          );
+
+        // Team-level role if a team exists
+        if (m.attachTeam && teamId) {
+          await supabase
+            .from("user_roles")
+            .upsert(
+              { user_id: memberId, role: m.role, club_id: clubId, team_id: teamId },
+              { onConflict: "user_id,role,club_id,team_id" }
+            );
+        }
+
+        seededMembers.push({ email: m.email, name: m.name, role: m.role, id: memberId });
+      }
+      results.push(`Seeded ${seededMembers.length} free-tier demo members${teamId ? " (attached to existing team)" : " (club only — no team yet)"}`);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -341,6 +406,7 @@ serve(async (req) => {
           club_id: clubId,
           club_name: DEMO_CLUB_NAME,
           user_id: userId,
+          members: seededMembers,
           results,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
