@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { consumePendingChatJump } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { useChatDraft } from "@/hooks/useChatDraft";
@@ -237,10 +237,14 @@ export default function TeamChatPage() {
   }, []);
 
   const urlMessageId = searchParams.get("message");
+  const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
+  useEffect(() => subscribePendingChatJump(setLiveJump), []);
+  const liveJumpId = liveJump?.kind === "team" && liveJump.targetId === teamId ? liveJump.messageId : null;
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     teamId ? consumePendingChatJump("team", teamId) : null,
   );
-  const targetMessageId = urlMessageId ?? fallbackJumpId;
+  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (push /
@@ -261,7 +265,7 @@ export default function TeamChatPage() {
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId]);
+  }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages
   const {
