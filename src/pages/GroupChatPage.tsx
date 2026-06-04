@@ -280,7 +280,8 @@ export default function GroupChatPage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "group" && liveJump.targetId === groupId ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
   const [fallbackJumpId] = useState(() =>
     groupId ? consumePendingChatJump("group", groupId) : null,
   );

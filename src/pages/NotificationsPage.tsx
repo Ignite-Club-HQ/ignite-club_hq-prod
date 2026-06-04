@@ -23,7 +23,7 @@ import { playNotificationSound, showBrowserNotification } from "@/lib/notificati
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
-import { setPendingChatJump, type ChatJumpKind } from "@/lib/pendingChatJump";
+import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 
 /**
  * Belt-and-braces: when navigating from a notification tap to a chat that
@@ -41,7 +41,7 @@ function jumpAndNavigate(
   to: string,
 ) {
   try { setPendingChatJump(kind, targetId, messageId); } catch { /* ignore */ }
-  navigate(to);
+  navigate(withChatJumpNonce(to));
 }
 
 interface Notification {

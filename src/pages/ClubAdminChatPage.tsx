@@ -343,7 +343,8 @@ export default function ClubAdminChatPage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "club_admin" && liveJump.targetId === conversationId ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
   const [fallbackJumpId] = useState(() =>
     conversationId ? consumePendingChatJump("club_admin", conversationId) : null,
   );

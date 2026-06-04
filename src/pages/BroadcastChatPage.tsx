@@ -161,7 +161,8 @@ export default function BroadcastChatPage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "broadcast" ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = liveJumpId ? liveJump?.ts : urlJumpNonce ?? undefined;
   const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
   const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
