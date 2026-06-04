@@ -608,6 +608,8 @@ export function AppHeader() {
     return true;
   };
 
+  const navigateWithFreshJump = (to: string) => navigate(withChatJumpNonce(to));
+
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
       // Mark as read first - use mutateAsync to ensure it completes before navigation
@@ -627,15 +629,15 @@ export function AppHeader() {
           // which chat container that message belongs to and deep-link with
           // ?message= so the chat page scrolls to it.
           const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle();
-          if (tMsg?.team_id) { navigate(`/messages/${tMsg.team_id}?message=${relatedId}`); return; }
+          if (tMsg?.team_id) { navigateWithFreshJump(`/messages/${tMsg.team_id}?message=${relatedId}`); return; }
           const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
-          if (cMsg?.club_id) { navigate(`/messages/club/${cMsg.club_id}?message=${relatedId}`); return; }
+          if (cMsg?.club_id) { navigateWithFreshJump(`/messages/club/${cMsg.club_id}?message=${relatedId}`); return; }
           const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
-          if (gMsg?.group_id) { navigate(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
+          if (gMsg?.group_id) { navigateWithFreshJump(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
           const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
-          if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigate(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
+          if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigateWithFreshJump(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
           const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
-          if (bMsg) { navigate(`/messages/broadcast?message=${relatedId}`); return; }
+          if (bMsg) { navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`); return; }
           // Backward-compat: very old rows stored container_id as related_id.
           const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
           if (teamCheck) { navigate(`/messages/${relatedId}`); return; }
