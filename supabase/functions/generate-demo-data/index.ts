@@ -132,8 +132,11 @@ serve(async (req) => {
         "New User Alex", "New User Sam", "New User Jordan", "New User Casey", "New User Riley"
       ];
       
+      // Free-tier demo accounts (single-club, no Pro)
+      const FREE_TIER_DEMO_NAMES = ["Free Tier Demo Admin"];
+      
       // Combine all demo user names
-      const ALL_DEMO_NAMES = [...DEMO_USER_NAMES, ...UNASSOCIATED_USER_NAMES];
+      const ALL_DEMO_NAMES = [...DEMO_USER_NAMES, ...UNASSOCIATED_USER_NAMES, ...FREE_TIER_DEMO_NAMES];
       
       // Get ALL demo player profiles with their roles and club/team info
       const { data: demoProfiles } = await supabase
