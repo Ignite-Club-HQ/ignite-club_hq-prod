@@ -1378,11 +1378,21 @@ export default function ClubChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onManagePinnedVault={
-                (isClubAdmin || isAppAdmin) ? () => setPinVaultSheetOpen(true) : undefined
+                (isClubAdmin || isAppAdmin)
+                  ? () => {
+                      if (pinnedVaultLocked) {
+                        toast({ title: "Pinned vault is a Pro feature" });
+                        if (clubId) navigate(`/clubs/${clubId}/upgrade`);
+                        return;
+                      }
+                      setPinVaultSheetOpen(true);
+                    }
+                  : undefined
               }
+              pinnedVaultLocked={!!(isClubAdmin || isAppAdmin) && pinnedVaultLocked}
               pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
               onTogglePinnedVault={
-                pinnedVault.record && (isClubAdmin || isAppAdmin)
+                pinnedVault.record && (isClubAdmin || isAppAdmin) && !pinnedVaultLocked
                   ? (v) => pinnedVault.toggleEnabled(v)
                   : undefined
               }

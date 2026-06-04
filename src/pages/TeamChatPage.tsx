@@ -1617,10 +1617,22 @@ export default function TeamChatPage() {
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
-              onManagePinnedVault={isAdmin ? () => setPinVaultSheetOpen(true) : undefined}
+              onManagePinnedVault={
+                isAdmin
+                  ? () => {
+                      if (pinnedVaultLocked) {
+                        toast.info("Pinned vault is a Pro feature");
+                        if (team?.club_id) navigate(`/clubs/${team.club_id}/upgrade`);
+                        return;
+                      }
+                      setPinVaultSheetOpen(true);
+                    }
+                  : undefined
+              }
+              pinnedVaultLocked={!!isAdmin && pinnedVaultLocked}
               pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
               onTogglePinnedVault={
-                pinnedVault.record && isAdmin ? (v) => pinnedVault.toggleEnabled(v) : undefined
+                pinnedVault.record && isAdmin && !pinnedVaultLocked ? (v) => pinnedVault.toggleEnabled(v) : undefined
               }
             />
           </>
