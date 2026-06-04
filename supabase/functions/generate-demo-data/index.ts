@@ -200,6 +200,7 @@ serve(async (req) => {
       const allUsers = demoProfiles.map((profile) => {
         const demoIndex = DEMO_USER_NAMES.indexOf(profile.display_name);
         const unassociatedIndex = UNASSOCIATED_USER_NAMES.indexOf(profile.display_name);
+        const freeTierIndex = FREE_TIER_DEMO_NAMES.indexOf(profile.display_name);
         const roleData = userRolesMap.get(profile.id);
         
         // Determine email based on user type
@@ -208,6 +209,8 @@ serve(async (req) => {
           email = `${DEMO_USER_EMAILS_PREFIX}${demoIndex + 1}@demo.local`;
         } else if (unassociatedIndex >= 0) {
           email = `demo_unassociated_${unassociatedIndex + 1}@demo.local`;
+        } else if (freeTierIndex >= 0) {
+          email = `demo_free_${freeTierIndex + 1}@demo.local`;
         } else {
           email = `demo_unknown@demo.local`;
         }
