@@ -668,7 +668,7 @@ export function AppHeader() {
             .maybeSingle();
           if (teamMessage?.team_id) {
             setPendingChatJump("team", teamMessage.team_id, relatedId);
-            navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
           const { data: clubMsg } = await supabase
@@ -678,7 +678,7 @@ export function AppHeader() {
             .maybeSingle();
           if (clubMsg?.club_id) {
             setPendingChatJump("club", clubMsg.club_id, relatedId);
-            navigate(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
             return;
           }
           const { data: groupMsg } = await supabase
@@ -688,7 +688,7 @@ export function AppHeader() {
             .maybeSingle();
           if (groupMsg?.group_id) {
             setPendingChatJump("group", groupMsg.group_id, relatedId);
-            navigate(`/groups/${groupMsg.group_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/groups/${groupMsg.group_id}?message=${relatedId}`);
             return;
           }
           const { data: dmMsg } = await supabase
