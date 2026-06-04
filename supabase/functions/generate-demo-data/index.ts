@@ -133,7 +133,14 @@ serve(async (req) => {
       ];
       
       // Free-tier demo accounts (single-club, no Pro)
-      const FREE_TIER_DEMO_NAMES = ["Free Tier Demo Admin"];
+      const FREE_TIER_DEMO_NAMES = [
+        "Free Tier Demo Admin",
+        "Free Tier Demo Coach",
+        "Free Tier Demo Team Admin",
+        "Free Tier Demo Parent A",
+        "Free Tier Demo Parent B",
+        "Free Tier Demo Player",
+      ];
       
       // Combine all demo user names
       const ALL_DEMO_NAMES = [...DEMO_USER_NAMES, ...UNASSOCIATED_USER_NAMES, ...FREE_TIER_DEMO_NAMES];
