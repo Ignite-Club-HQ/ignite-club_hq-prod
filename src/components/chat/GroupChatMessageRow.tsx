@@ -38,6 +38,7 @@ import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
 import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
+import { shouldShowTapHint } from "@/hooks/useChatActionsOnboarding";
 
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
