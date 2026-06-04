@@ -857,22 +857,42 @@ export default function EventsPage() {
               </div>
             </Button>
 
-            {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
-              <Button
-                variant="outline"
-                className="w-full justify-start h-12 gap-3"
-                onClick={() => {
-                  setCreateMenuOpen(false);
-                  navigate("/events/import");
-                }}
-              >
-                <FileSpreadsheet className="h-5 w-5" />
-                <div className="flex flex-col items-start">
-                  <span className="text-sm font-semibold">Import Fixtures</span>
-                  <span className="text-[11px] text-muted-foreground">From CSV or Excel</span>
-                </div>
-              </Button>
-            )}
+            {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (() => {
+              const proGated = !isAppAdmin && !proLoading && !hasAnyClubPro;
+              return (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-12 gap-3"
+                  onClick={() => {
+                    setCreateMenuOpen(false);
+                    if (proGated) {
+                      const firstClubId = userRoles?.find(r => r.club_id)?.club_id;
+                      toast({
+                        title: "Pro feature",
+                        description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
+                      });
+                      if (firstClubId) {
+                        navigate(`/clubs/${firstClubId}/upgrade`);
+                      }
+                      return;
+                    }
+                    navigate("/events/import");
+                  }}
+                >
+                  <FileSpreadsheet className="h-5 w-5" />
+                  <div className="flex flex-col items-start flex-1">
+                    <span className="text-sm font-semibold flex items-center gap-1.5">
+                      Import Fixtures
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                        <Crown className="h-3 w-3" />
+                        Pro
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">From CSV or Excel</span>
+                  </div>
+                </Button>
+              );
+            })()}
           </div>
         </SheetContent>
       </Sheet>
