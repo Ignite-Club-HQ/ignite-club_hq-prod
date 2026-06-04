@@ -325,7 +325,6 @@ export default function HomePage() {
       const clubIdsArr = Array.from(clubIds);
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const nowMs = now.getTime();
-      const clubAdminIdsArr = Array.from(clubAdminClubIds);
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Drop today's events whose start_time has already passed (with a
         // small grace window) so Next Up never shows events from earlier today.
@@ -336,8 +335,6 @@ export default function HomePage() {
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // Club admins can see any team event within their club.
-          if (clubAdminIdsArr.includes(event.club_id)) return true;
           return teamIds.includes(event.team_id);
         } else {
           return clubIdsArr.includes(event.club_id);
