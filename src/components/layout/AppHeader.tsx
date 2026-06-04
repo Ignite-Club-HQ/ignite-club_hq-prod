@@ -698,7 +698,7 @@ export function AppHeader() {
             .maybeSingle();
           if (dmMsg?.conversation_id) {
             setPendingChatJump("dm", dmMsg.conversation_id, relatedId);
-            navigate(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
             return;
           }
           const { data: broadcastMsg } = await supabase
@@ -708,7 +708,7 @@ export function AppHeader() {
             .maybeSingle();
           if (broadcastMsg) {
             setPendingChatJump("broadcast", null, relatedId);
-            navigate(`/messages/broadcast?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
             return;
           }
           break;
@@ -716,7 +716,7 @@ export function AppHeader() {
 
         case "broadcast":
           setPendingChatJump("broadcast", null, relatedId);
-          navigate(`/messages/broadcast?message=${relatedId}`);
+          navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
           return;
         case "direct_message": {
           const opened = await openDirectMessageNotification(relatedId, notification.created_at);
