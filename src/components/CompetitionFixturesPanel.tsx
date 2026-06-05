@@ -54,6 +54,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>(""); // yyyy-mm-dd
   const [genKickoff, setGenKickoff] = useState<string>("09:00");
   const [genDaysBetween, setGenDaysBetween] = useState<string>("7");
+  const [genEndDate, setGenEndDate] = useState<string>(""); // yyyy-mm-dd, optional cutoff
+  const [genStartRound, setGenStartRound] = useState<string>("1");
   const [genVenue, setGenVenue] = useState<string>("");
   const [genDuration, setGenDuration] = useState<string>("");
   const [genArrival, setGenArrival] = useState<string>("");
