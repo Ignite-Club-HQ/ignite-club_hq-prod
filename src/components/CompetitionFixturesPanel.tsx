@@ -337,9 +337,19 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
   const [awayId, setAwayId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [venue, setVenue] = useState("");
+  const [round, setRound] = useState("");
+  const [duration, setDuration] = useState("");
+  const [arrival, setArrival] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const accepted = entries.filter((e: any) => e.status === "accepted");
+
+  const reset = () => {
+    setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
+    setVenue(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
+  };
 
   const submit = async () => {
     if (!homeId || !awayId || homeId === awayId) {
@@ -353,16 +363,21 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       away_team_id: awayId,
       division_id: divisionId || null,
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      venue: venue || null,
+      round_number: round ? Number(round) : null,
+      duration_minutes: duration ? Number(duration) : null,
+      arrival_minutes_before: arrival ? Number(arrival) : null,
+      notes: notes || null,
       status: "scheduled",
       created_by: user?.id ?? null,
-    });
+    } as any);
     setSaving(false);
     if (error) {
       toast({ title: "Could not add match", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "Match added" });
-    setOpen(false); setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
+    setOpen(false); reset();
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -410,15 +425,40 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
             </Select>
           </div>
         )}
-        <div>
-          <Label>Scheduled at (optional)</Label>
-          <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Kickoff (optional)</Label>
+            <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          </div>
+          <div>
+            <Label>Round (optional)</Label>
+            <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <Label>Venue (optional)</Label>
+            <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          </div>
+          <div>
+            <Label>Duration (mins)</Label>
+            <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 90" />
+          </div>
+          <div>
+            <Label>Arrive (mins before)</Label>
+            <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} placeholder="e.g. 30" />
+          </div>
+          <div className="col-span-2">
+            <Label>Notes (optional)</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Shown on the team event" />
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Adding a kickoff creates a team event for both sides so players can RSVP.
+        </p>
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
         </div>
       </CardContent>
     </Card>
