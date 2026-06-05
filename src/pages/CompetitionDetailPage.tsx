@@ -153,23 +153,7 @@ export default function CompetitionDetailPage() {
             >
               {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
             </Badge>
-            {competition.visibility === "public" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `${window.location.origin}/c/${id}`;
-                  navigator.clipboard?.writeText(url).then(
-                    () => toast({ title: "Public link copied" }),
-                    () => toast({ title: "Public link", description: url }),
-                  );
-                }}
-                aria-label="Copy public competition link"
-                title="Copy public competition link"
-                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold hover:bg-muted"
-              >
-                <LinkIcon className="h-3 w-3" /> Public link
-              </button>
-            ) : (
+            {competition.visibility !== "public" && (
               <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
             )}
           </div>
