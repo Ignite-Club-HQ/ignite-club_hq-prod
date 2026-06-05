@@ -496,7 +496,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Invite team
       </Button>
     );
