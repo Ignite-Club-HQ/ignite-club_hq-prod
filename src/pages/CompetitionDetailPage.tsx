@@ -388,23 +388,29 @@ function TeamsByDivision({
     });
   }
   const unassigned = entries.filter((e: any) => !e.division_id);
-  if (unassigned.length > 0) {
+  if (unassigned.length > 0 && divisions.length > 0) {
     groups.push({ id: null, name: "Unassigned", entries: unassigned });
+  } else if (divisions.length === 0 && unassigned.length > 0) {
+    groups.push({ id: null, name: "", entries: unassigned });
   }
 
   return (
     <div className="space-y-5">
       {groups.map((g) => (
         <div key={g.id ?? "unassigned"} className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">{g.name}</h3>
-              {g.meta && <p className="text-xs text-muted-foreground">{g.meta}</p>}
+          {(g.name || g.entries.length > 0) && (
+            <div className="flex items-baseline justify-between">
+              <div>
+                {g.name && <h3 className="text-sm font-semibold">{g.name}</h3>}
+                {g.meta && <p className="text-xs text-muted-foreground">{g.meta}</p>}
+              </div>
+              {g.name && (
+                <span className="text-xs text-muted-foreground">
+                  {g.entries.length} team{g.entries.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
-            <span className="text-xs text-muted-foreground">
-              {g.entries.length} team{g.entries.length === 1 ? "" : "s"}
-            </span>
-          </div>
+          )}
           {g.entries.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">No teams in this division yet.</p>
           ) : (
