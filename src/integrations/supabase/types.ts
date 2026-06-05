@@ -2471,6 +2471,7 @@ export type Database = {
           home_team_id: string
           id: string
           notes: string | null
+          pitch_number: string | null
           round_number: number | null
           scheduled_at: string | null
           status: string
@@ -2492,6 +2493,7 @@ export type Database = {
           home_team_id: string
           id?: string
           notes?: string | null
+          pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
           status?: string
@@ -2513,6 +2515,7 @@ export type Database = {
           home_team_id?: string
           id?: string
           notes?: string | null
+          pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
           status?: string
