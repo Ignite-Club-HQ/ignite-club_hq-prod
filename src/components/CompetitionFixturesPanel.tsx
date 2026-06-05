@@ -245,6 +245,14 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <Input type="number" inputMode="numeric" min={0} value={genDaysBetween} onChange={(e) => setGenDaysBetween(e.target.value)} />
                   </div>
                   <div>
+                    <Label>End date (optional)</Label>
+                    <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Starting round #</Label>
+                    <Input type="number" inputMode="numeric" min={1} value={genStartRound} onChange={(e) => setGenStartRound(e.target.value)} />
+                  </div>
+                  <div>
                     <Label>Default venue <span className="text-destructive">*</span></Label>
                     <Input required value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
                   </div>
