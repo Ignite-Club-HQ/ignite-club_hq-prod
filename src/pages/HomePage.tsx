@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { Capacitor } from "@capacitor/core";
@@ -161,6 +161,43 @@ function formatEventDate(dateStr: string) {
   return format(date, "EEE, MMM d 'at' h:mm a");
 }
 
+function getLocalDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getEventLocalDateKey(dateStr: string) {
+  const parsed = new Date(dateStr);
+  if (!Number.isNaN(parsed.getTime()) && dateStr.includes("T")) {
+    return getLocalDateKey(parsed);
+  }
+  return dateStr.slice(0, 10);
+}
+
+function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
+  if (event.start_time) {
+    const start = event.start_time.includes("T")
+      ? new Date(event.start_time)
+      : new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
+    return start.getTime();
+  }
+
+  if (!event.event_date.includes("T")) return Number.NaN;
+  return new Date(event.event_date).getTime();
+}
+
+function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
+  const todayKey = getLocalDateKey(new Date(nowMs));
+  const eventKey = getEventLocalDateKey(event.event_date);
+  if (eventKey < todayKey) return false;
+
+  const startMs = getEventStartMs(event);
+  if (eventKey === todayKey && !Number.isNaN(startMs) && startMs + 30 * 60 * 1000 < nowMs) {
+    return false;
+  }
+
+  return true;
+}
+
 export default function HomePage() {
   const { user, profile, refreshProfile, initialized } = useAuth();
   
@@ -170,6 +207,8 @@ export default function HomePage() {
   const navigate = useNavigate();
   const isNativeApp = Capacitor.isNativePlatform();
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const lastHomeRefreshRef = useRef(0);
   
   // Use cached theme state to prevent gradient flash on initial render
   const [initialHasClubTheme] = useState(hasClubThemeCached);
@@ -274,6 +313,7 @@ export default function HomePage() {
 
       // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
       const now = new Date();
+      const todayStr = getLocalDateKey(now);
       const leagueAdminArr = Array.from(leagueAdminClubIds);
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
@@ -294,7 +334,7 @@ export default function HomePage() {
           // mid-morning local time.
           .gte(
             "event_date",
-            `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+            todayStr
           )
           .order("event_date", { ascending: true })
           .limit(50),
@@ -324,7 +364,6 @@ export default function HomePage() {
 
       // Step 3: Filter events client-side
       const clubIdsArr = Array.from(clubIds);
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
@@ -332,13 +371,7 @@ export default function HomePage() {
         // (with placeholderData + no window-focus refetch on WebView resume)
         // can keep yesterday's data alive into the next day. Re-filter on
         // render so stale past events never leak into Next Up.
-        if (event.event_date < todayStr) return false;
-        // Drop today's events whose start_time has already passed (with a
-        // small grace window) so Next Up never shows events from earlier today.
-        if (event.event_date === todayStr && event.start_time) {
-          const startMs = new Date(`${event.event_date}T${event.start_time}`).getTime();
-          if (!Number.isNaN(startMs) && startMs + 30 * 60 * 1000 < nowMs) return false;
-        }
+        if (!isStillUpcomingForNextUp(event, nowMs)) return false;
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
@@ -361,6 +394,9 @@ export default function HomePage() {
     // after a brief token-rotation window instead of staying blank.
     retry: 2,
     retryDelay: (attempt) => Math.min(500 * attempt, 2000),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
 
   // Derive memberships and events from consolidated query
@@ -374,9 +410,42 @@ export default function HomePage() {
   // Filter events by active club theme
   const events = useMemo(() => {
     if (!allEvents) return [];
-    if (!activeClubFilter) return allEvents.slice(0, 10);
-    return allEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
-  }, [allEvents, activeClubFilter]);
+    const freshEvents = allEvents.filter((event) => isStillUpcomingForNextUp(event, nowTick));
+    if (!activeClubFilter) return freshEvents.slice(0, 10);
+    return freshEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
+  }, [allEvents, activeClubFilter, nowTick]);
+
+  useEffect(() => {
+    const refreshHomeEvents = () => {
+      const now = Date.now();
+      setNowTick(now);
+      if (now - lastHomeRefreshRef.current < 30_000) return;
+      lastHomeRefreshRef.current = now;
+      queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events", user?.id] });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshHomeEvents();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    let removeNativeListener: (() => void) | undefined;
+
+    if (isNativeApp) {
+      void import("@capacitor/app").then(({ App }) =>
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) refreshHomeEvents();
+        })
+      ).then((handle) => {
+        removeNativeListener = () => { void handle.remove(); };
+      }).catch(() => {});
+    }
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      removeNativeListener?.();
+    };
+  }, [isNativeApp, queryClient, user?.id]);
 
   // Fetch user's RSVPs for visible events
   const eventIds = events?.map(e => e.id) || [];
