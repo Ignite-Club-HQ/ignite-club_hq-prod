@@ -330,6 +330,7 @@ function DraftSetupProgress({
   );
 }
 
+function TeamsByDivision({
   divisions,
   entries,
   myAdminTeamIds,
