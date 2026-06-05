@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { cn } from "@/lib/utils";
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -67,7 +69,38 @@ export default function CompetitionSettingsPage() {
     setHydrated(true);
   }
 
+  // Derived dirty state — Save is a page-level action
+  const initial = useMemo(() => competition ? ({
+    name: competition.name ?? "",
+    status: competition.status ?? "draft",
+    visibility: competition.visibility ?? "private",
+    description: competition.description ?? "",
+    pointsWin: String(competition.points_win ?? 3),
+    pointsDraw: String(competition.points_draw ?? 1),
+    pointsLoss: String(competition.points_loss ?? 0),
+  }) : null, [competition]);
+
+  const current = { name, status, visibility, description, pointsWin, pointsDraw, pointsLoss };
+  const isDirty = !!initial && (
+    initial.name !== name ||
+    initial.status !== status ||
+    initial.visibility !== visibility ||
+    initial.description !== description ||
+    initial.pointsWin !== pointsWin ||
+    initial.pointsDraw !== pointsDraw ||
+    initial.pointsLoss !== pointsLoss
+  );
+
+  const [justSaved, setJustSaved] = useState(false);
+
+  const clampPoint = (v: string) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n) || n < 0) return "0";
+    return String(n);
+  };
+
   const save = async () => {
+    if (!isDirty) return;
     setSaving(true);
     const { error } = await supabase
       .from("competitions")
@@ -86,7 +119,8 @@ export default function CompetitionSettingsPage() {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Saved" });
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
     refetch();
   };
 
@@ -107,77 +141,155 @@ export default function CompetitionSettingsPage() {
     );
   }
 
+  // Map DB status values to simplified UI options
+  const statusOptions: { value: string; label: string }[] = [
+    { value: "draft", label: "Draft" },
+    { value: "active", label: "Published" },
+    { value: "archived", label: "Archived" },
+  ];
+  // Preserve any legacy value (open, completed) so it isn't silently dropped
+  if (!statusOptions.find((o) => o.value === status) && status) {
+    statusOptions.splice(2, 0, { value: status, label: status.charAt(0).toUpperCase() + status.slice(1) });
+  }
+
+  const publicLinkOn = visibility === "public";
+
   return (
-    <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className="container max-w-3xl mx-auto px-4 py-6 pb-32 space-y-5">
       <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
         <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
       </Button>
 
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage details and ladder scoring.</p>
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold leading-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground">Manage competition details, visibility and scoring.</p>
       </div>
 
+      {/* 1. Competition details */}
       <Card>
-        <CardContent className="p-4 space-y-3">
-          <div>
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Competition details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="comp-name">Name</Label>
+            <Input id="comp-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["draft","open","active","completed","archived"].map(s => (
-                    <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Visibility</Label>
-              <Select value={visibility} onValueChange={setVisibility}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="unlisted">Unlisted</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="comp-desc">Description</Label>
+            <Textarea
+              id="comp-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add competition details, rules or notes"
+              rows={4}
+              className="resize-y min-h-[96px]"
+            />
           </div>
-          <div>
-            <Label>Description</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="pt-2 border-t">
-            <Label className="text-sm font-medium">Ladder points</Label>
-            <p className="text-xs text-muted-foreground mb-2">How many points each result is worth on the ladder.</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <Label className="text-xs">Win</Label>
-                <Input type="number" inputMode="numeric" value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs">Draw</Label>
-                <Input type="number" inputMode="numeric" value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs">Loss</Label>
-                <Input type="number" inputMode="numeric" value={pointsLoss} onChange={(e) => setPointsLoss(e.target.value)} />
-              </div>
-            </div>
-          </div>
-          <Button size="sm" onClick={save} disabled={saving || !name.trim()}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Save changes
-          </Button>
         </CardContent>
       </Card>
 
+      {/* 2. Publishing */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Publishing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="comp-status">Competition status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger id="comp-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="comp-public" className="cursor-pointer">Public link</Label>
+              <p className="text-xs text-muted-foreground">
+                Draft competitions are only visible to organisers. Turn on public link when you are ready to share.
+              </p>
+            </div>
+            <Switch
+              id="comp-public"
+              checked={publicLinkOn}
+              onCheckedChange={(v) => setVisibility(v ? "public" : "private")}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Ladder scoring */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Ladder scoring</CardTitle>
+          <CardDescription>Set the points awarded for each result.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pts-win" className="text-xs">Win</Label>
+              <Input
+                id="pts-win"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={pointsWin}
+                onChange={(e) => setPointsWin(e.target.value)}
+                onBlur={(e) => setPointsWin(clampPoint(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pts-draw" className="text-xs">Draw</Label>
+              <Input
+                id="pts-draw"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={pointsDraw}
+                onChange={(e) => setPointsDraw(e.target.value)}
+                onBlur={(e) => setPointsDraw(clampPoint(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pts-loss" className="text-xs">Loss</Label>
+              <Input
+                id="pts-loss"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={pointsLoss}
+                onChange={(e) => setPointsLoss(e.target.value)}
+                onBlur={(e) => setPointsLoss(clampPoint(e.target.value))}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Ladder visibility */}
       <DivisionLadderVisibility competitionId={id!} />
+
+      {/* Sticky save bar — page-level action */}
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-40 border-t bg-background shadow-lg transition-transform",
+          isDirty || justSaved ? "translate-y-0" : "translate-y-full"
+        )}
+      >
+        <div className="container max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {justSaved ? "Changes saved" : isDirty ? "You have unsaved changes" : ""}
+          </p>
+          <Button onClick={save} disabled={!isDirty || saving || !name.trim()}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : justSaved ? <Check className="h-4 w-4 mr-2" /> : null}
+            {justSaved ? "Saved" : "Save changes"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -212,15 +324,18 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
 
   return (
     <Card>
-      <CardContent className="p-4 space-y-3">
-        <div>
-          <Label className="text-sm font-medium">Ladder visibility by division / grade</Label>
-          <p className="text-xs text-muted-foreground">Hide the ladder for non-competitive divisions or grades. Fixtures and results stay visible.</p>
-        </div>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Ladder visibility</CardTitle>
+        <CardDescription>Choose which divisions or grades show a ladder. Fixtures and results stay visible.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {isLoading ? (
           <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
         ) : divisions.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No divisions yet.</p>
+          <div className="rounded-md border border-dashed p-4 text-center">
+            <p className="text-sm text-muted-foreground">No divisions yet.</p>
+            <p className="text-xs text-muted-foreground mt-1">Add divisions from the Teams tab to manage ladder visibility.</p>
+          </div>
         ) : (
           <div className="divide-y border rounded-md">
             {divisions.map((d: any) => (
