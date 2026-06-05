@@ -434,17 +434,24 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
 
   const removeCoordinator = async (userId: string, role: string) => {
     if (role === "owner") return;
+    const isSelf = userId === user?.id;
+    if (isSelf && !window.confirm("Leave as coordinator for this competition? You'll lose access to coordinator tools and the coordinator chat group.")) {
+      return;
+    }
     const { error } = await supabase
       .from("competition_roles")
       .delete()
       .eq("competition_id", competitionId)
       .eq("user_id", userId);
     if (error) {
-      toast({ title: "Could not remove coordinator", description: error.message, variant: "destructive" });
+      toast({ title: isSelf ? "Could not leave" : "Could not remove coordinator", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Coordinator removed" });
+    toast({ title: isSelf ? "You've left as coordinator" : "Coordinator removed" });
     qc.invalidateQueries({ queryKey: ["competition-coordinators", competitionId] });
+    if (isSelf) {
+      navigate("/competitions");
+    }
   };
 
   const initials = (name: string | null) =>
