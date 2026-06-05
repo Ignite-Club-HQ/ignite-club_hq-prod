@@ -51,6 +51,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const { user } = useAuth();
   const [genOpen, setGenOpen] = useState(false);
   const [genDivisionId, setGenDivisionId] = useState<string>("");
+  const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>(""); // yyyy-mm-dd
+  const [genKickoff, setGenKickoff] = useState<string>("09:00");
+  const [genDaysBetween, setGenDaysBetween] = useState<string>("7");
+  const [genVenue, setGenVenue] = useState<string>("");
+  const [genDuration, setGenDuration] = useState<string>("");
+  const [genArrival, setGenArrival] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   const { data: matches = [], isLoading } = useQuery({
@@ -80,15 +86,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     }
     setGenerating(true);
     const fixtures = buildRoundRobin(teams.map((t: any) => t.id));
-    const rows = fixtures.map((f) => ({
-      competition_id: competitionId,
-      division_id: genDivisionId || null,
-      round_number: f.round,
-      home_team_id: f.home,
-      away_team_id: f.away,
-      status: "scheduled",
-      created_by: user?.id ?? null,
-    }));
+    const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
+    const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
+    const duration = genDuration ? Number(genDuration) : null;
+    const arrival = genArrival ? Number(genArrival) : null;
+    const rows = fixtures.map((f) => {
+      let scheduledAt: string | null = null;
+      if (baseDate && !isNaN(baseDate.getTime())) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + (f.round - 1) * daysBetween);
+        scheduledAt = d.toISOString();
+      }
+      return {
+        competition_id: competitionId,
+        division_id: genDivisionId || null,
+        round_number: f.round,
+        home_team_id: f.home,
+        away_team_id: f.away,
+        status: "scheduled",
+        created_by: user?.id ?? null,
+        scheduled_at: scheduledAt,
+        venue: genVenue || null,
+        duration_minutes: duration,
+        arrival_minutes_before: arrival,
+      } as any;
+    });
     const { error } = await supabase.from("competition_matches").insert(rows);
     setGenerating(false);
     if (error) {
@@ -96,7 +118,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       return;
     }
     toast({ title: `Generated ${rows.length} fixtures` });
-    setGenOpen(false); setGenDivisionId("");
+    setGenOpen(false);
+    setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
+    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival("");
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
