@@ -447,7 +447,7 @@ export function PhotoLightbox({
           {photos.length > 1 && (
             <div
               className="absolute left-1/2 -translate-x-1/2 text-white text-xs font-medium px-2.5 py-0.5 bg-black/55 rounded-full tracking-wide"
-              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
+              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.35rem)" }}
             >
               {currentIndex + 1} of {photos.length}
             </div>
