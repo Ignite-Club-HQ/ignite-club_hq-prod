@@ -47,7 +47,7 @@ export default function HomeMyCompetitionsCard() {
       const { data } = await supabase
         .from("competition_entries")
         .select(
-          "id, status, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status), competition_divisions:division_id(name)"
+          "id, status, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status, organizer_club:organizer_club_id(name)), competition_divisions:division_id(name)"
         )
         .in("team_id", Array.from(teamIds))
         .in("status", ["invited", "accepted"]);
