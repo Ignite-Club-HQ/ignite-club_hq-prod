@@ -541,10 +541,10 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
   );
 }
 
-function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: string; divisions: any[]; onDone: () => void }) {
+function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { competitionId: string; divisions: any[]; defaultOpen?: boolean; onDone: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!defaultOpen);
   const [teamId, setTeamId] = useState("");
   const [divisionId, setDivisionId] = useState<string>("");
   const [saving, setSaving] = useState(false);
