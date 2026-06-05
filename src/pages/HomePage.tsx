@@ -1803,9 +1803,6 @@ export default function HomePage() {
       {/* Pending competition invites for team/club admins */}
       <HomePendingCompetitionInvitesCard />
 
-      {/* My Competitions - accepted entries for the user's teams */}
-      <HomeMyCompetitionsCard />
-
       {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
           minHeight matches the rendered carousel (section title 28px + gap 12px +
           card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
@@ -1814,6 +1811,9 @@ export default function HomePage() {
           <MyTeamsPremiumCarousel />
         </Suspense>
       </LazyMount>
+
+      {/* My Competitions - entries for the user's teams / admin clubs */}
+      <HomeMyCompetitionsCard />
 
       {/* Team Actions — compact secondary utilities below primary team content */}
       <HomeQuickActions
