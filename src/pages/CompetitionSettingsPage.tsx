@@ -99,8 +99,8 @@ export default function CompetitionSettingsPage() {
   if (!isAdmin) {
     return (
       <div className="container max-w-3xl mx-auto px-4 py-6 space-y-4">
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/competitions/${id}`}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
+        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
+          <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
         </Button>
         <p className="text-sm text-muted-foreground">You don't have permission to manage this competition.</p>
       </div>
