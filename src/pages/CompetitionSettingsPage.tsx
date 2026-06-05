@@ -275,6 +275,10 @@ export default function CompetitionSettingsPage() {
       {/* 4. Ladder visibility */}
       <DivisionLadderVisibility competitionId={id!} />
 
+      {/* 5. Coordinators */}
+      <CoordinatorsPanel competitionId={id!} />
+
+
       {/* Sticky save bar — page-level action */}
       <div
         className={cn(
