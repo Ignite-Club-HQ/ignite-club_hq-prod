@@ -51,6 +51,7 @@ function LightboxImage({
   scale,
   translateX,
   translateY,
+  dismissOffset,
 }: {
   src: string;
   poster?: string | null;
@@ -58,18 +59,13 @@ function LightboxImage({
   scale: number;
   translateX: number;
   translateY: number;
+  dismissOffset: number;
 }) {
-  // Decide video-vs-image from the raw src so we can mount the right element
-  // immediately. Waiting for the signed URL before deciding caused a brief
-  // image-placeholder flash on videos (spinner → broken <img> → <video>).
   const showAsVideo = isVideoUrl(src);
   const { signedUrl, isLoading } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
 
   if (showAsVideo) {
-    // Render the <video> shell straight away on the black backdrop; only set
-    // the src once the signed URL resolves. This keeps the screen black
-    // (matching the lightbox bg) instead of flashing an image placeholder.
     return (
       <video
         key={effectiveSrc}
@@ -90,23 +86,17 @@ function LightboxImage({
     );
   }
 
-  // When at rest (scale=1), use object-cover sized to the full viewport so
-  // sports photos fill the screen edge-to-edge with only light cropping —
-  // an Instagram/Facebook Photos feel rather than a document viewer with
-  // letterboxed black bars. The moment the user pinches, we switch to
-  // object-contain so they can inspect the full frame without clipping.
-  const zoomed = scale > 1.001;
+  // Always object-contain — show the FULL photo, maximised within viewport,
+  // matching Instagram / Apple Photos / Google Photos behaviour. No cropping.
   return (
     <img
       src={effectiveSrc}
       alt={alt}
-      className={
-        zoomed
-          ? "max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
-          : "w-screen h-[100dvh] object-cover transition-transform duration-100"
-      }
+      className="max-w-[100vw] max-h-[100dvh] object-contain select-none"
       style={{
-        transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+        transform: `translate3d(${translateX}px, ${translateY + dismissOffset}px, 0) scale(${scale})`,
+        transition: dismissOffset === 0 ? "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+        willChange: "transform",
       }}
       draggable={false}
     />
