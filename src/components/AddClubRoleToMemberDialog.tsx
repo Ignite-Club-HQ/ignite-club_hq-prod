@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-type ClubRole = "club_admin" | "coach" | "committee_member" | "league_admin" | "parent" | "player" | "basic_user";
+type ClubRole = "club_admin" | "coach" | "committee_member" | "league_admin" | "competition_admin" | "parent" | "player" | "basic_user";
 
 interface AddClubRoleToMemberDialogProps {
   userId: string;
@@ -28,6 +28,7 @@ const availableRoles: { value: ClubRole; label: string; description: string; col
   { value: "club_admin", label: "Club Admin", description: "Full club management access", color: "bg-purple-500/10 text-purple-600 border-purple-200 dark:text-purple-400 dark:border-purple-500/30" },
   { value: "committee_member", label: "Committee Member", description: "Club committee access", color: "bg-cyan-500/10 text-cyan-600 border-cyan-200 dark:text-cyan-400 dark:border-cyan-500/30" },
   { value: "league_admin", label: "League Admin", description: "Manage mini leagues", color: "bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:text-indigo-400 dark:border-indigo-500/30" },
+  { value: "competition_admin", label: "Competition Admin", description: "Eligible to coordinate competitions for this club/association", color: "bg-blue-500/10 text-blue-600 border-blue-200 dark:text-blue-400 dark:border-blue-500/30" },
   { value: "coach", label: "Coach", description: "Can manage events and teams", color: "bg-amber-500/10 text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-500/30" },
   { value: "parent", label: "Parent", description: "Can view club activities", color: "bg-pink-500/10 text-pink-600 border-pink-200 dark:text-pink-400 dark:border-pink-500/30" },
   { value: "player", label: "Player", description: "Can participate in events", color: "bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-500/30" },
