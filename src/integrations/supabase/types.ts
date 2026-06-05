@@ -2457,16 +2457,21 @@ export type Database = {
       }
       competition_matches: {
         Row: {
+          arrival_minutes_before: number | null
+          away_event_id: string | null
           away_score: number | null
           away_team_id: string
           competition_id: string
           created_at: string
           created_by: string | null
           division_id: string | null
+          duration_minutes: number | null
+          home_event_id: string | null
           home_score: number | null
           home_team_id: string
           id: string
           notes: string | null
+          pitch_number: string | null
           round_number: number | null
           scheduled_at: string | null
           status: string
@@ -2474,16 +2479,21 @@ export type Database = {
           venue: string | null
         }
         Insert: {
+          arrival_minutes_before?: number | null
+          away_event_id?: string | null
           away_score?: number | null
           away_team_id: string
           competition_id: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
+          duration_minutes?: number | null
+          home_event_id?: string | null
           home_score?: number | null
           home_team_id: string
           id?: string
           notes?: string | null
+          pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
           status?: string
@@ -2491,16 +2501,21 @@ export type Database = {
           venue?: string | null
         }
         Update: {
+          arrival_minutes_before?: number | null
+          away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string
           competition_id?: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
+          duration_minutes?: number | null
+          home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string
           id?: string
           notes?: string | null
+          pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
           status?: string
@@ -2508,6 +2523,13 @@ export type Database = {
           venue?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "competition_matches_away_event_id_fkey"
+            columns: ["away_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "competition_matches_away_team_id_fkey"
             columns: ["away_team_id"]
@@ -2527,6 +2549,13 @@ export type Database = {
             columns: ["division_id"]
             isOneToOne: false
             referencedRelation: "competition_divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_matches_home_event_id_fkey"
+            columns: ["home_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
@@ -10064,6 +10093,16 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_competition_coordinators: {
+        Args: { _competition_id: string }
+        Returns: {
+          avatar_url: string
+          created_at: string
+          display_name: string
+          role: string
+          user_id: string
+        }[]
+      }
       list_leaderboard_teams: {
         Args: { _club_id: string }
         Returns: {
@@ -10229,6 +10268,15 @@ export type Database = {
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
+      search_competition_coordinator_candidates: {
+        Args: { _competition_id: string; _query?: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          source: string
+          user_id: string
+        }[]
+      }
       search_invitable_profiles: {
         Args: { _limit?: number; _query: string }
         Returns: {
@@ -10507,6 +10555,7 @@ export type Database = {
         | "league_admin"
         | "committee_member"
         | "association_admin"
+        | "competition_admin"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
@@ -10676,6 +10725,7 @@ export const Constants = {
         "league_admin",
         "committee_member",
         "association_admin",
+        "competition_admin",
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],

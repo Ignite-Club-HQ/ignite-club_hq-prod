@@ -30,6 +30,7 @@ const roleLabels: Record<AppRole, string> = {
   league_admin: "League Admin",
   committee_member: "Committee Member",
   association_admin: "Association Admin",
+  competition_admin: "Competition Admin",
 };
 
 // Roles that users can request when joining a team

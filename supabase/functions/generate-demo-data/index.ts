@@ -132,8 +132,18 @@ serve(async (req) => {
         "New User Alex", "New User Sam", "New User Jordan", "New User Casey", "New User Riley"
       ];
       
+      // Free-tier demo accounts (single-club, no Pro)
+      const FREE_TIER_DEMO_NAMES = [
+        "Free Tier Demo Admin",
+        "Free Tier Demo Coach",
+        "Free Tier Demo Team Admin",
+        "Free Tier Demo Parent A",
+        "Free Tier Demo Parent B",
+        "Free Tier Demo Player",
+      ];
+      
       // Combine all demo user names
-      const ALL_DEMO_NAMES = [...DEMO_USER_NAMES, ...UNASSOCIATED_USER_NAMES];
+      const ALL_DEMO_NAMES = [...DEMO_USER_NAMES, ...UNASSOCIATED_USER_NAMES, ...FREE_TIER_DEMO_NAMES];
       
       // Get ALL demo player profiles with their roles and club/team info
       const { data: demoProfiles } = await supabase
@@ -197,6 +207,7 @@ serve(async (req) => {
       const allUsers = demoProfiles.map((profile) => {
         const demoIndex = DEMO_USER_NAMES.indexOf(profile.display_name);
         const unassociatedIndex = UNASSOCIATED_USER_NAMES.indexOf(profile.display_name);
+        const freeTierIndex = FREE_TIER_DEMO_NAMES.indexOf(profile.display_name);
         const roleData = userRolesMap.get(profile.id);
         
         // Determine email based on user type
@@ -205,6 +216,8 @@ serve(async (req) => {
           email = `${DEMO_USER_EMAILS_PREFIX}${demoIndex + 1}@demo.local`;
         } else if (unassociatedIndex >= 0) {
           email = `demo_unassociated_${unassociatedIndex + 1}@demo.local`;
+        } else if (freeTierIndex >= 0) {
+          email = `demo_free_${freeTierIndex + 1}@demo.local`;
         } else {
           email = `demo_unknown@demo.local`;
         }
@@ -231,6 +244,190 @@ serve(async (req) => {
       
       return new Response(
         JSON.stringify({ success: true, users: allUsers }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // PUBLIC ACTION - create-free-tier-demo (idempotent setup of a single
+    // free-tier club + club_admin demo user). Safe because it only ever
+    // touches the one well-known account & club; rate-limited above.
+    if (action === "create-free-tier-demo") {
+      const clientId = getRateLimitKey(req);
+      const rateLimit = checkRateLimit(clientId);
+      if (!rateLimit.allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rateLimit.retryAfter || 60) } }
+        );
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const DEMO_NAME = "Free Tier Demo Admin";
+      const DEMO_EMAIL = "demo_free_1@demo.local";
+      const DEMO_CLUB_NAME = "Free Tier Demo Club";
+      const results: string[] = [];
+
+      // 1. Ensure auth user exists (need this first so we can stamp created_by on club)
+      let userId: string;
+      const { data: listed } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const found = listed?.users?.find((u: any) => u.email === DEMO_EMAIL);
+      if (found) {
+        userId = found.id;
+        results.push(`Reused existing auth user ${userId}`);
+        await supabase.auth.admin.updateUserById(userId, { password: DEMO_PASSWORD, email_confirm: true });
+      } else {
+        const { data: created, error: userErr } = await supabase.auth.admin.createUser({
+          email: DEMO_EMAIL,
+          password: DEMO_PASSWORD,
+          email_confirm: true,
+          user_metadata: { display_name: DEMO_NAME },
+        });
+        if (userErr || !created?.user) {
+          return new Response(JSON.stringify({ error: "user_create_failed", detail: userErr?.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        userId = created.user.id;
+        results.push(`Created auth user ${userId}`);
+      }
+
+      // 2. Ensure profile
+      await supabase
+        .from("profiles")
+        .upsert({ id: userId, display_name: DEMO_NAME }, { onConflict: "id" });
+
+      // 3. Ensure club exists (free tier — no Pro flags set)
+      let clubId: string;
+      const { data: existingClub } = await supabase
+        .from("clubs")
+        .select("id")
+        .eq("name", DEMO_CLUB_NAME)
+        .maybeSingle();
+      if (existingClub) {
+        clubId = existingClub.id;
+        results.push(`Reused existing club ${clubId}`);
+      } else {
+        const { data: newClub, error: clubErr } = await supabase
+          .from("clubs")
+          .insert({ name: DEMO_CLUB_NAME, sport: "football", created_by: userId, admin_user_id: userId })
+          .select("id")
+          .single();
+        if (clubErr || !newClub) {
+          return new Response(JSON.stringify({ error: "club_create_failed", detail: clubErr?.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        clubId = newClub.id;
+        results.push(`Created club ${clubId}`);
+      }
+
+      // 3b. Force free tier on this club
+      await supabase
+        .from("club_subscriptions")
+        .upsert({
+          club_id: clubId,
+          is_pro: false,
+          is_pro_football: false,
+          admin_pro_override: false,
+          admin_pro_football_override: false,
+          expires_at: null,
+        }, { onConflict: "club_id" });
+
+      // 4. Ensure club_admin role on the free club, and only that role
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      const { error: roleErr } = await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: "club_admin", club_id: clubId });
+      if (roleErr) {
+        return new Response(JSON.stringify({ error: "role_create_failed", detail: roleErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      results.push("Assigned club_admin role on free-tier club");
+
+      // 5. Seed a few demo members on the free-tier club. If a team already
+      //    exists in the club (e.g. "Test"), attach them there too. Idempotent.
+      const FREE_TIER_MEMBERS: Array<{ name: string; email: string; role: string; attachTeam: boolean }> = [
+        { name: "Free Tier Demo Coach", email: "demo_free_coach@demo.local", role: "coach", attachTeam: true },
+        { name: "Free Tier Demo Team Admin", email: "demo_free_teamadmin@demo.local", role: "team_admin", attachTeam: true },
+        { name: "Free Tier Demo Parent A", email: "demo_free_parent_a@demo.local", role: "parent", attachTeam: true },
+        { name: "Free Tier Demo Parent B", email: "demo_free_parent_b@demo.local", role: "parent", attachTeam: true },
+        { name: "Free Tier Demo Player", email: "demo_free_player@demo.local", role: "player", attachTeam: true },
+      ];
+
+      // Find first team in club (if admin already created one in-app)
+      const { data: clubTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId)
+        .limit(1);
+      const teamId = clubTeams && clubTeams.length > 0 ? clubTeams[0].id : null;
+
+      const seededMembers: Array<{ email: string; name: string; role: string; id: string }> = [];
+      for (const m of FREE_TIER_MEMBERS) {
+        let memberId: string;
+        const existing = listed?.users?.find((u: any) => u.email === m.email);
+        if (existing) {
+          memberId = existing.id;
+          await supabase.auth.admin.updateUserById(memberId, { password: DEMO_PASSWORD, email_confirm: true });
+        } else {
+          const { data: createdMember, error: memberErr } = await supabase.auth.admin.createUser({
+            email: m.email,
+            password: DEMO_PASSWORD,
+            email_confirm: true,
+            user_metadata: { display_name: m.name },
+          });
+          if (memberErr || !createdMember?.user) {
+            results.push(`Skipped ${m.email}: ${memberErr?.message ?? "unknown"}`);
+            continue;
+          }
+          memberId = createdMember.user.id;
+        }
+
+        await supabase
+          .from("profiles")
+          .upsert({ id: memberId, display_name: m.name }, { onConflict: "id" });
+
+        // Helper: insert role if no equivalent row already exists. We can't
+        // rely on .upsert(onConflict: …) because the table's unique index uses
+        // COALESCE(team_id, sentinel) which Postgres won't match to a plain
+        // ON CONFLICT (user_id, role, club_id, team_id) target.
+        const ensureRole = async (team_id: string | null) => {
+          const query = supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", memberId)
+            .eq("role", m.role)
+            .eq("club_id", clubId);
+          const { data: existingRole } = team_id
+            ? await query.eq("team_id", team_id).maybeSingle()
+            : await query.is("team_id", null).maybeSingle();
+          if (existingRole) return;
+          const { error: insErr } = await supabase
+            .from("user_roles")
+            .insert({ user_id: memberId, role: m.role, club_id: clubId, team_id });
+          if (insErr) {
+            results.push(`Role insert failed for ${m.email} (team=${team_id ?? "null"}): ${insErr.message}`);
+          }
+        };
+
+        // Club-level role
+        await ensureRole(null);
+        // Team-level role if a team exists
+        if (m.attachTeam && teamId) {
+          await ensureRole(teamId);
+        }
+
+        seededMembers.push({ email: m.email, name: m.name, role: m.role, id: memberId });
+      }
+      results.push(`Seeded ${seededMembers.length} free-tier demo members${teamId ? " (attached to existing team)" : " (club only — no team yet)"}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          email: DEMO_EMAIL,
+          password: DEMO_PASSWORD,
+          name: DEMO_NAME,
+          club_id: clubId,
+          club_name: DEMO_CLUB_NAME,
+          user_id: userId,
+          members: seededMembers,
+          results,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

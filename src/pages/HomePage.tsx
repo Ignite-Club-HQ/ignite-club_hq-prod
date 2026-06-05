@@ -79,6 +79,7 @@ import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
+import HomeMyCompetitionsCard from "@/components/competitions/HomeMyCompetitionsCard";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
 import { LazyMount } from "@/components/LazyMount";
 
@@ -1810,6 +1811,9 @@ export default function HomePage() {
           <MyTeamsPremiumCarousel />
         </Suspense>
       </LazyMount>
+
+      {/* My Competitions - entries for the user's teams / admin clubs */}
+      <HomeMyCompetitionsCard />
 
       {/* Team Actions — compact secondary utilities below primary team content */}
       <HomeQuickActions

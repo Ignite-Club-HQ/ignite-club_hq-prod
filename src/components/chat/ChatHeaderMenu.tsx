@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +20,8 @@ interface ChatHeaderMenuProps {
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
   pinnedVaultEnabled?: boolean | null;
   onTogglePinnedVault?: (enabled: boolean) => void;
+  /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
+  pinnedVaultLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
@@ -31,6 +33,7 @@ export function ChatHeaderMenu({
   onManagePinnedVault,
   pinnedVaultEnabled,
   onTogglePinnedVault,
+  pinnedVaultLocked = false,
 }: ChatHeaderMenuProps) {
   const hasAnyAction =
     !!onRefresh
@@ -108,9 +111,15 @@ export function ChatHeaderMenu({
             {(onSearch || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onManagePinnedVault}>
               <Pin className="h-4 w-4 mr-2" />
-              Pinned vault…
+              <span className="flex-1">Pinned vault…</span>
+              {pinnedVaultLocked && (
+                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                  <Crown className="h-3 w-3" />
+                  Pro
+                </span>
+              )}
             </DropdownMenuItem>
-            {typeof pinnedVaultEnabled === "boolean" && onTogglePinnedVault && (
+            {!pinnedVaultLocked && typeof pinnedVaultEnabled === "boolean" && onTogglePinnedVault && (
               <DropdownMenuItem onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}>
                 {pinnedVaultEnabled ? (
                   <>

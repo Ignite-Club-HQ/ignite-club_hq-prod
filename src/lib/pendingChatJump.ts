@@ -37,6 +37,18 @@ interface ChatJumpTarget {
 
 export type PendingChatJumpPayload = StoredJump;
 
+export function withChatJumpNonce(to: string, nonce: number = Date.now()): string {
+  try {
+    const parsed = new URL(to, "https://placeholder.local");
+    if (parsed.searchParams.has("message")) {
+      parsed.searchParams.set("jump", String(nonce));
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return to;
+  }
+}
+
 export function subscribePendingChatJump(handler: (jump: PendingChatJumpPayload) => void): () => void {
   if (typeof window === "undefined") return () => {};
   const listener = (event: Event) => {
@@ -145,6 +157,8 @@ export function normalizeNotificationChatUrl(data: any, url: string | null | und
   const target = getJumpTarget(data, url);
   if (!target) return url;
 
+  const jumpNonce = Date.now();
+
   const basePath = (() => {
     switch (target.kind) {
       case "dm": return target.targetId ? `/messages/dm/${target.targetId}` : "/messages";
@@ -159,6 +173,7 @@ export function normalizeNotificationChatUrl(data: any, url: string | null | und
   const next = new URL(basePath, "https://placeholder.local");
   parsed.searchParams.forEach((value, key) => next.searchParams.set(key, value));
   next.searchParams.set("message", target.messageId);
+  next.searchParams.set("jump", String(jumpNonce));
   next.hash = parsed.hash;
   return `${next.pathname}${next.search}${next.hash}`;
 }

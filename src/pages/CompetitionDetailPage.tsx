@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +21,28 @@ import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/C
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inviteFromUrl = searchParams.get("invite") === "1";
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   usePageTitle("Competition");
+  const navigate = useNavigate();
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/competitions");
+  };
+
+  // Clear the ?invite=1 param after we read it so refresh / back doesn't reopen the form.
+  useEffect(() => {
+    if (inviteFromUrl) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("invite");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const { data: competition, isLoading } = useQuery({
     queryKey: ["competition", id],
@@ -115,12 +133,11 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/competitions"><ArrowLeft className="h-4 w-4 mr-1" /> Competitions</Link>
-      </Button>
-
       <header className="flex items-start gap-2">
-        <div className="rounded-xl bg-primary/10 p-3">
+        <Button variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label="Go back" onClick={goBack}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="rounded-xl bg-primary/10 p-3 shrink-0">
           <Trophy className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
@@ -129,30 +146,22 @@ export default function CompetitionDetailPage() {
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
           <div className="flex gap-2 mt-2 flex-wrap">
-            <Badge variant="secondary" className="capitalize">{competition.status}</Badge>
-            {competition.visibility === "public" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `${window.location.origin}/c/${id}`;
-                  navigator.clipboard?.writeText(url).then(
-                    () => toast({ title: "Public link copied" }),
-                    () => toast({ title: "Public link", description: url }),
-                  );
-                }}
-                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold hover:bg-muted"
-              >
-                <LinkIcon className="h-3 w-3" /> Public
-              </button>
-            ) : (
-              <Badge variant="outline" className="capitalize">{competition.visibility}</Badge>
+            <Badge
+              variant={competition.status === "published" ? "default" : "secondary"}
+              className="capitalize"
+              aria-label={`Status: ${competition.status}`}
+            >
+              {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
+            </Badge>
+            {competition.visibility !== "public" && (
+              <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
             )}
           </div>
         </div>
         {isAdmin && (
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Broadcasts">
+              <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
                 <Megaphone className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -171,7 +180,7 @@ export default function CompetitionDetailPage() {
           </Sheet>
         )}
         {isAdmin && (
-          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+          <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
             <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
           </Button>
         )}
@@ -181,11 +190,21 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      
+      {isAdmin && competition.status === "draft" && (
+        <DraftSetupProgress
+          competitionId={id!}
+          divisionsCount={divisions.length}
+          acceptedCount={entries.filter((e: any) => e.status === "accepted").length}
+          invitedCount={entries.filter((e: any) => e.status === "invited").length}
+        />
+      )}
+
       <Tabs defaultValue={
-        entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+        inviteFromUrl && isAdmin
           ? "teams"
-          : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
+          : entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+            ? "teams"
+            : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
       }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
@@ -203,10 +222,11 @@ export default function CompetitionDetailPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {isAdmin && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
+                defaultOpen={inviteFromUrl}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
               />
               <AddDivisionForm
@@ -225,6 +245,121 @@ export default function CompetitionDetailPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function DraftSetupProgress({
+  competitionId,
+  divisionsCount,
+  acceptedCount,
+  invitedCount,
+}: {
+  competitionId: string;
+  divisionsCount: number;
+  acceptedCount: number;
+  invitedCount: number;
+}) {
+  const skipKey = `ignite_comp_skip_divisions_${competitionId}`;
+  const [divisionsSkipped, setDivisionsSkipped] = useState<boolean>(() => {
+    try { return localStorage.getItem(skipKey) === "1"; } catch { return false; }
+  });
+  const skipDivisions = () => {
+    try { localStorage.setItem(skipKey, "1"); } catch {}
+    setDivisionsSkipped(true);
+  };
+
+  const { data: matchesCount = 0 } = useQuery({
+    queryKey: ["competition-matches-count", competitionId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("competition_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId);
+      return count ?? 0;
+    },
+  });
+
+  const steps = [
+    {
+      key: "invite",
+      label: "Invite teams",
+      done: invitedCount + acceptedCount > 0,
+      hint:
+        invitedCount + acceptedCount === 0
+          ? "Send invites to the teams you want in this competition."
+          : `${invitedCount + acceptedCount} invited · ${acceptedCount} accepted`,
+      dismissible: false,
+    },
+    {
+      key: "divisions",
+      label: "Add divisions",
+      done: divisionsCount > 0,
+      hint:
+        divisionsCount === 0
+          ? "Optional — group teams by age, gender or skill."
+          : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
+      dismissible: divisionsCount === 0,
+    },
+    {
+      key: "fixtures",
+      label: "Generate fixtures",
+      done: matchesCount > 0,
+      hint:
+        acceptedCount < 2
+          ? "Needs at least 2 accepted teams."
+          : matchesCount > 0
+            ? `${matchesCount} match${matchesCount === 1 ? "" : "es"} scheduled`
+            : "Use 'Generate round-robin' on the Fixtures tab.",
+      dismissible: false,
+    },
+    {
+      key: "publish",
+      label: "Publish competition",
+      done: false,
+      hint: "Open Settings and switch from Draft to Published.",
+      dismissible: false,
+    },
+  ].filter((s) => !(s.key === "divisions" && divisionsSkipped));
+
+  return (
+    <Card className="border-primary/30 bg-primary/[0.03]">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Set up your competition</h2>
+          <Badge variant="outline" className="ml-auto text-[11px]">Draft</Badge>
+        </div>
+        <ol className="space-y-2">
+          {steps.map((s) => (
+            <li key={s.key} className="flex items-start gap-2 text-sm">
+              {s.done ? (
+                <CircleCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className={s.done ? "font-medium line-through text-muted-foreground" : "font-medium"}>
+                  {s.label}
+                </div>
+                <div className="text-xs text-muted-foreground">{s.hint}</div>
+              </div>
+              {s.dismissible && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 -mt-1 -mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={s.key === "divisions" ? skipDivisions : undefined}
+                  aria-label={`Dismiss ${s.label}`}
+                  title="Skip this step"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -253,23 +388,29 @@ function TeamsByDivision({
     });
   }
   const unassigned = entries.filter((e: any) => !e.division_id);
-  if (unassigned.length > 0) {
+  if (unassigned.length > 0 && divisions.length > 0) {
     groups.push({ id: null, name: "Unassigned", entries: unassigned });
+  } else if (divisions.length === 0 && unassigned.length > 0) {
+    groups.push({ id: null, name: "", entries: unassigned });
   }
 
   return (
     <div className="space-y-5">
       {groups.map((g) => (
         <div key={g.id ?? "unassigned"} className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">{g.name}</h3>
-              {g.meta && <p className="text-xs text-muted-foreground">{g.meta}</p>}
+          {(g.name || g.entries.length > 0) && (
+            <div className="flex items-baseline justify-between">
+              <div>
+                {g.name && <h3 className="text-sm font-semibold">{g.name}</h3>}
+                {g.meta && <p className="text-xs text-muted-foreground">{g.meta}</p>}
+              </div>
+              {g.name && (
+                <span className="text-xs text-muted-foreground">
+                  {g.entries.length} team{g.entries.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
-            <span className="text-xs text-muted-foreground">
-              {g.entries.length} team{g.entries.length === 1 ? "" : "s"}
-            </span>
-          </div>
+          )}
           {g.entries.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">No teams in this division yet.</p>
           ) : (
@@ -284,7 +425,13 @@ function TeamsByDivision({
                         {e.teams?.clubs?.name || "—"}
                       </div>
                     </div>
-                    <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
+                    {e.status === "accepted" ? (
+                      <Badge variant="default">Accepted</Badge>
+                    ) : e.status === "invited" ? (
+                      <Badge variant="secondary">Invite sent</Badge>
+                    ) : (
+                      <Badge variant="outline" className="capitalize">{e.status}</Badge>
+                    )}
                     {canRespond && (
                       <div className="flex gap-1">
                         <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
@@ -358,52 +505,59 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-4 w-4 text-primary" />
-            <span className="font-medium">Send broadcast</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Posts as a competition announcement in the team chat of every accepted team
-            {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}.
-          </p>
-          <div>
-            <Label>Message</Label>
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="e.g. Round 4 fixtures are up — check the schedule." />
-          </div>
-          {divisions.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Limit to divisions (optional)</Label>
-              <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
-                {divisions.map((d: any) => (
-                  <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
-                    <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
-                    <span>{d.name}</span>
-                  </label>
-                ))}
-              </div>
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-primary" />
+          <span className="font-medium">Send broadcast</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Posts as a competition announcement in the team chat of every accepted team
+          {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}. Only teams entered in
+          this competition receive it.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="broadcast-msg">Message</Label>
+          <Textarea
+            id="broadcast-msg"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            placeholder="e.g. Round 4 fixtures are up — check the schedule."
+          />
+        </div>
+        {divisions.length > 0 && (
+          <div className="space-y-1.5">
+            <Label>Limit to divisions (optional)</Label>
+            <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
+              {divisions.map((d: any) => (
+                <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                  <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
+                  <span>{d.name}</span>
+                </label>
+              ))}
             </div>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} total</span>
-            <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
-              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Send
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-xs text-muted-foreground">
+            {acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} in competition
+          </span>
+          <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+            Send
+          </Button>
+        </div>
+      </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 border-t pt-4">
         <div className="text-sm font-medium">Recent broadcasts</div>
         {history.length === 0 ? (
           <p className="text-sm text-muted-foreground">No broadcasts yet.</p>
         ) : (
           history.map((b: any) => (
             <Card key={b.id}>
-              <CardContent className="p-4 space-y-1">
+              <CardContent className="p-3 space-y-1">
                 <div className="text-sm whitespace-pre-wrap">{b.message}</div>
                 <div className="text-xs text-muted-foreground">
                   {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"} · {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
@@ -417,10 +571,10 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
   );
 }
 
-function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: string; divisions: any[]; onDone: () => void }) {
+function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { competitionId: string; divisions: any[]; defaultOpen?: boolean; onDone: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!defaultOpen);
   const [teamId, setTeamId] = useState("");
   const [divisionId, setDivisionId] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -474,7 +628,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Invite team
       </Button>
     );

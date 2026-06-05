@@ -258,11 +258,12 @@ export default function DirectMessagePage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "dm" && liveJump.targetId === conversationId ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     conversationId ? consumePendingChatJump("dm", conversationId) : null,
   );
-  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
+  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {

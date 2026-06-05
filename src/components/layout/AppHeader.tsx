@@ -25,7 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
-import { setPendingChatJump } from "@/lib/pendingChatJump";
+import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -568,7 +568,7 @@ export function AppHeader() {
       .maybeSingle();
     if (directMsg?.conversation_id) {
       setPendingChatJump("dm", directMsg.conversation_id, directMsg.id);
-      navigate(`/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`);
+      navigate(withChatJumpNonce(`/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`));
       return true;
     }
 
@@ -601,12 +601,14 @@ export function AppHeader() {
 
     if (nearestMsg?.id) {
       setPendingChatJump("dm", relatedId, nearestMsg.id);
-      navigate(`/messages/dm/${relatedId}?message=${nearestMsg.id}`);
+      navigate(withChatJumpNonce(`/messages/dm/${relatedId}?message=${nearestMsg.id}`));
     } else {
       navigate(`/messages/dm/${relatedId}`);
     }
     return true;
   };
+
+  const navigateWithFreshJump = (to: string) => navigate(withChatJumpNonce(to));
 
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
@@ -627,15 +629,15 @@ export function AppHeader() {
           // which chat container that message belongs to and deep-link with
           // ?message= so the chat page scrolls to it.
           const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle();
-          if (tMsg?.team_id) { navigate(`/messages/${tMsg.team_id}?message=${relatedId}`); return; }
+          if (tMsg?.team_id) { navigateWithFreshJump(`/messages/${tMsg.team_id}?message=${relatedId}`); return; }
           const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
-          if (cMsg?.club_id) { navigate(`/messages/club/${cMsg.club_id}?message=${relatedId}`); return; }
+          if (cMsg?.club_id) { navigateWithFreshJump(`/messages/club/${cMsg.club_id}?message=${relatedId}`); return; }
           const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
-          if (gMsg?.group_id) { navigate(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
+          if (gMsg?.group_id) { navigateWithFreshJump(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
           const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
-          if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigate(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
+          if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigateWithFreshJump(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
           const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
-          if (bMsg) { navigate(`/messages/broadcast?message=${relatedId}`); return; }
+          if (bMsg) { navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`); return; }
           // Backward-compat: very old rows stored container_id as related_id.
           const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
           if (teamCheck) { navigate(`/messages/${relatedId}`); return; }
@@ -666,7 +668,7 @@ export function AppHeader() {
             .maybeSingle();
           if (teamMessage?.team_id) {
             setPendingChatJump("team", teamMessage.team_id, relatedId);
-            navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
           const { data: clubMsg } = await supabase
@@ -676,7 +678,7 @@ export function AppHeader() {
             .maybeSingle();
           if (clubMsg?.club_id) {
             setPendingChatJump("club", clubMsg.club_id, relatedId);
-            navigate(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
             return;
           }
           const { data: groupMsg } = await supabase
@@ -686,7 +688,7 @@ export function AppHeader() {
             .maybeSingle();
           if (groupMsg?.group_id) {
             setPendingChatJump("group", groupMsg.group_id, relatedId);
-            navigate(`/groups/${groupMsg.group_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/groups/${groupMsg.group_id}?message=${relatedId}`);
             return;
           }
           const { data: dmMsg } = await supabase
@@ -696,7 +698,7 @@ export function AppHeader() {
             .maybeSingle();
           if (dmMsg?.conversation_id) {
             setPendingChatJump("dm", dmMsg.conversation_id, relatedId);
-            navigate(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
             return;
           }
           const { data: broadcastMsg } = await supabase
@@ -706,7 +708,7 @@ export function AppHeader() {
             .maybeSingle();
           if (broadcastMsg) {
             setPendingChatJump("broadcast", null, relatedId);
-            navigate(`/messages/broadcast?message=${relatedId}`);
+            navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
             return;
           }
           break;
@@ -714,7 +716,7 @@ export function AppHeader() {
 
         case "broadcast":
           setPendingChatJump("broadcast", null, relatedId);
-          navigate(`/messages/broadcast?message=${relatedId}`);
+          navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
           return;
         case "direct_message": {
           const opened = await openDirectMessageNotification(relatedId, notification.created_at);

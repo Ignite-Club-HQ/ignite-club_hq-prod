@@ -49,6 +49,7 @@ import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -168,6 +169,8 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const pinnedVault = useChatPinnedVault("club", clubId ?? undefined);
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null);
+  const pinnedVaultLocked = !clubProLoading && !clubHasPro;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
   const useVirtualizedChat = true;
@@ -211,11 +214,12 @@ export default function ClubChatPage() {
   const [liveJump, setLiveJump] = useState<PendingChatJumpPayload | null>(null);
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "club" && liveJump.targetId === clubId ? liveJump.messageId : null;
-  const targetJumpNonce = liveJumpId ? liveJump?.ts : undefined;
+  const urlJumpNonce = searchParams.get("jump");
+  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     clubId ? consumePendingChatJump("club", clubId) : null,
   );
-  const targetMessageId = liveJumpId ?? urlMessageId ?? fallbackJumpId;
+  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
 
@@ -1374,11 +1378,21 @@ export default function ClubChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onManagePinnedVault={
-                (isClubAdmin || isAppAdmin) ? () => setPinVaultSheetOpen(true) : undefined
+                (isClubAdmin || isAppAdmin)
+                  ? () => {
+                      if (pinnedVaultLocked) {
+                        toast({ title: "Pinned vault is a Pro feature" });
+                        if (clubId) navigate(`/clubs/${clubId}/upgrade`);
+                        return;
+                      }
+                      setPinVaultSheetOpen(true);
+                    }
+                  : undefined
               }
+              pinnedVaultLocked={!!(isClubAdmin || isAppAdmin) && pinnedVaultLocked}
               pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
               onTogglePinnedVault={
-                pinnedVault.record && (isClubAdmin || isAppAdmin)
+                pinnedVault.record && (isClubAdmin || isAppAdmin) && !pinnedVaultLocked
                   ? (v) => pinnedVault.toggleEnabled(v)
                   : undefined
               }

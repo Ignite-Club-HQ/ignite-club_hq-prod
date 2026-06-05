@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 
@@ -906,6 +907,8 @@ export default function ClubDetailPage() {
                        club?.sport?.toLowerCase().includes("football") || 
                        club?.sport?.toLowerCase().includes("futsal");
 
+  const { hasProFootball } = useClubProAccess(id);
+
 
   if (isLoading) {
     return (
@@ -1553,8 +1556,8 @@ export default function ClubDetailPage() {
       {/* Competitions Section */}
       <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} />
 
-      {/* Mini Leagues Section - soccer/football only, hidden for class-mode clubs */}
-      {isSoccerClub && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
+      {/* Mini Leagues Section - Pro Football clubs only, hidden for class-mode clubs */}
+      {isSoccerClub && hasProFootball && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
         <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           <AccordionItem value="mini-leagues" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
