@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
+  
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { downloadImage } from "@/lib/downloadImage";
