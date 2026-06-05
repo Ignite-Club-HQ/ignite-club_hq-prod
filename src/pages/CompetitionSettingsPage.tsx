@@ -156,13 +156,14 @@ export default function CompetitionSettingsPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 pb-32 space-y-5">
-      <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
-        <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
-      </Button>
-
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold leading-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage competition details, visibility and scoring.</p>
+      <div className="flex items-start gap-2">
+        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label={`Back to ${competition.name}`}>
+          <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
+        </Button>
+        <div className="space-y-1 pt-1.5">
+          <h1 className="text-2xl font-bold leading-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground">Manage competition details, visibility and scoring.</p>
+        </div>
       </div>
 
       {/* 1. Competition details */}
