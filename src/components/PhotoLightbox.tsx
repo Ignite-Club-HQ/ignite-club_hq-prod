@@ -90,11 +90,21 @@ function LightboxImage({
     );
   }
 
+  // When at rest (scale=1), use object-cover sized to the full viewport so
+  // sports photos fill the screen edge-to-edge with only light cropping —
+  // an Instagram/Facebook Photos feel rather than a document viewer with
+  // letterboxed black bars. The moment the user pinches, we switch to
+  // object-contain so they can inspect the full frame without clipping.
+  const zoomed = scale > 1.001;
   return (
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
+      className={
+        zoomed
+          ? "max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
+          : "w-screen h-[100dvh] object-cover transition-transform duration-100"
+      }
       style={{
         transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
       }}
