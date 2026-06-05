@@ -356,13 +356,17 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       toast({ title: "Pick two different teams", variant: "destructive" });
       return;
     }
+    if (!scheduledAt) {
+      toast({ title: "Start date & time required", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("competition_matches").insert({
       competition_id: competitionId,
       home_team_id: homeId,
       away_team_id: awayId,
       division_id: divisionId || null,
-      scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      scheduled_at: new Date(scheduledAt).toISOString(),
       venue: venue || null,
       round_number: round ? Number(round) : null,
       duration_minutes: duration ? Number(duration) : null,
