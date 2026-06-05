@@ -174,7 +174,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <Input type="date" value={genFirstRoundDate} onChange={(e) => setGenFirstRoundDate(e.target.value)} />
                   </div>
                   <div>
-                    <Label>Kickoff time</Label>
+                    <Label>Start time</Label>
                     <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
                   </div>
                   <div>
