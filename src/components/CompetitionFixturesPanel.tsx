@@ -85,18 +85,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       toast({ title: "Need at least 2 accepted teams", variant: "destructive" });
       return;
     }
+    if (!genVenue.trim()) {
+      toast({ title: "Venue is required", variant: "destructive" });
+      return;
+    }
     setGenerating(true);
     const fixtures = buildRoundRobin(teams.map((t: any) => t.id));
     const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
     const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
     const duration = genDuration ? Number(genDuration) : null;
     const arrival = genArrival ? Number(genArrival) : null;
+    const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
+    // Track per-round pitch counter so each round starts at 1
+    const roundPitchCounter = new Map<number, number>();
     const rows = fixtures.map((f) => {
       let scheduledAt: string | null = null;
       if (baseDate && !isNaN(baseDate.getTime())) {
         const d = new Date(baseDate);
         d.setDate(d.getDate() + (f.round - 1) * daysBetween);
         scheduledAt = d.toISOString();
+      }
+      let pitch: string | null = null;
+      if (pitchCount > 0) {
+        const used = roundPitchCounter.get(f.round) ?? 0;
+        pitch = String((used % pitchCount) + 1);
+        roundPitchCounter.set(f.round, used + 1);
       }
       return {
         competition_id: competitionId,
@@ -107,7 +120,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         status: "scheduled",
         created_by: user?.id ?? null,
         scheduled_at: scheduledAt,
-        venue: genVenue || null,
+        venue: genVenue,
+        pitch_number: pitch,
         duration_minutes: duration,
         arrival_minutes_before: arrival,
       } as any;
@@ -121,7 +135,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     toast({ title: `Generated ${rows.length} fixtures` });
     setGenOpen(false);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
-    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival("");
+    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival(""); setGenAutoPitches("");
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
