@@ -300,7 +300,13 @@ function TeamsByDivision({
                         {e.teams?.clubs?.name || "—"}
                       </div>
                     </div>
-                    <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
+                    {e.status === "accepted" ? (
+                      <Badge variant="default">Accepted</Badge>
+                    ) : e.status === "invited" ? (
+                      <Badge variant="secondary">Invite sent</Badge>
+                    ) : (
+                      <Badge variant="outline" className="capitalize">{e.status}</Badge>
+                    )}
                     {canRespond && (
                       <div className="flex gap-1">
                         <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
