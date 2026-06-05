@@ -128,8 +128,8 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/competitions"><ArrowLeft className="h-4 w-4 mr-1" /> Competitions</Link>
+      <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label="Back to Competitions">
+        <Link to="/competitions"><ArrowLeft className="h-5 w-5" /></Link>
       </Button>
 
       <header className="flex items-start gap-2">
