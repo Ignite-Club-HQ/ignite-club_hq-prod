@@ -28,7 +28,8 @@ export function ChatMediaViewer({
     limit: 200,
     enabled: open,
   });
-  const [activeItem, setActiveItem] = useState<SharedMediaItem | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activeItem = activeIndex !== null ? items[activeIndex] ?? null : null;
 
   return (
     <>
