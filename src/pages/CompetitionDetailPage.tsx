@@ -275,6 +275,15 @@ function DraftSetupProgress({
   acceptedCount: number;
   invitedCount: number;
 }) {
+  const skipKey = `ignite_comp_skip_divisions_${competitionId}`;
+  const [divisionsSkipped, setDivisionsSkipped] = useState<boolean>(() => {
+    try { return localStorage.getItem(skipKey) === "1"; } catch { return false; }
+  });
+  const skipDivisions = () => {
+    try { localStorage.setItem(skipKey, "1"); } catch {}
+    setDivisionsSkipped(true);
+  };
+
   const { data: matchesCount = 0 } = useQuery({
     queryKey: ["competition-matches-count", competitionId],
     queryFn: async () => {
@@ -288,22 +297,27 @@ function DraftSetupProgress({
 
   const steps = [
     {
+      key: "invite",
       label: "Invite teams",
       done: invitedCount + acceptedCount > 0,
       hint:
         invitedCount + acceptedCount === 0
           ? "Send invites to the teams you want in this competition."
           : `${invitedCount + acceptedCount} invited · ${acceptedCount} accepted`,
+      dismissible: false,
     },
     {
+      key: "divisions",
       label: "Add divisions",
       done: divisionsCount > 0,
       hint:
         divisionsCount === 0
           ? "Optional — group teams by age, gender or skill."
           : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
+      dismissible: divisionsCount === 0,
     },
     {
+      key: "fixtures",
       label: "Generate fixtures",
       done: matchesCount > 0,
       hint:
@@ -312,13 +326,16 @@ function DraftSetupProgress({
           : matchesCount > 0
             ? `${matchesCount} match${matchesCount === 1 ? "" : "es"} scheduled`
             : "Use 'Generate round-robin' on the Fixtures tab.",
+      dismissible: false,
     },
     {
+      key: "publish",
       label: "Publish competition",
       done: false,
       hint: "Open Settings and switch from Draft to Published.",
+      dismissible: false,
     },
-  ];
+  ].filter((s) => !(s.key === "divisions" && divisionsSkipped));
 
   return (
     <Card className="border-primary/30 bg-primary/[0.03]">
@@ -330,18 +347,30 @@ function DraftSetupProgress({
         </div>
         <ol className="space-y-2">
           {steps.map((s) => (
-            <li key={s.label} className="flex items-start gap-2 text-sm">
+            <li key={s.key} className="flex items-start gap-2 text-sm">
               {s.done ? (
                 <CircleCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
               ) : (
                 <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className={s.done ? "font-medium line-through text-muted-foreground" : "font-medium"}>
                   {s.label}
                 </div>
                 <div className="text-xs text-muted-foreground">{s.hint}</div>
               </div>
+              {s.dismissible && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 -mt-1 -mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={s.key === "divisions" ? skipDivisions : undefined}
+                  aria-label={`Dismiss ${s.label}`}
+                  title="Skip this step"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </li>
           ))}
         </ol>
