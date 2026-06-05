@@ -486,52 +486,59 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-4 w-4 text-primary" />
-            <span className="font-medium">Send broadcast</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Posts as a competition announcement in the team chat of every accepted team
-            {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}.
-          </p>
-          <div>
-            <Label>Message</Label>
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="e.g. Round 4 fixtures are up — check the schedule." />
-          </div>
-          {divisions.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Limit to divisions (optional)</Label>
-              <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
-                {divisions.map((d: any) => (
-                  <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
-                    <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
-                    <span>{d.name}</span>
-                  </label>
-                ))}
-              </div>
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-primary" />
+          <span className="font-medium">Send broadcast</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Posts as a competition announcement in the team chat of every accepted team
+          {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}. Only teams entered in
+          this competition receive it.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="broadcast-msg">Message</Label>
+          <Textarea
+            id="broadcast-msg"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            placeholder="e.g. Round 4 fixtures are up — check the schedule."
+          />
+        </div>
+        {divisions.length > 0 && (
+          <div className="space-y-1.5">
+            <Label>Limit to divisions (optional)</Label>
+            <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
+              {divisions.map((d: any) => (
+                <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                  <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
+                  <span>{d.name}</span>
+                </label>
+              ))}
             </div>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} total</span>
-            <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
-              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Send
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-xs text-muted-foreground">
+            {acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} in competition
+          </span>
+          <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+            Send
+          </Button>
+        </div>
+      </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 border-t pt-4">
         <div className="text-sm font-medium">Recent broadcasts</div>
         {history.length === 0 ? (
           <p className="text-sm text-muted-foreground">No broadcasts yet.</p>
         ) : (
           history.map((b: any) => (
             <Card key={b.id}>
-              <CardContent className="p-4 space-y-1">
+              <CardContent className="p-3 space-y-1">
                 <div className="text-sm whitespace-pre-wrap">{b.message}</div>
                 <div className="text-xs text-muted-foreground">
                   {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"} · {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
