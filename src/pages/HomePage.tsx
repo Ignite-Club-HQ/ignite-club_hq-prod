@@ -310,6 +310,7 @@ export default function HomePage() {
 
       // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
       const now = new Date();
+      const todayStr = getLocalDateKey(now);
       const leagueAdminArr = Array.from(leagueAdminClubIds);
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
@@ -330,7 +331,7 @@ export default function HomePage() {
           // mid-morning local time.
           .gte(
             "event_date",
-            `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+            todayStr
           )
           .order("event_date", { ascending: true })
           .limit(50),
@@ -360,7 +361,6 @@ export default function HomePage() {
 
       // Step 3: Filter events client-side
       const clubIdsArr = Array.from(clubIds);
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
@@ -368,13 +368,7 @@ export default function HomePage() {
         // (with placeholderData + no window-focus refetch on WebView resume)
         // can keep yesterday's data alive into the next day. Re-filter on
         // render so stale past events never leak into Next Up.
-        if (event.event_date < todayStr) return false;
-        // Drop today's events whose start_time has already passed (with a
-        // small grace window) so Next Up never shows events from earlier today.
-        if (event.event_date === todayStr && event.start_time) {
-          const startMs = new Date(`${event.event_date}T${event.start_time}`).getTime();
-          if (!Number.isNaN(startMs) && startMs + 30 * 60 * 1000 < nowMs) return false;
-        }
+        if (!isStillUpcomingForNextUp(event, nowMs)) return false;
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
