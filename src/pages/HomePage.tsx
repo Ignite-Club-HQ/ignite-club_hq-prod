@@ -181,6 +181,7 @@ function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
     return start.getTime();
   }
 
+  if (!event.event_date.includes("T")) return Number.NaN;
   return new Date(event.event_date).getTime();
 }
 
