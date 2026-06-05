@@ -25,7 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AddClubRoleToMemberDialog from "@/components/AddClubRoleToMemberDialog";
 
-type AppRole = "basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin" | "committee_member";
+type AppRole = "basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin" | "committee_member" | "league_admin" | "association_admin" | "competition_admin";
 
 const roleLabels: Record<AppRole, string> = {
   basic_user: "Member",
@@ -36,6 +36,9 @@ const roleLabels: Record<AppRole, string> = {
   parent: "Parent",
   app_admin: "App Admin",
   committee_member: "Committee Member",
+  league_admin: "League Admin",
+  association_admin: "Association Admin",
+  competition_admin: "Competition Admin",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -47,6 +50,9 @@ const roleColors: Record<AppRole, string> = {
   parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   basic_user: "bg-muted text-muted-foreground border-border",
   committee_member: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  league_admin: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+  association_admin: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30",
+  competition_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
 const MEMBERS_PER_PAGE = 10;
