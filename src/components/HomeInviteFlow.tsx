@@ -406,7 +406,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
-            <div className="pt-2 pb-6 space-y-3">
+            <div className="pt-2 pb-6 space-y-3 overflow-x-hidden">
               {/* Club picker */}
               {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
@@ -482,9 +482,9 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                             key={option.value}
                             type="button"
                             onClick={() => handleTargetSelect(option.value)}
-                            className="w-full flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-all hover:bg-accent/50 active:bg-accent active:scale-[0.99]"
+                            className="w-full min-w-0 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-all hover:bg-accent/50 active:bg-accent active:scale-[0.99]"
                           >
-                            <span className="flex min-w-0 items-center gap-3">
+                            <span className="flex min-w-0 flex-1 items-center gap-3">
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
                                 <Icon className="h-4 w-4 text-muted-foreground" />
                               </span>
