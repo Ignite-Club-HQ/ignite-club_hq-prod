@@ -273,14 +273,10 @@ export function PhotoLightbox({
     if (scale > 1) {
       resetZoom();
     } else {
-      // Trigger zoom via synthetic state — use the hook's onDoubleClick path
-      // by simulating: we don't have direct setScale, so use resetZoom toggle
-      // The usePinchZoom hook exposes onDoubleClick — reuse it
-      pinchOnDoubleClick();
+      pinchOnDoubleClick({} as React.MouseEvent);
     }
   };
 
-  const { onDoubleClick: pinchOnDoubleClick } = usePinchZoom(1, 4);
 
   const photoSrc = currentPhoto?.file_url || currentPhoto?.image_url || '';
   const { signedUrl: downloadSignedUrl } = useSignedPhotoUrl(photoSrc);
