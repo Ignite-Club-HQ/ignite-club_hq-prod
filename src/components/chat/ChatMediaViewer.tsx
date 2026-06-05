@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Play, ImageIcon, Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FullscreenImageViewer } from "@/components/chat/FullscreenImageViewer";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
 import { isVideoUrl } from "@/lib/videoUtils";
 import { SecureImage } from "@/components/SecureImage";
