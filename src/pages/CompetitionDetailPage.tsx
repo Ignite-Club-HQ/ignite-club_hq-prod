@@ -244,7 +244,92 @@ export default function CompetitionDetailPage() {
   );
 }
 
-function TeamsByDivision({
+function DraftSetupProgress({
+  competitionId,
+  divisionsCount,
+  acceptedCount,
+  invitedCount,
+}: {
+  competitionId: string;
+  divisionsCount: number;
+  acceptedCount: number;
+  invitedCount: number;
+}) {
+  const { data: matchesCount = 0 } = useQuery({
+    queryKey: ["competition-matches-count", competitionId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("competition_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId);
+      return count ?? 0;
+    },
+  });
+
+  const steps = [
+    {
+      label: "Invite teams",
+      done: invitedCount + acceptedCount > 0,
+      hint:
+        invitedCount + acceptedCount === 0
+          ? "Send invites to the teams you want in this competition."
+          : `${invitedCount + acceptedCount} invited · ${acceptedCount} accepted`,
+    },
+    {
+      label: "Add divisions",
+      done: divisionsCount > 0,
+      hint:
+        divisionsCount === 0
+          ? "Optional — group teams by age, gender or skill."
+          : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
+    },
+    {
+      label: "Generate fixtures",
+      done: matchesCount > 0,
+      hint:
+        acceptedCount < 2
+          ? "Needs at least 2 accepted teams."
+          : matchesCount > 0
+            ? `${matchesCount} match${matchesCount === 1 ? "" : "es"} scheduled`
+            : "Use 'Generate round-robin' on the Fixtures tab.",
+    },
+    {
+      label: "Publish competition",
+      done: false,
+      hint: "Open Settings and switch from Draft to Published.",
+    },
+  ];
+
+  return (
+    <Card className="border-primary/30 bg-primary/[0.03]">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Set up your competition</h2>
+          <Badge variant="outline" className="ml-auto text-[11px]">Draft</Badge>
+        </div>
+        <ol className="space-y-2">
+          {steps.map((s) => (
+            <li key={s.label} className="flex items-start gap-2 text-sm">
+              {s.done ? (
+                <CircleCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className={s.done ? "font-medium line-through text-muted-foreground" : "font-medium"}>
+                  {s.label}
+                </div>
+                <div className="text-xs text-muted-foreground">{s.hint}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
   divisions,
   entries,
   myAdminTeamIds,
