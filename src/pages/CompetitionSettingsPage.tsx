@@ -324,15 +324,18 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
 
   return (
     <Card>
-      <CardContent className="p-4 space-y-3">
-        <div>
-          <Label className="text-sm font-medium">Ladder visibility by division / grade</Label>
-          <p className="text-xs text-muted-foreground">Hide the ladder for non-competitive divisions or grades. Fixtures and results stay visible.</p>
-        </div>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Ladder visibility</CardTitle>
+        <CardDescription>Choose which divisions or grades show a ladder. Fixtures and results stay visible.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {isLoading ? (
           <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
         ) : divisions.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No divisions yet.</p>
+          <div className="rounded-md border border-dashed p-4 text-center">
+            <p className="text-sm text-muted-foreground">No divisions yet.</p>
+            <p className="text-xs text-muted-foreground mt-1">Add divisions from the Teams tab to manage ladder visibility.</p>
+          </div>
         ) : (
           <div className="divide-y border rounded-md">
             {divisions.map((d: any) => (
