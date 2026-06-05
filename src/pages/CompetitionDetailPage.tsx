@@ -129,7 +129,13 @@ export default function CompetitionDetailPage() {
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
           <div className="flex gap-2 mt-2 flex-wrap">
-            <Badge variant="secondary" className="capitalize">{competition.status}</Badge>
+            <Badge
+              variant={competition.status === "published" ? "default" : "secondary"}
+              className="capitalize"
+              aria-label={`Status: ${competition.status}`}
+            >
+              {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
+            </Badge>
             {competition.visibility === "public" ? (
               <button
                 type="button"
@@ -140,19 +146,21 @@ export default function CompetitionDetailPage() {
                     () => toast({ title: "Public link", description: url }),
                   );
                 }}
+                aria-label="Copy public competition link"
+                title="Copy public competition link"
                 className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold hover:bg-muted"
               >
-                <LinkIcon className="h-3 w-3" /> Public
+                <LinkIcon className="h-3 w-3" /> Public link
               </button>
             ) : (
-              <Badge variant="outline" className="capitalize">{competition.visibility}</Badge>
+              <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
             )}
           </div>
         </div>
         {isAdmin && (
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Broadcasts">
+              <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
                 <Megaphone className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -171,7 +179,7 @@ export default function CompetitionDetailPage() {
           </Sheet>
         )}
         {isAdmin && (
-          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+          <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
             <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
           </Button>
         )}
