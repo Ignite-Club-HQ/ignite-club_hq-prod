@@ -238,6 +238,7 @@ export default function CompetitionDetailPage() {
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
+                defaultOpen={inviteFromUrl}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
               />
               <AddDivisionForm
