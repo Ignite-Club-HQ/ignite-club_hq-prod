@@ -388,8 +388,10 @@ function TeamsByDivision({
     });
   }
   const unassigned = entries.filter((e: any) => !e.division_id);
-  if (unassigned.length > 0) {
+  if (unassigned.length > 0 && divisions.length > 0) {
     groups.push({ id: null, name: "Unassigned", entries: unassigned });
+  } else if (divisions.length === 0 && unassigned.length > 0) {
+    groups.push({ id: null, name: "", entries: unassigned });
   }
 
   return (
