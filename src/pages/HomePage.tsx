@@ -206,6 +206,8 @@ export default function HomePage() {
   const navigate = useNavigate();
   const isNativeApp = Capacitor.isNativePlatform();
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const lastHomeRefreshRef = useRef(0);
   
   // Use cached theme state to prevent gradient flash on initial render
   const [initialHasClubTheme] = useState(hasClubThemeCached);
@@ -391,6 +393,9 @@ export default function HomePage() {
     // after a brief token-rotation window instead of staying blank.
     retry: 2,
     retryDelay: (attempt) => Math.min(500 * attempt, 2000),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
 
   // Derive memberships and events from consolidated query
@@ -404,9 +409,42 @@ export default function HomePage() {
   // Filter events by active club theme
   const events = useMemo(() => {
     if (!allEvents) return [];
-    if (!activeClubFilter) return allEvents.slice(0, 10);
-    return allEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
-  }, [allEvents, activeClubFilter]);
+    const freshEvents = allEvents.filter((event) => isStillUpcomingForNextUp(event, nowTick));
+    if (!activeClubFilter) return freshEvents.slice(0, 10);
+    return freshEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
+  }, [allEvents, activeClubFilter, nowTick]);
+
+  useEffect(() => {
+    const refreshHomeEvents = () => {
+      const now = Date.now();
+      setNowTick(now);
+      if (now - lastHomeRefreshRef.current < 30_000) return;
+      lastHomeRefreshRef.current = now;
+      queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events", user?.id] });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshHomeEvents();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    let removeNativeListener: (() => void) | undefined;
+
+    if (isNativeApp) {
+      void import("@capacitor/app").then(({ App }) =>
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) refreshHomeEvents();
+        })
+      ).then((handle) => {
+        removeNativeListener = () => { void handle.remove(); };
+      }).catch(() => {});
+    }
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      removeNativeListener?.();
+    };
+  }, [isNativeApp, queryClient, user?.id]);
 
   // Fetch user's RSVPs for visible events
   const eventIds = events?.map(e => e.id) || [];
