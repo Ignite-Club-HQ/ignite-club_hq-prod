@@ -493,14 +493,24 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
                   </div>
                 </div>
                 {c.role !== "owner" && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={`Remove ${c.display_name ?? "coordinator"}`}
-                    onClick={() => removeCoordinator(c.user_id, c.role)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  c.user_id === user?.id ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => removeCoordinator(c.user_id, c.role)}
+                    >
+                      Leave
+                    </Button>
+                  ) : (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Remove ${c.display_name ?? "coordinator"}`}
+                      onClick={() => removeCoordinator(c.user_id, c.role)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )
                 )}
               </li>
             ))}
