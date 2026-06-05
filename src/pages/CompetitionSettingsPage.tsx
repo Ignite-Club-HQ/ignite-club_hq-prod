@@ -109,8 +109,8 @@ export default function CompetitionSettingsPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to={`/competitions/${id}`}><ArrowLeft className="h-4 w-4 mr-1" /> {competition.name}</Link>
+      <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
+        <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
       </Button>
 
       <div>
