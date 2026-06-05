@@ -344,12 +344,12 @@ export function PhotoLightbox({
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-white/15 ring-1 ring-white/20 rounded-full h-11 w-11"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
                 onClick={handleShare}
                 aria-label="Share photo"
                 title="Share"
               >
-                <Share2 className="h-5 w-5" />
+                <Share2 className="h-[1.05rem] w-[1.05rem]" />
               </Button>
               <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
