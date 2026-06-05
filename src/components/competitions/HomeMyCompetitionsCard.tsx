@@ -75,10 +75,10 @@ export default function HomeMyCompetitionsCard() {
   const pendingCount = items.filter((e: any) => e.status === "invited").length;
 
   return (
-    <section aria-label="Club competitions" className="space-y-2">
+    <section aria-label="Competitions" className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-primary" /> Club Competitions
+          <Trophy className="h-4 w-4 text-primary" /> Competitions
         </h2>
         {pendingCount > 0 && (
           <Badge variant="destructive" className="text-[11px]">
@@ -89,6 +89,17 @@ export default function HomeMyCompetitionsCard() {
       <div className="space-y-2">
         {items.map((e: any) => {
           const isInvited = e.status === "invited";
+          const hostClub = e.competitions?.organizer_club?.name;
+          const metadata = [hostClub ? `Hosted by ${hostClub}` : null, e.competitions?.season]
+            .filter(Boolean)
+            .join(" · ");
+          const teamContext = [
+            e.teams?.name,
+            e.competition_divisions?.name,
+            isInvited ? "invited" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <Link
               key={e.id}
@@ -114,15 +125,16 @@ export default function HomeMyCompetitionsCard() {
                     <div className="font-medium text-sm truncate">
                       {e.competitions?.name}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {[
-                        e.teams?.name,
-                        e.competitions?.season,
-                        e.competition_divisions?.name,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
+                    {metadata && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {metadata}
+                      </div>
+                    )}
+                    {teamContext && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {teamContext}
+                      </div>
+                    )}
                     {isInvited && (
                       <div className="text-[11px] font-medium text-primary mt-1">
                         Invitation pending — tap to review
