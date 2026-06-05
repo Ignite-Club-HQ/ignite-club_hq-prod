@@ -295,6 +295,7 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
           {match.round_number != null && <Badge variant="outline">Round {match.round_number}</Badge>}
           {match.competition_divisions?.name && <span>{match.competition_divisions.name}</span>}
           {match.scheduled_at && <span>· {format(new Date(match.scheduled_at), "EEE d MMM HH:mm")}</span>}
+          {match.venue && <span>· {match.venue}{match.pitch_number ? ` — Pitch ${match.pitch_number}` : ""}</span>}
           <Badge variant="secondary" className="capitalize ml-auto">{match.status.replace("_", " ")}</Badge>
         </div>
         <div className="flex items-center gap-2 text-sm">
