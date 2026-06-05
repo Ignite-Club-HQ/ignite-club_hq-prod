@@ -483,9 +483,13 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
             <Label>Round (optional)</Label>
             <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
           </div>
-          <div className="col-span-2">
-            <Label>Venue (optional)</Label>
-            <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          <div>
+            <Label>Venue <span className="text-destructive">*</span></Label>
+            <Input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          </div>
+          <div>
+            <Label>Pitch / Court #</Label>
+            <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" />
           </div>
           <div>
             <Label>Duration (mins)</Label>
