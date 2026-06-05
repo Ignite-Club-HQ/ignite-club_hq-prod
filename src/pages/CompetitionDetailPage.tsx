@@ -27,6 +27,11 @@ export default function CompetitionDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   usePageTitle("Competition");
+  const navigate = useNavigate();
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/competitions");
+  };
 
   // Clear the ?invite=1 param after we read it so refresh / back doesn't reopen the form.
   useEffect(() => {
