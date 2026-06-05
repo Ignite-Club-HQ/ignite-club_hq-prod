@@ -75,7 +75,7 @@ function LightboxImage({
         key={effectiveSrc}
         src={isLoading ? undefined : effectiveSrc}
         poster={poster || undefined}
-        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain bg-black"
+        className="max-w-[100vw] max-h-[100dvh] object-contain bg-black"
         controls
         autoPlay
         playsInline
