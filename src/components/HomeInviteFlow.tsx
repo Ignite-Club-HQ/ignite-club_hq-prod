@@ -406,7 +406,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
-            <div className="pt-2 pb-6 space-y-3">
+            <div className="pt-2 pb-6 space-y-3 overflow-x-hidden">
               {/* Club picker */}
               {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
