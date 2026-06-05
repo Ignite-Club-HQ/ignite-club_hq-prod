@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Loader2, Check, UserPlus, X, Crown, Shield } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -274,6 +275,10 @@ export default function CompetitionSettingsPage() {
       {/* 4. Ladder visibility */}
       <DivisionLadderVisibility competitionId={id!} />
 
+      {/* 5. Coordinators */}
+      <CoordinatorsPanel competitionId={id!} />
+
+
       {/* Sticky save bar — page-level action */}
       <div
         className={cn(
@@ -360,6 +365,190 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
             ))}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const { data: coordinators = [], isLoading } = useQuery({
+    queryKey: ["competition-coordinators", competitionId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_competition_coordinators", {
+        _competition_id: competitionId,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        user_id: string;
+        role: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        created_at: string;
+      }>;
+    },
+  });
+
+  const { data: candidates = [], isFetching: searching } = useQuery({
+    queryKey: ["competition-coordinator-candidates", competitionId, search],
+    enabled: search.trim().length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("search_competition_coordinator_candidates", {
+        _competition_id: competitionId,
+        _query: search.trim(),
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        user_id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        source: string;
+      }>;
+    },
+  });
+
+  const existingIds = new Set(coordinators.map((c) => c.user_id));
+
+  const addCoordinator = async (userId: string) => {
+    setAdding(true);
+    const { error } = await supabase.from("competition_roles").insert({
+      competition_id: competitionId,
+      user_id: userId,
+      role: "admin",
+    });
+    setAdding(false);
+    if (error) {
+      toast({ title: "Could not add coordinator", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Coordinator added" });
+    setSearch("");
+    qc.invalidateQueries({ queryKey: ["competition-coordinators", competitionId] });
+  };
+
+  const removeCoordinator = async (userId: string, role: string) => {
+    if (role === "owner") return;
+    const { error } = await supabase
+      .from("competition_roles")
+      .delete()
+      .eq("competition_id", competitionId)
+      .eq("user_id", userId);
+    if (error) {
+      toast({ title: "Could not remove coordinator", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Coordinator removed" });
+    qc.invalidateQueries({ queryKey: ["competition-coordinators", competitionId] });
+  };
+
+  const initials = (name: string | null) =>
+    (name ?? "?")
+      .split(" ")
+      .map((s) => s[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Coordinators</CardTitle>
+        <CardDescription>
+          People who can manage this competition and are auto-added to the coordinator chat group.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+        ) : (
+          <ul className="divide-y border rounded-md">
+            {coordinators.map((c) => (
+              <li key={c.user_id} className="flex items-center gap-3 p-3">
+                <Avatar className="h-9 w-9">
+                  {c.avatar_url && <AvatarImage src={c.avatar_url} alt={c.display_name ?? ""} />}
+                  <AvatarFallback>{initials(c.display_name)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{c.display_name ?? "Unknown user"}</div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1 capitalize">
+                    {c.role === "owner" ? (
+                      <><Crown className="h-3 w-3" /> Owner</>
+                    ) : (
+                      <><Shield className="h-3 w-3" /> Admin</>
+                    )}
+                  </div>
+                </div>
+                {c.role !== "owner" && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Remove ${c.display_name ?? "coordinator"}`}
+                    onClick={() => removeCoordinator(c.user_id, c.role)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </li>
+            ))}
+            {coordinators.length === 0 && (
+              <li className="px-3 py-4 text-sm text-muted-foreground text-center">No coordinators yet.</li>
+            )}
+          </ul>
+        )}
+
+        <div className="space-y-1.5 pt-2 border-t">
+          <Label htmlFor="coord-search">Add a coordinator</Label>
+          <Input
+            id="coord-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search club admins, committee or association admins"
+          />
+          <p className="text-xs text-muted-foreground">
+            Only admins from the organising club or its association can be added.
+          </p>
+          {search.trim().length > 0 && (
+            <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+              {searching ? (
+                <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+              ) : candidates.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No matching admins found.</div>
+              ) : (
+                candidates.map((p) => {
+                  const already = existingIds.has(p.user_id);
+                  return (
+                    <button
+                      key={p.user_id}
+                      type="button"
+                      disabled={already || adding}
+                      onClick={() => addCoordinator(p.user_id)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+                    >
+                      <Avatar className="h-7 w-7">
+                        {p.avatar_url && <AvatarImage src={p.avatar_url} alt={p.display_name ?? ""} />}
+                        <AvatarFallback>{initials(p.display_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate">{p.display_name ?? "Unknown"}</div>
+                        <div className="text-xs text-muted-foreground capitalize">{p.source}</div>
+                      </div>
+                      {already ? (
+                        <span className="text-xs text-muted-foreground">Already added</span>
+                      ) : (
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
