@@ -17,19 +17,40 @@ export default function HomeMyCompetitionsCard() {
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("team_id")
+        .select("team_id, club_id, role")
         .eq("user_id", user!.id);
-      const teamIds = Array.from(
-        new Set((roles ?? []).map((r: any) => r.team_id).filter(Boolean))
-      );
-      if (teamIds.length === 0) return [];
+
+      const teamIds = new Set<string>();
+      const adminClubIds = new Set<string>();
+      (roles ?? []).forEach((r: any) => {
+        if (r.team_id) teamIds.add(r.team_id);
+        if (
+          r.club_id &&
+          (r.role === "club_admin" ||
+            r.role === "app_admin" ||
+            r.role === "association_admin")
+        ) {
+          adminClubIds.add(r.club_id);
+        }
+      });
+
+      // Expand admin clubs to their team ids so we can include their entries
+      if (adminClubIds.size > 0) {
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .in("club_id", Array.from(adminClubIds));
+        (clubTeams ?? []).forEach((t: any) => teamIds.add(t.id));
+      }
+
+      if (teamIds.size === 0) return [];
       const { data } = await supabase
         .from("competition_entries")
         .select(
-          "id, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status), competition_divisions:division_id(name)"
+          "id, status, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status), competition_divisions:division_id(name)"
         )
-        .in("team_id", teamIds)
-        .eq("status", "accepted");
+        .in("team_id", Array.from(teamIds))
+        .in("status", ["invited", "accepted"]);
       return data ?? [];
     },
   });
@@ -41,7 +62,11 @@ export default function HomeMyCompetitionsCard() {
   // Dedupe by competition (a club can have multiple teams in one comp)
   const byComp = new Map<string, any>();
   filtered.forEach((e: any) => {
-    if (!byComp.has(e.competition_id)) byComp.set(e.competition_id, e);
+    const existing = byComp.get(e.competition_id);
+    // Prefer accepted over invited when both exist
+    if (!existing || (existing.status === "invited" && e.status === "accepted")) {
+      byComp.set(e.competition_id, e);
+    }
   });
   const items = Array.from(byComp.values());
 
@@ -77,6 +102,9 @@ export default function HomeMyCompetitionsCard() {
                       .join(" · ")}
                   </div>
                 </div>
+                {e.status === "invited" && (
+                  <Badge variant="outline" className="text-xs">Invited</Badge>
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </CardContent>
             </Card>
