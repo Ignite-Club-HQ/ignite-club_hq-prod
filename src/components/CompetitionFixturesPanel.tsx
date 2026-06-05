@@ -57,6 +57,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genVenue, setGenVenue] = useState<string>("");
   const [genDuration, setGenDuration] = useState<string>("");
   const [genArrival, setGenArrival] = useState<string>("");
+  const [genAutoPitches, setGenAutoPitches] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   const { data: matches = [], isLoading } = useQuery({
@@ -84,18 +85,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       toast({ title: "Need at least 2 accepted teams", variant: "destructive" });
       return;
     }
+    if (!genVenue.trim()) {
+      toast({ title: "Venue is required", variant: "destructive" });
+      return;
+    }
     setGenerating(true);
     const fixtures = buildRoundRobin(teams.map((t: any) => t.id));
     const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
     const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
     const duration = genDuration ? Number(genDuration) : null;
     const arrival = genArrival ? Number(genArrival) : null;
+    const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
+    // Track per-round pitch counter so each round starts at 1
+    const roundPitchCounter = new Map<number, number>();
     const rows = fixtures.map((f) => {
       let scheduledAt: string | null = null;
       if (baseDate && !isNaN(baseDate.getTime())) {
         const d = new Date(baseDate);
         d.setDate(d.getDate() + (f.round - 1) * daysBetween);
         scheduledAt = d.toISOString();
+      }
+      let pitch: string | null = null;
+      if (pitchCount > 0) {
+        const used = roundPitchCounter.get(f.round) ?? 0;
+        pitch = String((used % pitchCount) + 1);
+        roundPitchCounter.set(f.round, used + 1);
       }
       return {
         competition_id: competitionId,
@@ -106,7 +120,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         status: "scheduled",
         created_by: user?.id ?? null,
         scheduled_at: scheduledAt,
-        venue: genVenue || null,
+        venue: genVenue,
+        pitch_number: pitch,
         duration_minutes: duration,
         arrival_minutes_before: arrival,
       } as any;
@@ -120,7 +135,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     toast({ title: `Generated ${rows.length} fixtures` });
     setGenOpen(false);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
-    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival("");
+    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival(""); setGenAutoPitches("");
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -182,8 +197,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <Input type="number" inputMode="numeric" min={0} value={genDaysBetween} onChange={(e) => setGenDaysBetween(e.target.value)} />
                   </div>
                   <div>
-                    <Label>Default venue</Label>
-                    <Input value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
+                    <Label>Default venue <span className="text-destructive">*</span></Label>
+                    <Input required value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
+                  </div>
+                  <div>
+                    <Label># of pitches/courts (auto-assign)</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genAutoPitches} onChange={(e) => setGenAutoPitches(e.target.value)} placeholder="e.g. 3" />
                   </div>
                   <div>
                     <Label>Duration (mins)</Label>
@@ -276,6 +295,7 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
           {match.round_number != null && <Badge variant="outline">Round {match.round_number}</Badge>}
           {match.competition_divisions?.name && <span>{match.competition_divisions.name}</span>}
           {match.scheduled_at && <span>· {format(new Date(match.scheduled_at), "EEE d MMM HH:mm")}</span>}
+          {match.venue && <span>· {match.venue}{match.pitch_number ? ` — Pitch ${match.pitch_number}` : ""}</span>}
           <Badge variant="secondary" className="capitalize ml-auto">{match.status.replace("_", " ")}</Badge>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -338,6 +358,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
   const [divisionId, setDivisionId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [venue, setVenue] = useState("");
+  const [pitch, setPitch] = useState("");
   const [round, setRound] = useState("");
   const [duration, setDuration] = useState("");
   const [arrival, setArrival] = useState("");
@@ -348,7 +369,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
 
   const reset = () => {
     setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
-    setVenue(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
+    setVenue(""); setPitch(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
   };
 
   const submit = async () => {
@@ -360,6 +381,10 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       toast({ title: "Start date & time required", variant: "destructive" });
       return;
     }
+    if (!venue.trim()) {
+      toast({ title: "Venue is required", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("competition_matches").insert({
       competition_id: competitionId,
@@ -367,7 +392,8 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       away_team_id: awayId,
       division_id: divisionId || null,
       scheduled_at: new Date(scheduledAt).toISOString(),
-      venue: venue || null,
+      venue: venue,
+      pitch_number: pitch.trim() || null,
       round_number: round ? Number(round) : null,
       duration_minutes: duration ? Number(duration) : null,
       arrival_minutes_before: arrival ? Number(arrival) : null,
@@ -458,9 +484,13 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
             <Label>Round (optional)</Label>
             <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
           </div>
-          <div className="col-span-2">
-            <Label>Venue (optional)</Label>
-            <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          <div>
+            <Label>Venue <span className="text-destructive">*</span></Label>
+            <Input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          </div>
+          <div>
+            <Label>Pitch / Court #</Label>
+            <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" />
           </div>
           <div>
             <Label>Duration (mins)</Label>
