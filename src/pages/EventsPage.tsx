@@ -883,10 +883,12 @@ export default function EventsPage() {
                   <div className="flex flex-col items-start flex-1">
                     <span className="text-sm font-semibold flex items-center gap-1.5">
                       Import Fixtures
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                        <Crown className="h-3 w-3" />
-                        Pro
-                      </span>
+                      {proGated && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          <Crown className="h-3 w-3" />
+                          Pro
+                        </span>
+                      )}
                     </span>
                     <span className="text-[11px] text-muted-foreground">From CSV or Excel</span>
                   </div>
