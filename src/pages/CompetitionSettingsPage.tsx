@@ -208,19 +208,6 @@ export default function CompetitionSettingsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="min-w-0 space-y-1">
-              <Label htmlFor="comp-public" className="cursor-pointer">Public link</Label>
-              <p className="text-xs text-muted-foreground">
-                Draft competitions are only visible to organisers. Turn on public link when you are ready to share.
-              </p>
-            </div>
-            <Switch
-              id="comp-public"
-              checked={publicLinkOn}
-              onCheckedChange={(v) => setVisibility(v ? "public" : "private")}
-            />
-          </div>
         </CardContent>
       </Card>
 
