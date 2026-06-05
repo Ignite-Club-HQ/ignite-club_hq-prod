@@ -344,12 +344,12 @@ export function PhotoLightbox({
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-white/15 ring-1 ring-white/20 rounded-full h-11 w-11"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
                 onClick={handleShare}
                 aria-label="Share photo"
                 title="Share"
               >
-                <Share2 className="h-5 w-5" />
+                <Share2 className="h-[1.05rem] w-[1.05rem]" />
               </Button>
               <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
@@ -394,16 +394,21 @@ export function PhotoLightbox({
             </div>
           </div>
 
-          {/* Navigation buttons with dark backgrounds */}
+          {/* Navigation buttons with dark backgrounds.
+              Outer Button is a 56dp tap target; inner pill keeps the
+              compact visual treatment so chrome stays minimal. */}
           {currentIndex > 0 && (
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              className="absolute left-2 z-50 h-14 w-14 text-white hover:bg-transparent bg-transparent rounded-full touch-auto p-0"
               onClick={(e) => { e.stopPropagation(); handlePrev(); }}
               onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrev(); }}
+              aria-label="Previous photo"
             >
-              <ChevronLeft className="h-8 w-8" />
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40">
+                <ChevronLeft className="h-7 w-7" />
+              </span>
             </Button>
           )}
 
@@ -411,11 +416,14 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              className="absolute right-2 z-50 h-14 w-14 text-white hover:bg-transparent bg-transparent rounded-full touch-auto p-0"
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
               onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleNext(); }}
+              aria-label="Next photo"
             >
-              <ChevronRight className="h-8 w-8" />
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40">
+                <ChevronRight className="h-7 w-7" />
+              </span>
             </Button>
           )}
 
@@ -435,10 +443,15 @@ export function PhotoLightbox({
           />
 
 
-          {/* Counter with dark background */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm px-3 py-1 bg-black/50 rounded-full">
-            {currentIndex + 1} / {photos.length}
-          </div>
+          {/* Counter — minimal chrome, sits close to bottom safe area */}
+          {photos.length > 1 && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 text-white text-xs font-medium px-2.5 py-0.5 bg-black/55 rounded-full tracking-wide"
+              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
+            >
+              {currentIndex + 1} of {photos.length}
+            </div>
+          )}
         </div>
       </DialogContent>
 
