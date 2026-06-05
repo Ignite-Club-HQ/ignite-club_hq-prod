@@ -75,14 +75,14 @@ export default function HomeMyCompetitionsCard() {
   const pendingCount = items.filter((e: any) => e.status === "invited").length;
 
   return (
-    <section aria-label="My competitions" className="space-y-2">
+    <section aria-label="Club competitions" className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-primary" /> My Competitions
+          <Trophy className="h-4 w-4 text-primary" /> Club Competitions
         </h2>
         {pendingCount > 0 && (
           <Badge variant="destructive" className="text-[11px]">
-            {pendingCount} pending invite{pendingCount === 1 ? "" : "s"}
+            {pendingCount} competition invite{pendingCount === 1 ? "" : "s"}
           </Badge>
         )}
       </div>
