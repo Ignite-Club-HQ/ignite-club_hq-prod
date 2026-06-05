@@ -10555,6 +10555,7 @@ export type Database = {
         | "league_admin"
         | "committee_member"
         | "association_admin"
+        | "competition_admin"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
@@ -10724,6 +10725,7 @@ export const Constants = {
         "league_admin",
         "committee_member",
         "association_admin",
+        "competition_admin",
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
