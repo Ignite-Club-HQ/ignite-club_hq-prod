@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Archive, Rocket, AlertTriangle, Users2, Bell } from "lucide-react";
+import { ArrowLeft, Archive, Rocket, AlertTriangle, Users2, Bell, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +35,19 @@ export default function SeasonDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [bulkRolloverOpen, setBulkRolloverOpen] = useState(false);
+  const [dangerOpen, setDangerOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
+  const [ackReadonly, setAckReadonly] = useState(false);
+  const [ackIrreversible, setAckIrreversible] = useState(false);
+  const [ackBackup, setAckBackup] = useState(false);
+
+  const resetArchiveConfirm = () => {
+    setConfirmName("");
+    setAckReadonly(false);
+    setAckIrreversible(false);
+    setAckBackup(false);
+  };
 
   const { data: allSeasons = [] } = useClubSeasons(clubId);
 
