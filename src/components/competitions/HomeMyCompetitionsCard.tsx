@@ -72,44 +72,74 @@ export default function HomeMyCompetitionsCard() {
 
   if (items.length === 0) return null;
 
+  const pendingCount = items.filter((e: any) => e.status === "invited").length;
+
   return (
     <section aria-label="My competitions" className="space-y-2">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <Trophy className="h-4 w-4 text-primary" /> My Competitions
-        <Badge variant="secondary">{items.length}</Badge>
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-primary" /> My Competitions
+        </h2>
+        {pendingCount > 0 && (
+          <Badge variant="destructive" className="text-[11px]">
+            {pendingCount} pending invite{pendingCount === 1 ? "" : "s"}
+          </Badge>
+        )}
+      </div>
       <div className="space-y-2">
-        {items.map((e: any) => (
-          <Link
-            key={e.id}
-            to={`/competitions/${e.competition_id}`}
-            className="block"
-          >
-            <Card className="hover:border-primary transition-colors">
-              <CardContent className="p-3 flex items-center gap-3">
-                <Trophy className="h-4 w-4 text-primary shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">
-                    {e.competitions?.name}
+        {items.map((e: any) => {
+          const isInvited = e.status === "invited";
+          return (
+            <Link
+              key={e.id}
+              to={`/competitions/${e.competition_id}`}
+              className="block"
+              aria-label={
+                isInvited
+                  ? `Review invite to ${e.competitions?.name}`
+                  : `Open ${e.competitions?.name}`
+              }
+            >
+              <Card
+                className={
+                  "transition-colors " +
+                  (isInvited
+                    ? "border-primary/60 hover:border-primary"
+                    : "hover:border-primary")
+                }
+              >
+                <CardContent className="p-3 flex items-center gap-3">
+                  <Trophy className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">
+                      {e.competitions?.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[
+                        e.teams?.name,
+                        e.competitions?.season,
+                        e.competition_divisions?.name,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                    {isInvited && (
+                      <div className="text-[11px] font-medium text-primary mt-1">
+                        Invitation pending — tap to review
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[
-                      e.teams?.name,
-                      e.competitions?.season,
-                      e.competition_divisions?.name,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                </div>
-                {e.status === "invited" && (
-                  <Badge variant="outline" className="text-xs">Invited</Badge>
-                )}
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                  {isInvited ? (
+                    <Badge className="text-[11px] bg-primary/15 text-primary hover:bg-primary/15">
+                      Invitation pending
+                    </Badge>
+                  ) : null}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
