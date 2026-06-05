@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { Capacitor } from "@capacitor/core";
@@ -159,6 +159,42 @@ function formatEventDate(dateStr: string) {
   if (isToday(date)) return `Today at ${format(date, "h:mm a")}`;
   if (isTomorrow(date)) return `Tomorrow at ${format(date, "h:mm a")}`;
   return format(date, "EEE, MMM d 'at' h:mm a");
+}
+
+function getLocalDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getEventLocalDateKey(dateStr: string) {
+  const parsed = new Date(dateStr);
+  if (!Number.isNaN(parsed.getTime()) && dateStr.includes("T")) {
+    return getLocalDateKey(parsed);
+  }
+  return dateStr.slice(0, 10);
+}
+
+function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
+  if (event.start_time) {
+    const start = event.start_time.includes("T")
+      ? new Date(event.start_time)
+      : new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
+    return start.getTime();
+  }
+
+  return new Date(event.event_date).getTime();
+}
+
+function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
+  const todayKey = getLocalDateKey(new Date(nowMs));
+  const eventKey = getEventLocalDateKey(event.event_date);
+  if (eventKey < todayKey) return false;
+
+  const startMs = getEventStartMs(event);
+  if (eventKey === todayKey && !Number.isNaN(startMs) && startMs + 30 * 60 * 1000 < nowMs) {
+    return false;
+  }
+
+  return true;
 }
 
 export default function HomePage() {
