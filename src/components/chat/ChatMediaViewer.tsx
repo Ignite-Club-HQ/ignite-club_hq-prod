@@ -61,11 +61,11 @@ export function ChatMediaViewer({
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1 p-1">
-                {items.map((item) => (
+                {items.map((item, i) => (
                   <MediaThumb
                     key={item.id}
                     item={item}
-                    onClick={() => setActiveItem(item)}
+                    onClick={() => setActiveIndex(i)}
                   />
                 ))}
               </div>
