@@ -133,15 +133,43 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <header className="flex items-start gap-2">
-        <Button variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label="Go back" onClick={goBack}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="rounded-xl bg-primary/10 p-3 shrink-0">
-          <Trophy className="h-6 w-6 text-primary" />
+      <header className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="-ml-2 h-10 w-10 shrink-0" aria-label="Go back" onClick={goBack}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+            <Trophy className="h-5 w-5 text-primary" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold break-words flex-1 min-w-0">{competition.name}</h1>
+          {isAdmin && (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
+                  <Megaphone className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Broadcasts</SheetTitle>
+                </SheetHeader>
+                <div className="pt-4">
+                  <BroadcastsPanel
+                    competitionId={id!}
+                    divisions={divisions}
+                    acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
+          {isAdmin && (
+            <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
+              <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
+            </Button>
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold break-words">{competition.name}</h1>
+        <div>
           <p className="text-sm text-muted-foreground">
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
@@ -158,33 +186,8 @@ export default function CompetitionDetailPage() {
             )}
           </div>
         </div>
-        {isAdmin && (
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
-                <Megaphone className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Broadcasts</SheetTitle>
-              </SheetHeader>
-              <div className="pt-4">
-                <BroadcastsPanel
-                  competitionId={id!}
-                  divisions={divisions}
-                  acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
-        )}
-        {isAdmin && (
-          <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
-            <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
-          </Button>
-        )}
       </header>
+
 
       {competition.description && (
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
