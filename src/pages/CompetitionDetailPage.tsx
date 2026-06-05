@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,11 @@ export default function CompetitionDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   usePageTitle("Competition");
+  const navigate = useNavigate();
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/competitions");
+  };
 
   // Clear the ?invite=1 param after we read it so refresh / back doesn't reopen the form.
   useEffect(() => {
@@ -129,8 +134,8 @@ export default function CompetitionDetailPage() {
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
       <header className="flex items-start gap-2">
-        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label="Back to Competitions">
-          <Link to="/competitions"><ArrowLeft className="h-5 w-5" /></Link>
+        <Button variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label="Go back" onClick={goBack}>
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="rounded-xl bg-primary/10 p-3 shrink-0">
           <Trophy className="h-6 w-6 text-primary" />
