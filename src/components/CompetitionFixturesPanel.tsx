@@ -368,7 +368,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
 
   const reset = () => {
     setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
-    setVenue(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
+    setVenue(""); setPitch(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
   };
 
   const submit = async () => {
@@ -380,6 +380,10 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       toast({ title: "Start date & time required", variant: "destructive" });
       return;
     }
+    if (!venue.trim()) {
+      toast({ title: "Venue is required", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("competition_matches").insert({
       competition_id: competitionId,
@@ -387,7 +391,8 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       away_team_id: awayId,
       division_id: divisionId || null,
       scheduled_at: new Date(scheduledAt).toISOString(),
-      venue: venue || null,
+      venue: venue,
+      pitch_number: pitch.trim() || null,
       round_number: round ? Number(round) : null,
       duration_minutes: duration ? Number(duration) : null,
       arrival_minutes_before: arrival ? Number(arrival) : null,
