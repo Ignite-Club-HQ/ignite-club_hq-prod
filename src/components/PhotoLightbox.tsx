@@ -306,8 +306,8 @@ export function PhotoLightbox({
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-full flex items-center justify-center overflow-hidden pb-[env(safe-area-inset-bottom)]"
-          style={{ paddingTop: "max(env(safe-area-inset-top), 1.75rem)", touchAction: 'none' }}
+          className="relative w-full h-full flex items-center justify-center overflow-hidden"
+          style={{ touchAction: 'none' }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
