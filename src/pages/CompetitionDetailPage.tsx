@@ -21,10 +21,23 @@ import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/C
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inviteFromUrl = searchParams.get("invite") === "1";
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   usePageTitle("Competition");
+
+  // Clear the ?invite=1 param after we read it so refresh / back doesn't reopen the form.
+  useEffect(() => {
+    if (inviteFromUrl) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("invite");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const { data: competition, isLoading } = useQuery({
     queryKey: ["competition", id],
