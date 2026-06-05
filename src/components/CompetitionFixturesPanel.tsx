@@ -431,10 +431,30 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Kickoff (optional)</Label>
-            <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            <Label>Start date <span className="text-destructive">*</span></Label>
+            <Input
+              type="date"
+              required
+              value={scheduledAt ? scheduledAt.split("T")[0] : ""}
+              onChange={(e) => {
+                const time = scheduledAt.split("T")[1] || "09:00";
+                setScheduledAt(e.target.value ? `${e.target.value}T${time}` : "");
+              }}
+            />
           </div>
           <div>
+            <Label>Start time <span className="text-destructive">*</span></Label>
+            <Input
+              type="time"
+              required
+              value={scheduledAt ? (scheduledAt.split("T")[1] || "") : ""}
+              onChange={(e) => {
+                const date = scheduledAt.split("T")[0];
+                if (date) setScheduledAt(`${date}T${e.target.value}`);
+              }}
+            />
+          </div>
+          <div className="col-span-2">
             <Label>Round (optional)</Label>
             <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
           </div>
@@ -456,7 +476,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Adding a kickoff creates a team event for both sides so players can RSVP.
+          A team event is created for both sides so players can RSVP.
         </p>
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={saving}>
