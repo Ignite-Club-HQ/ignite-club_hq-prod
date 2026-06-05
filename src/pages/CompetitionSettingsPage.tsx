@@ -373,6 +373,8 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
 function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
 
