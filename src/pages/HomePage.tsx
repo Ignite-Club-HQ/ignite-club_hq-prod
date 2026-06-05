@@ -327,6 +327,12 @@ export default function HomePage() {
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
+        // Defensive client-side past-date filter. The server query already
+        // restricts to event_date >= today, but on iOS the React Query cache
+        // (with placeholderData + no window-focus refetch on WebView resume)
+        // can keep yesterday's data alive into the next day. Re-filter on
+        // render so stale past events never leak into Next Up.
+        if (event.event_date < todayStr) return false;
         // Drop today's events whose start_time has already passed (with a
         // small grace window) so Next Up never shows events from earlier today.
         if (event.event_date === todayStr && event.start_time) {
