@@ -168,8 +168,36 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>First round date</Label>
+                    <Input type="date" value={genFirstRoundDate} onChange={(e) => setGenFirstRoundDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Kickoff time</Label>
+                    <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Days between rounds</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genDaysBetween} onChange={(e) => setGenDaysBetween(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Default venue</Label>
+                    <Input value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
+                  </div>
+                  <div>
+                    <Label>Duration (mins)</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} placeholder="e.g. 90" />
+                  </div>
+                  <div>
+                    <Label>Arrive (mins before)</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genArrival} onChange={(e) => setGenArrival(e.target.value)} placeholder="e.g. 30" />
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Each accepted team plays every other team once. Home/away alternates per round.
+                  Leave date blank to generate without times — you can fill them in per match later.
+                  Scheduled fixtures automatically create a team event so players can RSVP.
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={generate} disabled={generating}>
