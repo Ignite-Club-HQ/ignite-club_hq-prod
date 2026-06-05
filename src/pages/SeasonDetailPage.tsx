@@ -330,36 +330,124 @@ const { data: club } = useQuery({
       )}
 
       {isActive && (
-        <Card>
+        <Card className="border-destructive/30">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-4 w-4" /> Danger zone
             </CardTitle>
             <CardDescription>
-              Archiving sets all teams to read-only. Chats, events, attendance and media stay intact, but no new edits can be made.
+              Archiving a season locks every team's chat, events, attendance and roster. This is intended for end-of-season only and should not be used by mistake.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archive season
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive {season.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    All {teams.length} team{teams.length === 1 ? "" : "s"} will become read-only. History is preserved but no new chats, events or roster changes can be made on these teams.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => archiveMut.mutate()}>Archive</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          <CardContent className="space-y-3">
+            {!dangerOpen ? (
+              <Button variant="outline" size="sm" onClick={() => setDangerOpen(true)}>
+                <ShieldAlert className="h-4 w-4 mr-2" />
+                Show end-of-season controls
+              </Button>
+            ) : (
+              <>
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                  <p className="font-medium mb-1">Are you sure you want to do this?</p>
+                  <p className="text-destructive/80">
+                    Archiving {season.name} will set all {teams.length} team{teams.length === 1 ? "" : "s"} to read-only immediately. Members will lose the ability to chat, RSVP, or update rosters on these teams. This action cannot be undone from the app.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setDangerOpen(false)}>
+                    Never mind
+                  </Button>
+                  <AlertDialog
+                    open={archiveDialogOpen}
+                    onOpenChange={(o) => {
+                      setArchiveDialogOpen(o);
+                      if (!o) resetArchiveConfirm();
+                    }}
+                  >
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archive season…
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                          <ShieldAlert className="h-5 w-5" />
+                          Archive {season.name}?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-3 text-sm">
+                            <p>
+                              This will lock <strong>{teams.length} team{teams.length === 1 ? "" : "s"}</strong> to read-only. Chats, events, attendance and rosters will all be frozen. History is preserved, but no further changes can be made.
+                            </p>
+                            <p className="text-destructive font-medium">
+                              This cannot be undone from the app.
+                            </p>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+
+                      <div className="space-y-3 py-2">
+                        <label className="flex items-start gap-2 text-sm">
+                          <Checkbox checked={ackReadonly} onCheckedChange={(v) => setAckReadonly(v === true)} className="mt-0.5" />
+                          <span>I understand all teams in this season will become read-only.</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-sm">
+                          <Checkbox checked={ackIrreversible} onCheckedChange={(v) => setAckIrreversible(v === true)} className="mt-0.5" />
+                          <span>I understand this cannot be undone from the app.</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-sm">
+                          <Checkbox checked={ackBackup} onCheckedChange={(v) => setAckBackup(v === true)} className="mt-0.5" />
+                          <span>I've confirmed with the club committee that this season should end now.</span>
+                        </label>
+
+                        <div className="space-y-1.5 pt-1">
+                          <Label htmlFor="confirm-season-name" className="text-xs">
+                            Type the season name <span className="font-mono font-semibold">{season.name}</span> to confirm
+                          </Label>
+                          <Input
+                            id="confirm-season-name"
+                            value={confirmName}
+                            onChange={(e) => setConfirmName(e.target.value)}
+                            placeholder={season.name}
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(e) => {
+                            const allChecked = ackReadonly && ackIrreversible && ackBackup;
+                            const nameMatches = confirmName.trim() === season.name.trim();
+                            if (!allChecked || !nameMatches || archiveMut.isPending) {
+                              e.preventDefault();
+                              return;
+                            }
+                            archiveMut.mutate();
+                            setArchiveDialogOpen(false);
+                            setDangerOpen(false);
+                            resetArchiveConfirm();
+                          }}
+                          disabled={
+                            !ackReadonly ||
+                            !ackIrreversible ||
+                            !ackBackup ||
+                            confirmName.trim() !== season.name.trim() ||
+                            archiveMut.isPending
+                          }
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {archiveMut.isPending ? "Archiving…" : "Yes, archive this season"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
