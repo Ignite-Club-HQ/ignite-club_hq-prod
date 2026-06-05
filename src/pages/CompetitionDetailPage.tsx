@@ -128,12 +128,11 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label="Back to Competitions">
-        <Link to="/competitions"><ArrowLeft className="h-5 w-5" /></Link>
-      </Button>
-
       <header className="flex items-start gap-2">
-        <div className="rounded-xl bg-primary/10 p-3">
+        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11 shrink-0" aria-label="Back to Competitions">
+          <Link to="/competitions"><ArrowLeft className="h-5 w-5" /></Link>
+        </Button>
+        <div className="rounded-xl bg-primary/10 p-3 shrink-0">
           <Trophy className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
