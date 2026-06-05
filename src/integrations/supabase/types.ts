@@ -2457,12 +2457,14 @@ export type Database = {
       }
       competition_matches: {
         Row: {
+          away_event_id: string | null
           away_score: number | null
           away_team_id: string
           competition_id: string
           created_at: string
           created_by: string | null
           division_id: string | null
+          home_event_id: string | null
           home_score: number | null
           home_team_id: string
           id: string
@@ -2474,12 +2476,14 @@ export type Database = {
           venue: string | null
         }
         Insert: {
+          away_event_id?: string | null
           away_score?: number | null
           away_team_id: string
           competition_id: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
+          home_event_id?: string | null
           home_score?: number | null
           home_team_id: string
           id?: string
@@ -2491,12 +2495,14 @@ export type Database = {
           venue?: string | null
         }
         Update: {
+          away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string
           competition_id?: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
+          home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string
           id?: string
@@ -2508,6 +2514,13 @@ export type Database = {
           venue?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "competition_matches_away_event_id_fkey"
+            columns: ["away_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "competition_matches_away_team_id_fkey"
             columns: ["away_team_id"]
@@ -2527,6 +2540,13 @@ export type Database = {
             columns: ["division_id"]
             isOneToOne: false
             referencedRelation: "competition_divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_matches_home_event_id_fkey"
+            columns: ["home_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
