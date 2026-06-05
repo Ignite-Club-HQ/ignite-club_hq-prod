@@ -208,16 +208,26 @@ export function PhotoLightbox({
   const handleTouchMove = (e: React.TouchEvent) => {
     pinchTouchMove(e);
     if (e.touches.length === 1 && scale <= 1) {
-      // Swipe-down-to-dismiss detection
+      // Swipe-down-to-dismiss detection. Only commit once vertical motion is
+      // clearly dominant AND substantial — otherwise horizontal swipes
+      // (next/prev photo) get hijacked the moment the finger drifts down.
       if (dismissStartRef.current) {
         const dx = e.touches[0].clientX - dismissStartRef.current.x;
         const dy = e.touches[0].clientY - dismissStartRef.current.y;
-        if (dismissingRef.current || (dy > 12 && Math.abs(dy) > Math.abs(dx) * 1.4)) {
+        if (
+          dismissingRef.current ||
+          (dy > 30 && Math.abs(dy) > Math.abs(dx) * 2.2)
+        ) {
           dismissingRef.current = true;
           const offset = Math.max(0, dy);
           setDismissOffset(offset);
           setDismissOpacity(Math.max(0.2, 1 - offset / 500));
           return;
+        }
+        // If horizontal motion is clearly dominant, abandon dismiss tracking
+        // so it can't hijack the swipe later in the gesture.
+        if (Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          dismissStartRef.current = null;
         }
       }
       swipeHandlers.onTouchMove(e);
