@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Loader2, Trophy, UserPlus, Users } from "lucide-react";
+import { ChevronRight, Loader2, Trophy, UserPlus, Users, Shield } from "lucide-react";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import {
   ResponsiveDialog,
@@ -23,14 +24,20 @@ interface HomeInviteFlowProps {
 
 type Target =
   | { kind: "team"; id: string; name: string; clubId: string }
-  | { kind: "mini_league"; id: string; name: string; clubId: string };
+  | { kind: "mini_league"; id: string; name: string; clubId: string }
+  | { kind: "competition"; id: string; name: string; clubId: string | null };
+
+type FilterKind = "all" | "team" | "mini_league" | "competition";
 
 export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
+  const navigate = useNavigate();
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+  const [filterKind, setFilterKind] = useState<FilterKind>("all");
+  const [search, setSearch] = useState("");
 
   // Effective club filter: use activeClubFilter if set, otherwise the manually selected club
   const effectiveClubId = activeClubFilter || selectedClubId;
@@ -47,14 +54,13 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         .eq("user_id", user!.id);
 
       if (!roles || roles.length === 0) {
-        return { teams: [], clubs: [], miniLeagues: [] };
+        return { teams: [], clubs: [], miniLeagues: [], competitions: [] };
       }
 
       const allClubIds = [...new Set(roles.map(r => r.club_id).filter(Boolean))] as string[];
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
       // Clubs where user can manage mini-league members club-wide
-      // (mirrors MiniLeagueDetailPage.canManageLeague club-wide check)
       const MANAGE_ROLES = new Set([
         "club_admin",
         "league_admin",
@@ -71,14 +77,35 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         ),
       ] as string[];
 
-      // Per-league grants from mini_league_admins
-      const { data: scopedAdmins } = await supabase
-        .from("mini_league_admins")
-        .select("mini_league_id")
-        .eq("user_id", user!.id);
-      const scopedLeagueIds = (scopedAdmins || []).map(r => r.mini_league_id).filter(Boolean) as string[];
+      // Clubs where user can organise competitions (club_admin/association_admin/app_admin)
+      const isAppAdmin = roles.some(r => r.role === "app_admin");
+      const COMP_ORG_ROLES = new Set(["club_admin", "association_admin", "app_admin"]);
+      const competitionOrgClubIds = [
+        ...new Set(
+          roles
+            .filter(r => COMP_ORG_ROLES.has(r.role as string))
+            .map(r => r.club_id)
+            .filter(Boolean)
+        ),
+      ] as string[];
 
-      const [teamsRes, clubsRes, clubLeaguesRes, scopedLeaguesRes] = await Promise.all([
+      const [scopedAdminsRes, compRolesRes] = await Promise.all([
+        supabase.from("mini_league_admins").select("mini_league_id").eq("user_id", user!.id),
+        supabase
+          .from("competition_roles")
+          .select("competition_id")
+          .eq("user_id", user!.id)
+          .in("role", ["owner", "admin"]),
+      ]);
+
+      const scopedLeagueIds = (scopedAdminsRes.data || [])
+        .map((r: any) => r.mini_league_id)
+        .filter(Boolean) as string[];
+      const scopedCompetitionIds = (compRolesRes.data || [])
+        .map((r: any) => r.competition_id)
+        .filter(Boolean) as string[];
+
+      const [teamsRes, clubsRes, clubLeaguesRes, scopedLeaguesRes, orgCompsRes, scopedCompsRes] = await Promise.all([
         teamIds.length
           ? supabase
               .from("teams")
@@ -100,6 +127,24 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               .select("id, name, club_id")
               .in("id", scopedLeagueIds)
           : Promise.resolve({ data: [] as any[] }),
+        // Competitions organised by clubs the user admins (or all if app_admin)
+        isAppAdmin
+          ? supabase
+              .from("competitions")
+              .select("id, name, season, organizer_club_id, organizer_club:organizer_club_id(name)")
+              .limit(200)
+          : competitionOrgClubIds.length
+            ? supabase
+                .from("competitions")
+                .select("id, name, season, organizer_club_id, organizer_club:organizer_club_id(name)")
+                .in("organizer_club_id", competitionOrgClubIds)
+            : Promise.resolve({ data: [] as any[] }),
+        scopedCompetitionIds.length
+          ? supabase
+              .from("competitions")
+              .select("id, name, season, organizer_club_id, organizer_club:organizer_club_id(name)")
+              .in("id", scopedCompetitionIds)
+          : Promise.resolve({ data: [] as any[] }),
       ]);
 
       const teams = (teamsRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -109,6 +154,14 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         leagueMap.set(l.id, l);
       });
       const miniLeagues = [...leagueMap.values()].sort((a: any, b: any) =>
+        a.name.localeCompare(b.name)
+      );
+
+      const compMap = new Map<string, any>();
+      [...(orgCompsRes.data || []), ...(scopedCompsRes.data || [])].forEach((c: any) => {
+        compMap.set(c.id, c);
+      });
+      const competitions = [...compMap.values()].sort((a: any, b: any) =>
         a.name.localeCompare(b.name)
       );
 
@@ -126,13 +179,14 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         clubs.sort((a: any, b: any) => a.name.localeCompare(b.name));
       }
 
-      return { teams, clubs, miniLeagues };
+      return { teams, clubs, miniLeagues, competitions };
     },
   });
 
   const allTeams = invitables?.teams || [];
   const clubs = invitables?.clubs || [];
   const allLeagues = invitables?.miniLeagues || [];
+  const allCompetitions = invitables?.competitions || [];
 
   // Filter by effective club
   const filteredTeams = effectiveClubId
@@ -141,23 +195,66 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   const filteredLeagues = effectiveClubId
     ? allLeagues.filter(l => l.club_id === effectiveClubId)
     : allLeagues;
+  const filteredCompetitions = effectiveClubId
+    ? allCompetitions.filter(c => c.organizer_club_id === effectiveClubId)
+    : allCompetitions;
 
-  const totalFiltered = filteredTeams.length + filteredLeagues.length;
+  const totalFiltered =
+    filteredTeams.length + filteredLeagues.length + filteredCompetitions.length;
 
-  const targetOptions = useMemo(() => [
-    ...filteredTeams.map(t => ({
-      value: `team:${t.id}`,
-      label: t.name,
-      description: "Team",
-      icon: Users,
-    })),
-    ...filteredLeagues.map(l => ({
-      value: `mini_league:${l.id}`,
-      label: l.name,
-      description: "Mini-league",
-      icon: Trophy,
-    })),
-  ].sort((a, b) => a.label.localeCompare(b.label)), [filteredTeams, filteredLeagues]);
+  type Option = {
+    value: string;
+    label: string;
+    typeLabel: string;
+    context?: string;
+    icon: typeof Users;
+    kind: FilterKind;
+  };
+
+  const allOptions: Option[] = useMemo(
+    () => [
+      ...filteredTeams.map((t: any): Option => ({
+        value: `team:${t.id}`,
+        label: t.name,
+        typeLabel: "Team",
+        context: t.clubs?.name,
+        icon: Users,
+        kind: "team",
+      })),
+      ...filteredLeagues.map((l: any): Option => ({
+        value: `mini_league:${l.id}`,
+        label: l.name,
+        typeLabel: "Mini-league",
+        icon: Shield,
+        kind: "mini_league",
+      })),
+      ...filteredCompetitions.map((c: any): Option => ({
+        value: `competition:${c.id}`,
+        label: c.name,
+        typeLabel: "Competition",
+        context: [c.season, c.organizer_club?.name ? `Hosted by ${c.organizer_club.name}` : null]
+          .filter(Boolean)
+          .join(" · "),
+        icon: Trophy,
+        kind: "competition",
+      })),
+    ],
+    [filteredTeams, filteredLeagues, filteredCompetitions]
+  );
+
+  const searchedOptions = useMemo(() => {
+    const byKind = filterKind === "all" ? allOptions : allOptions.filter(o => o.kind === filterKind);
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? byKind.filter(
+          o =>
+            o.label.toLowerCase().includes(q) ||
+            (o.context || "").toLowerCase().includes(q) ||
+            o.typeLabel.toLowerCase().includes(q)
+        )
+      : byKind;
+    return filtered.sort((a, b) => a.label.localeCompare(b.label));
+  }, [allOptions, filterKind, search]);
 
   // Determine what step to show
   const needsClubPick = !activeClubFilter && clubs.length > 1 && !selectedClubId;
@@ -170,14 +267,20 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       if (filteredTeams.length === 1) {
         const t = filteredTeams[0];
         setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
-      } else {
+        onOpenChange(false);
+        setInviteSheetOpen(true);
+      } else if (filteredLeagues.length === 1) {
         const l = filteredLeagues[0];
         setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+        onOpenChange(false);
+        setInviteSheetOpen(true);
+      } else if (filteredCompetitions.length === 1) {
+        const c = filteredCompetitions[0];
+        onOpenChange(false);
+        navigate(`/competitions/${c.id}?invite=1`);
       }
-      onOpenChange(false);
-      setInviteSheetOpen(true);
     }
-  }, [filteredTeams, filteredLeagues, totalFiltered, open, target, needsClubPick, onOpenChange]);
+  }, [filteredTeams, filteredLeagues, filteredCompetitions, totalFiltered, open, target, needsClubPick, onOpenChange, navigate]);
 
   // Auto-select club if only one club
   useEffect(() => {
@@ -199,15 +302,20 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       const t = filteredTeams.find(x => x.id === id);
       if (!t) return;
       setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
+      onOpenChange(false);
+      setInviteSheetOpen(true);
     } else if (kind === "mini_league") {
       const l = filteredLeagues.find(x => x.id === id);
       if (!l) return;
       setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
-    } else {
-      return;
+      onOpenChange(false);
+      setInviteSheetOpen(true);
+    } else if (kind === "competition") {
+      const c = filteredCompetitions.find(x => x.id === id);
+      if (!c) return;
+      onOpenChange(false);
+      navigate(`/competitions/${c.id}?invite=1`);
     }
-    onOpenChange(false);
-    setInviteSheetOpen(true);
   };
 
   const handleInviteSheetChange = (isOpen: boolean) => {
@@ -222,6 +330,8 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     if (!v) {
       setTarget(null);
       setSelectedClubId(null);
+      setFilterKind("all");
+      setSearch("");
     }
     onOpenChange(v);
   };
@@ -245,6 +355,19 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       totalFiltered > 1 ||
       clubSelectedNoTargets);
 
+  // Show filter chips only when we have a mix of kinds
+  const kindCounts = useMemo(
+    () => ({
+      team: filteredTeams.length,
+      mini_league: filteredLeagues.length,
+      competition: filteredCompetitions.length,
+    }),
+    [filteredTeams.length, filteredLeagues.length, filteredCompetitions.length]
+  );
+  const distinctKinds = (["team", "mini_league", "competition"] as const).filter(k => kindCounts[k] > 0).length;
+  const showFilterChips = distinctKinds > 1;
+  const showSearch = totalFiltered > 6;
+
   return (
     <>
       {isInitialLoading && (
@@ -253,10 +376,10 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5" />
-                Invite Members
+                Invite people
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                Loading your teams and mini-leagues…
+                Loading where you can invite people…
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             <div className="flex items-center justify-center py-8">
@@ -272,14 +395,14 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5" />
-                Invite Members
+                Invite people
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
                 {needsClubPick
-                  ? "Choose a club first, then select a team or mini-league."
+                  ? "Choose a club first, then pick where to invite people."
                   : clubSelectedNoTargets
-                    ? "This club has no teams or mini-leagues you can invite to yet."
-                    : "Choose a team or mini-league to invite someone to."}
+                    ? "You don't have any teams, mini-leagues or competitions you can invite people to yet."
+                    : "Choose where you want to invite someone."}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
@@ -292,7 +415,8 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                   options={clubs.map(c => {
                     const hasAny =
                       allTeams.some(t => t.club_id === c.id) ||
-                      allLeagues.some(l => l.club_id === c.id);
+                      allLeagues.some(l => l.club_id === c.id) ||
+                      allCompetitions.some(comp => comp.organizer_club_id === c.id);
                     return {
                       value: c.id,
                       label: c.name,
@@ -311,30 +435,71 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               {/* Combined target picker */}
               {!needsClubPick && totalFiltered > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground px-1">Teams & mini-leagues</p>
+                  {showSearch && (
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search teams, mini-leagues or competitions"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  )}
+                  {showFilterChips && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        { k: "all" as const, label: "All", count: totalFiltered },
+                        { k: "team" as const, label: "Teams", count: kindCounts.team },
+                        { k: "mini_league" as const, label: "Mini-leagues", count: kindCounts.mini_league },
+                        { k: "competition" as const, label: "Competitions", count: kindCounts.competition },
+                      ])
+                        .filter(c => c.k === "all" || c.count > 0)
+                        .map((c) => (
+                          <button
+                            key={c.k}
+                            type="button"
+                            onClick={() => setFilterKind(c.k)}
+                            className={
+                              "rounded-full border px-3 py-1 text-xs transition-colors " +
+                              (filterKind === c.k
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground hover:bg-muted")
+                            }
+                          >
+                            {c.label}
+                            {c.k !== "all" && <span className="ml-1 opacity-70">{c.count}</span>}
+                          </button>
+                        ))}
+                    </div>
+                  )}
                   <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
-                    {targetOptions.map((option) => {
-                      const Icon = option.icon;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleTargetSelect(option.value)}
-                          className="w-full flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-all hover:bg-accent/50 active:bg-accent active:scale-[0.99]"
-                        >
-                          <span className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                              <Icon className="h-4 w-4 text-muted-foreground" />
+                    {searchedOptions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground px-1 py-3">No matches.</p>
+                    ) : (
+                      searchedOptions.map((option) => {
+                        const Icon = option.icon;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => handleTargetSelect(option.value)}
+                            className="w-full flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-all hover:bg-accent/50 active:bg-accent active:scale-[0.99]"
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                                <Icon className="h-4 w-4 text-muted-foreground" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate text-base font-medium text-foreground">{option.label}</span>
+                                <span className="block text-xs text-muted-foreground truncate">
+                                  {[option.typeLabel, option.context].filter(Boolean).join(" · ")}
+                                </span>
+                              </span>
                             </span>
-                            <span className="min-w-0">
-                              <span className="block truncate text-base font-medium text-foreground">{option.label}</span>
-                              <span className="block text-xs text-muted-foreground">{option.description}</span>
-                            </span>
-                          </span>
-                          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-                        </button>
-                      );
-                    })}
+                            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               )}

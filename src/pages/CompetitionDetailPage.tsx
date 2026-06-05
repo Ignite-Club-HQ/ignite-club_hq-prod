@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,10 +21,23 @@ import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/C
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inviteFromUrl = searchParams.get("invite") === "1";
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   usePageTitle("Competition");
+
+  // Clear the ?invite=1 param after we read it so refresh / back doesn't reopen the form.
+  useEffect(() => {
+    if (inviteFromUrl) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("invite");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const { data: competition, isLoading } = useQuery({
     queryKey: ["competition", id],
@@ -199,9 +212,11 @@ export default function CompetitionDetailPage() {
       )}
 
       <Tabs defaultValue={
-        entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+        inviteFromUrl && isAdmin
           ? "teams"
-          : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
+          : entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+            ? "teams"
+            : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
       }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
@@ -223,6 +238,7 @@ export default function CompetitionDetailPage() {
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
+                defaultOpen={inviteFromUrl}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
               />
               <AddDivisionForm
@@ -525,10 +541,10 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
   );
 }
 
-function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: string; divisions: any[]; onDone: () => void }) {
+function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { competitionId: string; divisions: any[]; defaultOpen?: boolean; onDone: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!defaultOpen);
   const [teamId, setTeamId] = useState("");
   const [divisionId, setDivisionId] = useState<string>("");
   const [saving, setSaving] = useState(false);
