@@ -82,11 +82,17 @@ export function ChatMediaViewer({
         </DialogContent>
       </Dialog>
 
-      {activeItem && (
-        <FullscreenImageViewer
-          src={activeItem.image_url}
-          alt="Shared media"
-          onClose={() => setActiveItem(null)}
+      {activeIndex !== null && items.length > 0 && (
+        <PhotoLightbox
+          isOpen={activeIndex !== null}
+          onClose={() => setActiveIndex(null)}
+          photos={items.map((it) => ({
+            id: it.id,
+            image_url: it.image_url,
+            title: it.author_name ?? undefined,
+          }))}
+          currentIndex={activeIndex}
+          onNavigate={(idx) => setActiveIndex(idx)}
         />
       )}
     </>
