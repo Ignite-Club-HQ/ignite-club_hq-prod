@@ -92,19 +92,57 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       return;
     }
     setGenerating(true);
-    const fixtures = buildRoundRobin(teams.map((t: any) => t.id));
+    const baseFixtures = buildRoundRobin(teams.map((t: any) => t.id));
+    const baseRounds = baseFixtures.length ? Math.max(...baseFixtures.map((f) => f.round)) : 0;
     const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
     const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
+    const endDate = genEndDate ? new Date(`${genEndDate}T23:59:59`) : null;
     const duration = genDuration ? Number(genDuration) : null;
     const arrival = genArrival ? Number(genArrival) : null;
     const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
-    // Track per-round pitch counter so each round starts at 1
+    const startRound = Math.max(1, Number(genStartRound) || 1);
+
+    // Determine how many full cycles to emit.
+    // - If no end date: 1 cycle.
+    // - If end date but no base date: 1 cycle (can't compute time window).
+    // - Otherwise: keep adding cycles while the next round's date <= endDate.
+    let cycles = 1;
+    if (endDate && baseDate && !isNaN(baseDate.getTime()) && daysBetween > 0 && baseRounds > 0) {
+      cycles = 0;
+      // Walk round-by-round and count how many fit within [baseDate, endDate]
+      let roundsFit = 0;
+      // unlimited cap: practical safety
+      const maxRounds = 200;
+      for (let r = 0; r < maxRounds; r++) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + r * daysBetween);
+        if (d.getTime() > endDate.getTime()) break;
+        roundsFit++;
+      }
+      cycles = Math.max(1, Math.ceil(roundsFit / baseRounds));
+      // But cap so we don't generate beyond the window — trim the last cycle's overflow later.
+      // Recompute roundsFit to know hard cap.
+      // We'll truncate rows whose computed date > endDate.
+    }
+
+    const allFixtures: { round: number; home: string; away: string }[] = [];
+    for (let c = 0; c < cycles; c++) {
+      for (const f of baseFixtures) {
+        // Swap home/away on alternating cycles for fairness
+        const home = c % 2 === 0 ? f.home : f.away;
+        const away = c % 2 === 0 ? f.away : f.home;
+        allFixtures.push({ round: c * baseRounds + f.round, home, away });
+      }
+    }
+
     const roundPitchCounter = new Map<number, number>();
-    const rows = fixtures.map((f) => {
+    const rows: any[] = [];
+    for (const f of allFixtures) {
       let scheduledAt: string | null = null;
       if (baseDate && !isNaN(baseDate.getTime())) {
         const d = new Date(baseDate);
         d.setDate(d.getDate() + (f.round - 1) * daysBetween);
+        if (endDate && d.getTime() > endDate.getTime()) continue; // outside window
         scheduledAt = d.toISOString();
       }
       let pitch: string | null = null;
@@ -113,10 +151,10 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         pitch = String((used % pitchCount) + 1);
         roundPitchCounter.set(f.round, used + 1);
       }
-      return {
+      rows.push({
         competition_id: competitionId,
         division_id: genDivisionId || null,
-        round_number: f.round,
+        round_number: (startRound - 1) + f.round,
         home_team_id: f.home,
         away_team_id: f.away,
         status: "scheduled",
@@ -126,18 +164,26 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         pitch_number: pitch,
         duration_minutes: duration,
         arrival_minutes_before: arrival,
-      } as any;
-    });
+      });
+    }
+
+    if (rows.length === 0) {
+      setGenerating(false);
+      toast({ title: "No fixtures fit the date window", description: "Adjust the end date or days between rounds.", variant: "destructive" });
+      return;
+    }
+
     const { error } = await supabase.from("competition_matches").insert(rows);
     setGenerating(false);
     if (error) {
       toast({ title: "Could not generate fixtures", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: `Generated ${rows.length} fixtures` });
+    toast({ title: `Generated ${rows.length} fixtures across ${cycles > 1 ? cycles + " cycles" : "1 cycle"}` });
     setGenOpen(false);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
-    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival(""); setGenAutoPitches("");
+    setGenDaysBetween("7"); setGenEndDate(""); setGenStartRound("1");
+    setGenVenue(""); setGenDuration(""); setGenArrival(""); setGenAutoPitches("");
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
