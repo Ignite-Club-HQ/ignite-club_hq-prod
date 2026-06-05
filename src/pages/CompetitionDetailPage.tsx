@@ -189,7 +189,15 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      
+      {isAdmin && competition.status === "draft" && (
+        <DraftSetupProgress
+          competitionId={id!}
+          divisionsCount={divisions.length}
+          acceptedCount={entries.filter((e: any) => e.status === "accepted").length}
+          invitedCount={entries.filter((e: any) => e.status === "invited").length}
+        />
+      )}
+
       <Tabs defaultValue={
         entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
           ? "teams"
@@ -211,7 +219,7 @@ export default function CompetitionDetailPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {isAdmin && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
