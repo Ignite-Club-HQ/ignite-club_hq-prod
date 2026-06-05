@@ -47,7 +47,7 @@ export default function HomeMyCompetitionsCard() {
       const { data } = await supabase
         .from("competition_entries")
         .select(
-          "id, status, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status), competition_divisions:division_id(name)"
+          "id, status, team_id, competition_id, division_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season, status, organizer_club:organizer_club_id(name)), competition_divisions:division_id(name)"
         )
         .in("team_id", Array.from(teamIds))
         .in("status", ["invited", "accepted"]);
@@ -75,10 +75,10 @@ export default function HomeMyCompetitionsCard() {
   const pendingCount = items.filter((e: any) => e.status === "invited").length;
 
   return (
-    <section aria-label="Club competitions" className="space-y-2">
+    <section aria-label="Competitions" className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-primary" /> Club Competitions
+          <Trophy className="h-4 w-4 text-primary" /> Competitions
         </h2>
         {pendingCount > 0 && (
           <Badge variant="destructive" className="text-[11px]">
@@ -89,6 +89,17 @@ export default function HomeMyCompetitionsCard() {
       <div className="space-y-2">
         {items.map((e: any) => {
           const isInvited = e.status === "invited";
+          const hostClub = e.competitions?.organizer_club?.name;
+          const metadata = [hostClub ? `Hosted by ${hostClub}` : null, e.competitions?.season]
+            .filter(Boolean)
+            .join(" · ");
+          const teamContext = [
+            e.teams?.name,
+            e.competition_divisions?.name,
+            isInvited ? "invited" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <Link
               key={e.id}
@@ -114,15 +125,16 @@ export default function HomeMyCompetitionsCard() {
                     <div className="font-medium text-sm truncate">
                       {e.competitions?.name}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {[
-                        e.teams?.name,
-                        e.competitions?.season,
-                        e.competition_divisions?.name,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
+                    {metadata && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {metadata}
+                      </div>
+                    )}
+                    {teamContext && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {teamContext}
+                      </div>
+                    )}
                     {isInvited && (
                       <div className="text-[11px] font-medium text-primary mt-1">
                         Invitation pending — tap to review
