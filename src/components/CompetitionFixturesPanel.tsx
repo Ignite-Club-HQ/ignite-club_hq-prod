@@ -57,6 +57,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genVenue, setGenVenue] = useState<string>("");
   const [genDuration, setGenDuration] = useState<string>("");
   const [genArrival, setGenArrival] = useState<string>("");
+  const [genAutoPitches, setGenAutoPitches] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   const { data: matches = [], isLoading } = useQuery({
