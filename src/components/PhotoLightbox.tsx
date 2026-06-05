@@ -86,13 +86,19 @@ function LightboxImage({
     );
   }
 
-  // Always object-contain — show the FULL photo, maximised within viewport,
-  // matching Instagram / Apple Photos / Google Photos behaviour. No cropping.
+  // Default: fill the screen edge-to-edge (immersive, photo-first like
+  // Instagram / Facebook Photos). When the user pinch-zooms or double-taps,
+  // switch to object-contain so they can inspect the full uncropped frame.
+  const isZoomed = scale > 1.001;
   return (
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-[100vw] max-h-[100dvh] object-contain select-none"
+      className={`select-none ${
+        isZoomed
+          ? "max-w-[100vw] max-h-[100dvh] object-contain"
+          : "w-screen h-[100dvh] object-cover"
+      }`}
       style={{
         transform: `translate3d(${translateX}px, ${translateY + dismissOffset}px, 0) scale(${scale})`,
         transition: dismissOffset === 0 ? "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
