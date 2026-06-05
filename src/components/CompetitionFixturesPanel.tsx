@@ -357,6 +357,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
   const [divisionId, setDivisionId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [venue, setVenue] = useState("");
+  const [pitch, setPitch] = useState("");
   const [round, setRound] = useState("");
   const [duration, setDuration] = useState("");
   const [arrival, setArrival] = useState("");
