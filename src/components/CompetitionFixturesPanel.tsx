@@ -270,8 +270,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Each accepted team plays every other team once. Home/away alternates per round.
-                  Leave date blank to generate without times — you can fill them in per match later.
+                  Each accepted team plays every other team once per cycle (home/away alternates per round).
+                  Set an end date to repeat cycles within that window — home/away swaps each cycle for fairness.
+                  Leave the first round date blank to generate without times (fill them in per match later).
                   Scheduled fixtures automatically create a team event so players can RSVP.
                 </p>
                 <div className="flex gap-2">
