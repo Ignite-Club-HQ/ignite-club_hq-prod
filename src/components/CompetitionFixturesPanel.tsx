@@ -51,6 +51,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const { user } = useAuth();
   const [genOpen, setGenOpen] = useState(false);
   const [genDivisionId, setGenDivisionId] = useState<string>("");
+  const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>(""); // yyyy-mm-dd
+  const [genKickoff, setGenKickoff] = useState<string>("09:00");
+  const [genDaysBetween, setGenDaysBetween] = useState<string>("7");
+  const [genVenue, setGenVenue] = useState<string>("");
+  const [genDuration, setGenDuration] = useState<string>("");
+  const [genArrival, setGenArrival] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   const { data: matches = [], isLoading } = useQuery({
@@ -80,15 +86,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     }
     setGenerating(true);
     const fixtures = buildRoundRobin(teams.map((t: any) => t.id));
-    const rows = fixtures.map((f) => ({
-      competition_id: competitionId,
-      division_id: genDivisionId || null,
-      round_number: f.round,
-      home_team_id: f.home,
-      away_team_id: f.away,
-      status: "scheduled",
-      created_by: user?.id ?? null,
-    }));
+    const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
+    const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
+    const duration = genDuration ? Number(genDuration) : null;
+    const arrival = genArrival ? Number(genArrival) : null;
+    const rows = fixtures.map((f) => {
+      let scheduledAt: string | null = null;
+      if (baseDate && !isNaN(baseDate.getTime())) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + (f.round - 1) * daysBetween);
+        scheduledAt = d.toISOString();
+      }
+      return {
+        competition_id: competitionId,
+        division_id: genDivisionId || null,
+        round_number: f.round,
+        home_team_id: f.home,
+        away_team_id: f.away,
+        status: "scheduled",
+        created_by: user?.id ?? null,
+        scheduled_at: scheduledAt,
+        venue: genVenue || null,
+        duration_minutes: duration,
+        arrival_minutes_before: arrival,
+      } as any;
+    });
     const { error } = await supabase.from("competition_matches").insert(rows);
     setGenerating(false);
     if (error) {
@@ -96,7 +118,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       return;
     }
     toast({ title: `Generated ${rows.length} fixtures` });
-    setGenOpen(false); setGenDivisionId("");
+    setGenOpen(false);
+    setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
+    setGenDaysBetween("7"); setGenVenue(""); setGenDuration(""); setGenArrival("");
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -144,8 +168,36 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>First round date</Label>
+                    <Input type="date" value={genFirstRoundDate} onChange={(e) => setGenFirstRoundDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Kickoff time</Label>
+                    <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Days between rounds</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genDaysBetween} onChange={(e) => setGenDaysBetween(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Default venue</Label>
+                    <Input value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
+                  </div>
+                  <div>
+                    <Label>Duration (mins)</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} placeholder="e.g. 90" />
+                  </div>
+                  <div>
+                    <Label>Arrive (mins before)</Label>
+                    <Input type="number" inputMode="numeric" min={0} value={genArrival} onChange={(e) => setGenArrival(e.target.value)} placeholder="e.g. 30" />
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Each accepted team plays every other team once. Home/away alternates per round.
+                  Leave date blank to generate without times — you can fill them in per match later.
+                  Scheduled fixtures automatically create a team event so players can RSVP.
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={generate} disabled={generating}>
@@ -285,9 +337,19 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
   const [awayId, setAwayId] = useState("");
   const [divisionId, setDivisionId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [venue, setVenue] = useState("");
+  const [round, setRound] = useState("");
+  const [duration, setDuration] = useState("");
+  const [arrival, setArrival] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const accepted = entries.filter((e: any) => e.status === "accepted");
+
+  const reset = () => {
+    setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
+    setVenue(""); setRound(""); setDuration(""); setArrival(""); setNotes("");
+  };
 
   const submit = async () => {
     if (!homeId || !awayId || homeId === awayId) {
@@ -301,16 +363,21 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
       away_team_id: awayId,
       division_id: divisionId || null,
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      venue: venue || null,
+      round_number: round ? Number(round) : null,
+      duration_minutes: duration ? Number(duration) : null,
+      arrival_minutes_before: arrival ? Number(arrival) : null,
+      notes: notes || null,
       status: "scheduled",
       created_by: user?.id ?? null,
-    });
+    } as any);
     setSaving(false);
     if (error) {
       toast({ title: "Could not add match", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "Match added" });
-    setOpen(false); setHomeId(""); setAwayId(""); setDivisionId(""); setScheduledAt("");
+    setOpen(false); reset();
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -358,15 +425,40 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
             </Select>
           </div>
         )}
-        <div>
-          <Label>Scheduled at (optional)</Label>
-          <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Kickoff (optional)</Label>
+            <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          </div>
+          <div>
+            <Label>Round (optional)</Label>
+            <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <Label>Venue (optional)</Label>
+            <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+          </div>
+          <div>
+            <Label>Duration (mins)</Label>
+            <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 90" />
+          </div>
+          <div>
+            <Label>Arrive (mins before)</Label>
+            <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} placeholder="e.g. 30" />
+          </div>
+          <div className="col-span-2">
+            <Label>Notes (optional)</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Shown on the team event" />
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Adding a kickoff creates a team event for both sides so players can RSVP.
+        </p>
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
         </div>
       </CardContent>
     </Card>
