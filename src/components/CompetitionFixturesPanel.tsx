@@ -392,7 +392,17 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No completed matches yet — once results are entered, the ladder will appear here.</p>;
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <Trophy className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">No ladder yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Once match results are entered, standings will appear here.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const hiddenDivisionIds = new Set(
