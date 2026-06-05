@@ -134,6 +134,7 @@ export function PhotoLightbox({
     onTouchStart: pinchTouchStart,
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
+    onDoubleClick: pinchOnDoubleClick,
     resetZoom,
   } = usePinchZoom(1, 4);
 
