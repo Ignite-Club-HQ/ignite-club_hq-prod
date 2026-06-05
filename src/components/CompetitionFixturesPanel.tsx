@@ -104,17 +104,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
 
+  const totalAccepted = entries.filter((e: any) => e.status === "accepted").length;
+  const canGenerate = totalAccepted >= 2;
+
   return (
     <div className="space-y-3">
       {isAdmin && (
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-2">
           {!genOpen ? (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setGenOpen(true)}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setGenOpen(true)}
+                disabled={!canGenerate}
+                title={canGenerate ? undefined : "Needs at least 2 accepted teams"}
+              >
                 <CalendarPlus className="h-4 w-4 mr-1" /> Generate round-robin
               </Button>
               <AddMatchButton competitionId={competitionId} entries={entries} divisions={divisions} />
-            </>
+              {!canGenerate && (
+                <span className="text-xs text-muted-foreground">
+                  Needs at least 2 accepted teams to generate a round-robin.
+                </span>
+              )}
+            </div>
           ) : (
             <Card className="w-full">
               <CardContent className="p-4 space-y-3">
@@ -147,7 +161,17 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       )}
 
       {matches.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No fixtures yet.</p>
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center space-y-2">
+            <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
+            <h3 className="text-sm font-semibold">No fixtures yet</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              {isAdmin
+                ? "Invite teams first, then generate a round-robin fixture or add matches manually."
+                : "Fixtures will appear here once the organiser adds them."}
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         matches.map((m: any) => (
           <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} />
@@ -368,7 +392,17 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No completed matches yet — once results are entered, the ladder will appear here.</p>;
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <Trophy className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">No ladder yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Once match results are entered, standings will appear here.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const hiddenDivisionIds = new Set(

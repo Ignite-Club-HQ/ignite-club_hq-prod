@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +129,13 @@ export default function CompetitionDetailPage() {
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
           <div className="flex gap-2 mt-2 flex-wrap">
-            <Badge variant="secondary" className="capitalize">{competition.status}</Badge>
+            <Badge
+              variant={competition.status === "published" ? "default" : "secondary"}
+              className="capitalize"
+              aria-label={`Status: ${competition.status}`}
+            >
+              {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
+            </Badge>
             {competition.visibility === "public" ? (
               <button
                 type="button"
@@ -140,19 +146,21 @@ export default function CompetitionDetailPage() {
                     () => toast({ title: "Public link", description: url }),
                   );
                 }}
+                aria-label="Copy public competition link"
+                title="Copy public competition link"
                 className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold hover:bg-muted"
               >
-                <LinkIcon className="h-3 w-3" /> Public
+                <LinkIcon className="h-3 w-3" /> Public link
               </button>
             ) : (
-              <Badge variant="outline" className="capitalize">{competition.visibility}</Badge>
+              <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
             )}
           </div>
         </div>
         {isAdmin && (
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Broadcasts">
+              <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
                 <Megaphone className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -171,7 +179,7 @@ export default function CompetitionDetailPage() {
           </Sheet>
         )}
         {isAdmin && (
-          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+          <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
             <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
           </Button>
         )}
@@ -181,7 +189,15 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      
+      {isAdmin && competition.status === "draft" && (
+        <DraftSetupProgress
+          competitionId={id!}
+          divisionsCount={divisions.length}
+          acceptedCount={entries.filter((e: any) => e.status === "accepted").length}
+          invitedCount={entries.filter((e: any) => e.status === "invited").length}
+        />
+      )}
+
       <Tabs defaultValue={
         entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
           ? "teams"
@@ -203,7 +219,7 @@ export default function CompetitionDetailPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {isAdmin && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
@@ -225,6 +241,92 @@ export default function CompetitionDetailPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function DraftSetupProgress({
+  competitionId,
+  divisionsCount,
+  acceptedCount,
+  invitedCount,
+}: {
+  competitionId: string;
+  divisionsCount: number;
+  acceptedCount: number;
+  invitedCount: number;
+}) {
+  const { data: matchesCount = 0 } = useQuery({
+    queryKey: ["competition-matches-count", competitionId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("competition_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId);
+      return count ?? 0;
+    },
+  });
+
+  const steps = [
+    {
+      label: "Invite teams",
+      done: invitedCount + acceptedCount > 0,
+      hint:
+        invitedCount + acceptedCount === 0
+          ? "Send invites to the teams you want in this competition."
+          : `${invitedCount + acceptedCount} invited · ${acceptedCount} accepted`,
+    },
+    {
+      label: "Add divisions",
+      done: divisionsCount > 0,
+      hint:
+        divisionsCount === 0
+          ? "Optional — group teams by age, gender or skill."
+          : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
+    },
+    {
+      label: "Generate fixtures",
+      done: matchesCount > 0,
+      hint:
+        acceptedCount < 2
+          ? "Needs at least 2 accepted teams."
+          : matchesCount > 0
+            ? `${matchesCount} match${matchesCount === 1 ? "" : "es"} scheduled`
+            : "Use 'Generate round-robin' on the Fixtures tab.",
+    },
+    {
+      label: "Publish competition",
+      done: false,
+      hint: "Open Settings and switch from Draft to Published.",
+    },
+  ];
+
+  return (
+    <Card className="border-primary/30 bg-primary/[0.03]">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Set up your competition</h2>
+          <Badge variant="outline" className="ml-auto text-[11px]">Draft</Badge>
+        </div>
+        <ol className="space-y-2">
+          {steps.map((s) => (
+            <li key={s.label} className="flex items-start gap-2 text-sm">
+              {s.done ? (
+                <CircleCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className={s.done ? "font-medium line-through text-muted-foreground" : "font-medium"}>
+                  {s.label}
+                </div>
+                <div className="text-xs text-muted-foreground">{s.hint}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -284,7 +386,13 @@ function TeamsByDivision({
                         {e.teams?.clubs?.name || "—"}
                       </div>
                     </div>
-                    <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
+                    {e.status === "accepted" ? (
+                      <Badge variant="default">Accepted</Badge>
+                    ) : e.status === "invited" ? (
+                      <Badge variant="secondary">Invite sent</Badge>
+                    ) : (
+                      <Badge variant="outline" className="capitalize">{e.status}</Badge>
+                    )}
                     {canRespond && (
                       <div className="flex gap-1">
                         <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
@@ -474,7 +582,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Invite team
       </Button>
     );
