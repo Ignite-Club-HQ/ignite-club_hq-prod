@@ -212,9 +212,11 @@ export default function CompetitionDetailPage() {
       )}
 
       <Tabs defaultValue={
-        entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+        inviteFromUrl && isAdmin
           ? "teams"
-          : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
+          : entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+            ? "teams"
+            : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
       }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
