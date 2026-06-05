@@ -499,7 +499,6 @@ export function PhotoLightbox({
                 controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
               onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrev(); }}
               aria-label="Previous photo"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
@@ -517,7 +516,6 @@ export function PhotoLightbox({
                 controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleNext(); }}
               aria-label="Next photo"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
