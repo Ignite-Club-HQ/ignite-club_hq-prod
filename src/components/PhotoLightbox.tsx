@@ -75,7 +75,7 @@ function LightboxImage({
         key={effectiveSrc}
         src={isLoading ? undefined : effectiveSrc}
         poster={poster || undefined}
-        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain bg-black"
+        className="max-w-[100vw] max-h-[100dvh] object-contain bg-black"
         controls
         autoPlay
         playsInline
@@ -94,7 +94,7 @@ function LightboxImage({
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain transition-transform duration-100"
+      className="max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
       style={{
         transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
       }}
@@ -306,8 +306,8 @@ export function PhotoLightbox({
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-full flex items-center justify-center overflow-hidden pb-[env(safe-area-inset-bottom)]"
-          style={{ paddingTop: "max(env(safe-area-inset-top), 1.75rem)", touchAction: 'none' }}
+          className="relative w-full h-full flex items-center justify-center overflow-hidden"
+          style={{ touchAction: 'none' }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -447,7 +447,7 @@ export function PhotoLightbox({
           {photos.length > 1 && (
             <div
               className="absolute left-1/2 -translate-x-1/2 text-white text-xs font-medium px-2.5 py-0.5 bg-black/55 rounded-full tracking-wide"
-              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
+              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.35rem)" }}
             >
               {currentIndex + 1} of {photos.length}
             </div>
