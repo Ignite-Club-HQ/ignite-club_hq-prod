@@ -3335,6 +3335,7 @@ export default function EventDetailPage() {
               trackableMembersCount={trackableMembers}
               addressableMembers={members}
               onShareLink={handleShareReminderLink}
+              onProRequired={gateReminders}
               eventType={event.type}
             />
           </div>
