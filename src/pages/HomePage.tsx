@@ -166,23 +166,36 @@ function getLocalDateKey(date = new Date()) {
 }
 
 function getEventLocalDateKey(dateStr: string) {
-  const parsed = new Date(dateStr);
-  if (!Number.isNaN(parsed.getTime()) && dateStr.includes("T")) {
-    return getLocalDateKey(parsed);
+  // Treat any timestamp with a time component (ISO "T" or Postgres space form
+  // like "2026-06-06 23:30:00+00") as an absolute instant and convert to the
+  // viewer's local date. Only date-only strings ("YYYY-MM-DD") are taken at
+  // face value. Without this, a UTC-evening event reads as "yesterday" in
+  // AEST and gets dropped from Next Up.
+  const hasTimeComponent = dateStr.includes("T") || /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(dateStr);
+  if (hasTimeComponent) {
+    const parsed = new Date(dateStr);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
   }
   return dateStr.slice(0, 10);
 }
 
 function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   if (event.start_time) {
-    const start = event.start_time.includes("T")
+    // start_time may be a full timestamp ("2026-06-06T23:30:00+00" or
+    // "2026-06-06 23:30:00+00") or a time-only string ("19:30"). For full
+    // timestamps, parse directly. For time-only, combine with the event's
+    // local date.
+    const isFullTimestamp = /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(event.start_time);
+    const start = isFullTimestamp
       ? new Date(event.start_time)
       : new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
     return start.getTime();
   }
 
-  if (!event.event_date.includes("T")) return Number.NaN;
-  return new Date(event.event_date).getTime();
+  const parsed = new Date(event.event_date);
+  return Number.isNaN(parsed.getTime()) ? Number.NaN : parsed.getTime();
 }
 
 function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
