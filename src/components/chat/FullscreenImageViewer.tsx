@@ -10,7 +10,7 @@ import {
   
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { downloadImage } from "@/lib/downloadImage";
+import { downloadMedia, isDownloadInFlight } from "@/lib/downloadImage";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
