@@ -1,8 +1,7 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js'
-import { WebhookError, verifyWebhookRequest } from 'npm:@lovable.dev/webhooks-js'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { Resend } from 'npm:resend@2.0.0'
+import { Webhook } from 'npm:standardwebhooks@1.0.0'
 import { SignupEmail } from '../_shared/email-templates/signup.tsx'
 import { InviteEmail } from '../_shared/email-templates/invite.tsx'
 import { MagicLinkEmail } from '../_shared/email-templates/magic-link.tsx'
@@ -36,10 +35,44 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "ignite-club-launchpad"
-const SENDER_DOMAIN = "notify.igniteclubhq.app"
-const ROOT_DOMAIN = "igniteclubhq.app"
-const FROM_DOMAIN = "notify.igniteclubhq.app" // Domain shown in From address (may be root or sender subdomain)
+const SITE_NAME = 'Ignite Club HQ'
+const FROM_EMAIL = 'Ignite Club HQ <support@igniteclubhq.app>'
+
+interface SupabaseSendEmailHookPayload {
+  user?: {
+    email?: string
+  }
+  email_data?: {
+    email_action_type?: string
+    token?: string
+    token_hash?: string
+    redirect_to?: string
+    site_url?: string
+    token_new?: string
+    token_hash_new?: string
+  }
+}
+
+function normalizeWebhookSecret(secret: string): string {
+  return secret.startsWith('v1,') ? secret.slice(3) : secret
+}
+
+function buildConfirmationUrl(emailData: SupabaseSendEmailHookPayload['email_data']): string {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const tokenHash = emailData?.token_hash || emailData?.token_hash_new
+  const actionType = emailData?.email_action_type
+  const redirectTo = emailData?.redirect_to || emailData?.site_url || 'https://igniteclubhq.app'
+
+  if (!supabaseUrl || !tokenHash || !actionType) {
+    return redirectTo
+  }
+
+  const url = new URL(`${supabaseUrl}/auth/v1/verify`)
+  url.searchParams.set('token', tokenHash)
+  url.searchParams.set('type', actionType)
+  url.searchParams.set('redirect_to', redirectTo)
+  return url.toString()
+}
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.
