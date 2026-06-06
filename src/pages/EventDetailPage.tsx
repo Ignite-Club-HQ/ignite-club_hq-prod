@@ -7,7 +7,7 @@ import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
 import { TrainingDefaultControl } from "@/components/event/TrainingDefaultControl";
@@ -550,6 +550,21 @@ export default function EventDetailPage() {
     if (event?.club_id) navigate(`/clubs/${event.club_id}/upgrade`);
     return false;
   };
+
+  const gateReminders = (): boolean => {
+    if (isLoadingHasTeamPro) return false;
+    if (hasTeamPro === true) return true;
+    toast({
+      title: "Reminders are a Pro feature",
+      description: event?.club_id
+        ? "Upgrade your club to Pro to send reminders."
+        : "Contact your club admin to upgrade to Pro.",
+      variant: "destructive",
+    });
+    if (event?.club_id) navigate(`/clubs/${event.club_id}/upgrade`);
+    return false;
+  };
+
 
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
@@ -3132,28 +3147,34 @@ export default function EventDetailPage() {
         const notRespondedNode = (
           <div className="divide-y divide-border/50">
             {notRespondedChildren.map((child: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id ? (() => {
+              const remindBtn = (isAdmin || isAppAdmin) && !isMiniLeagueEvent && child.parent_id ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
                 const lastRemindedAt = recentlyReminded.get(child.parent_id) || recentReminderMap?.get(child.parent_id) || null;
                 const wasReminded = !!lastRemindedAt;
                 const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
+                const isProBlocked = !canSendReminders && !wasReminded;
                 return (
                   <Button
-                    variant={wasReminded ? "secondary" : "default"}
+                    variant={wasReminded ? "secondary" : isProBlocked ? "outline" : "default"}
                     size="sm"
-                    className="h-8 px-2.5 shrink-0 gap-1"
-                    onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
+                    className={`h-8 px-2.5 shrink-0 gap-1 ${isProBlocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                    onClick={() => {
+                      if (!gateReminders()) return;
+                      individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id });
+                    }}
                     disabled={isLoadingThis || wasReminded}
-                    title={wasReminded ? remindedLabel : "Remind all parents"}
+                    title={wasReminded ? remindedLabel : isProBlocked ? "Pro required — upgrade to send reminders" : "Remind all parents"}
                   >
                     {isLoadingThis ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : wasReminded ? (
                       <Check className="h-3.5 w-3.5" />
+                    ) : isProBlocked ? (
+                      <Lock className="h-3.5 w-3.5" />
                     ) : (
                       <Bell className="h-3.5 w-3.5" />
                     )}
-                    <span className="text-xs">{wasReminded ? remindedLabel : "Remind"}</span>
+                    <span className="text-xs">{wasReminded ? remindedLabel : isProBlocked ? "Pro" : "Remind"}</span>
                   </Button>
                 );
               })() : null;
@@ -3198,28 +3219,34 @@ export default function EventDetailPage() {
               );
             })}
             {!isMiniLeagueEvent && notResponded.map((member: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) && canSendReminders ? (() => {
+              const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
                 const wasReminded = !!lastRemindedAt;
                 const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
+                const isProBlocked = !canSendReminders && !wasReminded;
                 return (
                   <Button
-                    variant={wasReminded ? "secondary" : "default"}
+                    variant={wasReminded ? "secondary" : isProBlocked ? "outline" : "default"}
                     size="sm"
-                    className="h-8 px-2.5 shrink-0 gap-1"
-                    onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
+                    className={`h-8 px-2.5 shrink-0 gap-1 ${isProBlocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                    onClick={() => {
+                      if (!gateReminders()) return;
+                      individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" });
+                    }}
                     disabled={isLoadingThis || wasReminded}
-                    title={wasReminded ? remindedLabel : "Send reminder"}
+                    title={wasReminded ? remindedLabel : isProBlocked ? "Pro required — upgrade to send reminders" : "Send reminder"}
                   >
                     {isLoadingThis ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : wasReminded ? (
                       <Check className="h-3.5 w-3.5" />
+                    ) : isProBlocked ? (
+                      <Lock className="h-3.5 w-3.5" />
                     ) : (
                       <Bell className="h-3.5 w-3.5" />
                     )}
-                    <span className="text-xs">{wasReminded ? remindedLabel : "Remind"}</span>
+                    <span className="text-xs">{wasReminded ? remindedLabel : isProBlocked ? "Pro" : "Remind"}</span>
                   </Button>
                 );
               })() : null;
@@ -3308,6 +3335,7 @@ export default function EventDetailPage() {
               trackableMembersCount={trackableMembers}
               addressableMembers={members}
               onShareLink={handleShareReminderLink}
+              onProRequired={gateReminders}
               eventType={event.type}
             />
           </div>
