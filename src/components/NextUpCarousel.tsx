@@ -580,10 +580,18 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
   const needsRsvp =
     heroDataReady &&
     !event.is_cancelled &&
+    !event.is_bye &&
     isEventMember &&
     (hasGuardianChildren
       ? guardianUnrespondedCount > 0
       : currentStatus === null && (childRsvps?.length ?? 0) === 0);
+
+  // Report up to parent so the carousel "X need RSVP" badge stays in sync
+  // with what each card actually shows (membership, BYE, guardian children).
+  React.useEffect(() => {
+    onNeedsRsvpChange?.(event.id, !!needsRsvp);
+    return () => onNeedsRsvpChange?.(event.id, false);
+  }, [needsRsvp, event.id, onNeedsRsvpChange]);
 
   const needsRsvpPillLabel = hasGuardianChildren
     ? (guardianUnrespondedCount === 1
