@@ -89,7 +89,7 @@ export default function CompetitionDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_entries")
-        .select("*, teams:team_id(id, name, club_id, clubs:club_id(name)), competition_divisions:division_id(name)")
+        .select("*, teams:team_id(id, name, club_id, is_shell, shell_contact_name, shell_contact_email, clubs:club_id(name)), competition_divisions:division_id(name)")
         .eq("competition_id", id!)
         .order("created_at");
       return data ?? [];
@@ -450,9 +450,16 @@ function TeamsByDivision({
                       <div className="text-xs text-muted-foreground truncate">
                         {e.teams?.clubs?.name || "—"}
                       </div>
+                      {e.teams?.is_shell && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                          Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                        </div>
+                      )}
                     </div>
 
-                    {e.status === "accepted" ? (
+                    {e.teams?.is_shell ? (
+                      <Badge variant="outline">Awaiting signup</Badge>
+                    ) : e.status === "accepted" ? (
                       <Badge variant="default">Accepted</Badge>
                     ) : e.status === "invited" ? (
                       <Badge variant="secondary">Invite sent</Badge>
@@ -622,6 +629,7 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
   const { toast } = useToast();
   const { user } = useAuth();
   const [open, setOpen] = useState(!!defaultOpen);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
   const [teamId, setTeamId] = useState("");
   const [divisionId, setDivisionId] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -629,9 +637,15 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
   const [clubFilterId, setClubFilterId] = useState<string>("");
   const [clubSearch, setClubSearch] = useState("");
 
+  // "Not on Ignite yet" fields
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newClubName, setNewClubName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+
   const { data: clubs = [] } = useQuery({
     queryKey: ["clubs-for-team-invite", clubSearch],
-    enabled: open,
+    enabled: open && mode === "existing",
     queryFn: async () => {
       let q = supabase.from("clubs").select("id, name").order("name").limit(50);
       if (clubSearch.trim()) q = q.ilike("name", `%${clubSearch.trim()}%`);
@@ -644,7 +658,7 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
 
   const { data: teams = [] } = useQuery({
     queryKey: ["all-teams-for-invite", search, clubFilterId],
-    enabled: open,
+    enabled: open && mode === "existing",
     queryFn: async () => {
       let q = supabase.from("teams").select("id, name, clubs:club_id(name)").order("name").limit(50);
       if (search.trim()) q = q.ilike("name", `%${search.trim()}%`);
@@ -654,7 +668,7 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
     },
   });
 
-  const submit = async () => {
+  const submitExisting = async () => {
     if (!teamId) return;
     setSaving(true);
     const { error } = await supabase.from("competition_entries").insert({
@@ -671,6 +685,55 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
     }
     toast({ title: "Team invited" });
     setTeamId(""); setDivisionId(""); setOpen(false); onDone();
+  };
+
+  const submitNew = async () => {
+    const tName = newTeamName.trim();
+    const email = contactEmail.trim().toLowerCase();
+    if (!tName) { toast({ title: "Team name required", variant: "destructive" }); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "Valid contact email required", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase.rpc("invite_shell_team_to_competition", {
+      p_competition_id: competitionId,
+      p_team_name: tName,
+      p_club_name: newClubName.trim() || null,
+      p_contact_name: contactName.trim() || null,
+      p_contact_email: email,
+      p_division_id: divisionId || null,
+    });
+    if (error || !data || !(data as any[]).length) {
+      setSaving(false);
+      toast({ title: "Could not send invite", description: error?.message || "Unknown error", variant: "destructive" });
+      return;
+    }
+    const row: any = (data as any[])[0];
+    const claimLink = `${window.location.origin}/claim-team?token=${row.token}`;
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: {
+          to: email,
+          subject: `You're invited to join a competition on Ignite`,
+          template: "team-invite",
+          templateData: {
+            recipientName: contactName.trim() || email.split("@")[0],
+            invitedEmail: email,
+            teamName: tName,
+            clubName: newClubName.trim() || tName,
+            roleName: "Team Admin",
+            inviteLink: claimLink,
+          },
+        },
+      });
+    } catch (err) {
+      console.error("send-email failed", err);
+    }
+    setSaving(false);
+    toast({ title: "Invite sent", description: `Magic link emailed to ${email}` });
+    setNewTeamName(""); setNewClubName(""); setContactName(""); setContactEmail(""); setDivisionId("");
+    setOpen(false); onDone();
   };
 
   if (!open) {
@@ -690,78 +753,122 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
           <h3 className="font-semibold text-sm">Invite a team to this competition</h3>
           <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
         </div>
-        <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
-        <div className="space-y-1.5">
-          <Label>Filter by club (optional)</Label>
-          {selectedClub ? (
-            <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-              <div className="text-sm font-medium">{selectedClub.name}</div>
-              <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                value={clubSearch}
-                onChange={(e) => setClubSearch(e.target.value)}
-                placeholder="Search clubs"
-              />
-              {clubSearch.trim().length > 0 && (
-                <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
-                  {clubs.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
-                  ) : clubs.map((c: any) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+
+        <div className="flex gap-1 rounded-md bg-muted p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setMode("existing")}
+            className={`flex-1 rounded px-2 py-1.5 ${mode === "existing" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+          >
+            On Ignite
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("new")}
+            className={`flex-1 rounded px-2 py-1.5 ${mode === "new" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+          >
+            Not on Ignite yet
+          </button>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="competition-invite-team-search">Find team</Label>
-          {selectedTeam ? (
-            <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-              <div className="text-sm">
-                <span className="font-medium">{selectedTeam.name}</span>
-                {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                id="competition-invite-team-search"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
-                placeholder="Search by team name"
-              />
-              {(search.trim().length > 0 || clubFilterId) && (
-                <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
-                  {teams.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
-                  ) : teams.map((t: any) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => { setTeamId(t.id); setSearch(""); }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                    >
-                      <div className="font-medium">{t.name}</div>
-                      {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
-                    </button>
-                  ))}
+
+        {mode === "existing" ? (
+          <>
+            <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
+            <div className="space-y-1.5">
+              <Label>Filter by club (optional)</Label>
+              {selectedClub ? (
+                <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="text-sm font-medium">{selectedClub.name}</div>
+                  <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
                 </div>
+              ) : (
+                <>
+                  <Input
+                    value={clubSearch}
+                    onChange={(e) => setClubSearch(e.target.value)}
+                    placeholder="Search clubs"
+                  />
+                  {clubSearch.trim().length > 0 && (
+                    <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
+                      {clubs.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
+                      ) : clubs.map((c: any) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="competition-invite-team-search">Find team</Label>
+              {selectedTeam ? (
+                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="text-sm">
+                    <span className="font-medium">{selectedTeam.name}</span>
+                    {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    id="competition-invite-team-search"
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
+                    placeholder="Search by team name"
+                  />
+                  {(search.trim().length > 0 || clubFilterId) && (
+                    <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+                      {teams.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
+                      ) : teams.map((t: any) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => { setTeamId(t.id); setSearch(""); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                        >
+                          <div className="font-medium">{t.name}</div>
+                          {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">We'll create a placeholder team and email a magic link so the contact can claim it. Fixtures and ladder work immediately.</p>
+            <div className="space-y-1.5">
+              <Label>Team name *</Label>
+              <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. Basket Range U14 Red" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Club name (optional)</Label>
+              <Input value={newClubName} onChange={(e) => setNewClubName(e.target.value)} placeholder="e.g. Basket Range Cricket Club" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Contact name (optional)</Label>
+              <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Sam Smith" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Contact email *</Label>
+              <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
+              <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
+            </div>
+          </>
+        )}
+
         {divisions.length > 0 && (
           <div>
             <Label>Division (optional)</Label>
@@ -776,9 +883,15 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
           </div>
         )}
         <div className="flex gap-2">
-          <Button size="sm" onClick={submit} disabled={!teamId || saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
-          </Button>
+          {mode === "existing" ? (
+            <Button size="sm" onClick={submitExisting} disabled={!teamId || saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={submitNew} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
       </CardContent>

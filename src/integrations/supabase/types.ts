@@ -8278,6 +8278,7 @@ export type Database = {
           id: string
           is_archived: boolean
           is_pro: boolean
+          is_shell: boolean
           level_age: string | null
           lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
@@ -8286,6 +8287,13 @@ export type Database = {
           pro_expires_at: string | null
           season_id: string | null
           season_label: string | null
+          shell_claim_token: string | null
+          shell_claimed_at: string | null
+          shell_claimed_by: string | null
+          shell_contact_email: string | null
+          shell_contact_name: string | null
+          shell_invited_by: string | null
+          shell_last_invite_sent_at: string | null
           sponsor_id: string | null
           stripe_subscription_id: string | null
           team_type: string | null
@@ -8320,6 +8328,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_pro?: boolean
+          is_shell?: boolean
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
@@ -8328,6 +8337,13 @@ export type Database = {
           pro_expires_at?: string | null
           season_id?: string | null
           season_label?: string | null
+          shell_claim_token?: string | null
+          shell_claimed_at?: string | null
+          shell_claimed_by?: string | null
+          shell_contact_email?: string | null
+          shell_contact_name?: string | null
+          shell_invited_by?: string | null
+          shell_last_invite_sent_at?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
           team_type?: string | null
@@ -8362,6 +8378,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_pro?: boolean
+          is_shell?: boolean
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
@@ -8370,6 +8387,13 @@ export type Database = {
           pro_expires_at?: string | null
           season_id?: string | null
           season_label?: string | null
+          shell_claim_token?: string | null
+          shell_claimed_at?: string | null
+          shell_claimed_by?: string | null
+          shell_contact_email?: string | null
+          shell_contact_name?: string | null
+          shell_invited_by?: string | null
+          shell_last_invite_sent_at?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
           team_type?: string | null
@@ -9345,6 +9369,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_shell_team: {
+        Args: { p_token: string }
+        Returns: {
+          club_id: string
+          team_id: string
+        }[]
+      }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
         Returns: undefined
@@ -10001,6 +10032,21 @@ export type Database = {
       increment_user_club_points: {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
+      }
+      invite_shell_team_to_competition: {
+        Args: {
+          p_club_name: string
+          p_competition_id: string
+          p_contact_email: string
+          p_contact_name: string
+          p_division_id?: string
+          p_team_name: string
+        }
+        Returns: {
+          club_id: string
+          team_id: string
+          token: string
+        }[]
       }
       is_association_admin: {
         Args: { _association_id: string; _user_id: string }

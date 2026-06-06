@@ -128,6 +128,7 @@ const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
 const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
 const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
 const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
+const ClaimTeamPage = lazy(() => import("./pages/ClaimTeamPage"));
 const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
@@ -348,6 +349,7 @@ const App = () => {
 <Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
 <Route path="/eoi-embed/:clubSlug/:seasonSlug" element={<EmbeddedEoiFormPage />} />
 <Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
+<Route path="/claim-team" element={<ClaimTeamPage />} />
 
 
                 {/* Protected routes */}
