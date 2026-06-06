@@ -166,9 +166,17 @@ function getLocalDateKey(date = new Date()) {
 }
 
 function getEventLocalDateKey(dateStr: string) {
-  const parsed = new Date(dateStr);
-  if (!Number.isNaN(parsed.getTime()) && dateStr.includes("T")) {
-    return getLocalDateKey(parsed);
+  // Treat any timestamp with a time component (ISO "T" or Postgres space form
+  // like "2026-06-06 23:30:00+00") as an absolute instant and convert to the
+  // viewer's local date. Only date-only strings ("YYYY-MM-DD") are taken at
+  // face value. Without this, a UTC-evening event reads as "yesterday" in
+  // AEST and gets dropped from Next Up.
+  const hasTimeComponent = dateStr.includes("T") || /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(dateStr);
+  if (hasTimeComponent) {
+    const parsed = new Date(dateStr);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
   }
   return dateStr.slice(0, 10);
 }
