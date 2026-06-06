@@ -129,6 +129,7 @@ const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
 const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
 const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
 const ClaimTeamPage = lazy(() => import("./pages/ClaimTeamPage"));
+const CompetitionJoinPage = lazy(() => import("./pages/CompetitionJoinPage"));
 const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
