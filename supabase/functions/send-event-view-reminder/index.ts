@@ -139,6 +139,7 @@ serve(async (req) => {
         .from("event_reminder_log")
         .select("id, sent_at, sent_by, recipients_count")
         .eq("event_id", eventId)
+        .gt("recipients_count", 1)
         .gte("sent_at", cutoff)
         .order("sent_at", { ascending: false })
         .limit(1);
