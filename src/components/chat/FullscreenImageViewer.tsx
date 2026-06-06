@@ -406,69 +406,67 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           <ArrowLeft className="h-5 w-5" />
         </Button>
 
-        {/* Right: overflow menu */}
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
-              aria-label="More options"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={8}
-            className="z-[1000006] min-w-[180px]"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseUp={(e) => e.stopPropagation()}
+        {/* Right: actions */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+            aria-label="Download"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isDownloadInFlight(effectiveSrc)) return;
+              const kind = isVideoUrl(effectiveSrc) ? "video" : "photo";
+              void downloadMedia(effectiveSrc, kind);
+            }}
           >
-            <DropdownMenuItem
-              onSelect={() => {
-                // Let Radix close the menu first, then kick off the download.
-                // On Android WebView, running the download synchronously from
-                // onSelect leaves the menu item visually stuck in its
-                // highlighted state because the menu close + native download
-                // intent compete on the same frame.
-                installTapShield();
-                setTimeout(() => {
-                  if (isDownloadInFlight(effectiveSrc)) return;
-                  const kind = isVideoUrl(effectiveSrc) ? "video" : "photo";
-                  void downloadMedia(effectiveSrc, kind);
-                }, 80);
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </DropdownMenuItem>
-            {showActions && onReport && (
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  installTapShield();
-                  onClose();
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      setTimeout(() => onReport(), 60);
-                    });
-                  });
-                }}
+            <Download className="h-5 w-5" />
+          </Button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+                aria-label="More options"
+                onClick={(e) => e.stopPropagation()}
               >
-                <Flag className="h-4 w-4 mr-2" />
-                Report
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              sideOffset={8}
+              className="z-[1000006] min-w-[180px]"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+            >
+              {showActions && onReport && (
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    installTapShield();
+                    onClose();
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => onReport(), 60);
+                      });
+                    });
+                  }}
+                >
+                  <Flag className="h-4 w-4 mr-2" />
+                  Report
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {!loaded && (

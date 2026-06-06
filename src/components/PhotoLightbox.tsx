@@ -441,6 +441,16 @@ export function PhotoLightbox({
                 variant="ghost"
                 size="icon"
                 className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
+                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                aria-label="Download photo"
+              >
+                <Download className="h-5 w-5" />
+              </Button>
+              <Button
+                data-lightbox-control
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
                 onClick={(e) => { e.stopPropagation(); handleShare(); }}
                 aria-label="Share photo"
               >
@@ -460,10 +470,6 @@ export function PhotoLightbox({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
-                  <DropdownMenuItem onSelect={() => { setMenuOpen(false); handleDownload(); }}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       setMenuOpen(false);
