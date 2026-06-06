@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
+import { Mail, Loader2, CheckCircle, ArrowLeft, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,137 +145,159 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Reset Password</DialogTitle>
-          <DialogDescription>
-            {step === "email"
-              ? "Enter your email and we'll send you a 6-digit code to reset your password."
-              : `Enter the 6-digit code we sent to ${email}.`}
-          </DialogDescription>
-        </DialogHeader>
-
-        {step === "email" ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="reset-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  className="pl-10"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendCode()}
-                />
-              </div>
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md p-0 gap-0 overflow-hidden rounded-2xl sm:rounded-xl">
+        <div className="px-5 pt-6 pb-4 sm:px-6 sm:pt-7">
+          <div className="flex justify-center mb-3">
+            <div className="p-2.5 rounded-full bg-primary/10">
+              {step === "email" ? (
+                <KeyRound className="h-5 w-5 text-primary" />
+              ) : (
+                <CheckCircle className="h-5 w-5 text-primary" />
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleClose} className="flex-1">
-                Cancel
-              </Button>
-              <Button onClick={() => sendCode()} disabled={sending} className="flex-1">
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStep("code")}
-              className="w-full text-muted-foreground"
-            >
-              I already have a code
-            </Button>
-            <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border/50">
-              Already signed in? You can change your password from{" "}
-              <span className="font-medium text-foreground">Settings → Change Password</span>.
-            </p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center py-4 space-y-5">
-            <div className="p-3 rounded-full bg-primary/10">
-              <CheckCircle className="h-8 w-8 text-primary" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="font-medium">Check your email</p>
-              <p className="text-sm text-muted-foreground">
-                We sent a 6-digit code. It expires in 1 hour.
+          <DialogHeader className="space-y-1.5 text-center sm:text-center">
+            <DialogTitle className="text-lg sm:text-xl">Reset Password</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              {step === "email"
+                ? "Enter your email and we'll send you a 6-digit code."
+                : (
+                  <>We sent a 6-digit code to<br />
+                    <span className="font-medium text-foreground break-all">{email}</span>
+                  </>
+                )}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+          {step === "email" ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="reset-email" className="text-sm">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    placeholder="you@example.com"
+                    className="pl-10 h-11"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendCode()}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <Button variant="outline" onClick={handleClose} className="flex-1 h-11">
+                  Cancel
+                </Button>
+                <Button onClick={() => sendCode()} disabled={sending} className="flex-1 h-11">
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep("code")}
+                className="w-full text-muted-foreground"
+              >
+                I already have a code
+              </Button>
+              <p className="text-xs text-muted-foreground text-center pt-3 border-t border-border/50">
+                Already signed in? Change your password from{" "}
+                <span className="font-medium text-foreground">Settings → Change Password</span>.
               </p>
             </div>
-
-            <div className="w-full space-y-2">
-              <Label htmlFor="reset-code-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="reset-code-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  className="pl-10"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="reset-code-email" className="text-sm">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="reset-code-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    placeholder="you@example.com"
+                    className="pl-10 h-11"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
 
-            <InputOTP
-              maxLength={6}
-              value={code}
-              onChange={handleCodeChange}
-              disabled={verifying}
-              autoFocus={!!email}
-            >
-              <InputOTPGroup>
-                <InputOTPSlot index={0} />
-                <InputOTPSlot index={1} />
-                <InputOTPSlot index={2} />
-                <InputOTPSlot index={3} />
-                <InputOTPSlot index={4} />
-                <InputOTPSlot index={5} />
-              </InputOTPGroup>
-            </InputOTP>
-
-            {verifying && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Verifying…
+              <div className="space-y-2">
+                <Label className="text-sm">6-digit code</Label>
+                <InputOTP
+                  maxLength={6}
+                  value={code}
+                  onChange={handleCodeChange}
+                  disabled={verifying}
+                  autoFocus={!!email}
+                  containerClassName="justify-center"
+                  inputMode="numeric"
+                >
+                  <InputOTPGroup className="gap-1.5 sm:gap-2">
+                    {[0,1,2,3,4,5].map((i) => (
+                      <InputOTPSlot
+                        key={i}
+                        index={i}
+                        className="h-11 w-9 sm:h-12 sm:w-11 text-base sm:text-lg rounded-md border"
+                      />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
-            )}
 
-            <div className="flex flex-col items-center gap-2 w-full">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => sendCode(true)}
-                disabled={sending || resendCooldown > 0}
-              >
-                {resendCooldown > 0
-                  ? `Resend code in ${resendCooldown}s`
-                  : sending
-                    ? "Sending…"
-                    : "Resend code"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setStep("email");
-                  setCode("");
-                }}
-                className="text-muted-foreground"
-              >
-                <ArrowLeft className="h-3 w-3 mr-1" />
-                Use a different email
-              </Button>
+              {verifying && (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Verifying…
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => sendCode(true)}
+                  disabled={sending || resendCooldown > 0}
+                  className="h-9"
+                >
+                  {resendCooldown > 0
+                    ? `Resend code in ${resendCooldown}s`
+                    : sending
+                      ? "Sending…"
+                      : "Resend code"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStep("email");
+                    setCode("");
+                  }}
+                  className="text-muted-foreground h-9"
+                >
+                  <ArrowLeft className="h-3 w-3 mr-1" />
+                  Use a different email
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Don't see the email? Check your spam folder.
+              </p>
             </div>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Don't see the email? Check your spam folder.
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
