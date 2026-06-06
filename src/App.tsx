@@ -351,6 +351,7 @@ const App = () => {
 <Route path="/eoi-embed/:clubSlug/:seasonSlug" element={<EmbeddedEoiFormPage />} />
 <Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
 <Route path="/claim-team" element={<ClaimTeamPage />} />
+<Route path="/competitions/join" element={<CompetitionJoinPage />} />
 
 
                 {/* Protected routes */}
