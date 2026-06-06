@@ -162,6 +162,10 @@ export function AttendanceSection({
     channels: "push" | "email" | "both",
     userIds?: string[],
   ) => {
+    if (!canSendReminders) {
+      onProRequired?.();
+      return;
+    }
     const targets = userIds && userIds.length > 0 ? userIds : notRespondedUserIds;
     if (targets.length === 0) return;
     const isPerUser = !!(userIds && userIds.length === 1);
