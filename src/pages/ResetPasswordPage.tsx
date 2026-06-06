@@ -53,6 +53,7 @@ export default function ResetPasswordPage() {
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const navigate = useNavigate();
 
