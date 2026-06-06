@@ -1876,7 +1876,7 @@ export default function HomePage() {
       <NativeAppDownloadBanner />
 
       {/* Pending competition invites for team/club admins */}
-      <HomePendingCompetitionInvitesCard />
+      <HomePendingCompetitionInvitesCard activeClubFilter={activeClubFilter} />
 
       {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
           minHeight matches the rendered carousel (section title 28px + gap 12px +
