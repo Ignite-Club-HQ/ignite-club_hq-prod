@@ -28,8 +28,8 @@ export default function ClaimTeamPage() {
     }
     if (authLoading) return;
     if (!user) {
-      // Send through auth, return here after sign-in
-      navigate(`/auth?redirect=${encodeURIComponent(`/claim-team?token=${token}`)}`, { replace: true });
+      sessionStorage.setItem("redirectAfterAuth", `/claim-team?token=${token}`);
+      navigate("/auth", { replace: true });
       return;
     }
     if (status !== "idle") return;
