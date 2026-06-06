@@ -356,19 +356,17 @@ serve(async (req) => {
       pushSent = pushResults.filter(Boolean).length;
     }
 
-    // Log this send so we can enforce the 24h cooldown and surface "last
-    // reminded" in the UI. Only log bulk sends — per-row pings are not subject
-    // to cooldown and don't need to appear in the log timeline.
-    if (userIds.length > 1) {
-      await supabase.from("event_reminder_log").insert({
-        event_id: eventId,
-        sent_by: requestingUser.id,
-        recipients_count: userIds.length,
-        channels,
-        pushes_sent: pushSent,
-        emails_sent: emailsSent,
-      });
-    }
+    // Log every send (bulk or per-row) so we can show "last reminded" per user.
+    // The 24h cooldown is still only enforced for bulk sends (see check above).
+    await supabase.from("event_reminder_log").insert({
+      event_id: eventId,
+      sent_by: requestingUser.id,
+      recipients_count: userIds.length,
+      recipient_user_ids: userIds,
+      channels,
+      pushes_sent: pushSent,
+      emails_sent: emailsSent,
+    });
 
     return new Response(
       JSON.stringify({
