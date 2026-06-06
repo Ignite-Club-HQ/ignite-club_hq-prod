@@ -445,12 +445,13 @@ function TeamsByDivision({
               return (
                 <Card key={e.id}>
                   <CardContent className="p-4 flex flex-wrap items-center gap-3">
-                    <div className="flex-1 min-w-0">
+                    <div className="w-full min-w-0">
                       <div className="font-medium truncate">{e.teams?.name}</div>
                       <div className="text-xs text-muted-foreground truncate">
                         {e.teams?.clubs?.name || "—"}
                       </div>
                     </div>
+
                     {e.status === "accepted" ? (
                       <Badge variant="default">Accepted</Badge>
                     ) : e.status === "invited" ? (
