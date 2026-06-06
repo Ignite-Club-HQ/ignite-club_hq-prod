@@ -47,7 +47,32 @@ export function useNativeAndroidKeyboardState(): number {
         // Heuristic: if the reported value is more than 60% of the layout
         // viewport, it's almost certainly in device pixels — convert it.
         const looksLikeDevicePx = layoutH > 0 && raw > layoutH * 0.6;
-        const finalHeight = looksLikeDevicePx ? raw / dpr : raw;
+        let finalHeight = looksLikeDevicePx ? raw / dpr : raw;
+
+        // Cross-check against visualViewport. With Keyboard.resize:'none' the
+        // layout viewport stays full, but visualViewport.height tracks the
+        // region above the keyboard. Some OEMs / launchers report
+        // keyboardWillShow with extra chrome included (system gesture bar,
+        // sticker/GIF toolbar), which leaves the composer floating far above
+        // the actual keyboard after tapping Reply. Trust the visualViewport-
+        // derived inset whenever it's available and smaller.
+        if (typeof window !== "undefined") {
+          const vv = window.visualViewport;
+          const vvShrink = vv && layoutH > 0
+            ? Math.max(0, layoutH - vv.height)
+            : 0;
+          if (vvShrink > 24 && vvShrink < finalHeight) {
+            finalHeight = vvShrink;
+          }
+        }
+
+        // Hard safety cap: a soft keyboard never legitimately exceeds 60% of
+        // the layout viewport in CSS pixels. Clamp so a bogus value can't push
+        // the composer halfway up the screen.
+        if (layoutH > 0) {
+          finalHeight = Math.min(finalHeight, layoutH * 0.6);
+        }
+
         applyHeight(Math.max(0, finalHeight));
       });
     };
