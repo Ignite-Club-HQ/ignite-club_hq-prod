@@ -89,7 +89,7 @@ export default function CompetitionDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_entries")
-        .select("*, teams:team_id(id, name, club_id, clubs:club_id(name)), competition_divisions:division_id(name)")
+        .select("*, teams:team_id(id, name, club_id, is_shell, shell_contact_name, shell_contact_email, clubs:club_id(name)), competition_divisions:division_id(name)")
         .eq("competition_id", id!)
         .order("created_at");
       return data ?? [];
