@@ -394,6 +394,24 @@ export default function ResetPasswordPage() {
                       </div>
                     );
                   })}
+                  {(() => {
+                    const allLocalMet = passwordRequirements.every((r) => r.test(password));
+                    const isBreached = breachedPasswords.has(password);
+                    const passed = allLocalMet && !isBreached;
+                    return (
+                      <div className="flex items-center gap-2 text-xs">
+                        {isBreached
+                          ? <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+                          : passed
+                            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                            : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                        }
+                        <span className={isBreached ? 'text-destructive' : passed ? 'text-primary' : 'text-muted-foreground'}>
+                          {isBreached ? 'Found in known data breaches — try another' : 'Not found in known data breaches'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
