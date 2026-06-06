@@ -195,6 +195,13 @@ async function openPhotosApp(): Promise<void> {
       return;
     }
     const { AppLauncher } = await import("@capacitor/app-launcher");
+    // Try the MediaStore "view all images" content URI first — this opens
+    // whichever gallery the user has set as default.
+    try {
+      const res = await AppLauncher.openUrl({ url: "content://media/external/images/media" });
+      if (res?.completed) return;
+    } catch (e) { console.warn("[openPhotosApp] content URI failed:", e); }
+
     const packages = [
       "com.google.android.apps.photos",
       "com.sec.android.gallery3d",
@@ -203,11 +210,8 @@ async function openPhotosApp(): Promise<void> {
     ];
     for (const pkg of packages) {
       try {
-        const { value } = await AppLauncher.canOpenUrl({ url: pkg });
-        if (value) {
-          const opened = await AppLauncher.openUrl({ url: pkg });
-          if (opened?.completed) return;
-        }
+        const opened = await AppLauncher.openUrl({ url: pkg });
+        if (opened?.completed) return;
       } catch { /* try next */ }
     }
     toast.error("Could not open Photos", { description: "Open it from your home screen" });
@@ -511,20 +515,55 @@ function showOpenDownloadedToast(
       onClick: async (event) => {
         event?.preventDefault?.();
         event?.stopPropagation?.();
-        // 1. Try opening the saved file directly via FileOpener.
+        console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
+        const platform = Capacitor.getPlatform();
+
+        // Try multiple path variants — Media plugin may return raw /storage/...
+        // paths or content:// URIs. FileOpener accepts both, but only when the
+        // scheme is present.
+        const candidates: string[] = [];
         if (filePath) {
-          try {
-            const { FileOpener } = await import("@capacitor-community/file-opener");
-            await FileOpener.open({
-              filePath,
-              contentType: contentType || fallbackType,
-            });
-            return;
-          } catch (fileOpenErr) {
-            console.warn("[downloadMedia] FileOpener failed, trying Photos app:", fileOpenErr);
+          candidates.push(filePath);
+          if (/^\/(?:storage|sdcard|data)\//.test(filePath)) {
+            candidates.push(`file://${filePath}`);
           }
         }
-        // 2. Fall back to launching the system Photos/Gallery app.
+
+        if (candidates.length > 0) {
+          try {
+            const { FileOpener } = await import("@capacitor-community/file-opener");
+            for (const p of candidates) {
+              try {
+                await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
+                return;
+              } catch (innerErr) {
+                console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
+              }
+            }
+          } catch (importErr) {
+            console.warn("[downloadMedia] FileOpener import failed:", importErr);
+          }
+
+          // Android: try opening the content URI directly via AppLauncher.
+          if (platform === "android") {
+            try {
+              const { AppLauncher } = await import("@capacitor/app-launcher");
+              for (const p of candidates) {
+                if (!p.startsWith("content://") && !p.startsWith("file://")) continue;
+                try {
+                  const res = await AppLauncher.openUrl({ url: p });
+                  if (res?.completed) return;
+                } catch (alErr) {
+                  console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
+                }
+              }
+            } catch (alImportErr) {
+              console.warn("[downloadMedia] AppLauncher import failed:", alImportErr);
+            }
+          }
+        }
+
+        // Final fallback — launch the gallery / Photos app.
         await openPhotosApp();
       },
     },
