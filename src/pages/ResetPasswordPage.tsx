@@ -194,6 +194,9 @@ export default function ResetPasswordPage() {
     if (error) {
       const msg = error.message || "";
       const isWeak = /weak|pwned|breach|compromis|easy to guess/i.test(msg);
+      if (isWeak) {
+        setBreachedPasswords((prev) => new Set(prev).add(password));
+      }
       toast({
         title: isWeak ? "Password too common" : "Unable to reset password",
         description: isWeak
