@@ -283,9 +283,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         let localPath: string | null = null;
 
         const showSaved = () => {
-          toast.success("Saved to Photos", {
+          toast.success("Photo downloaded", {
             id: toastId,
-            description: "Open your Photos app to view it",
+            description: "Saved to Photos",
+            action: { label: "Open", onClick: () => void openPhotosApp() },
           });
         };
 
