@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
+import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -236,6 +237,7 @@ export default function CompetitionDetailPage() {
                 competitionId={id!}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
               />
+              <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
           )}
 
