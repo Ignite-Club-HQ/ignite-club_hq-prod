@@ -57,6 +57,14 @@ function normalizeWebhookSecret(secret: string): string {
   return secret.startsWith('v1,') ? secret.slice(3) : secret
 }
 
+function getFirstConfiguredSecret(names: string[]): string | undefined {
+  for (const name of names) {
+    const value = Deno.env.get(name)
+    if (value) return value
+  }
+  return undefined
+}
+
 function buildConfirmationUrl(emailData: SupabaseSendEmailHookPayload['email_data']): string {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const tokenHash = emailData?.token_hash || emailData?.token_hash_new
@@ -166,12 +174,27 @@ async function handlePreview(req: Request): Promise<Response> {
 // Webhook handler - verifies Supabase Auth hook signature and sends via Resend
 async function handleWebhook(req: Request): Promise<Response> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET')
+  const hookSecret = getFirstConfiguredSecret([
+    'SEND_EMAIL_HOOK_SECRET',
+    'send_email_hook_secret',
+    'SUPABASE_AUTH_HOOK_SECRET',
+    'AUTH_EMAIL_HOOK_SECRET',
+    'EMAIL_HOOK_SECRET',
+    'WEBHOOK_SECRET',
+  ])
 
   if (!resendApiKey || !hookSecret) {
     console.error('Missing auth email secrets', {
       has_RESEND_API_KEY: Boolean(resendApiKey),
       has_SEND_EMAIL_HOOK_SECRET: Boolean(hookSecret),
+      availableHookSecretNames: [
+        'SEND_EMAIL_HOOK_SECRET',
+        'send_email_hook_secret',
+        'SUPABASE_AUTH_HOOK_SECRET',
+        'AUTH_EMAIL_HOOK_SECRET',
+        'EMAIL_HOOK_SECRET',
+        'WEBHOOK_SECRET',
+      ].filter((name) => Boolean(Deno.env.get(name))),
     })
     return new Response(
       JSON.stringify({ error: 'Server configuration error' }),
