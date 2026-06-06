@@ -259,6 +259,11 @@ export function PhotoLightbox({
     const target = e.target as HTMLElement;
     if (target.closest('[data-lightbox-control]')) return;
 
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+
     const now = Date.now();
     const since = now - lastTapRef.current;
     if (since < 280) {

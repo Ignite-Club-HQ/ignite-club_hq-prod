@@ -102,6 +102,7 @@ interface FullscreenImageViewerProps {
 
 export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, onForward, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { signedUrl } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
   const {
@@ -360,6 +361,19 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     triggerZoomToggle();
   }, [triggerZoomToggle]);
 
+  const handleViewerClick = useCallback(() => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    if (scale === 1) onClose();
+  }, [menuOpen, onClose, scale]);
+
+  const handleMediaClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (menuOpen) setMenuOpen(false);
+  }, [menuOpen]);
+
   // Use max(safe-area, 1.75rem) so action icons always clear the Android
   // status bar even inside in-app browsers (Messenger, etc.) where
   // env(safe-area-inset-top) reports 0.
@@ -387,7 +401,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         // can launch it from ChatDetailsSheet and ChatMediaViewer.
         pointerEvents: 'auto',
       }}
-      onClick={scale === 1 ? onClose : undefined}
+      onClick={handleViewerClick}
       onDoubleClick={handleDoubleClick}
     >
       <div
@@ -422,7 +436,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           >
             <Download className="h-5 w-5" />
           </Button>
-          <DropdownMenu modal={false}>
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -479,7 +493,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           controls
           autoPlay
           playsInline
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleMediaClick}
           onLoadedData={() => setLoaded(true)}
         />
       ) : (
@@ -493,7 +507,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
             touchAction: 'none',
             willChange: 'transform',
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleMediaClick}
           onLoad={() => setLoaded(true)}
           draggable={false}
         />
