@@ -195,6 +195,13 @@ async function openPhotosApp(): Promise<void> {
       return;
     }
     const { AppLauncher } = await import("@capacitor/app-launcher");
+    // Try the MediaStore "view all images" content URI first — this opens
+    // whichever gallery the user has set as default.
+    try {
+      const res = await AppLauncher.openUrl({ url: "content://media/external/images/media" });
+      if (res?.completed) return;
+    } catch (e) { console.warn("[openPhotosApp] content URI failed:", e); }
+
     const packages = [
       "com.google.android.apps.photos",
       "com.sec.android.gallery3d",
@@ -203,11 +210,8 @@ async function openPhotosApp(): Promise<void> {
     ];
     for (const pkg of packages) {
       try {
-        const { value } = await AppLauncher.canOpenUrl({ url: pkg });
-        if (value) {
-          const opened = await AppLauncher.openUrl({ url: pkg });
-          if (opened?.completed) return;
-        }
+        const opened = await AppLauncher.openUrl({ url: pkg });
+        if (opened?.completed) return;
       } catch { /* try next */ }
     }
     toast.error("Could not open Photos", { description: "Open it from your home screen" });
