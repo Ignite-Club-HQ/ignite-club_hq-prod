@@ -2607,6 +2607,8 @@ export type Database = {
           description: string | null
           ends_on: string | null
           id: string
+          join_token: string | null
+          join_token_enabled: boolean
           logo_url: string | null
           name: string
           organizer_club_id: string
@@ -2628,6 +2630,8 @@ export type Database = {
           description?: string | null
           ends_on?: string | null
           id?: string
+          join_token?: string | null
+          join_token_enabled?: boolean
           logo_url?: string | null
           name: string
           organizer_club_id: string
@@ -2649,6 +2653,8 @@ export type Database = {
           description?: string | null
           ends_on?: string | null
           id?: string
+          join_token?: string | null
+          join_token_enabled?: boolean
           logo_url?: string | null
           name?: string
           organizer_club_id?: string
@@ -8278,6 +8284,7 @@ export type Database = {
           id: string
           is_archived: boolean
           is_pro: boolean
+          is_shell: boolean
           level_age: string | null
           lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
@@ -8286,6 +8293,13 @@ export type Database = {
           pro_expires_at: string | null
           season_id: string | null
           season_label: string | null
+          shell_claim_token: string | null
+          shell_claimed_at: string | null
+          shell_claimed_by: string | null
+          shell_contact_email: string | null
+          shell_contact_name: string | null
+          shell_invited_by: string | null
+          shell_last_invite_sent_at: string | null
           sponsor_id: string | null
           stripe_subscription_id: string | null
           team_type: string | null
@@ -8320,6 +8334,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_pro?: boolean
+          is_shell?: boolean
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
@@ -8328,6 +8343,13 @@ export type Database = {
           pro_expires_at?: string | null
           season_id?: string | null
           season_label?: string | null
+          shell_claim_token?: string | null
+          shell_claimed_at?: string | null
+          shell_claimed_by?: string | null
+          shell_contact_email?: string | null
+          shell_contact_name?: string | null
+          shell_invited_by?: string | null
+          shell_last_invite_sent_at?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
           team_type?: string | null
@@ -8362,6 +8384,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_pro?: boolean
+          is_shell?: boolean
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
@@ -8370,6 +8393,13 @@ export type Database = {
           pro_expires_at?: string | null
           season_id?: string | null
           season_label?: string | null
+          shell_claim_token?: string | null
+          shell_claimed_at?: string | null
+          shell_claimed_by?: string | null
+          shell_contact_email?: string | null
+          shell_contact_name?: string | null
+          shell_invited_by?: string | null
+          shell_last_invite_sent_at?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
           team_type?: string | null
@@ -9345,6 +9375,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_shell_team: {
+        Args: { p_token: string }
+        Returns: {
+          club_id: string
+          team_id: string
+        }[]
+      }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
         Returns: undefined
@@ -9558,6 +9595,18 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_competition_by_join_token: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          name: string
+          organizer_club_id: string
+          organizer_club_name: string
+          season: string
+          sport: string
+          status: string
+        }[]
+      }
       get_engagement_streak: {
         Args: { _club_id: string; _user_id: string }
         Returns: number
@@ -10002,6 +10051,21 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      invite_shell_team_to_competition: {
+        Args: {
+          p_club_name: string
+          p_competition_id: string
+          p_contact_email: string
+          p_contact_name: string
+          p_division_id?: string
+          p_team_name: string
+        }
+        Returns: {
+          club_id: string
+          team_id: string
+          token: string
+        }[]
+      }
       is_association_admin: {
         Args: { _association_id: string; _user_id: string }
         Returns: boolean
@@ -10086,6 +10150,13 @@ export type Database = {
         Returns: boolean
       }
       is_vault_admin: { Args: { _user_id: string }; Returns: boolean }
+      join_competition_with_token: {
+        Args: { p_division_id?: string; p_team_id: string; p_token: string }
+        Returns: {
+          competition_id: string
+          entry_id: string
+        }[]
+      }
       join_open_chat_group: { Args: { _group_id: string }; Returns: string }
       list_club_parents_for_team: {
         Args: { p_team_id: string }
@@ -10104,6 +10175,17 @@ export type Database = {
           display_name: string
           role: string
           user_id: string
+        }[]
+      }
+      list_divisions_by_join_token: {
+        Args: { p_token: string }
+        Returns: {
+          age_group: string
+          gender: string
+          id: string
+          name: string
+          skill_level: string
+          sort_order: number
         }[]
       }
       list_leaderboard_teams: {
@@ -10260,6 +10342,10 @@ export type Database = {
         Returns: undefined
       }
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
+      regenerate_competition_join_token: {
+        Args: { p_competition_id: string }
+        Returns: string
+      }
       reject_chat_group_join_request: {
         Args: { _request_id: string }
         Returns: undefined

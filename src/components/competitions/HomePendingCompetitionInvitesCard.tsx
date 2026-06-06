@@ -6,11 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function HomePendingCompetitionInvitesCard() {
+interface Props {
+  activeClubFilter?: string | null;
+}
+
+export default function HomePendingCompetitionInvitesCard({ activeClubFilter }: Props) {
   const { user } = useAuth();
 
   const { data: invites = [] } = useQuery({
-    queryKey: ["home-pending-competition-invites", user?.id],
+    queryKey: ["home-pending-competition-invites", user?.id, activeClubFilter ?? "all"],
     enabled: !!user,
     queryFn: async () => {
       const { data: roles } = await supabase
@@ -22,10 +26,12 @@ export default function HomePendingCompetitionInvitesCard() {
       if (teamIds.length === 0) return [];
       const { data } = await supabase
         .from("competition_entries")
-        .select("id, team_id, competition_id, teams:team_id(name), competitions:competition_id(name, sport, season)")
+        .select("id, team_id, competition_id, teams:team_id(name, club_id), competitions:competition_id(name, sport, season)")
         .in("team_id", teamIds)
         .eq("status", "invited");
-      return data ?? [];
+      const rows = data ?? [];
+      if (!activeClubFilter) return rows;
+      return rows.filter((r: any) => r.teams?.club_id === activeClubFilter);
     },
   });
 
