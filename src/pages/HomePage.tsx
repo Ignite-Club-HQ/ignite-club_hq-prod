@@ -183,14 +183,19 @@ function getEventLocalDateKey(dateStr: string) {
 
 function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   if (event.start_time) {
-    const start = event.start_time.includes("T")
+    // start_time may be a full timestamp ("2026-06-06T23:30:00+00" or
+    // "2026-06-06 23:30:00+00") or a time-only string ("19:30"). For full
+    // timestamps, parse directly. For time-only, combine with the event's
+    // local date.
+    const isFullTimestamp = /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(event.start_time);
+    const start = isFullTimestamp
       ? new Date(event.start_time)
       : new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
     return start.getTime();
   }
 
-  if (!event.event_date.includes("T")) return Number.NaN;
-  return new Date(event.event_date).getTime();
+  const parsed = new Date(event.event_date);
+  return Number.isNaN(parsed.getTime()) ? Number.NaN : parsed.getTime();
 }
 
 function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
