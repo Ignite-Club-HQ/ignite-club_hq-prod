@@ -2016,9 +2016,10 @@ export default function EventDetailPage() {
       return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId };
     },
     onSuccess: ({ displayName, count, isChild, recipientKey }) => {
+      const now = new Date().toISOString();
       setRecentlyReminded((prev) => {
-        const next = new Set(prev);
-        next.add(recipientKey);
+        const next = new Map(prev);
+        next.set(recipientKey, now);
         return next;
       });
       // Refresh the 24h cooldown set so the "Reminded" state survives a page reload
