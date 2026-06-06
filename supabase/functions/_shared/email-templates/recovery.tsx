@@ -36,6 +36,7 @@ export const RecoveryEmail = ({
           <>
             <Text style={codeLabel}>Your verification code</Text>
             <Text style={code}>{token}</Text>
+            <Text style={expiry}>This code expires in 1 hour.</Text>
           </>
         ) : null}
         <Text style={footer}>
@@ -65,4 +66,5 @@ const text = {
 }
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
 const codeLabel = { fontSize: '12px', color: '#55575d', margin: '20px 0 6px', textTransform: 'uppercase' as const, letterSpacing: '1px' }
-const code = { fontSize: '32px', fontWeight: 'bold' as const, color: '#000000', letterSpacing: '6px', margin: '0 0 20px', fontFamily: 'monospace' }
+const code = { fontSize: '32px', fontWeight: 'bold' as const, color: '#000000', letterSpacing: '6px', margin: '0 0 10px', fontFamily: 'monospace' }
+const expiry = { fontSize: '13px', color: '#55575d', margin: '0 0 20px' }
