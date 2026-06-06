@@ -239,7 +239,7 @@ export default function ResetPasswordPage() {
       try {
         const { Capacitor } = await import("@capacitor/core");
         if (Capacitor.isNativePlatform()) {
-          const { storeCredentialsForBiometric, hasStoredBiometricCredentials } = await import("@/lib/nativeBiometrics");
+          const { storeCredentialsForBiometric, hasStoredCredentials } = await import("@/lib/nativeBiometrics");
           const { data: { user } } = await supabase.auth.getUser();
           const email = user?.email;
           if (email && (await hasStoredBiometricCredentials())) {
