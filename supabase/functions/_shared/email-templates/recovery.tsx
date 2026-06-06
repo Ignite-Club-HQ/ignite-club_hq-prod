@@ -36,6 +36,7 @@ export const RecoveryEmail = ({
           <>
             <Text style={codeLabel}>Your verification code</Text>
             <Text style={code}>{token}</Text>
+            <Text style={expiry}>This code expires in 1 hour.</Text>
           </>
         ) : null}
         <Text style={footer}>
