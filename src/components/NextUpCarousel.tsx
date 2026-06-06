@@ -389,7 +389,7 @@ function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: 
   );
 }
 
-function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
+function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; fullWidth?: boolean; onNeedsRsvpChange?: (eventId: string, needs: boolean) => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
