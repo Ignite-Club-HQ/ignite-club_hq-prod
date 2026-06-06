@@ -308,6 +308,7 @@ export function PhotoLightbox({
     const url = downloadSignedUrl || photoSrc;
     if (!url) return;
     if (isDownloadInFlight(url)) return;
+    onClose();
     try {
       const kind = isVideoUrl(url) ? "video" : "photo";
       await downloadMedia(url, kind);
