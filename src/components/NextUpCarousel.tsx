@@ -1400,7 +1400,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
           )}
         </div>
       ) : (
-        <HeroCard event={allEvents[0]} fullWidth />
+        <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
       )}
     </section>
   );
