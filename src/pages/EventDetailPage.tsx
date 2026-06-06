@@ -257,12 +257,12 @@ export default function EventDetailPage() {
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
   const isSharingEventRef = useRef(false);
   const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
-  const [recentlyReminded, setRecentlyReminded] = useState<Set<string>>(new Set());
+  const [recentlyReminded, setRecentlyReminded] = useState<Map<string, string>>(new Map());
 
   // 24-hour reminder cooldown — fetch event_reminder notifications sent in the last 24h
-  // so the "Reminded" state persists across sessions/devices and we can block re-reminding.
+  // so the "Reminded {time ago}" state persists across sessions/devices and we can block re-reminding.
   const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-  const { data: recentReminderUserIds } = useQuery({
+  const { data: recentReminderMap } = useQuery({
     queryKey: ["event-recent-reminders", id],
     enabled: !!id,
     refetchOnWindowFocus: false,
@@ -274,9 +274,15 @@ export default function EventDetailPage() {
         .select("user_id, created_at")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
-        .gte("created_at", since);
+        .gte("created_at", since)
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return new Set((data || []).map((n: any) => n.user_id));
+      const map = new Map<string, string>();
+      for (const n of (data || []) as { user_id: string; created_at: string }[]) {
+        // first occurrence is latest due to DESC order
+        if (!map.has(n.user_id)) map.set(n.user_id, n.created_at);
+      }
+      return map;
     },
   });
   const notificationNudge = useNotificationNudge(user?.id, "event");
