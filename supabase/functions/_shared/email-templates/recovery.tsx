@@ -16,11 +16,13 @@ import {
 interface RecoveryEmailProps {
   siteName: string
   confirmationUrl: string
+  token?: string
 }
 
 export const RecoveryEmail = ({
   siteName,
   confirmationUrl,
+  token,
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
@@ -29,8 +31,17 @@ export const RecoveryEmail = ({
       <Container style={container}>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          We received a request to reset your password for {siteName}. Click
-          the button below to choose a new password.
+          We received a request to reset your password for {siteName}. Use the
+          verification code below to continue.
+        </Text>
+        {token ? (
+          <>
+            <Text style={codeLabel}>Your verification code</Text>
+            <Text style={code}>{token}</Text>
+          </>
+        ) : null}
+        <Text style={text}>
+          Or click the button below to reset your password directly:
         </Text>
         <Button style={button} href={confirmationUrl}>
           Reset Password
