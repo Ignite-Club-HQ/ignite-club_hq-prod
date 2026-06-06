@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical, Forward } from "lucide-react";
+import { ArrowLeft, Download, Flag, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
+  
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { downloadImage } from "@/lib/downloadImage";
@@ -376,8 +376,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       ref={containerRef}
       className="fixed inset-0 z-[1000005] bg-black flex items-center justify-center overscroll-none"
       style={{
-        paddingTop: safeTop,
-        paddingBottom: 'env(safe-area-inset-bottom)',
         touchAction: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
@@ -435,32 +433,21 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
             onMouseUp={(e) => e.stopPropagation()}
           >
             <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
+              onSelect={() => {
+                // Let Radix close the menu first, then kick off the download.
+                // On Android WebView, running the download synchronously from
+                // onSelect leaves the menu item visually stuck in its
+                // highlighted state because the menu close + native download
+                // intent compete on the same frame.
                 installTapShield();
-                void downloadImage(effectiveSrc, "ignite-photo");
+                setTimeout(() => {
+                  void downloadImage(effectiveSrc, "ignite-photo");
+                }, 80);
               }}
             >
               <Download className="h-4 w-4 mr-2" />
               Download
             </DropdownMenuItem>
-            {onForward && (
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  installTapShield();
-                  onClose();
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      setTimeout(() => onForward(), 60);
-                    });
-                  });
-                }}
-              >
-                <Forward className="h-4 w-4 mr-2" />
-                Forward
-              </DropdownMenuItem>
-            )}
             {showActions && onReport && (
               <DropdownMenuItem
                 onSelect={(e) => {
@@ -478,27 +465,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
                 Report
               </DropdownMenuItem>
             )}
-            {showActions && onBlockUser && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    installTapShield();
-                    onClose();
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(() => {
-                        setTimeout(() => onBlockUser(), 60);
-                      });
-                    });
-                  }}
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                >
-                  <ShieldAlert className="h-4 w-4 mr-2" />
-                  Block user
-                </DropdownMenuItem>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -509,7 +475,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       {isVideoUrl(effectiveSrc) ? (
         <video
           src={effectiveSrc}
-          className={`w-[95vw] h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-screen h-[100dvh] object-contain transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           controls
           autoPlay
           playsInline
@@ -520,7 +486,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         <img
           src={effectiveSrc}
           alt={alt}
-          className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`${scale > 1.001 ? "max-w-[100vw] max-h-[100dvh] w-auto h-auto object-contain" : "w-screen h-[100dvh] object-cover"} transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           style={{
             transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
             transition: isAnimating ? `transform ${snapAnim.duration}ms ${snapAnim.easing}` : "none",

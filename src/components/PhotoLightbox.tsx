@@ -51,6 +51,7 @@ function LightboxImage({
   scale,
   translateX,
   translateY,
+  dismissOffset,
 }: {
   src: string;
   poster?: string | null;
@@ -58,24 +59,19 @@ function LightboxImage({
   scale: number;
   translateX: number;
   translateY: number;
+  dismissOffset: number;
 }) {
-  // Decide video-vs-image from the raw src so we can mount the right element
-  // immediately. Waiting for the signed URL before deciding caused a brief
-  // image-placeholder flash on videos (spinner → broken <img> → <video>).
   const showAsVideo = isVideoUrl(src);
   const { signedUrl, isLoading } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
 
   if (showAsVideo) {
-    // Render the <video> shell straight away on the black backdrop; only set
-    // the src once the signed URL resolves. This keeps the screen black
-    // (matching the lightbox bg) instead of flashing an image placeholder.
     return (
       <video
         key={effectiveSrc}
         src={isLoading ? undefined : effectiveSrc}
         poster={poster || undefined}
-        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain bg-black"
+        className="max-w-[100vw] max-h-[100dvh] object-contain bg-black"
         controls
         autoPlay
         playsInline
@@ -90,13 +86,23 @@ function LightboxImage({
     );
   }
 
+  // Default: fill the screen edge-to-edge (immersive, photo-first like
+  // Instagram / Facebook Photos). When the user pinch-zooms or double-taps,
+  // switch to object-contain so they can inspect the full uncropped frame.
+  const isZoomed = scale > 1.001;
   return (
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain transition-transform duration-100"
+      className={`select-none ${
+        isZoomed
+          ? "max-w-[100vw] max-h-[100dvh] object-contain"
+          : "w-screen h-[100dvh] object-cover"
+      }`}
       style={{
-        transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+        transform: `translate3d(${translateX}px, ${translateY + dismissOffset}px, 0) scale(${scale})`,
+        transition: dismissOffset === 0 ? "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+        willChange: "transform",
       }}
       draggable={false}
     />
@@ -117,7 +123,16 @@ export function PhotoLightbox({
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [dismissOffset, setDismissOffset] = useState(0);
+  const [dismissOpacity, setDismissOpacity] = useState(1);
+
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapRef = useRef<number>(0);
+  const dismissStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dismissingRef = useRef(false);
+
   const {
     scale,
     translateX,
@@ -125,8 +140,8 @@ export function PhotoLightbox({
     onTouchStart: pinchTouchStart,
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
+    onDoubleClick: pinchOnDoubleClick,
     resetZoom,
-    isPanningOrPinching,
   } = usePinchZoom(1, 4);
 
   const handlePrev = () => {
@@ -137,21 +152,35 @@ export function PhotoLightbox({
     if (currentIndex < photos.length - 1) onNavigate(currentIndex + 1);
   };
 
-  // All hooks must be called before any early returns
+  const scheduleHideControls = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 2800);
+  };
+
+  const showControls = () => {
+    setControlsVisible(true);
+    scheduleHideControls();
+  };
+
   const swipeHandlers = useSwipeGesture({
     onSwipeLeft: scale === 1 ? handleNext : undefined,
     onSwipeRight: scale === 1 ? handlePrev : undefined,
     threshold: 50,
   });
 
-  // Reset zoom when navigating to a different photo
   useEffect(() => {
     resetZoom();
   }, [currentIndex, resetZoom]);
 
-  // Force white status-bar icons on the black viewer chrome while open,
-  // restore the app theme's status bar on close. Without this, light-mode
-  // users get dark icons that disappear against the black lightbox bg.
+  useEffect(() => {
+    if (!isOpen) return;
+    setControlsVisible(true);
+    scheduleHideControls();
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
     if (!Capacitor.isNativePlatform()) return;
@@ -168,34 +197,102 @@ export function PhotoLightbox({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Always let pinch zoom handle 2-finger and 1-finger-when-zoomed
     pinchTouchStart(e);
-    // Only pass to swipe if not zoomed
     if (e.touches.length === 1 && scale <= 1) {
       swipeHandlers.onTouchStart(e);
+      dismissStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      dismissingRef.current = false;
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     pinchTouchMove(e);
     if (e.touches.length === 1 && scale <= 1) {
+      // Swipe-down-to-dismiss detection. Only commit once vertical motion is
+      // clearly dominant AND substantial — otherwise horizontal swipes
+      // (next/prev photo) get hijacked the moment the finger drifts down.
+      if (dismissStartRef.current) {
+        const dx = e.touches[0].clientX - dismissStartRef.current.x;
+        const dy = e.touches[0].clientY - dismissStartRef.current.y;
+        if (
+          dismissingRef.current ||
+          (dy > 30 && Math.abs(dy) > Math.abs(dx) * 2.2)
+        ) {
+          dismissingRef.current = true;
+          const offset = Math.max(0, dy);
+          setDismissOffset(offset);
+          setDismissOpacity(Math.max(0.2, 1 - offset / 500));
+          return;
+        }
+        // If horizontal motion is clearly dominant, abandon dismiss tracking
+        // so it can't hijack the swipe later in the gesture.
+        if (Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          dismissStartRef.current = null;
+        }
+      }
       swipeHandlers.onTouchMove(e);
     }
   };
 
   const handleTouchEnd = () => {
     pinchTouchEnd();
-    // Only trigger swipe navigation if not zoomed
+    if (dismissingRef.current) {
+      if (dismissOffset > 120) {
+        onClose();
+      } else {
+        setDismissOffset(0);
+        setDismissOpacity(1);
+      }
+      dismissingRef.current = false;
+      dismissStartRef.current = null;
+      return;
+    }
+    dismissStartRef.current = null;
     if (scale <= 1) {
       swipeHandlers.onTouchEnd();
     }
   };
 
-  const handleDoubleClick = () => {
+  // Single-tap toggles controls; double-tap toggles zoom (1× <-> 2.5×).
+  const handleClick = (e: React.MouseEvent) => {
+    // Ignore clicks on controls
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-lightbox-control]')) return;
+
+    const now = Date.now();
+    const since = now - lastTapRef.current;
+    if (since < 280) {
+      // Double-tap
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current);
+        tapTimerRef.current = null;
+      }
+      lastTapRef.current = 0;
+      handleDoubleTap();
+      return;
+    }
+    lastTapRef.current = now;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => {
+      // Single-tap: toggle controls
+      if (controlsVisible) {
+        setControlsVisible(false);
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      } else {
+        showControls();
+      }
+      tapTimerRef.current = null;
+    }, 280);
+  };
+
+  const handleDoubleTap = () => {
     if (scale > 1) {
       resetZoom();
+    } else {
+      pinchOnDoubleClick({} as React.MouseEvent);
     }
   };
+
 
   const photoSrc = currentPhoto?.file_url || currentPhoto?.image_url || '';
   const { signedUrl: downloadSignedUrl } = useSignedPhotoUrl(photoSrc);
@@ -226,13 +323,10 @@ export function PhotoLightbox({
       featureLabel: "Photo sharing",
     });
     if (!allowed) return;
-    // Always share the branded /share URL (rich preview + redirect),
-    // never the raw Supabase signed storage URL.
     const { getShareUrl } = await import("@/lib/shareUtils");
     const url = getShareUrl("photo", currentPhoto.id);
     const title = currentPhoto.title || "Photo";
 
-    // Native share via Capacitor
     try {
       const { Capacitor } = await import("@capacitor/core");
       if (Capacitor.isNativePlatform()) {
@@ -246,7 +340,6 @@ export function PhotoLightbox({
       console.warn("Native share failed:", err);
     }
 
-    // Web Share API
     try {
       const webNavigator = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
       if (typeof navigator !== "undefined" && typeof webNavigator.share === "function") {
@@ -259,7 +352,6 @@ export function PhotoLightbox({
       console.warn("Web share failed:", err);
     }
 
-    // Clipboard fallback (modern API + legacy execCommand)
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -284,7 +376,6 @@ export function PhotoLightbox({
       console.warn("execCommand copy failed:", err);
     }
 
-    // Last resort
     safeOpenUrl(url);
   };
 
@@ -295,69 +386,73 @@ export function PhotoLightbox({
     setDeleteConfirmOpen(false);
   };
 
+  const showDots = photos.length > 1 && photos.length < 10;
+  const showCounter = photos.length >= 10;
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent 
+      <DialogContent
         className="!max-w-none !max-h-none !w-screen !h-[100dvh] p-0 bg-black border-none rounded-none [&>button]:hidden !translate-x-[-50%] !translate-y-[-50%]"
         onKeyDown={handleKeyDown}
+        style={{ backgroundColor: `rgba(0,0,0,${dismissOpacity})` }}
       >
         <VisuallyHidden>
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
-        <div 
-          className="relative w-full h-full flex items-center justify-center overflow-hidden pb-[env(safe-area-inset-bottom)]"
-          style={{ paddingTop: "max(env(safe-area-inset-top), 1.75rem)", touchAction: 'none' }}
+        <div
+          className="relative w-full h-full flex items-center justify-center overflow-hidden"
+          style={{ touchAction: 'none' }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onDoubleClick={handleDoubleClick}
+          onClick={handleClick}
         >
-          {/* Top toolbar with dark background for visibility.
-              Uses max(safe-area, 1.75rem) so the toolbar always clears the
-              Android status bar even inside in-app browsers (Messenger, etc.)
-              where env(safe-area-inset-top) reports 0. */}
+          {/* Top toolbar — auto-hides, fades smoothly */}
           <div
-            className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/70 to-transparent"
+            data-lightbox-control
+            className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-3 pb-4 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${
+              controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
             style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1.75rem) + 0.5rem)" }}
           >
-            {/* Left side - Back navigation only */}
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
-                onClick={onClose}
-                aria-label="Back"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </div>
+            <Button
+              data-lightbox-control
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              aria-label="Back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
 
-            {/* Right side - Primary Share + overflow menu */}
             <div
+              data-lightbox-control
               className="flex items-center gap-2 touch-auto"
               onTouchStart={(e) => e.stopPropagation()}
               onTouchMove={(e) => e.stopPropagation()}
               onTouchEnd={(e) => e.stopPropagation()}
             >
               <Button
+                data-lightbox-control
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-white/15 ring-1 ring-white/20 rounded-full h-11 w-11"
-                onClick={handleShare}
+                className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
+                onClick={(e) => { e.stopPropagation(); handleShare(); }}
                 aria-label="Share photo"
-                title="Share"
               >
-                <Share2 className="h-5 w-5" />
+                <Share2 className="h-[1.05rem] w-[1.05rem]" />
               </Button>
               <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    data-lightbox-control
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+                    className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
                     aria-label="More options"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <MoreVertical className="h-5 w-5" />
                   </Button>
@@ -394,33 +489,41 @@ export function PhotoLightbox({
             </div>
           </div>
 
-          {/* Navigation buttons with dark backgrounds */}
+          {/* Nav buttons — auto-hide with controls */}
           {currentIndex > 0 && (
             <Button
+              data-lightbox-control
               variant="ghost"
               size="icon"
-              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              className={`absolute left-2 z-50 h-14 w-14 text-white hover:bg-transparent bg-transparent rounded-full touch-auto p-0 transition-opacity duration-300 ${
+                controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
               onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrev(); }}
+              aria-label="Previous photo"
             >
-              <ChevronLeft className="h-8 w-8" />
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
+                <ChevronLeft className="h-6 w-6" />
+              </span>
             </Button>
           )}
 
           {currentIndex < photos.length - 1 && (
             <Button
+              data-lightbox-control
               variant="ghost"
               size="icon"
-              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              className={`absolute right-2 z-50 h-14 w-14 text-white hover:bg-transparent bg-transparent rounded-full touch-auto p-0 transition-opacity duration-300 ${
+                controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleNext(); }}
+              aria-label="Next photo"
             >
-              <ChevronRight className="h-8 w-8" />
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md">
+                <ChevronRight className="h-6 w-6" />
+              </span>
             </Button>
           )}
 
-          {/* Image with signed URL — pass image_url as poster so videos
-              don't briefly flash a placeholder before the first frame paints. */}
           <LightboxImage
             src={photoSrc}
             poster={
@@ -432,26 +535,49 @@ export function PhotoLightbox({
             scale={scale}
             translateX={translateX}
             translateY={translateY}
+            dismissOffset={dismissOffset}
           />
 
-
-          {/* Counter with dark background */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm px-3 py-1 bg-black/50 rounded-full">
-            {currentIndex + 1} / {photos.length}
-          </div>
+          {/* Bottom indicator — dots for small sets, counter for big */}
+          {(showDots || showCounter) && (
+            <div
+              data-lightbox-control
+              className={`absolute left-1/2 -translate-x-1/2 transition-opacity duration-300 ${
+                controlsVisible ? "opacity-100" : "opacity-0"
+              }`}
+              style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+            >
+              {showDots ? (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/35 backdrop-blur-md">
+                  {photos.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`block rounded-full transition-all duration-200 ${
+                        i === currentIndex
+                          ? "w-2 h-2 bg-white"
+                          : "w-1.5 h-1.5 bg-white/45"
+                      }`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-white text-[13px] font-medium tracking-wide px-3 py-1 bg-black/45 backdrop-blur-md rounded-full tabular-nums">
+                  {currentIndex + 1} / {photos.length}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
 
     </Dialog>
 
-    {/* Report Dialog */}
     <ReportPhotoDialog
       isOpen={!!reportPhotoId}
       onClose={() => setReportPhotoId(null)}
       photoId={reportPhotoId || ""}
     />
 
-    {/* Delete confirmation */}
     <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>

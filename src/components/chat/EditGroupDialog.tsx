@@ -1,19 +1,19 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -46,12 +46,12 @@ interface EditGroupDialogProps {
 }
 
 export default function EditGroupDialog({ group, open: controlledOpen, onOpenChange }: EditGroupDialogProps) {
+  const { user } = useAuth();
   const isManual = group.membership_mode === "manual";
+  const isClubScopedGroup = !!group.club_id && !group.team_id && !group.mini_league_id;
   const qualifiesForOpenJoin =
     isManual &&
-    !!group.club_id &&
-    !group.team_id &&
-    !group.mini_league_id &&
+    isClubScopedGroup &&
     (group.category === "Operations" || group.category === "Volunteers");
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
@@ -59,14 +59,75 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
   const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
-  
-  // Support both controlled and uncontrolled modes
+
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
 
+  // Sync state when group prop changes (e.g. reopen)
+  useEffect(() => {
+    if (open) {
+      setName(group.name);
+      setSelectedRoles(group.allowed_roles);
+      setOpenToClub(group.join_policy === "open_to_club");
+      setAllowForwarding(group.allow_forwarding !== false);
+    }
+  }, [open, group.id]);
+
+  // Permission gate: for club-scoped groups, require club_admin (or app_admin).
+  const { data: canEdit, isLoading: permLoading } = useQuery({
+    queryKey: ["edit-group-permission", group.id, user?.id, group.club_id, group.team_id],
+    queryFn: async () => {
+      if (!user) return false;
+      const { data: appAdmin } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdmin) return true;
+
+      if (isClubScopedGroup && group.club_id) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("club_id", group.club_id)
+          .eq("role", "club_admin")
+          .maybeSingle();
+        return !!data;
+      }
+
+      if (group.team_id) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("team_id", group.team_id)
+          .eq("role", "team_admin")
+          .maybeSingle();
+        if (data) return true;
+        // Also allow club admins of the parent club
+        if (group.club_id) {
+          const { data: ca } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("club_id", group.club_id)
+            .eq("role", "club_admin")
+            .maybeSingle();
+          return !!ca;
+        }
+      }
+      return false;
+    },
+    enabled: !!user && open,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const updateGroupMutation = useMutation({
     mutationFn: async () => {
+      if (!canEdit) throw new Error("You do not have permission to edit this group");
       const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
       if (!isManual) updates.allowed_roles = selectedRoles;
       if (qualifiesForOpenJoin) {
@@ -112,115 +173,135 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     updateGroupMutation.mutate();
   };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {!isControlled && (
-        <DialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
-      )}
-      <DialogContent onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>Edit Chat Group</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-group-name">Group Name</Label>
-            <Input
-              id="edit-group-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter group name"
-            />
-          </div>
+  const showDenied = open && !permLoading && canEdit === false;
 
-          {!isManual && (
-            <div className="space-y-2">
-              <Label>Allowed Roles</Label>
-              <div className="space-y-2">
-                {ROLE_OPTIONS.map((role) => (
-                  <div key={role.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`edit-role-${role.value}`}
-                      checked={selectedRoles.includes(role.value)}
-                      onCheckedChange={() => toggleRole(role.value)}
-                    />
-                    <label
-                      htmlFor={`edit-role-${role.value}`}
-                      className="text-sm cursor-pointer"
-                    >
-                      {role.label}
-                    </label>
-                  </div>
-                ))}
+  return (
+    <>
+      {!isControlled && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      )}
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent className="max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Edit Chat Group</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+
+          {showDenied ? (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                {isClubScopedGroup
+                  ? "Only club admins can edit club chat groups."
+                  : "You don't have permission to edit this group."}
+              </p>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
               </div>
             </div>
-          )}
-
-          {isManual && (
-            <p className="text-sm text-muted-foreground">
-              This group is managed by invitation. Add or remove members from the group details screen.
-            </p>
-          )}
-
-          {qualifiesForOpenJoin && (
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="edit-group-open-join"
-                  checked={openToClub}
-                  onCheckedChange={(v) => setOpenToClub(v === true)}
+          ) : (
+            <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-2">
+                <Label htmlFor="edit-group-name">Group Name</Label>
+                <Input
+                  id="edit-group-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter group name"
                 />
-                <div className="space-y-0.5">
-                  <label htmlFor="edit-group-open-join" className="text-sm font-medium cursor-pointer">
-                    Let any club member join
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    This group appears under "Discover groups" so club members can join without being added by an admin.
-                  </p>
+              </div>
+
+              {!isManual && (
+                <div className="space-y-2">
+                  <Label>Allowed Roles</Label>
+                  <div className="space-y-2">
+                    {ROLE_OPTIONS.map((role) => (
+                      <div key={role.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`edit-role-${role.value}`}
+                          checked={selectedRoles.includes(role.value)}
+                          onCheckedChange={() => toggleRole(role.value)}
+                        />
+                        <label
+                          htmlFor={`edit-role-${role.value}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {role.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isManual && (
+                <p className="text-sm text-muted-foreground">
+                  This group is managed by invitation. Add or remove members from the group details screen.
+                </p>
+              )}
+
+              {qualifiesForOpenJoin && (
+                <div className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="edit-group-open-join"
+                      checked={openToClub}
+                      onCheckedChange={(v) => setOpenToClub(v === true)}
+                    />
+                    <div className="space-y-0.5">
+                      <label htmlFor="edit-group-open-join" className="text-sm font-medium cursor-pointer">
+                        Let any club member join
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        This group appears under "Discover groups" so club members can join without being added by an admin.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="edit-group-allow-forwarding"
+                    checked={allowForwarding}
+                    onCheckedChange={(v) => setAllowForwarding(v === true)}
+                  />
+                  <div className="space-y-0.5">
+                    <label htmlFor="edit-group-allow-forwarding" className="text-sm font-medium cursor-pointer">
+                      Allow members to forward messages
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Turn off for sensitive chats (e.g. Committee) to hide the Forward action on messages in this group.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="edit-group-allow-forwarding"
-                checked={allowForwarding}
-                onCheckedChange={(v) => setAllowForwarding(v === true)}
-              />
-              <div className="space-y-0.5">
-                <label htmlFor="edit-group-allow-forwarding" className="text-sm font-medium cursor-pointer">
-                  Allow members to forward messages
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Turn off for sensitive chats (e.g. Committee) to hide the Forward action on messages in this group.
-                </p>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdate}
+                  disabled={updateGroupMutation.isPending || permLoading || !canEdit}
+                  className="w-full sm:w-auto"
+                >
+                  {updateGroupMutation.isPending ? "Updating..." : "Update Group"}
+                </Button>
               </div>
             </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdate}
-              disabled={updateGroupMutation.isPending}
-            >
-              {updateGroupMutation.isPending ? "Updating..." : "Update Group"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+          )}
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    </>
   );
 }

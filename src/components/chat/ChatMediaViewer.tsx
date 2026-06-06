@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Play, ImageIcon, Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FullscreenImageViewer } from "@/components/chat/FullscreenImageViewer";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
 import { isVideoUrl } from "@/lib/videoUtils";
 import { SecureImage } from "@/components/SecureImage";
@@ -28,7 +28,8 @@ export function ChatMediaViewer({
     limit: 200,
     enabled: open,
   });
-  const [activeItem, setActiveItem] = useState<SharedMediaItem | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activeItem = activeIndex !== null ? items[activeIndex] ?? null : null;
 
   return (
     <>
@@ -60,11 +61,11 @@ export function ChatMediaViewer({
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1 p-1">
-                {items.map((item) => (
+                {items.map((item, i) => (
                   <MediaThumb
                     key={item.id}
                     item={item}
-                    onClick={() => setActiveItem(item)}
+                    onClick={() => setActiveIndex(i)}
                   />
                 ))}
               </div>
@@ -81,11 +82,17 @@ export function ChatMediaViewer({
         </DialogContent>
       </Dialog>
 
-      {activeItem && (
-        <FullscreenImageViewer
-          src={activeItem.image_url}
-          alt="Shared media"
-          onClose={() => setActiveItem(null)}
+      {activeIndex !== null && items.length > 0 && (
+        <PhotoLightbox
+          isOpen={activeIndex !== null}
+          onClose={() => setActiveIndex(null)}
+          photos={items.map((it) => ({
+            id: it.id,
+            image_url: it.image_url,
+            title: it.author_name ?? undefined,
+          }))}
+          currentIndex={activeIndex}
+          onNavigate={(idx) => setActiveIndex(idx)}
         />
       )}
     </>
