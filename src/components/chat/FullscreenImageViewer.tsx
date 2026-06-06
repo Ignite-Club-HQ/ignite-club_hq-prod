@@ -441,7 +441,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
                 // intent compete on the same frame.
                 installTapShield();
                 setTimeout(() => {
-                  void downloadImage(effectiveSrc, "ignite-photo");
+                  if (isDownloadInFlight(effectiveSrc)) return;
+                  const kind = isVideoUrl(effectiveSrc) ? "video" : "photo";
+                  void downloadMedia(effectiveSrc, kind);
                 }, 80);
               }}
             >
