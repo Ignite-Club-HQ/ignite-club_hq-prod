@@ -59,6 +59,8 @@ interface AttendanceSectionProps {
   addressableMembers?: AddressableMember[];
   /** Optional: open the native/web share sheet with a copyable RSVP link */
   onShareLink?: () => void;
+  /** Called when a non-Pro admin tries to trigger a reminder */
+  onProRequired?: () => void;
   /** Event type — controls noun used in copy ("player" vs "member") */
   eventType?: string;
 }
