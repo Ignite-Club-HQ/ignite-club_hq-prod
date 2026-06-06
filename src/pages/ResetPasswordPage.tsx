@@ -191,9 +191,13 @@ export default function ResetPasswordPage() {
     setLoading(false);
 
     if (error) {
+      const msg = error.message || "";
+      const isWeak = /weak|pwned|breach|compromis|easy to guess/i.test(msg);
       toast({
-        title: "Unable to reset password",
-        description: error.message,
+        title: isWeak ? "Password too common" : "Unable to reset password",
+        description: isWeak
+          ? "This password has appeared in known data breaches. Please choose a different, more unique password (e.g. add extra words or symbols)."
+          : msg,
       });
     } else {
       setSuccess(true);
