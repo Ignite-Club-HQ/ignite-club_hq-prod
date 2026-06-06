@@ -84,6 +84,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
+import { formatRelativePast } from "@/lib/formatRelativeTime";
 import { MatchScoreCard } from "@/components/event/MatchScoreCard";
 import { EventNoteSection } from "@/components/event/EventNoteSection";
 
