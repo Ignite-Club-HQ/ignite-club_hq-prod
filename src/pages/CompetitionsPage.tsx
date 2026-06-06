@@ -66,7 +66,7 @@ export default function CompetitionsPage() {
 
   // Pending invitations on teams I admin
   const { data: pendingInvites = [] } = useQuery({
-    queryKey: ["competition-pending-invites", user?.id],
+    queryKey: ["competition-pending-invites", user?.id, activeClubFilter ?? "all"],
     enabled: !!user,
     queryFn: async () => {
       const { data: roles } = await supabase
@@ -78,10 +78,12 @@ export default function CompetitionsPage() {
       if (teamIds.length === 0) return [];
       const { data } = await supabase
         .from("competition_entries")
-        .select("id, status, team_id, competition_id, teams:team_id(name), competitions:competition_id(name, sport)")
+        .select("id, status, team_id, competition_id, teams:team_id(name, club_id), competitions:competition_id(name, sport)")
         .in("team_id", teamIds)
         .eq("status", "invited");
-      return data ?? [];
+      const rows = data ?? [];
+      if (!activeClubFilter) return rows;
+      return rows.filter((r: any) => r.teams?.club_id === activeClubFilter);
     },
   });
 
