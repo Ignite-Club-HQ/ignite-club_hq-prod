@@ -240,10 +240,12 @@ export default function CompetitionDetailPage() {
           )}
 
           <TeamsByDivision
+            competitionId={id!}
             divisions={divisions}
             entries={entries}
             myAdminTeamIds={myAdminTeamIds}
             onRespond={respondToInvite}
+            isAdmin={isAdmin}
           />
         </TabsContent>
       </Tabs>
@@ -367,16 +369,37 @@ function DraftSetupProgress({
 }
 
 function TeamsByDivision({
+  competitionId,
   divisions,
   entries,
   myAdminTeamIds,
   onRespond,
+  isAdmin,
 }: {
+  competitionId: string;
   divisions: any[];
   entries: any[];
   myAdminTeamIds: string[];
   onRespond: (entryId: string, status: "accepted" | "declined") => void;
+  isAdmin: boolean;
 }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const assignDivision = async (entryId: string, divisionId: string | null) => {
+    setSavingId(entryId);
+    const { error } = await supabase
+      .from("competition_entries")
+      .update({ division_id: divisionId })
+      .eq("id", entryId);
+    setSavingId(null);
+    if (error) {
+      toast({ title: "Could not move team", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
+  };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
   }
@@ -445,6 +468,26 @@ function TeamsByDivision({
                           <X className="h-4 w-4 mr-1" />
                           Decline
                         </Button>
+                      </div>
+                    )}
+                    {isAdmin && divisions.length > 0 && e.status !== "declined" && (
+                      <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground shrink-0">Division</Label>
+                        <Select
+                          value={e.division_id ?? "__none__"}
+                          onValueChange={(v) => assignDivision(e.id, v === "__none__" ? null : v)}
+                          disabled={savingId === e.id}
+                        >
+                          <SelectTrigger className="h-8 w-full sm:w-44">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Unassigned</SelectItem>
+                            {divisions.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
                   </CardContent>
