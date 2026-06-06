@@ -488,7 +488,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         <img
           src={effectiveSrc}
           alt={alt}
-          className={`max-w-screen max-h-[100dvh] w-auto h-auto object-contain transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`max-w-[100vw] max-h-[100dvh] w-auto h-auto object-contain transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           style={{
             transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
             transition: isAnimating ? `transform ${snapAnim.duration}ms ${snapAnim.easing}` : "none",
