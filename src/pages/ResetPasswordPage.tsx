@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, Mail } from "lucide-react";
+import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, XCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,7 @@ export default function ResetPasswordPage() {
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -193,6 +194,9 @@ export default function ResetPasswordPage() {
     if (error) {
       const msg = error.message || "";
       const isWeak = /weak|pwned|breach|compromis|easy to guess/i.test(msg);
+      if (isWeak) {
+        setBreachedPasswords((prev) => new Set(prev).add(password));
+      }
       toast({
         title: isWeak ? "Password too common" : "Unable to reset password",
         description: isWeak
@@ -390,6 +394,24 @@ export default function ResetPasswordPage() {
                       </div>
                     );
                   })}
+                  {(() => {
+                    const allLocalMet = passwordRequirements.every((r) => r.test(password));
+                    const isBreached = breachedPasswords.has(password);
+                    const passed = allLocalMet && !isBreached;
+                    return (
+                      <div className="flex items-center gap-2 text-xs">
+                        {isBreached
+                          ? <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+                          : passed
+                            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                            : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                        }
+                        <span className={isBreached ? 'text-destructive' : passed ? 'text-primary' : 'text-muted-foreground'}>
+                          {isBreached ? 'Found in known data breaches — try another' : 'Not found in known data breaches'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
