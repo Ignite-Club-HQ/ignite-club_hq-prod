@@ -121,6 +121,36 @@ export default function ResetPasswordPage() {
     };
   }, []);
 
+  // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
+  useEffect(() => {
+    if (!password || password.length < 8) {
+      setHibpStatus('idle');
+      return;
+    }
+    if (breachedPasswords.has(password)) {
+      setHibpStatus('compromised');
+      return;
+    }
+    setHibpStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const buffer = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+        const hash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const prefix = hash.slice(0, 5);
+        const suffix = hash.slice(5);
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+        const text = await res.text();
+        const found = text.split('\n').some(line => line.split(':')[0] === suffix);
+        setHibpStatus(found ? 'compromised' : 'safe');
+      } catch {
+        setHibpStatus('idle');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [password, breachedPasswords]);
+
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
     if (!validation.success) {
