@@ -17,12 +17,12 @@ const corsHeaders = {
 }
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email for Ignite Club HQ',
-  invite: "You've been invited to Ignite Club HQ",
-  magiclink: 'Your Ignite Club HQ login link',
-  recovery: 'Your Ignite password reset code',
-  email_change: 'Confirm your new email for Ignite Club HQ',
-  reauthentication: 'Your Ignite verification code',
+  signup: 'Confirm your email',
+  invite: "You've been invited",
+  magiclink: 'Your login link',
+  recovery: 'Reset your password',
+  email_change: 'Confirm your new email',
+  reauthentication: 'Your verification code',
 }
 
 // Template mapping
@@ -36,7 +36,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "Ignite Club HQ"
+const SITE_NAME = "ignite-club-launchpad"
 const SENDER_DOMAIN = "notify.igniteclubhq.app"
 const ROOT_DOMAIN = "igniteclubhq.app"
 const FROM_DOMAIN = "notify.igniteclubhq.app" // Domain shown in From address (may be root or sender subdomain)
@@ -62,7 +62,6 @@ const SAMPLE_DATA: Record<string, object> = {
   recovery: {
     siteName: SITE_NAME,
     confirmationUrl: SAMPLE_PROJECT_URL,
-    token: '123456',
   },
   invite: {
     siteName: SITE_NAME,
@@ -71,6 +70,7 @@ const SAMPLE_DATA: Record<string, object> = {
   },
   email_change: {
     siteName: SITE_NAME,
+    oldEmail: SAMPLE_EMAIL,
     email: SAMPLE_EMAIL,
     newEmail: SAMPLE_EMAIL,
     confirmationUrl: SAMPLE_PROJECT_URL,
@@ -226,6 +226,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     confirmationUrl: payload.data.url,
     token: payload.data.token,
     email: payload.data.email,
+    oldEmail: payload.data.old_email,
     newEmail: payload.data.new_email,
   }
 
