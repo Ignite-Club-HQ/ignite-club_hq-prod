@@ -371,17 +371,22 @@ export function AttendanceSection({
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
+                    variant={!canSendReminders ? "outline" : "default"}
                     disabled={isSending || (canSendReminders && cooldownActive)}
                     className="gap-1.5 w-full sm:w-auto"
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : !canSendReminders ? (
+                      <Lock className="h-4 w-4" />
                     ) : (
                       <Bell className="h-4 w-4" />
                     )}
                     {canSendReminders && cooldownActive && lastReminder?.sent_at
                       ? `Reminded ${formatRelativePast(new Date(lastReminder.sent_at))}`
-                      : "Remind all non-responders"}
+                      : !canSendReminders
+                        ? "Pro"
+                        : "Remind all non-responders"}
                     <ChevronDown className="h-3 w-3 ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>
