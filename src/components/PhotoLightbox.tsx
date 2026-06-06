@@ -28,7 +28,7 @@ import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
-import { downloadImage } from "@/lib/downloadImage";
+import { downloadMedia, isDownloadInFlight } from "@/lib/downloadImage";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
