@@ -25,59 +25,70 @@ export function useNativeAndroidKeyboardState(): number {
     let keyboardWillHideHandle: { remove: () => void } | undefined;
     let keyboardDidHideHandle: { remove: () => void } | undefined;
 
+    // Track last reported plugin height so visualViewport-driven reconciliation
+    // can run while the keyboard is open (e.g. Gboard toolbar toggle, emoji
+    // panel, predictive bar appearing). Without this, the composer pins to a
+    // stale show-time value and drifts mid-session.
+    let pluginHeight = 0;
+    let keyboardOpen = false;
+
     const applyHeight = (nextHeight: number) => {
       const rounded = Math.max(0, Math.round(nextHeight));
       setKeyboardHeight((current) => (current === rounded ? current : rounded));
     };
 
-    const handleShow = ({ keyboardHeight: h }: { keyboardHeight: number }) => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        // The Capacitor Keyboard plugin on Android may report keyboard height
-        // in either raw device pixels (older versions / some OEMs) or CSS
-        // pixels (newer versions). Detect which one by comparing against the
-        // layout viewport: a real keyboard never exceeds ~60% of the layout
-        // viewport height in CSS px, so anything larger than that almost
-        // certainly came in as device px and must be divided by DPR.
-        const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0
-          ? window.devicePixelRatio
-          : 1;
-        const layoutH = typeof window !== "undefined" ? window.innerHeight : 0;
-        const raw = h || 0;
-        // Heuristic: if the reported value is more than 60% of the layout
-        // viewport, it's almost certainly in device pixels — convert it.
-        const looksLikeDevicePx = layoutH > 0 && raw > layoutH * 0.6;
-        let finalHeight = looksLikeDevicePx ? raw / dpr : raw;
+    const computeHeight = (rawPluginHeight: number): number => {
+      const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0
+        ? window.devicePixelRatio
+        : 1;
+      const layoutH = typeof window !== "undefined" ? window.innerHeight : 0;
+      const raw = rawPluginHeight || 0;
+      const looksLikeDevicePx = layoutH > 0 && raw > layoutH * 0.6;
+      let finalHeight = looksLikeDevicePx ? raw / dpr : raw;
 
-        // Cross-check against visualViewport. With Keyboard.resize:'none' the
-        // layout viewport stays full, but visualViewport.height tracks the
-        // region above the keyboard. Some OEMs / launchers report
-        // keyboardWillShow with extra chrome included (system gesture bar,
-        // sticker/GIF toolbar), which leaves the composer floating far above
-        // the actual keyboard after tapping Reply. Trust the visualViewport-
-        // derived inset whenever it's available and smaller.
-        if (typeof window !== "undefined") {
-          const vv = window.visualViewport;
-          const vvShrink = vv && layoutH > 0
-            ? Math.max(0, layoutH - vv.height)
-            : 0;
-          if (vvShrink > 24 && vvShrink < finalHeight) {
+      // visualViewport-derived inset is the source of truth whenever it's
+      // available and credible (>24px). It tracks the *actual* region above
+      // the keyboard in CSS px and updates live as the IME resizes.
+      if (typeof window !== "undefined") {
+        const vv = window.visualViewport;
+        const vvShrink = vv && layoutH > 0
+          ? Math.max(0, layoutH - vv.height)
+          : 0;
+        if (vvShrink > 24) {
+          // Trust vv whenever it's smaller (plugin over-reported), AND
+          // whenever the plugin hasn't reported yet (raw == 0).
+          if (raw === 0 || vvShrink < finalHeight) {
             finalHeight = vvShrink;
           }
         }
+      }
 
-        // Hard safety cap: a soft keyboard never legitimately exceeds 60% of
-        // the layout viewport in CSS pixels. Clamp so a bogus value can't push
-        // the composer halfway up the screen.
-        if (layoutH > 0) {
-          finalHeight = Math.min(finalHeight, layoutH * 0.6);
-        }
+      if (layoutH > 0) {
+        finalHeight = Math.min(finalHeight, layoutH * 0.6);
+      }
+      return Math.max(0, finalHeight);
+    };
 
-        applyHeight(Math.max(0, finalHeight));
+    const reconcile = () => {
+      if (!keyboardOpen) return;
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        applyHeight(computeHeight(pluginHeight));
+      });
+    };
+
+    const handleShow = ({ keyboardHeight: h }: { keyboardHeight: number }) => {
+      pluginHeight = h || 0;
+      keyboardOpen = true;
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        applyHeight(computeHeight(pluginHeight));
       });
     };
 
     const handleHide = () => {
+      pluginHeight = 0;
+      keyboardOpen = false;
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         applyHeight(0);
@@ -100,12 +111,39 @@ export function useNativeAndroidKeyboardState(): number {
       .then((handle) => { keyboardDidHideHandle = handle; })
       .catch(() => {});
 
+    // Continuous reconciliation against visualViewport while the keyboard
+    // is open. Catches: IME toolbar toggle, emoji/GIF panel switching,
+    // predictive bar appearing, voice input, OEM keyboards that don't
+    // refire Capacitor events on resize.
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    vv?.addEventListener("resize", reconcile);
+    vv?.addEventListener("scroll", reconcile);
+
+    // Re-measure when an editable element gains focus while the keyboard
+    // may already be open (e.g. tapping Reply re-focuses the composer
+    // textarea without a new keyboardWillShow firing).
+    const handleFocusIn = (e: FocusEvent) => {
+      const el = e.target as Element | null;
+      if (!el) return;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement).isContentEditable) {
+        // Give the IME a tick to settle, then reconcile against vv.
+        setTimeout(() => {
+          if (typeof window !== "undefined" && window.visualViewport) {
+            const layoutH = window.innerHeight;
+            const vvShrink = Math.max(0, layoutH - window.visualViewport.height);
+            if (vvShrink > 24) {
+              keyboardOpen = true;
+              reconcile();
+            }
+          }
+        }, 50);
+      }
+    };
+    document.addEventListener("focusin", handleFocusIn, true);
+
     // Safety net: Capacitor's keyboardDidHide can be missed on Android when
-    // the user navigates away (system back, in-app nav) before the keyboard
-    // finishes its hide animation — leaving the cached height > 0 forever
-    // and the BottomNav permanently translated off-screen. If focus leaves
-    // every editable element and nothing else picks it up shortly after,
-    // force-reset to 0.
+    // the user navigates away before the keyboard finishes its hide animation.
     const isEditable = (el: Element | null): boolean => {
       if (!el) return false;
       const tag = el.tagName;
@@ -117,12 +155,18 @@ export function useNativeAndroidKeyboardState(): number {
     const handleFocusOut = () => {
       window.clearTimeout(focusoutTimer);
       focusoutTimer = window.setTimeout(() => {
-        if (!isEditable(document.activeElement)) applyHeight(0);
+        if (!isEditable(document.activeElement)) {
+          keyboardOpen = false;
+          pluginHeight = 0;
+          applyHeight(0);
+        }
       }, 250);
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && !isEditable(document.activeElement)) {
+        keyboardOpen = false;
+        pluginHeight = 0;
         applyHeight(0);
       }
     };
@@ -135,11 +179,15 @@ export function useNativeAndroidKeyboardState(): number {
       keyboardDidShowHandle?.remove();
       keyboardWillHideHandle?.remove();
       keyboardDidHideHandle?.remove();
+      vv?.removeEventListener("resize", reconcile);
+      vv?.removeEventListener("scroll", reconcile);
+      document.removeEventListener("focusin", handleFocusIn, true);
       document.removeEventListener("focusout", handleFocusOut, true);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.clearTimeout(focusoutTimer);
       cancelAnimationFrame(rafRef.current);
     };
+
   }, []);
 
   return isNativeAndroid ? keyboardHeight : 0;
