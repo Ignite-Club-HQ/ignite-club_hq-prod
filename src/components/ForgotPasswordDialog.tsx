@@ -145,10 +145,10 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md p-0 gap-0 overflow-hidden rounded-2xl sm:rounded-xl">
-        <div className="px-5 pt-6 pb-4 sm:px-6 sm:pt-7">
-          <div className="flex justify-center mb-3">
-            <div className="p-2.5 rounded-full bg-primary/10">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-md p-0 gap-0 overflow-hidden rounded-2xl sm:rounded-xl max-h-[calc(100dvh-2rem)] flex flex-col">
+        <div className="px-4 pt-5 pb-3 sm:px-6 sm:pt-7 sm:pb-4 shrink-0">
+          <div className="flex justify-center mb-2 sm:mb-3">
+            <div className="p-2 sm:p-2.5 rounded-full bg-primary/10">
               {step === "email" ? (
                 <KeyRound className="h-5 w-5 text-primary" />
               ) : (
@@ -156,9 +156,9 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               )}
             </div>
           </div>
-          <DialogHeader className="space-y-1.5 text-center sm:text-center">
-            <DialogTitle className="text-lg sm:text-xl">Reset Password</DialogTitle>
-            <DialogDescription className="text-sm leading-relaxed">
+          <DialogHeader className="space-y-1 text-center sm:text-center">
+            <DialogTitle className="text-base sm:text-xl">Reset Password</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm leading-relaxed">
               {step === "email"
                 ? "Enter your email and we'll send you a 6-digit code."
                 : (
@@ -170,9 +170,9 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
           </DialogHeader>
         </div>
 
-        <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6 overflow-y-auto flex-1 min-h-0">
           {step === "email" ? (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="reset-email" className="text-sm">Email</Label>
                 <div className="relative">
@@ -204,11 +204,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                 variant="ghost"
                 size="sm"
                 onClick={() => setStep("code")}
-                className="w-full text-muted-foreground"
+                className="w-full text-muted-foreground h-9"
               >
                 I already have a code
               </Button>
-              <p className="text-xs text-muted-foreground text-center pt-3 border-t border-border/50">
+              <p className="text-[11px] sm:text-xs text-muted-foreground text-center pt-2 sm:pt-3 border-t border-border/50">
                 Already signed in? Change your password from{" "}
                 <span className="font-medium text-foreground">Settings → Change Password</span>.
               </p>

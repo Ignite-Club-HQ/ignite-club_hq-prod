@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, Mail } from "lucide-react";
+import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, XCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,8 @@ export default function ResetPasswordPage() {
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
+  const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -118,6 +120,36 @@ export default function ResetPasswordPage() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
+  useEffect(() => {
+    if (!password || password.length < 8) {
+      setHibpStatus('idle');
+      return;
+    }
+    if (breachedPasswords.has(password)) {
+      setHibpStatus('compromised');
+      return;
+    }
+    setHibpStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const buffer = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+        const hash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const prefix = hash.slice(0, 5);
+        const suffix = hash.slice(5);
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+        const text = await res.text();
+        const found = text.split('\n').some(line => line.split(':')[0] === suffix);
+        setHibpStatus(found ? 'compromised' : 'safe');
+      } catch {
+        setHibpStatus('idle');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [password, breachedPasswords]);
 
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
@@ -191,9 +223,16 @@ export default function ResetPasswordPage() {
     setLoading(false);
 
     if (error) {
+      const msg = error.message || "";
+      const isWeak = /weak|pwned|breach|compromis|easy to guess/i.test(msg);
+      if (isWeak) {
+        setBreachedPasswords((prev) => new Set(prev).add(password));
+      }
       toast({
-        title: "Unable to reset password",
-        description: error.message,
+        title: isWeak ? "Password too common" : "Unable to reset password",
+        description: isWeak
+          ? "This password has appeared in known data breaches. Please choose a different, more unique password (e.g. add extra words or symbols)."
+          : msg,
       });
     } else {
       setSuccess(true);
@@ -208,7 +247,7 @@ export default function ResetPasswordPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md space-y-8">
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
@@ -317,7 +356,7 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md space-y-8">
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
@@ -339,7 +378,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="w-full max-w-md space-y-8 animate-slide-up">
         <div className="flex flex-col items-center gap-3">
           <div className="p-4 rounded-2xl bg-primary glow-emerald">
@@ -386,6 +425,19 @@ export default function ResetPasswordPage() {
                       </div>
                     );
                   })}
+                  <div className="flex items-center gap-2 text-xs">
+                    {hibpStatus === 'checking' && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
+                    {hibpStatus === 'safe' && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                    {hibpStatus === 'compromised' && <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                    {hibpStatus === 'idle' && <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />}
+                    <span className={
+                      hibpStatus === 'safe' ? 'text-primary' :
+                      hibpStatus === 'compromised' ? 'text-destructive' :
+                      'text-muted-foreground'
+                    }>
+                      {hibpStatus === 'compromised' ? 'Password found in data breaches — choose another' : 'Not a known compromised password'}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
