@@ -54,6 +54,7 @@ export default function ResetPasswordPage() {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
+  const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -119,6 +120,36 @@ export default function ResetPasswordPage() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
+  useEffect(() => {
+    if (!password || password.length < 8) {
+      setHibpStatus('idle');
+      return;
+    }
+    if (breachedPasswords.has(password)) {
+      setHibpStatus('compromised');
+      return;
+    }
+    setHibpStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const buffer = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+        const hash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const prefix = hash.slice(0, 5);
+        const suffix = hash.slice(5);
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+        const text = await res.text();
+        const found = text.split('\n').some(line => line.split(':')[0] === suffix);
+        setHibpStatus(found ? 'compromised' : 'safe');
+      } catch {
+        setHibpStatus('idle');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [password, breachedPasswords]);
 
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
@@ -394,24 +425,19 @@ export default function ResetPasswordPage() {
                       </div>
                     );
                   })}
-                  {(() => {
-                    const allLocalMet = passwordRequirements.every((r) => r.test(password));
-                    const isBreached = breachedPasswords.has(password);
-                    const passed = allLocalMet && !isBreached;
-                    return (
-                      <div className="flex items-center gap-2 text-xs">
-                        {isBreached
-                          ? <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
-                          : passed
-                            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                            : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
-                        }
-                        <span className={isBreached ? 'text-destructive' : passed ? 'text-primary' : 'text-muted-foreground'}>
-                          {isBreached ? 'Found in known data breaches — try another' : 'Not found in known data breaches'}
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  <div className="flex items-center gap-2 text-xs">
+                    {hibpStatus === 'checking' && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
+                    {hibpStatus === 'safe' && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                    {hibpStatus === 'compromised' && <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                    {hibpStatus === 'idle' && <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />}
+                    <span className={
+                      hibpStatus === 'safe' ? 'text-primary' :
+                      hibpStatus === 'compromised' ? 'text-destructive' :
+                      'text-muted-foreground'
+                    }>
+                      {hibpStatus === 'compromised' ? 'Password found in data breaches — choose another' : 'Not a known compromised password'}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
