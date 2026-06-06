@@ -376,8 +376,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       ref={containerRef}
       className="fixed inset-0 z-[1000005] bg-black flex items-center justify-center overscroll-none"
       style={{
-        paddingTop: safeTop,
-        paddingBottom: 'env(safe-area-inset-bottom)',
         touchAction: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
