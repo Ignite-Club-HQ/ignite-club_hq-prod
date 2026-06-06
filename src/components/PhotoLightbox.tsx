@@ -28,7 +28,7 @@ import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
-import { downloadImage } from "@/lib/downloadImage";
+import { downloadMedia, isDownloadInFlight } from "@/lib/downloadImage";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
@@ -259,6 +259,11 @@ export function PhotoLightbox({
     const target = e.target as HTMLElement;
     if (target.closest('[data-lightbox-control]')) return;
 
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+
     const now = Date.now();
     const since = now - lastTapRef.current;
     if (since < 280) {
@@ -302,11 +307,13 @@ export function PhotoLightbox({
   const handleDownload = async () => {
     const url = downloadSignedUrl || photoSrc;
     if (!url) return;
+    if (isDownloadInFlight(url)) return;
     try {
-      await downloadImage(url, "ignite-photo");
+      const kind = isVideoUrl(url) ? "video" : "photo";
+      await downloadMedia(url, kind);
     } catch (err) {
       console.warn("Download failed:", err);
-      toast.error("Could not download photo");
+      toast.error("Could not download");
     }
   };
 
@@ -439,6 +446,16 @@ export function PhotoLightbox({
                 variant="ghost"
                 size="icon"
                 className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
+                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                aria-label="Download photo"
+              >
+                <Download className="h-5 w-5" />
+              </Button>
+              <Button
+                data-lightbox-control
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
                 onClick={(e) => { e.stopPropagation(); handleShare(); }}
                 aria-label="Share photo"
               >
@@ -458,10 +475,6 @@ export function PhotoLightbox({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
-                  <DropdownMenuItem onSelect={() => { setMenuOpen(false); handleDownload(); }}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       setMenuOpen(false);

@@ -24,14 +24,208 @@ const IgnitePhotoSaver = registerPlugin<IgnitePhotoSaverPlugin>("IgnitePhotoSave
  * UX: shows a loading toast while the download is in progress, then a
  * success toast (with an "Open" action where applicable) or an error toast.
  */
+// Track in-flight downloads so repeated taps don't kick off duplicate work
+// (and so a second tap doesn't create a duplicate file in the photo library).
+const inflightDownloads = new Set<string>();
+
+export function isDownloadInFlight(url: string): boolean {
+  return inflightDownloads.has(url);
+}
+
 export async function downloadImage(url: string, friendlyBaseName = "ignite-photo"): Promise<void> {
+  if (inflightDownloads.has(url)) {
+    toast.info("Already downloading…");
+    return;
+  }
+  inflightDownloads.add(url);
   const toastId = toast.loading("Downloading photo…");
   try {
     await downloadImageInner(url, friendlyBaseName, toastId);
   } catch (err) {
     console.warn("[downloadImage] failed:", err);
     toast.error("Download failed", { id: toastId, description: "Please try again" });
+  } finally {
+    inflightDownloads.delete(url);
   }
+}
+
+export async function downloadVideo(url: string, friendlyBaseName = "ignite-video"): Promise<void> {
+  if (inflightDownloads.has(url)) {
+    toast.info("Already downloading…");
+    return;
+  }
+  inflightDownloads.add(url);
+  const toastId = toast.loading("Downloading video…");
+  try {
+    await downloadVideoInner(url, friendlyBaseName, toastId);
+  } catch (err) {
+    console.warn("[downloadVideo] failed:", err);
+    toast.error("Download failed", { id: toastId, description: "Please try again" });
+  } finally {
+    inflightDownloads.delete(url);
+  }
+}
+
+/** Unified entry point. Routes to image/video pipeline based on `kind`. */
+export async function downloadMedia(
+  url: string,
+  kind: "photo" | "video",
+  friendlyBaseName?: string,
+): Promise<void> {
+  if (kind === "video") return downloadVideo(url, friendlyBaseName ?? "ignite-video");
+  return downloadImage(url, friendlyBaseName ?? "ignite-photo");
+}
+
+async function downloadVideoInner(url: string, friendlyBaseName: string, toastId: string | number): Promise<void> {
+  const stamp = new Date().toISOString().split("T")[0];
+  const resolvedUrl = await resolveSignedUrl(url);
+  const ext = guessVideoExtensionFromUrl(resolvedUrl);
+  const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+  const contentType = ext === "mov" ? "video/quicktime" : "video/mp4";
+
+  if (!Capacitor.isNativePlatform()) {
+    // Web: blob download with native <a download>.
+    try {
+      const response = await fetch(resolvedUrl, { credentials: "omit" });
+      if (!response.ok) throw new Error(`Failed to fetch video (${response.status})`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      toast.success("Video downloaded", { id: toastId, description: filename });
+    } catch (err) {
+      console.warn("[downloadVideo] web blob failed:", err);
+      safeOpenUrl(resolvedUrl);
+      toast.success("Video opened in new tab", { id: toastId });
+    }
+    return;
+  }
+
+  const platform = Capacitor.getPlatform();
+  toast.loading("Downloading video…", { id: toastId, description: "0%" });
+
+  if (platform === "android") {
+    try {
+      const { Media } = await import("@capacitor-community/media");
+      const albumIdentifier = await ensureAndroidMediaAlbum(Media as any, "Ignite");
+      const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
+      const saved = await (Media as any).saveVideo({
+        path: resolvedUrl,
+        fileName: baseName,
+        albumIdentifier,
+      }) as { filePath?: string };
+      showOpenDownloadedToast(toastId, saved.filePath || null, "video", contentType, "Saved to Photos");
+      return;
+    } catch (err) {
+      console.warn("[downloadVideo] android Media.saveVideo failed:", err);
+    }
+  }
+
+  // iOS / Android fallback: download to cache then share/save via Photos.
+  try {
+    const { Filesystem, Directory } = await import("@capacitor/filesystem");
+    let progressHandle: { remove: () => void } | null = null;
+    try {
+      progressHandle = await (Filesystem as any).addListener?.("progress", (ev: { bytes: number; contentLength: number }) => {
+        if (!ev?.contentLength) return;
+        const pct = Math.min(99, Math.round((ev.bytes / ev.contentLength) * 100));
+        toast.loading("Downloading video…", { id: toastId, description: `${pct}%` });
+      });
+    } catch {
+      progressHandle = null;
+    }
+    const dl = await Filesystem.downloadFile({
+      url: resolvedUrl,
+      path: filename,
+      directory: Directory.Cache,
+      recursive: true,
+      progress: true,
+    } as any) as DownloadResultWithLegacyUri;
+    progressHandle?.remove?.();
+    const localPath = dl?.uri || dl?.path || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
+    if (!localPath) throw new Error("Download produced no local path");
+
+    if (platform === "ios") {
+      // Use the system share sheet — "Save Video" writes it to the Photos
+      // app. This is the standard pattern WhatsApp/Telegram use on iOS for
+      // video saves, because PHAsset video creation needs a file URL.
+      try {
+        const { Share } = await import("@capacitor/share");
+        await Share.share({
+          title: "Save video",
+          text: "Save video",
+          url: localPath,
+          files: [localPath],
+          dialogTitle: "Save video",
+        });
+        toast.success("Video ready", {
+          id: toastId,
+          description: "Tap Save Video in the share sheet",
+          action: { label: "Open Photos", onClick: () => void openPhotosApp() },
+        });
+        return;
+      } catch (shareErr: unknown) {
+        const msg = getErrorText(shareErr).toLowerCase();
+        if (msg.includes("cancel") || msg.includes("abort")) {
+          toast.dismiss(toastId);
+          return;
+        }
+        console.warn("[downloadVideo] iOS share failed:", shareErr);
+      }
+    }
+
+    showOpenDownloadedToast(toastId, localPath, "video", contentType, "Downloaded");
+  } catch (err) {
+    console.warn("[downloadVideo] cache download failed:", err);
+    toast.error("Download failed", { id: toastId, description: "Please try again" });
+  }
+}
+
+async function openPhotosApp(): Promise<void> {
+  try {
+    if (Capacitor.getPlatform() === "ios") {
+      // Apple's documented redirect scheme that launches the Photos app.
+      await safeOpenUrl("photos-redirect://");
+      return;
+    }
+    const { AppLauncher } = await import("@capacitor/app-launcher");
+    const packages = [
+      "com.google.android.apps.photos",
+      "com.sec.android.gallery3d",
+      "com.miui.gallery",
+      "com.android.gallery3d",
+    ];
+    for (const pkg of packages) {
+      try {
+        const { value } = await AppLauncher.canOpenUrl({ url: pkg });
+        if (value) {
+          const opened = await AppLauncher.openUrl({ url: pkg });
+          if (opened?.completed) return;
+        }
+      } catch { /* try next */ }
+    }
+    toast.error("Could not open Photos", { description: "Open it from your home screen" });
+  } catch (err) {
+    console.warn("[openPhotosApp] failed:", err);
+    toast.error("Could not open Photos");
+  }
+}
+
+function guessVideoExtensionFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const m = path.match(/\.(mp4|mov|m4v|webm|mkv)(?:$|\?)/);
+    if (m) return m[1];
+  } catch {
+    return "mp4";
+  }
+  return "mp4";
 }
 
 async function downloadImageInner(url: string, friendlyBaseName: string, toastId: string | number): Promise<void> {
@@ -89,9 +283,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         let localPath: string | null = null;
 
         const showSaved = () => {
-          toast.success("Saved to Photos", {
+          toast.success("Photo downloaded", {
             id: toastId,
-            description: "Open your Photos app to view it",
+            description: "Saved to Photos",
+            action: { label: "Open", onClick: () => void openPhotosApp() },
           });
         };
 
@@ -296,59 +491,43 @@ function showOpenDownloadedPhotoToast(
   description: string,
   contentType: string,
 ) {
-  toast.success("Photo downloaded", {
-    id: toastId,
-    description,
-    action: filePath
-      ? {
-          label: "Open",
-          onClick: async (event) => {
-            event?.preventDefault?.();
-            event?.stopPropagation?.();
-            // 1. Try opening the saved file directly via FileOpener with the
-            //    correct MIME type. This is the most reliable path on Android —
-            //    it hands the file to the user's default image viewer.
-            try {
-              const { FileOpener } = await import("@capacitor-community/file-opener");
-              await FileOpener.open({
-                filePath,
-                contentType: contentType || "image/*",
-              });
-              return;
-            } catch (fileOpenErr) {
-              console.warn("[downloadImage] FileOpener failed, trying gallery launcher:", fileOpenErr);
-            }
+  showOpenDownloadedToast(toastId, filePath, "photo", contentType, description);
+}
 
-            // 2. Fall back to launching a known gallery app by package name.
-            try {
-              const { AppLauncher } = await import("@capacitor/app-launcher");
-              const packages = [
-                "com.google.android.apps.photos",
-                "com.sec.android.gallery3d",
-                "com.miui.gallery",
-                "com.android.gallery3d",
-              ];
-              for (const pkg of packages) {
-                try {
-                  const { value } = await AppLauncher.canOpenUrl({ url: pkg });
-                  if (value) {
-                    const opened = await AppLauncher.openUrl({ url: pkg });
-                    if (opened?.completed) return;
-                  }
-                } catch {
-                  // try next
-                }
-              }
-              throw new Error("No gallery app could be launched");
-            } catch (openErr: unknown) {
-              console.warn("[downloadImage] gallery launch failed:", openErr);
-              toast.error("Could not open gallery", {
-                description: "Open your Photos app from the home screen",
-              });
-            }
-          },
+function showOpenDownloadedToast(
+  toastId: string | number,
+  filePath: string | null,
+  kind: "photo" | "video",
+  contentType: string,
+  description?: string,
+) {
+  const title = kind === "video" ? "Video downloaded" : "Photo downloaded";
+  const fallbackType = kind === "video" ? "video/*" : "image/*";
+  toast.success(title, {
+    id: toastId,
+    description: description ?? "Saved to Photos",
+    action: {
+      label: "Open",
+      onClick: async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        // 1. Try opening the saved file directly via FileOpener.
+        if (filePath) {
+          try {
+            const { FileOpener } = await import("@capacitor-community/file-opener");
+            await FileOpener.open({
+              filePath,
+              contentType: contentType || fallbackType,
+            });
+            return;
+          } catch (fileOpenErr) {
+            console.warn("[downloadMedia] FileOpener failed, trying Photos app:", fileOpenErr);
+          }
         }
-      : undefined,
+        // 2. Fall back to launching the system Photos/Gallery app.
+        await openPhotosApp();
+      },
+    },
   });
 }
 
