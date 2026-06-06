@@ -28,7 +28,7 @@ import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
-import { downloadImage } from "@/lib/downloadImage";
+import { downloadMedia, isDownloadInFlight } from "@/lib/downloadImage";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
@@ -302,11 +302,13 @@ export function PhotoLightbox({
   const handleDownload = async () => {
     const url = downloadSignedUrl || photoSrc;
     if (!url) return;
+    if (isDownloadInFlight(url)) return;
     try {
-      await downloadImage(url, "ignite-photo");
+      const kind = isVideoUrl(url) ? "video" : "photo";
+      await downloadMedia(url, kind);
     } catch (err) {
       console.warn("Download failed:", err);
-      toast.error("Could not download photo");
+      toast.error("Could not download");
     }
   };
 
