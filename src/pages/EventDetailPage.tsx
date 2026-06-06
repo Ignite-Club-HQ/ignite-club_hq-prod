@@ -3133,7 +3133,9 @@ export default function EventDetailPage() {
             {notRespondedChildren.map((child: any) => {
               const remindBtn = (isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                const wasReminded = recentlyReminded.has(child.parent_id) || (recentReminderUserIds?.has(child.parent_id) ?? false);
+                const lastRemindedAt = recentlyReminded.get(child.parent_id) || recentReminderMap?.get(child.parent_id) || null;
+                const wasReminded = !!lastRemindedAt;
+                const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
                 return (
                   <Button
                     variant={wasReminded ? "secondary" : "default"}
@@ -3141,7 +3143,7 @@ export default function EventDetailPage() {
                     className="h-8 px-2.5 shrink-0 gap-1"
                     onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
                     disabled={isLoadingThis || wasReminded}
-                    title={wasReminded ? "Already reminded" : "Remind all parents"}
+                    title={wasReminded ? remindedLabel : "Remind all parents"}
                   >
                     {isLoadingThis ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3150,7 +3152,7 @@ export default function EventDetailPage() {
                     ) : (
                       <Bell className="h-3.5 w-3.5" />
                     )}
-                    <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
+                    <span className="text-xs">{wasReminded ? remindedLabel : "Remind"}</span>
                   </Button>
                 );
               })() : null;
