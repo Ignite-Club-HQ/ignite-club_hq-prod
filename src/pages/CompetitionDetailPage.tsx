@@ -470,6 +470,26 @@ function TeamsByDivision({
                         </Button>
                       </div>
                     )}
+                    {isAdmin && divisions.length > 0 && e.status !== "declined" && (
+                      <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground shrink-0">Division</Label>
+                        <Select
+                          value={e.division_id ?? "__none__"}
+                          onValueChange={(v) => assignDivision(e.id, v === "__none__" ? null : v)}
+                          disabled={savingId === e.id}
+                        >
+                          <SelectTrigger className="h-8 w-full sm:w-44">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Unassigned</SelectItem>
+                            {divisions.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
