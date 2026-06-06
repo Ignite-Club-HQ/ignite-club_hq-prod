@@ -1369,9 +1369,9 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
                   }}
                 >
                   {index === 0 ? (
-                    <HeroCard event={event} fullWidth />
+                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
                   ) : (
-                    <HeroCard event={event} fullWidth />
+                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
                   )}
                 </div>
               ))}
