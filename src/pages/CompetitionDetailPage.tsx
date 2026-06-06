@@ -369,16 +369,37 @@ function DraftSetupProgress({
 }
 
 function TeamsByDivision({
+  competitionId,
   divisions,
   entries,
   myAdminTeamIds,
   onRespond,
+  isAdmin,
 }: {
+  competitionId: string;
   divisions: any[];
   entries: any[];
   myAdminTeamIds: string[];
   onRespond: (entryId: string, status: "accepted" | "declined") => void;
+  isAdmin: boolean;
 }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const assignDivision = async (entryId: string, divisionId: string | null) => {
+    setSavingId(entryId);
+    const { error } = await supabase
+      .from("competition_entries")
+      .update({ division_id: divisionId })
+      .eq("id", entryId);
+    setSavingId(null);
+    if (error) {
+      toast({ title: "Could not move team", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
+  };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
   }
