@@ -237,6 +237,7 @@ export default function CompetitionDetailPage() {
                 competitionId={id!}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
               />
+              <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
           )}
 
