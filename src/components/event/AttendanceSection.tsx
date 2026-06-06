@@ -79,6 +79,7 @@ export function AttendanceSection({
   trackableMembersCount,
   addressableMembers,
   onShareLink,
+  onProRequired,
   eventType,
 }: AttendanceSectionProps) {
   const personNoun = eventType === "social" ? "member" : "player";
