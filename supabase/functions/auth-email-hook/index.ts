@@ -187,6 +187,14 @@ async function handleWebhook(req: Request): Promise<Response> {
     console.error('Missing auth email secrets', {
       has_RESEND_API_KEY: Boolean(resendApiKey),
       has_SEND_EMAIL_HOOK_SECRET: Boolean(hookSecret),
+      availableHookSecretNames: [
+        'SEND_EMAIL_HOOK_SECRET',
+        'send_email_hook_secret',
+        'SUPABASE_AUTH_HOOK_SECRET',
+        'AUTH_EMAIL_HOOK_SECRET',
+        'EMAIL_HOOK_SECRET',
+        'WEBHOOK_SECRET',
+      ].filter((name) => Boolean(Deno.env.get(name))),
     })
     return new Response(
       JSON.stringify({ error: 'Server configuration error' }),
