@@ -551,6 +551,21 @@ export default function EventDetailPage() {
     return false;
   };
 
+  const gateReminders = (): boolean => {
+    if (isLoadingHasTeamPro) return false;
+    if (hasTeamPro === true) return true;
+    toast({
+      title: "Reminders are a Pro feature",
+      description: event?.club_id
+        ? "Upgrade your club to Pro to send reminders."
+        : "Contact your club admin to upgrade to Pro.",
+      variant: "destructive",
+    });
+    if (event?.club_id) navigate(`/clubs/${event.club_id}/upgrade`);
+    return false;
+  };
+
+
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
                        event?.clubs?.sport?.toLowerCase().includes('football');
