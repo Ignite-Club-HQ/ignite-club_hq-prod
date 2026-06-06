@@ -3219,28 +3219,34 @@ export default function EventDetailPage() {
               );
             })}
             {!isMiniLeagueEvent && notResponded.map((member: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) && canSendReminders ? (() => {
+              const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
                 const wasReminded = !!lastRemindedAt;
                 const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
+                const isProBlocked = !canSendReminders && !wasReminded;
                 return (
                   <Button
-                    variant={wasReminded ? "secondary" : "default"}
+                    variant={wasReminded ? "secondary" : isProBlocked ? "outline" : "default"}
                     size="sm"
-                    className="h-8 px-2.5 shrink-0 gap-1"
-                    onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
+                    className={`h-8 px-2.5 shrink-0 gap-1 ${isProBlocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                    onClick={() => {
+                      if (!gateReminders()) return;
+                      individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" });
+                    }}
                     disabled={isLoadingThis || wasReminded}
-                    title={wasReminded ? remindedLabel : "Send reminder"}
+                    title={wasReminded ? remindedLabel : isProBlocked ? "Pro required — upgrade to send reminders" : "Send reminder"}
                   >
                     {isLoadingThis ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : wasReminded ? (
                       <Check className="h-3.5 w-3.5" />
+                    ) : isProBlocked ? (
+                      <Lock className="h-3.5 w-3.5" />
                     ) : (
                       <Bell className="h-3.5 w-3.5" />
                     )}
-                    <span className="text-xs">{wasReminded ? remindedLabel : "Remind"}</span>
+                    <span className="text-xs">{wasReminded ? remindedLabel : isProBlocked ? "Pro" : "Remind"}</span>
                   </Button>
                 );
               })() : null;
