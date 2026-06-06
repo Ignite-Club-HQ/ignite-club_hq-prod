@@ -1,6 +1,6 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2, EyeOff } from "lucide-react";
+import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2, EyeOff, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,6 +59,8 @@ interface AttendanceSectionProps {
   addressableMembers?: AddressableMember[];
   /** Optional: open the native/web share sheet with a copyable RSVP link */
   onShareLink?: () => void;
+  /** Called when a non-Pro admin tries to trigger a reminder */
+  onProRequired?: () => void;
   /** Event type — controls noun used in copy ("player" vs "member") */
   eventType?: string;
 }
@@ -77,6 +79,7 @@ export function AttendanceSection({
   trackableMembersCount,
   addressableMembers,
   onShareLink,
+  onProRequired,
   eventType,
 }: AttendanceSectionProps) {
   const personNoun = eventType === "social" ? "member" : "player";
@@ -159,6 +162,10 @@ export function AttendanceSection({
     channels: "push" | "email" | "both",
     userIds?: string[],
   ) => {
+    if (!canSendReminders) {
+      onProRequired?.();
+      return;
+    }
     const targets = userIds && userIds.length > 0 ? userIds : notRespondedUserIds;
     if (targets.length === 0) return;
     const isPerUser = !!(userIds && userIds.length === 1);
@@ -364,17 +371,22 @@ export function AttendanceSection({
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
+                    variant={!canSendReminders ? "outline" : "default"}
                     disabled={isSending || (canSendReminders && cooldownActive)}
                     className="gap-1.5 w-full sm:w-auto"
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : !canSendReminders ? (
+                      <Lock className="h-4 w-4" />
                     ) : (
                       <Bell className="h-4 w-4" />
                     )}
                     {canSendReminders && cooldownActive && lastReminder?.sent_at
                       ? `Reminded ${formatRelativePast(new Date(lastReminder.sent_at))}`
-                      : "Remind all non-responders"}
+                      : !canSendReminders
+                        ? "Pro"
+                        : "Remind all non-responders"}
                     <ChevronDown className="h-3 w-3 ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>

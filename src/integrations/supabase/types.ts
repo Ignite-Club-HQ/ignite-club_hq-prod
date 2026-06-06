@@ -3643,6 +3643,7 @@ export type Database = {
           event_id: string
           id: string
           pushes_sent: number
+          recipient_user_ids: string[]
           recipients_count: number
           sent_at: string
           sent_by: string
@@ -3653,6 +3654,7 @@ export type Database = {
           event_id: string
           id?: string
           pushes_sent?: number
+          recipient_user_ids?: string[]
           recipients_count?: number
           sent_at?: string
           sent_by: string
@@ -3663,6 +3665,7 @@ export type Database = {
           event_id?: string
           id?: string
           pushes_sent?: number
+          recipient_user_ids?: string[]
           recipients_count?: number
           sent_at?: string
           sent_by?: string
