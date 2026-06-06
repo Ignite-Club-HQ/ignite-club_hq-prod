@@ -450,9 +450,16 @@ function TeamsByDivision({
                       <div className="text-xs text-muted-foreground truncate">
                         {e.teams?.clubs?.name || "—"}
                       </div>
+                      {e.teams?.is_shell && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                          Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                        </div>
+                      )}
                     </div>
 
-                    {e.status === "accepted" ? (
+                    {e.teams?.is_shell ? (
+                      <Badge variant="outline">Awaiting signup</Badge>
+                    ) : e.status === "accepted" ? (
                       <Badge variant="default">Accepted</Badge>
                     ) : e.status === "invited" ? (
                       <Badge variant="secondary">Invite sent</Badge>
