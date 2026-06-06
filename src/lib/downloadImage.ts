@@ -491,59 +491,43 @@ function showOpenDownloadedPhotoToast(
   description: string,
   contentType: string,
 ) {
-  toast.success("Photo downloaded", {
-    id: toastId,
-    description,
-    action: filePath
-      ? {
-          label: "Open",
-          onClick: async (event) => {
-            event?.preventDefault?.();
-            event?.stopPropagation?.();
-            // 1. Try opening the saved file directly via FileOpener with the
-            //    correct MIME type. This is the most reliable path on Android —
-            //    it hands the file to the user's default image viewer.
-            try {
-              const { FileOpener } = await import("@capacitor-community/file-opener");
-              await FileOpener.open({
-                filePath,
-                contentType: contentType || "image/*",
-              });
-              return;
-            } catch (fileOpenErr) {
-              console.warn("[downloadImage] FileOpener failed, trying gallery launcher:", fileOpenErr);
-            }
+  showOpenDownloadedToast(toastId, filePath, "photo", contentType, description);
+}
 
-            // 2. Fall back to launching a known gallery app by package name.
-            try {
-              const { AppLauncher } = await import("@capacitor/app-launcher");
-              const packages = [
-                "com.google.android.apps.photos",
-                "com.sec.android.gallery3d",
-                "com.miui.gallery",
-                "com.android.gallery3d",
-              ];
-              for (const pkg of packages) {
-                try {
-                  const { value } = await AppLauncher.canOpenUrl({ url: pkg });
-                  if (value) {
-                    const opened = await AppLauncher.openUrl({ url: pkg });
-                    if (opened?.completed) return;
-                  }
-                } catch {
-                  // try next
-                }
-              }
-              throw new Error("No gallery app could be launched");
-            } catch (openErr: unknown) {
-              console.warn("[downloadImage] gallery launch failed:", openErr);
-              toast.error("Could not open gallery", {
-                description: "Open your Photos app from the home screen",
-              });
-            }
-          },
+function showOpenDownloadedToast(
+  toastId: string | number,
+  filePath: string | null,
+  kind: "photo" | "video",
+  contentType: string,
+  description?: string,
+) {
+  const title = kind === "video" ? "Video downloaded" : "Photo downloaded";
+  const fallbackType = kind === "video" ? "video/*" : "image/*";
+  toast.success(title, {
+    id: toastId,
+    description: description ?? "Saved to Photos",
+    action: {
+      label: "Open",
+      onClick: async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        // 1. Try opening the saved file directly via FileOpener.
+        if (filePath) {
+          try {
+            const { FileOpener } = await import("@capacitor-community/file-opener");
+            await FileOpener.open({
+              filePath,
+              contentType: contentType || fallbackType,
+            });
+            return;
+          } catch (fileOpenErr) {
+            console.warn("[downloadMedia] FileOpener failed, trying Photos app:", fileOpenErr);
+          }
         }
-      : undefined,
+        // 2. Fall back to launching the system Photos/Gallery app.
+        await openPhotosApp();
+      },
+    },
   });
 }
 
