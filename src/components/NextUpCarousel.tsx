@@ -1275,43 +1275,45 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi, onSelect]);
 
-  // Aggregate "needs RSVP" count across the visible carousel events.
-  // An event is pending if neither the user nor any of their children have responded.
+  // Aggregate "needs RSVP" count — driven by each card's own needsRsvp signal
+  // so this badge can never disagree with what's actually shown on the cards
+  // (membership, BYE, guardian-children, parent-first events all factor in).
   const carouselEventIds = React.useMemo(
-    () => (events || []).slice(0, 6).filter(e => !e.is_cancelled).map(e => e.id),
+    () => (events || []).slice(0, 6).filter(e => !e.is_cancelled && !e.is_bye).map(e => e.id),
     [events],
   );
 
-  const { data: pendingCount = 0 } = useQuery({
-    queryKey: ["next-up-pending-count", user?.id, carouselEventIds],
-    queryFn: async () => {
-      if (!user || carouselEventIds.length === 0) return 0;
-      const [ownChildren, guardianLinks] = await Promise.all([
-        supabase.from("children").select("id").eq("parent_id", user.id),
-        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
-      ]);
-      const childIds = [
-        ...(ownChildren.data || []).map(c => c.id),
-        ...(guardianLinks.data || []).map(g => g.child_id),
-      ];
-      const uniqueChildIds = [...new Set(childIds)];
+  const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
 
-      const orFilter = uniqueChildIds.length > 0
-        ? `user_id.eq.${user.id},child_id.in.(${uniqueChildIds.join(",")})`
-        : `user_id.eq.${user.id}`;
+  const handleNeedsRsvpChange = React.useCallback((eventId: string, needs: boolean) => {
+    setPendingIds(prev => {
+      const has = prev.has(eventId);
+      if (needs && !has) {
+        const next = new Set(prev);
+        next.add(eventId);
+        return next;
+      }
+      if (!needs && has) {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      }
+      return prev;
+    });
+  }, []);
 
-      const { data: rsvps } = await supabase
-        .from("rsvps")
-        .select("event_id")
-        .in("event_id", carouselEventIds)
-        .or(orFilter);
+  // Drop any stale ids no longer in the visible carousel.
+  React.useEffect(() => {
+    const allowed = new Set(carouselEventIds);
+    setPendingIds(prev => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach(id => { if (allowed.has(id)) next.add(id); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [carouselEventIds]);
 
-      const responded = new Set((rsvps || []).map(r => r.event_id));
-      return carouselEventIds.filter(id => !responded.has(id)).length;
-    },
-    enabled: !!user && carouselEventIds.length > 0,
-    staleTime: 60 * 1000,
-  });
+  const pendingCount = pendingIds.size;
 
   // Show skeleton while loading to reserve space and prevent layout shift
   if (isLoading) {
