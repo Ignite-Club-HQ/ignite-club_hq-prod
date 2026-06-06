@@ -240,10 +240,12 @@ export default function CompetitionDetailPage() {
           )}
 
           <TeamsByDivision
+            competitionId={id!}
             divisions={divisions}
             entries={entries}
             myAdminTeamIds={myAdminTeamIds}
             onRespond={respondToInvite}
+            isAdmin={isAdmin}
           />
         </TabsContent>
       </Tabs>
