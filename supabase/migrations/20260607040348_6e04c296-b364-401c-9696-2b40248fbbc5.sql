@@ -1,0 +1,1 @@
+GRANT SELECT ON public.competition_ladder TO authenticated, anon;
