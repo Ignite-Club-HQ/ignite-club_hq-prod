@@ -96,6 +96,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genDuration, setGenDuration] = useState<string>("60");
   const [genArrival, setGenArrival] = useState<string>("");
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
+  const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
   const [genMode, setGenMode] = useState<SchedulingMode>("simultaneous");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
@@ -124,7 +125,15 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const teamsInScope = acceptedByDivision(genDivisionId || null);
   const customDaysNum = Math.max(1, Number(genCustomDays) || 7);
   const durationNum = Math.max(0, Number(genDuration) || 0);
-  const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
+  const customPitchLabels = genPitchLabelsInput
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const pitchLabels = customPitchLabels.length > 0
+    ? customPitchLabels
+    : Array.from({ length: Math.max(0, Number(genAutoPitches) || 0) }, (_, i) => String(i + 1));
+  const pitchCount = pitchLabels.length;
+
 
   const summary = useMemo(() => {
     const n = teamsInScope.length;
@@ -254,7 +263,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       let pitch: string | null = null;
       if (pitchCount > 0) {
         const idx = perRoundPitchIdx.get(f.round) ?? 0;
-        pitch = String((idx % pitchCount) + 1);
+        pitch = pitchLabels[idx % pitchCount];
         if (genMode === "stagger" && d && durationNum > 0 && idx >= pitchCount) {
           const slot = Math.floor(idx / pitchCount);
           const shifted = new Date(d.getTime() + slot * durationNum * 60 * 1000);
@@ -303,7 +312,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setPreview(null);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
     setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
-    setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches("");
+    setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
     setMatchDayManual(false); setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
@@ -432,7 +441,29 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       </div>
                       <div className="col-span-2">
                         <Label>Available pitches / courts</Label>
-                        <Input type="number" inputMode="numeric" min={0} value={genAutoPitches} onChange={(e) => setGenAutoPitches(e.target.value)} placeholder="e.g. 2" />
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={genAutoPitches}
+                          onChange={(e) => setGenAutoPitches(e.target.value)}
+                          placeholder="e.g. 2"
+                          disabled={customPitchLabels.length > 0}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Auto-numbered Pitch 1, Pitch 2…
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Specific pitch numbers (optional)</Label>
+                        <Input
+                          value={genPitchLabelsInput}
+                          onChange={(e) => setGenPitchLabelsInput(e.target.value)}
+                          placeholder="e.g. 3, 5, 7 or A, B, C"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Comma-separated labels. Overrides the count above.
+                        </p>
                       </div>
                     </div>
 
@@ -581,7 +612,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                                 let matchTime = genKickoff || "";
                                 if (pitchCount > 0) {
                                   const idx = perRoundPitchIdx.get(r) ?? 0;
-                                  pitch = String((idx % pitchCount) + 1);
+                                  pitch = pitchLabels[idx % pitchCount];
                                   if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
                                     const slot = Math.floor(idx / pitchCount);
                                     const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
