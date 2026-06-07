@@ -906,24 +906,24 @@ function RoundSection({
   const completed = items.filter((m) => m.status === "completed").length;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-1.5">
       <CollapsibleTrigger className="w-full group">
-        <div className="flex items-center gap-2 px-1 pt-2 min-w-0 text-left">
-          <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <h3 className="text-base font-bold tracking-tight text-foreground shrink-0">{label}</h3>
-          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-semibold shrink-0">
-            {items.length}
-          </Badge>
+        <div className="flex items-center gap-2 px-0.5 min-w-0 text-left">
+          <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          <h3 className="text-[13px] font-bold tracking-tight text-foreground shrink-0 uppercase">{label}</h3>
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            · {items.length} {items.length === 1 ? "Match" : "Matches"}
+          </span>
           {dateRange && (
-            <span className="text-xs text-muted-foreground truncate min-w-0">· {dateRange}</span>
+            <span className="text-[11px] text-muted-foreground/80 truncate min-w-0">· {dateRange}</span>
           )}
           {completed > 0 && (
-            <span className="text-[11px] text-muted-foreground shrink-0 ml-auto">{completed}/{items.length} done</span>
+            <span className="text-[10px] text-muted-foreground shrink-0 ml-auto tabular-nums">{completed}/{items.length} done</span>
           )}
-          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[12px] h-px bg-border`} />
+          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[8px] h-px bg-border/60`} />
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2">
+      <CollapsibleContent className="space-y-1.5">
         {items.map((m: any) => (
           <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
         ))}
@@ -931,6 +931,7 @@ function RoundSection({
     </Collapsible>
   );
 }
+
 
 
 
