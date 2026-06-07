@@ -749,10 +749,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   );
 }
 
-function MatchRow({ match, isAdmin, competitionId, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; hideRoundBadge?: boolean }) {
+function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const [status, setStatus] = useState<string>(match.status);
