@@ -1,6 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info, Medal } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   buildRoundRobinPairings,
