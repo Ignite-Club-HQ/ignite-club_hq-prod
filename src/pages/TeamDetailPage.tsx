@@ -846,7 +846,7 @@ export default function TeamDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+              {canManageTeam && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>}
