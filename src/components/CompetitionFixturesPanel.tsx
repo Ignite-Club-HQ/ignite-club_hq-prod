@@ -1332,7 +1332,7 @@ function EditMatchDetailsDialog({
 
         <div className="space-y-3 py-2">
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="space-y-1.5">
               <Label>Home team</Label>
               <Select value={homeId} onValueChange={setHomeId}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -1343,7 +1343,7 @@ function EditMatchDetailsDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Away team</Label>
               <Select value={awayId} onValueChange={setAwayId}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -1357,7 +1357,7 @@ function EditMatchDetailsDialog({
           </div>
 
           {divisions.length > 0 && (
-            <div>
+            <div className="space-y-1.5">
               <Label>Division (optional)</Label>
               <Select value={divisionId || "_none"} onValueChange={(v) => setDivisionId(v === "_none" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
@@ -1372,11 +1372,11 @@ function EditMatchDetailsDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="space-y-1.5">
               <Label>Date</Label>
               <Input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Start time</Label>
               <Input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} />
             </div>
@@ -1396,15 +1396,15 @@ function EditMatchDetailsDialog({
                 placeholder="Search venue or address…"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Pitch / Court #</Label>
               <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Duration (mins)</Label>
               <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} />
             </div>
-            <div>
+            <div className="space-y-1.5">
               <Label>Arrive (mins before)</Label>
               <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} />
             </div>
