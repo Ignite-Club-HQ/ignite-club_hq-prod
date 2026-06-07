@@ -89,7 +89,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_matches")
-        .select("*, home:home_team_id(id, name), away:away_team_id(id, name), competition_divisions:division_id(name)")
+        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
