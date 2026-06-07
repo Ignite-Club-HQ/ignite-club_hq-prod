@@ -285,7 +285,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
         cleanupRef.current = null;
       }
     };
-  }, [userId, enabled, handleNotificationAction, handleTokenRefresh]);
+  }, [userId, enabled, handleTokenRefresh]);
 
   // Refresh FCM token whenever the native app returns to foreground.
   // Use both Capacitor App resume events and document visibility as a fallback.
