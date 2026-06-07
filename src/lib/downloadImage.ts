@@ -249,36 +249,58 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       // of scoped storage; using Share here is not a download and creates the
       // exact wrong UX. The Media plugin writes through Android MediaStore.
       if (platform === "android") {
+        // Strategy: fetch the bytes once, write them to the app's sandboxed
+        // Cache directory (so FileOpener can expose them via FileProvider for
+        // the "Open" action), then ask the Media plugin to copy that local
+        // file into the public Photos library. Using a local path for
+        // Media.savePhoto is also more reliable than a remote URL — it
+        // avoids the plugin's internal HTTP fetch (which can fail on signed
+        // Supabase URLs) and gives us a single source of bytes.
+        const response = await fetch(resolvedUrl);
+        if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+        const blob = await response.blob();
+        const contentType = blob.type || response.headers.get("content-type") || pickContentTypeFromExtension(urlExt);
+        const ext = pickExtension(contentType) || urlExt;
+        const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
+        filename = `${baseName}.${ext}`;
+        const base64 = await blobToBase64(blob);
+
+        // 1. Write to app cache → gives us a sandbox path that FileOpener
+        //    can open through the FileProvider that the plugin registers.
+        const written = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        const cacheUri = written.uri || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
+
+        // 2. Copy that local file into the public Photos library. Failure
+        //    here is non-fatal — the user still has the cached copy and the
+        //    Open action will work.
+        let savedToGallery = false;
         try {
           const { Media } = await import("@capacitor-community/media");
-          const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
-          const saved = await Media.savePhoto({
-            path: resolvedUrl,
+          await Media.savePhoto({
+            path: cacheUri,
             fileName: baseName,
             albumIdentifier,
-          }) as { filePath?: string };
-          showOpenDownloadedPhotoToast(toastId, saved.filePath || null, "Saved to your photos", pickContentTypeFromExtension(urlExt));
-          return;
-        } catch (androidErr) {
-          console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
-          const response = await fetch(resolvedUrl);
-          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-          const blob = await response.blob();
-          const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-          const ext = pickExtension(contentType);
-          filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-          const base64 = await blobToBase64(blob);
-          const written = await Filesystem.writeFile({
-            path: filename,
-            data: base64,
-            directory: Directory.Documents,
-            recursive: true,
           });
-          showOpenDownloadedPhotoToast(toastId, written.uri || null, "Saved to app documents", contentType);
-          return;
+          savedToGallery = true;
+        } catch (galleryErr) {
+          console.warn("[downloadImage] Android MediaStore save failed:", galleryErr);
         }
+
+        showOpenDownloadedPhotoToast(
+          toastId,
+          cacheUri,
+          savedToGallery ? "Saved to your photos" : "Saved to app downloads",
+          contentType,
+        );
+        return;
       }
+
 
       if (platform === "ios") {
         const ext = guessExtensionFromUrl(resolvedUrl);
