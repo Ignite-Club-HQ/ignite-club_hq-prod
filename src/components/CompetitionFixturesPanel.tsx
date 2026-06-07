@@ -1074,10 +1074,10 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
         {/* 1. Time — compact metadata row */}
         {!editing && (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-semibold text-foreground tabular-nums leading-snug">
+            <span className="text-base font-semibold text-foreground tabular-nums leading-snug">
               {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
             </span>
-            <span className="text-xs text-muted-foreground leading-snug">
+            <span className="text-sm text-muted-foreground leading-snug">
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
@@ -1161,27 +1161,28 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
         {/* 4. Admin actions — compact, flush to bottom */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-between gap-2">
             <Button
               size="sm"
               variant={hasScore ? "ghost" : "outline"}
               className={
                 hasScore
-                  ? "h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                  : "h-6 px-2 text-[11px] font-semibold text-primary border-primary/40 hover:bg-primary/5"
+                  ? "h-9 flex-1 px-3 text-sm text-muted-foreground hover:text-foreground"
+                  : "h-9 flex-1 px-3 text-sm font-semibold text-primary border-primary/40 hover:bg-primary/5"
               }
               onClick={() => setEditing(true)}
             >
-              <Pencil className="h-3 w-3 mr-1" />
+              <Pencil className="h-4 w-4 mr-1.5" />
               {hasScore ? "Edit score" : "Enter score"}
             </Button>
             <DropdownMenu open={manageOpen} onOpenChange={setManageOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   aria-label="Fixture settings"
-                  className="h-6 w-6 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+                  className="h-9 w-9 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
                   }}
@@ -1199,7 +1200,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   onPointerCancel={() => { tapStartRef.current = null; }}
                   onContextMenu={(e) => e.preventDefault()}
                 >
-                  <Settings2 className="h-3.5 w-3.5" />
+                  <Settings2 className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -1220,8 +1221,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
         {/* 4. Venue + Pitch — bottom metadata, subtle */}
         {!editing && (venueLine || match.pitch_number) && (
-          <div className="flex items-center gap-1.5 pt-3 text-xs text-muted-foreground leading-relaxed border-t border-border/40">
-            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-1.5 pt-3 text-sm text-muted-foreground leading-relaxed border-t border-border/40">
+            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
           </div>
         )}
