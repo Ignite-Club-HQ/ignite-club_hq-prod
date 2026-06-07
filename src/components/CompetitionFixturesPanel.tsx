@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -748,32 +748,87 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
+  const statusLabel = (match.status ?? "scheduled").replace("_", " ");
+  const statusVariant: "secondary" | "default" | "destructive" | "outline" =
+    match.status === "completed" ? "default"
+    : match.status === "cancelled" ? "destructive"
+    : match.status === "postponed" ? "outline"
+    : "secondary";
+  const hasScore = match.home_score != null || match.away_score != null;
+  const venueLine = match.venue
+    ? `${match.venue}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
+    : null;
+
   return (
-    <Card>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {match.round_number != null && <Badge variant="outline">Round {match.round_number}</Badge>}
-          {match.competition_divisions?.name && <span>{match.competition_divisions.name}</span>}
-          {match.scheduled_at && <span>· {format(new Date(match.scheduled_at), "EEE d MMM HH:mm")}</span>}
-          {match.venue && <span>· {match.venue}{match.pitch_number ? ` — Pitch ${match.pitch_number}` : ""}</span>}
-          <Badge variant="secondary" className="capitalize ml-auto">{match.status.replace("_", " ")}</Badge>
+    <Card className="overflow-hidden">
+      <CardContent className="p-4 sm:p-5 space-y-4">
+        {/* Header: round pill + status pill */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {match.round_number != null && (
+              <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
+                Round {match.round_number}
+              </Badge>
+            )}
+            {match.competition_divisions?.name && (
+              <span className="text-xs text-muted-foreground truncate">{match.competition_divisions.name}</span>
+            )}
+          </div>
+          <Badge
+            variant={statusVariant}
+            className="rounded-full px-2.5 py-0.5 text-xs capitalize whitespace-nowrap shrink-0"
+          >
+            {statusLabel}
+          </Badge>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="flex-1 font-medium truncate text-right">{match.home?.name ?? "?"}</span>
-          <span className="px-2 font-bold tabular-nums">
-            {match.home_score ?? "–"} : {match.away_score ?? "–"}
+
+        {/* Date & venue */}
+        {(match.scheduled_at || venueLine) && (
+          <div className="space-y-0.5 text-xs text-muted-foreground">
+            {match.scheduled_at && (
+              <div className="font-medium text-foreground/80">
+                {format(new Date(match.scheduled_at), "EEE d MMM yyyy • h:mm a")}
+              </div>
+            )}
+            {venueLine && <div className="truncate">{venueLine}</div>}
+          </div>
+        )}
+
+        {/* Match: teams + score */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <span className="text-right text-base sm:text-lg font-semibold leading-tight truncate">
+            {match.home?.name ?? "?"}
           </span>
-          <span className="flex-1 font-medium truncate">{match.away?.name ?? "?"}</span>
+          <span className="px-1 text-center">
+            {hasScore ? (
+              <span className="text-lg font-bold tabular-nums">
+                {match.home_score ?? "–"} : {match.away_score ?? "–"}
+              </span>
+            ) : (
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">vs</span>
+            )}
+          </span>
+          <span className="text-left text-base sm:text-lg font-semibold leading-tight truncate">
+            {match.away?.name ?? "?"}
+          </span>
         </div>
+
+        {/* Actions */}
         {isAdmin && (
-          <div className="pt-2">
+          <div>
             {!editing ? (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit result</Button>
-                <Button size="sm" variant="ghost" onClick={remove}><X className="h-4 w-4" /></Button>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-1.5" />
+                  {hasScore ? "Edit result" : "Edit"}
+                </Button>
+                <Button size="sm" variant="ghost" className="min-h-11 text-destructive hover:text-destructive" onClick={remove}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Delete
+                </Button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3 pt-1">
                 <div className="grid grid-cols-3 gap-2 items-end">
                   <div>
                     <Label>Home</Label>
@@ -796,8 +851,8 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={save}><Save className="h-4 w-4 mr-1" /> Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+                  <Button size="sm" className="min-h-11" onClick={save}><Save className="h-4 w-4 mr-1" /> Save</Button>
+                  <Button size="sm" variant="ghost" className="min-h-11" onClick={() => setEditing(false)}>Cancel</Button>
                 </div>
               </div>
             )}
