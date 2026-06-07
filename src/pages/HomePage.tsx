@@ -72,9 +72,13 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
-const MyTeamsPremiumCarousel = lazy(() =>
-  import("@/components/MyTeamsPremiumCarousel").then((m) => ({ default: m.MyTeamsPremiumCarousel }))
-);
+// Eager prefetch: kick the chunk request off at module-eval time so it's in flight
+// before the section becomes visible. Still lazy() so it doesn't block first paint.
+const myTeamsCarouselImport = () =>
+  import("@/components/MyTeamsPremiumCarousel").then((m) => ({ default: m.MyTeamsPremiumCarousel }));
+// Fire the request immediately (don't await — let it stream alongside other resources).
+myTeamsCarouselImport();
+const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
