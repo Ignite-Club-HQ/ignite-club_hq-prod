@@ -1619,7 +1619,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
   );
 }
 
-export function CompetitionLadderPanel({ competitionId, divisions }: { competitionId: string; divisions: any[] }) {
+export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
