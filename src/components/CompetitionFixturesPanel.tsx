@@ -980,7 +980,16 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const [status, setStatus] = useState<string>(match.status);
   const [manageOpen, setManageOpen] = useState(false);
   const tapStartRef = useRef<{ x: number; y: number } | null>(null);
-  const tapValidRef = useRef(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    tapStartRef.current = null;
+  };
 
   const save = async () => {
     const homeN = home === "" ? null : Number(home);
