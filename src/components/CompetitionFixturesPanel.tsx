@@ -1067,19 +1067,19 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       <CardContent className="p-2 space-y-1">
         {/* Top row: date • time • venue • status (single line) */}
         {!editing && (
-          <div className="flex items-center gap-1.5 min-w-0 text-[12px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1 min-w-0 flex-1 truncate">
+          <div className="flex items-start gap-1.5 min-w-0 text-[12px] text-muted-foreground">
+            <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 min-w-0 flex-1">
               {scheduledDate ? (
-                <span className="font-medium text-foreground/80 shrink-0">
+                <span className="font-medium text-foreground/80">
                   {format(scheduledDate, "EEE d MMM")} • {format(scheduledDate, "h:mm a")}
                 </span>
               ) : (
-                <span className="shrink-0 italic">Time TBD</span>
+                <span className="italic">Time TBD</span>
               )}
               {venueLine && (
                 <>
-                  <span className="text-muted-foreground/40 shrink-0">•</span>
-                  <span className="truncate font-medium text-foreground/80" title={venueLine}>{venueLine}</span>
+                  <span className="text-muted-foreground/40">•</span>
+                  <span className="font-medium text-foreground/80" title={venueLine}>{venueLine}</span>
                 </>
               )}
             </span>
