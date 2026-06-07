@@ -315,6 +315,7 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               )}
             </Button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
 
