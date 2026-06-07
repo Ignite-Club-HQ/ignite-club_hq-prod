@@ -805,16 +805,30 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   return (
     <Card className="overflow-hidden w-full box-border">
       <CardContent className="p-4 space-y-3">
-        {/* Header: round pill (when not grouped) + division + status pill */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {!hideRoundBadge && match.round_number != null && (
-              <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
-                Round {match.round_number}
-              </Badge>
-            )}
-            {match.competition_divisions?.name && (
-              <span className="text-xs text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+        {/* Top row: date/venue on the left, status badge on the right */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            {(!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name ? (
+              <div className="flex items-center gap-2 min-w-0">
+                {!hideRoundBadge && match.round_number != null && (
+                  <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
+                    Round {match.round_number}
+                  </Badge>
+                )}
+                {match.competition_divisions?.name && (
+                  <span className="text-xs text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+                )}
+              </div>
+            ) : null}
+            {(match.scheduled_at || venueLine) && (
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                {match.scheduled_at && (
+                  <div className="font-medium text-foreground/80">
+                    {format(new Date(match.scheduled_at), "EEE d MMM yyyy • h:mm a")}
+                  </div>
+                )}
+                {venueLine && <div className="truncate">{venueLine}</div>}
+              </div>
             )}
           </div>
           <Badge
@@ -825,17 +839,6 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </Badge>
         </div>
 
-        {/* Date & venue */}
-        {(match.scheduled_at || venueLine) && (
-          <div className="space-y-0.5 text-xs text-muted-foreground">
-            {match.scheduled_at && (
-              <div className="font-medium text-foreground/80">
-                {format(new Date(match.scheduled_at), "EEE d MMM yyyy • h:mm a")}
-              </div>
-            )}
-            {venueLine && <div className="truncate">{venueLine}</div>}
-          </div>
-        )}
 
         {/* Match-up: Team A / vs / Team B centered vertically */}
         <div className="flex flex-col items-center text-center gap-1 py-1">
