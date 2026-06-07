@@ -129,9 +129,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const summary = useMemo(() => {
     const n = teamsInScope.length;
     if (n < 2) return null;
-    const rounds = n % 2 === 0 ? n - 1 : n;
+    const fullRounds = n % 2 === 0 ? n - 1 : n;
     const matchesPerRound = Math.floor(n / 2);
-    const totalMatches = rounds * matchesPerRound;
     const firstDate = genFirstRoundDate
       ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
       : null;
@@ -139,14 +138,30 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       const [hh, mm] = genKickoff.split(":").map(Number);
       firstDate.setHours(hh || 9, mm || 0, 0, 0);
     }
+    // Cap rounds by optional end date.
+    let rounds = fullRounds;
+    let cappedByEndDate = false;
+    if (firstDate && genEndDate) {
+      const end = new Date(`${genEndDate}T23:59:59`);
+      let d = new Date(firstDate);
+      let fit = 0;
+      for (let i = 0; i < fullRounds; i++) {
+        if (d.getTime() > end.getTime()) break;
+        fit++;
+        d = advanceByFrequency(d, genFrequency, customDaysNum);
+      }
+      if (fit < fullRounds) cappedByEndDate = true;
+      rounds = Math.max(0, fit);
+    }
+    const totalMatches = rounds * matchesPerRound;
     let finishDate: Date | null = null;
-    if (firstDate) {
+    if (firstDate && rounds > 0) {
       let d = new Date(firstDate);
       for (let i = 1; i < rounds; i++) d = advanceByFrequency(d, genFrequency, customDaysNum);
       finishDate = d;
     }
-    return { teamCount: n, rounds, matchesPerRound, totalMatches, firstDate, finishDate };
-  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum]);
+    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, cappedByEndDate };
+  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum, genEndDate]);
 
   const capacityWarning = useMemo(() => {
     if (!summary || pitchCount <= 0) return null;
