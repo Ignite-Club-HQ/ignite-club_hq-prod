@@ -532,17 +532,15 @@ function showOpenDownloadedToast(
   toast.success(title, {
     id: toastId,
     description: description ?? "Saved to Photos",
+    duration: 8000,
     action: {
       label: "Open",
       onClick: async (event) => {
         event?.stopPropagation?.();
-        toast.dismiss(toastId);
         console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
         const platform = Capacitor.getPlatform();
+        let opened = false;
 
-        // Try multiple path variants — Media plugin may return raw /storage/...
-        // paths or content:// URIs. FileOpener accepts both, but only when the
-        // scheme is present.
         const candidates: string[] = [];
         if (filePath) {
           candidates.push(filePath);
@@ -557,7 +555,8 @@ function showOpenDownloadedToast(
             for (const p of candidates) {
               try {
                 await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
-                return;
+                opened = true;
+                break;
               } catch (innerErr) {
                 console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
               }
@@ -566,15 +565,14 @@ function showOpenDownloadedToast(
             console.warn("[downloadMedia] FileOpener import failed:", importErr);
           }
 
-          // Android: try opening the content URI directly via AppLauncher.
-          if (platform === "android") {
+          if (!opened && platform === "android") {
             try {
               const { AppLauncher } = await import("@capacitor/app-launcher");
               for (const p of candidates) {
-                if (!p.startsWith("content://") && !p.startsWith("file://")) continue;
+                if (!p.startsWith("content://")) continue;
                 try {
                   const res = await AppLauncher.openUrl({ url: p });
-                  if (res?.completed) return;
+                  if (res?.completed) { opened = true; break; }
                 } catch (alErr) {
                   console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
                 }
@@ -585,12 +583,24 @@ function showOpenDownloadedToast(
           }
         }
 
-        // Final fallback — launch the gallery / Photos app.
+        if (opened) {
+          toast.dismiss(toastId);
+          return;
+        }
+
+        // Couldn't open the file directly — fall back to the gallery app and
+        // tell the user where to look, instead of silently doing nothing.
         await openPhotosApp();
+        toast.message("Open your gallery", {
+          description: kind === "video"
+            ? "Find your video in the Ignite album."
+            : "Find your photo in the Ignite album.",
+        });
       },
     },
   });
 }
+
 
 
 
