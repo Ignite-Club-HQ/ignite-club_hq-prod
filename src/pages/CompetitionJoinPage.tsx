@@ -68,25 +68,59 @@ export default function CompetitionJoinPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data, error } = await supabase
+      // 1) Direct team-admin rows (team-scoped)
+      const teamAdminRowsP = supabase
         .from("user_roles")
         .select("team_id, teams:team_id(id, name, club_id, clubs:club_id(name))")
         .eq("user_id", user.id)
-        .in("role", ["team_admin", "club_admin", "app_admin"])
+        .in("role", ["team_admin", "app_admin"])
         .not("team_id", "is", null);
-      if (error) return;
+
+      // 2) Club-scoped admin/app_admin rows → expand to all teams in those clubs
+      const clubAdminRowsP = supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user.id)
+        .in("role", ["club_admin", "app_admin"])
+        .not("club_id", "is", null);
+
+      const [{ data: teamRows }, { data: clubRows }] = await Promise.all([
+        teamAdminRowsP,
+        clubAdminRowsP,
+      ]);
+
       const seen = new Set<string>();
       const opts: TeamOpt[] = [];
-      for (const row of (data as any[]) || []) {
+
+      for (const row of (teamRows as any[]) || []) {
         const t = row.teams;
         if (!t || seen.has(t.id)) continue;
         seen.add(t.id);
         opts.push({ id: t.id, name: t.name, club_id: t.club_id, club_name: t.clubs?.name ?? null });
       }
+
+      const clubIds = Array.from(
+        new Set(((clubRows as any[]) || []).map((r) => r.club_id).filter(Boolean))
+      );
+      if (clubIds.length > 0) {
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id, name, club_id, clubs:club_id(name)")
+          .in("club_id", clubIds);
+        for (const t of (clubTeams as any[]) || []) {
+          if (seen.has(t.id)) continue;
+          seen.add(t.id);
+          opts.push({ id: t.id, name: t.name, club_id: t.club_id, club_name: t.clubs?.name ?? null });
+        }
+      }
+
+      opts.sort((a, b) => a.name.localeCompare(b.name));
       setTeams(opts);
       if (opts.length === 1) setTeamId(opts[0].id);
     })();
   }, [user]);
+
+
 
   const requireSignIn = () => {
     sessionStorage.setItem("redirectAfterAuth", `/competitions/join?token=${token}`);
