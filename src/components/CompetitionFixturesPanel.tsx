@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -403,22 +404,29 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       {isAdmin && (
         <div className="space-y-2">
           {!genOpen ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setGenOpen(true)}
-                disabled={!canGenerate}
-                title={canGenerate ? undefined : "Needs at least 2 accepted teams"}
-              >
-                <CalendarPlus className="h-4 w-4 mr-1" /> Generate round-robin
-              </Button>
-              <AddMatchButton competitionId={competitionId} entries={entries} divisions={divisions} />
+            <div className="flex items-center justify-end gap-2">
               {!canGenerate && (
-                <span className="text-xs text-muted-foreground">
-                  Needs at least 2 accepted teams to generate a round-robin.
+                <span className="text-[11px] text-muted-foreground flex-1">
+                  Add at least 2 accepted teams to generate fixtures.
                 </span>
               )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1">
+                    <Settings2 className="h-4 w-4" />
+                    <span className="text-[12px] font-medium">Manage</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem
+                    disabled={!canGenerate}
+                    onClick={() => setGenOpen(true)}
+                  >
+                    <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
+                  </DropdownMenuItem>
+                  <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : (
             <Card className="w-full">
@@ -941,19 +949,19 @@ function RoundSection({
   const completed = items.filter((m) => m.status === "completed").length;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="space-y-1.5">
-      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-1.5">
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-2 border-b border-border/40">
         <div className="flex items-center gap-2 min-w-0 text-left">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <h3 className="text-[12px] font-extrabold tracking-wider text-foreground shrink-0 uppercase">{label}</h3>
-          <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums truncate min-w-0">
-            · {items.length} {items.length === 1 ? "Match" : "Matches"}
-            {dateRange ? ` · ${dateRange}` : ""}
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] font-extrabold tracking-wider text-foreground uppercase leading-tight">{label}</div>
+            <div className="text-[11px] text-muted-foreground tabular-nums leading-tight mt-0.5">
+              {items.length} {items.length === 1 ? "Match" : "Matches"}{dateRange ? ` • ${dateRange}` : ""}
+            </div>
+          </div>
+          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums ${completed === items.length ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+            {completed}/{items.length} {completed === items.length ? "Complete" : "Complete"}
           </span>
-          <span className="text-[10px] text-muted-foreground/70 shrink-0 ml-auto tabular-nums">
-            {completed}/{items.length} Completed
-          </span>
-          <div className="min-w-[8px] h-px bg-border/50" />
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
@@ -1062,27 +1070,22 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-1.5 py-2 space-y-1">
-        {/* Top row: [status] date • time • venue • pitch (wraps) */}
+      <CardContent className="px-3 py-3 space-y-2.5">
+        {/* Top: date/time on first line, venue/pitch on second; status pill only for non-scheduled */}
         {!editing && (
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-[12px] text-muted-foreground leading-tight">
+          <div className="flex items-start gap-2 min-w-0">
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className="text-[12px] font-semibold text-foreground/80 leading-tight tabular-nums">
+                {scheduledDate ? `${format(scheduledDate, "EEE d MMM")} • ${format(scheduledDate, "h:mm a")}` : <span className="italic text-muted-foreground">Time TBD</span>}
+              </div>
+              {venueLine && (
+                <div className="text-[11px] text-muted-foreground leading-tight truncate" title={venueLine}>{venueLine}</div>
+              )}
+            </div>
             {!isScheduled && (
               <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
                 {statusLabel}
               </span>
-            )}
-            {scheduledDate ? (
-              <span className="font-medium text-foreground/80">
-                {format(scheduledDate, "EEE d MMM")} • {format(scheduledDate, "h:mm a")}
-              </span>
-            ) : (
-              <span className="italic">Time TBD</span>
-            )}
-            {venueLine && (
-              <>
-                <span className="text-muted-foreground/40">•</span>
-                <span className="font-medium text-foreground/80" title={venueLine}>{venueLine}</span>
-              </>
             )}
           </div>
         )}
@@ -1116,34 +1119,34 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1">
             {/* Home */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={26} />
-              <div className={`flex-1 text-[15px] font-bold leading-tight break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+            <div className="flex items-center gap-2 min-w-0">
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={28} />
+              <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1 shrink-0">
+            <div className="flex flex-col items-center justify-center px-2 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1 text-xl font-extrabold tabular-nums leading-none">
+                <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
-                  <span className="text-muted-foreground text-sm">:</span>
+                  <span className="text-muted-foreground text-base">-</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">vs</span>
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">vs</span>
               )}
             </div>
 
             {/* Away */}
-            <div className="flex items-center gap-1.5 min-w-0 justify-end">
-              <div className={`flex-1 text-[15px] font-bold leading-tight break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+            <div className="flex items-center gap-2 min-w-0 justify-end">
+              <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={26} />
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={28} />
             </div>
           </div>
         )}
@@ -1415,11 +1418,32 @@ function EditMatchDetailsDialog({
   );
 }
 
-function AddMatchButton({ competitionId, entries, divisions }: { competitionId: string; entries: any[]; divisions: any[] }) {
+function AddMatchMenuItem(props: { competitionId: string; entries: any[]; divisions: any[] }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  return (
+    <>
+      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSheetOpen(true); }}>
+        <Plus className="h-4 w-4 mr-2" /> Add match
+      </DropdownMenuItem>
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add match</SheetTitle>
+          </SheetHeader>
+          <div className="pt-4">
+            <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false, onSaved }: { competitionId: string; entries: any[]; divisions: any[]; defaultOpen?: boolean; onSaved?: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [homeId, setHomeId] = useState("");
   const [awayId, setAwayId] = useState("");
   const [divisionId, setDivisionId] = useState("");
@@ -1476,6 +1500,7 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
     toast({ title: "Match added" });
     setOpen(false); reset();
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    onSaved?.();
   };
 
   if (!open) {

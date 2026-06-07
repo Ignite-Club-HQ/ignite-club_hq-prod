@@ -155,21 +155,18 @@ export default function CompetitionDetailPage() {
   }
 
   return (
-    <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <header className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="-ml-2 h-10 w-10 shrink-0" aria-label="Go back" onClick={goBack}>
+    <div className="container max-w-3xl mx-auto px-4 py-4 space-y-4">
+      <header className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0" aria-label="Go back" onClick={goBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-            <Trophy className="h-5 w-5 text-primary" />
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold break-words flex-1 min-w-0">{competition.name}</h1>
+          <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
           {isAdmin && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
-                  <Megaphone className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Send broadcast" title="Send broadcast">
+                  <Megaphone className="h-[18px] w-[18px]" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
@@ -187,61 +184,26 @@ export default function CompetitionDetailPage() {
             </Sheet>
           )}
           {isAdmin && (
-            <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
-              <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
+            <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label="Competition settings" title="Competition settings">
+              <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
           )}
         </div>
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
-          </p>
-          {(() => {
-            const acceptedTeams = entries.filter((e: any) => e.status === "accepted").length;
-            const matchCount = summary?.matchCount ?? 0;
-            const start = summary?.firstScheduledAt ? new Date(summary.firstScheduledAt) : null;
-            const parts: string[] = [];
-            if (acceptedTeams) parts.push(`${acceptedTeams} ${acceptedTeams === 1 ? "Team" : "Teams"}`);
-            if (matchCount) parts.push(`${matchCount} ${matchCount === 1 ? "Match" : "Matches"}`);
-            if (start) parts.push(`Starts ${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
-            return parts.length ? (
-              <p className="text-xs font-medium text-foreground/70 tabular-nums">{parts.join(" • ")}</p>
-            ) : null;
-          })()}
-          <div className="flex gap-1.5 flex-wrap">
-            {(() => {
-              const status = competition.status as string;
-              const cfg =
-                status === "published" || status === "active"
-                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30"
-                  : status === "completed"
-                  ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
-                  : status === "archived"
-                  ? "bg-muted text-muted-foreground ring-1 ring-border"
-                  : "bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/30";
-              const label = status === "draft" ? "Draft" : status === "published" ? "Active" : status.charAt(0).toUpperCase() + status.slice(1);
-              return (
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${cfg}`}
-                  aria-label={`Status: ${status}`}
-                >
-                  {label}
-                </span>
-              );
-            })()}
-            {competition.visibility !== "public" && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-muted text-muted-foreground ring-1 ring-border" aria-label="Visibility: private">
-                Private
-              </span>
-            )}
-          </div>
-        </div>
+        {(() => {
+          const acceptedTeams = entries.filter((e: any) => e.status === "accepted").length;
+          const matchCount = summary?.matchCount ?? 0;
+          const start = summary?.firstScheduledAt ? new Date(summary.firstScheduledAt) : null;
+          const parts: string[] = [];
+          if (acceptedTeams) parts.push(`${acceptedTeams} ${acceptedTeams === 1 ? "Team" : "Teams"}`);
+          if (matchCount) parts.push(`${matchCount} ${matchCount === 1 ? "Match" : "Matches"}`);
+          if (start) parts.push(`Starts ${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
+          if (competition.status === "draft") parts.push("Draft");
+          else if (competition.visibility !== "public") parts.push("Private");
+          return parts.length ? (
+            <p className="text-[13px] text-muted-foreground tabular-nums leading-snug pl-1">{parts.join(" • ")}</p>
+          ) : null;
+        })()}
       </header>
-
-
-      {competition.description && (
-        <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
-      )}
 
       {isAdmin && competition.status === "draft" && (
         <DraftSetupProgress
