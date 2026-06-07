@@ -98,6 +98,19 @@ export default function CompetitionDetailPage() {
     },
   });
 
+  // Summary metrics for header
+  const { data: summary } = useQuery({
+    queryKey: ["competition-summary", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const [{ count: matchCount }, { data: firstMatch }] = await Promise.all([
+        supabase.from("competition_matches").select("id", { count: "exact", head: true }).eq("competition_id", id!),
+        supabase.from("competition_matches").select("scheduled_at").eq("competition_id", id!).not("scheduled_at", "is", null).order("scheduled_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      return { matchCount: matchCount ?? 0, firstScheduledAt: firstMatch?.scheduled_at ?? null };
+    },
+  });
+
   // Teams the current user can manage (for accept/decline)
   const { data: myAdminTeamIds = [] } = useQuery({
     queryKey: ["my-admin-team-ids", user?.id],
