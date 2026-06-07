@@ -703,55 +703,158 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       )}
 
 
-      {matches.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 text-center space-y-2">
-            <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
-            <h3 className="text-sm font-semibold">No fixtures yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {isAdmin
-                ? "Invite teams first, then generate a round-robin fixture or add matches manually."
-                : "Fixtures will appear here once the organiser adds them."}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        (() => {
-          // Group matches by round_number, preserving order
-          const groups: { key: string; label: string; items: any[] }[] = [];
-          const indexByKey = new Map<string, number>();
-          for (const m of matches as any[]) {
-            const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
-            const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
-            let idx = indexByKey.get(key);
-            if (idx == null) {
-              idx = groups.length;
-              indexByKey.set(key, idx);
-              groups.push({ key, label, items: [] });
-            }
-            groups[idx].items.push(m);
-          }
-          return groups.map((g) => (
-            <section key={g.key} className="space-y-2">
-              <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
-                <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {g.items.length} {g.items.length === 1 ? "match" : "matches"}
-                </span>
-                <div className="flex-1 min-w-[12px] h-px bg-border" />
-              </div>
-              <div className="space-y-3">
-                {g.items.map((m: any) => (
-                  <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
-                ))}
-              </div>
-            </section>
-          ));
-        })()
-      )}
+      <FixturesFilterAndList
+        matches={matches as any[]}
+        divisions={divisions}
+        entries={entries}
+        isAdmin={isAdmin}
+        competitionId={competitionId}
+      />
     </div>
   );
 }
+
+function FixturesFilterAndList({
+  matches,
+  divisions,
+  entries,
+  isAdmin,
+  competitionId,
+}: {
+  matches: any[];
+  divisions: any[];
+  entries: any[];
+  isAdmin: boolean;
+  competitionId: string;
+}) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  // Teams visible in the current division filter
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
+      if (m.home?.id) seen.set(m.home.id, m.home.name);
+      if (m.away?.id) seen.set(m.away.id, m.away.name);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches, filterDivisionId]);
+
+  const filteredMatches = useMemo(() => {
+    return matches.filter((m: any) => {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
+      if (filterTeamId !== "_all" && m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) return false;
+      return true;
+    });
+  }, [matches, filterDivisionId, filterTeamId]);
+
+  // Reset team filter if not in current division scope
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+
+  const showDivisionFilter = divisions.length > 1;
+  const showTeamFilter = teamOptions.length > 1;
+
+  if (matches.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">No fixtures yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {isAdmin
+              ? "Invite teams first, then generate a round-robin fixture or add matches manually."
+              : "Fixtures will appear here once the organiser adds them."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Group matches by round_number, preserving order
+  const groups: { key: string; label: string; items: any[] }[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const m of filteredMatches) {
+    const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
+    const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
+    let idx = indexByKey.get(key);
+    if (idx == null) {
+      idx = groups.length;
+      indexByKey.set(key, idx);
+      groups.push({ key, label, items: [] });
+    }
+    groups[idx].items.push(m);
+  }
+
+  return (
+    <>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {filteredMatches.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No fixtures match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        groups.map((g) => (
+          <section key={g.key} className="space-y-2">
+            <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {g.items.length} {g.items.length === 1 ? "match" : "matches"}
+              </span>
+              <div className="flex-1 min-w-[12px] h-px bg-border" />
+            </div>
+            <div className="space-y-3">
+              {g.items.map((m: any) => (
+                <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </>
+  );
+}
+
+function _UnusedFixturesPanelFooter() {
+  return (
+    <div>
+
 
 function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
   const qc = useQueryClient();
