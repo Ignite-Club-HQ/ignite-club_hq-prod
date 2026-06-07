@@ -1119,7 +1119,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 py-0.5">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
               <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={28} />
