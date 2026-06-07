@@ -1742,52 +1742,186 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
           </CardContent>
         </Card>
       ) : (
-        Array.from(groups.entries()).map(([divId, list]) => {
-          const div = divisions.find((d: any) => d.id === divId);
-          return (
-            <Card key={divId}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="h-4 w-4 text-primary" />
-                  <div className="font-medium">{div?.name ?? "Overall"}</div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-muted-foreground">
-                        <th className="py-1.5">#</th>
-                        <th>Team</th>
-                        <th className="text-right">P</th>
-                        <th className="text-right">W</th>
-                        <th className="text-right">D</th>
-                        <th className="text-right">L</th>
-                        <th className="text-right">+/-</th>
-                        <th className="text-right">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.map((r: any, i: number) => (
-                        <tr key={r.team_id} className="border-t">
-                          <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
-                          <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
-                          <td className="text-right tabular-nums">{r.played}</td>
-                          <td className="text-right tabular-nums">{r.wins}</td>
-                          <td className="text-right tabular-nums">{r.draws}</td>
-                          <td className="text-right tabular-nums">{r.losses}</td>
-                          <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
-                          <td className="text-right tabular-nums font-bold">{r.points}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+        <TooltipProvider delayDuration={150}>
+          {Array.from(groups.entries()).map(([divId, list]) => {
+            const div = divisions.find((d: any) => d.id === divId);
+            return (
+              <LadderDivisionCard
+                key={divId}
+                title={div?.name ?? "Overall"}
+                rows={list}
+              />
+            );
+          })}
+        </TooltipProvider>
       )}
     </div>
   );
 }
+
+const COL_TOOLTIPS: Record<string, string> = {
+  P: "Played",
+  W: "Wins",
+  D: "Draws",
+  L: "Losses",
+  "+/-": "Goal difference (for − against)",
+  Pts: "Competition points",
+};
+
+function ColHead({ label, className }: { label: string; className?: string }) {
+  return (
+    <th className={cn("py-2 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70", className)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help">{label}</span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">{COL_TOOLTIPS[label]}</TooltipContent>
+      </Tooltip>
+    </th>
+  );
+}
+
+function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
+  const [open, setOpen] = useState(true);
+  const teamCount = rows.length;
+  const seasonStarted = rows.some((r) => (r.played ?? 0) > 0);
+
+  return (
+    <Card className="overflow-hidden">
+      {/* Division header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-primary/5 border-b border-border/60 text-left hover:bg-primary/10 transition-colors"
+        aria-expanded={open}
+      >
+        <Trophy className="h-4 w-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-semibold text-foreground truncate">{title}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {teamCount} {teamCount === 1 ? "team" : "teams"}
+            {!seasonStarted && " · Season not started"}
+          </div>
+        </div>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+      </button>
+
+      {open && (
+        <div>
+          {!seasonStarted && (
+            <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 text-[12px] text-muted-foreground">
+              Ladder positions will update automatically once results are entered.
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead className="sticky top-0 bg-primary/5 backdrop-blur supports-[backdrop-filter]:bg-primary/5">
+                <tr>
+                  <th className="py-2 pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left w-9">#</th>
+                  <th className="py-2 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left">Team</th>
+                  <ColHead label="P" className="text-right" />
+                  <ColHead label="W" className="text-right" />
+                  <ColHead label="D" className="text-right" />
+                  <ColHead label="L" className="text-right" />
+                  <ColHead label="+/-" className="text-right pl-3" />
+                  <ColHead label="Pts" className="text-right pr-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r: any, i: number) => {
+                  const rank = i + 1;
+                  const gd = r.goal_diff ?? 0;
+                  const medalColor =
+                    rank === 1
+                      ? "bg-amber-400/20 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/40"
+                      : rank === 2
+                      ? "bg-slate-400/20 text-slate-700 dark:text-slate-300 ring-1 ring-slate-400/40"
+                      : rank === 3
+                      ? "bg-orange-500/20 text-orange-700 dark:text-orange-300 ring-1 ring-orange-500/40"
+                      : "bg-muted text-muted-foreground";
+                  const rowBg = i % 2 === 1 ? "bg-muted/20" : "";
+                  const teamName = r.teams?.name ?? "?";
+                  const initials = teamName
+                    .split(/\s+/)
+                    .map((s: string) => s[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase();
+                  const RowContent = (
+                    <>
+                      <td className={cn("py-3 pl-3 pr-1 align-middle", rowBg)}>
+                        <span
+                          className={cn(
+                            "inline-flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums",
+                            medalColor,
+                          )}
+                        >
+                          {rank}
+                        </span>
+                      </td>
+                      <td className={cn("py-3 px-1.5 align-middle min-w-0", rowBg)}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                            {initials || "?"}
+                          </span>
+                          <span className="font-semibold text-foreground truncate">{teamName}</span>
+                          {rank <= 3 && (
+                            <Medal
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0",
+                                rank === 1 && "text-amber-500",
+                                rank === 2 && "text-slate-400",
+                                rank === 3 && "text-orange-500",
+                              )}
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.played ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.wins ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.draws ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.losses ?? 0}</td>
+                      <td
+                        className={cn(
+                          "py-3 px-1.5 pl-3 text-right tabular-nums font-medium",
+                          gd > 0 && "text-emerald-600 dark:text-emerald-400",
+                          gd < 0 && "text-rose-600 dark:text-rose-400",
+                          gd === 0 && "text-muted-foreground",
+                          rowBg,
+                        )}
+                      >
+                        {gd > 0 ? `+${gd}` : gd}
+                      </td>
+                      <td className={cn("py-3 px-1.5 pr-3 text-right tabular-nums font-bold text-foreground", rowBg)}>
+                        {r.points ?? 0}
+                      </td>
+                    </>
+                  );
+                  return r.team_id ? (
+                    <tr
+                      key={r.team_id}
+                      className="group cursor-pointer hover:bg-accent/40 active:bg-accent/60 transition-colors"
+                      onClick={() => {
+                        window.location.href = `/teams/${r.team_id}`;
+                      }}
+                    >
+                      {RowContent}
+                    </tr>
+                  ) : (
+                    <tr key={`row-${i}`}>{RowContent}</tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
 
 
