@@ -1,61 +1,48 @@
-# Self-Join for Operations & Volunteers Groups
+## What we're adding
 
-Add WhatsApp-style self-join to club chat groups whose `category` is `Operations` or `Volunteers`. All other groups remain invite-only.
+Round-robin generation today asks for a single match day, kickoff time and pitch count, then drops every round on the same weekday. We're extending it so each division can have its own play days and daily time window, while all divisions share one pitch pool (so generation never books more simultaneous matches than the venue has pitches).
 
-## Scope guardrails
-- Only club-scoped groups (`club_id IS NOT NULL`, `team_id IS NULL`, `mini_league_id IS NULL`) qualify.
-- Only categories `Operations` and `Volunteers` qualify. Personal/team/league groups untouched.
-- User must already be a member of the parent club. No cross-club joining.
-- Critical: never set `chat_groups.club_id` on a personal group to attach it (per existing memory) — we only flip a new `join_policy` flag.
+## Changes
 
-## Database changes (single migration)
+### 1. Per-division settings (new schema)
+Add three columns to `competition_divisions`:
+- `play_weekdays int[]` — e.g. `{0,6}` for Sun + Sat. Empty/null = "any day".
+- `day_start_time time` — earliest kickoff, default `09:00`.
+- `day_end_time time` — latest kickoff, default `16:00`.
 
-1. `chat_groups.join_policy` enum: `'invite_only' | 'open_to_club'`, default `'invite_only'`.
-2. Backfill: set `join_policy = 'open_to_club'` where `club_id IS NOT NULL` AND `category IN ('Operations','Volunteers')` AND `membership_mode != 'manual'` is irrelevant — apply regardless of mode since the category is the signal.
-3. BEFORE INSERT/UPDATE trigger on `chat_groups`: if `category IN ('Operations','Volunteers')` and `club_id IS NOT NULL`, default `join_policy` to `'open_to_club'` when not explicitly set. If category changes away, reset to `'invite_only'`.
-4. SECURITY DEFINER function `public.join_open_chat_group(_group_id uuid)`:
-   - Verifies group exists, is club-scoped, `join_policy = 'open_to_club'`, category is Operations/Volunteers.
-   - Verifies caller is an active member of that club (any role).
-   - Verifies caller is not already a member.
-   - Inserts into `chat_group_members` with role `member`.
-   - Returns the new membership row id.
-5. RLS read policy addition on `chat_groups`: allow SELECT for users who are members of `club_id` when `join_policy = 'open_to_club'` (so Discover list can fetch them even when user is not yet a member). Existing member-only policies stay.
-6. Optional Phase 2 (NOT in this build): `chat_group_invites` token table for Option 2 share links. Defer until Option 1 is validated.
+Edit/create division dialogs get fields for these. They become the *defaults* the fixture generator pre-fills when that division is selected.
 
-## Frontend changes
+### 2. Fixture generator (`CompetitionFixturesPanel`)
+- Replace the single "Match day" picker with a weekday multi-select (chips for Sun…Sat). Defaults to `division.play_weekdays`.
+- Replace the single "Kickoff time" with **Earliest** and **Latest kickoff** fields. Defaults to division's start/end.
+- Pitch count is unchanged in input, but now treated as the **shared venue pool** for the whole competition on that date.
+- New scheduling pass:
+  1. Walk forward from the start date one day at a time, only stopping on allowed weekdays.
+  2. For each candidate day, fetch existing `competition_matches` in the same comp scheduled that day and subtract their pitch usage from the pool (per timeslot).
+  3. Fill the day from `day_start_time` toward `day_end_time` in `duration` minute slots, using all free pitches per slot, until the day's matches for that round are placed.
+  4. If a round doesn't fit in a single day, overflow rolls to the next allowed weekday (still part of that round).
+  5. End date still caps the season.
 
-### A. Discover section on Messages page
-- New component `src/components/chat/DiscoverGroupsList.tsx`.
-- Query: club-scoped groups where `join_policy='open_to_club'` AND user is not already in `chat_group_members`. Group by club, show category badge.
-- Each row: group name, category chip, member count, "Join" button.
-- Tap Join → call `join_open_chat_group` RPC → optimistic add → navigate to group, or toast and refresh inbox.
-- Place under existing inbox list, collapsed by default with header "Discover groups" + count. Empty → hide section entirely.
+The preview table groups by date (not just round) and shows pitch + time per match.
 
-### B. Group creation/edit toggle
-- In `CreateGroupDialog` and `EditGroupDialog`: when category is Operations or Volunteers and group is club-scoped, show a toggle "Let any club member join" (defaults ON for those categories, OFF otherwise). Persists `join_policy`.
-- Hide toggle for team/league/personal groups.
+### 3. Per-round date override (in preview)
+`FixturePreviewEditor` gains a "Move round" date picker on each round header. Admins can shove a round to a different specific date before saving — useful for one-off conflicts (Easter, public holiday).
 
-### C. Group header indicator
-- In `GroupChatPage` header: small "Open to club" pill when `join_policy='open_to_club'` so members understand others can self-join.
+### 4. Shared-pool conflict checking
+When the generator places a slot it queries existing matches for `competition_id` on that date and excludes pitches already taken in the same `[time, time+duration)` window. This handles the case where another division has already been scheduled into the same day.
 
-### D. System message on join (lightweight)
-- Use existing system message pattern. Post "{name} joined" only for open-to-club self-joins to keep parity with normal add flows. (Existing add flow already posts a similar event; reuse it.)
+### 5. Friendly capacity messaging
+The existing "Round 1 needs X matches but only Y pitches" notice gets reworded to "This round needs N days — will run Sat + Sun" when overflow is in effect.
 
-## Out of scope for this round
-- Share-links (Option 2) — defer.
-- Approval workflow (Option 3) — defer.
-- Locking category to enum — keep free-text; rule enforced via DB trigger.
-- Auto-leave on club departure — already handled by existing club-leave cleanup.
+## Technical notes
 
-## Files touched
-- New migration (chat_groups column + trigger + RPC + RLS policy).
-- `src/components/chat/DiscoverGroupsList.tsx` (new).
-- `src/pages/MessagesPage.tsx` (mount Discover section).
-- `src/components/chat/CreateGroupDialog.tsx` (toggle).
-- `src/components/chat/EditGroupDialog.tsx` (toggle).
-- `src/pages/GroupChatPage.tsx` (header pill).
+- Schema migration adds the three columns with sane defaults; backfills `day_start_time=09:00`, `day_end_time=16:00`, `play_weekdays=NULL` (treated as "any day").
+- No backend RPC — generator runs client-side as today; conflict check is a single `select scheduled_at, duration_minutes, pitch_number from competition_matches where competition_id=… and scheduled_at::date in (…)` before save and again in the preview pass.
+- Database stays the source of truth; nothing about per-round overrides needs new columns — they're just edits to `scheduled_at` per row before insert.
+- Out of scope for this round: cross-competition pitch sharing, lunch-break gaps, ref/duty allocation.
 
-## Rollout
-1. Ship migration → verify backfill counts.
-2. Ship UI → manual QA: non-member sees group in Discover, can join, lands in chat, sees history.
-3. Verify invite-only groups never appear in Discover for non-members.
+## File touchpoints
+- `supabase/migrations/<new>.sql` — add columns + GRANT (already on the table)
+- `src/components/CompetitionFixturesPanel.tsx` — generator UI + scheduling pass
+- `src/components/FixturePreviewEditor.tsx` — per-round date override
+- Division create/edit dialog (likely `CreateCompetitionPage` / a division form component) — new settings fields
