@@ -1129,11 +1129,11 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-2 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums leading-none">
+                <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
-                  <span className="text-muted-foreground text-base">-</span>
+                  <span className="text-muted-foreground text-sm">-</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
