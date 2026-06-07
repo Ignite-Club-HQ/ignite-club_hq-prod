@@ -384,6 +384,13 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           <Label>Competition starts</Label>
                           <Input type="date" value={genFirstRoundDate} onChange={(e) => handleStartDateChange(e.target.value)} />
                         </div>
+                        <div className="col-span-2">
+                          <Label>Competition end date (optional)</Label>
+                          <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Trims or repeats rounds to fit within this window.
+                          </p>
+                        </div>
                         <div>
                           <Label>Match day</Label>
                           <Select
