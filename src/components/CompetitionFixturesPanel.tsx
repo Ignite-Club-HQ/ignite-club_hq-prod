@@ -704,9 +704,38 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
           </CardContent>
         </Card>
       ) : (
-        matches.map((m: any) => (
-          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} />
-        ))
+        (() => {
+          // Group matches by round_number, preserving order
+          const groups: { key: string; label: string; items: any[] }[] = [];
+          const indexByKey = new Map<string, number>();
+          for (const m of matches as any[]) {
+            const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
+            const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
+            let idx = indexByKey.get(key);
+            if (idx == null) {
+              idx = groups.length;
+              indexByKey.set(key, idx);
+              groups.push({ key, label, items: [] });
+            }
+            groups[idx].items.push(m);
+          }
+          return groups.map((g) => (
+            <section key={g.key} className="space-y-2">
+              <div className="flex items-center gap-3 px-1 pt-2">
+                <h3 className="text-sm font-semibold text-foreground">{g.label}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {g.items.length} {g.items.length === 1 ? "match" : "matches"}
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="space-y-3">
+                {g.items.map((m: any) => (
+                  <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} hideRoundBadge />
+                ))}
+              </div>
+            </section>
+          ));
+        })()
       )}
     </div>
   );
