@@ -913,16 +913,31 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
   const [name, setName] = useState("");
   const [ageGroup, setAgeGroup] = useState("");
   const [gender, setGender] = useState("");
+  const [playWeekdays, setPlayWeekdays] = useState<number[]>([]);
+  const [dayStart, setDayStart] = useState("09:00");
+  const [dayEnd, setDayEnd] = useState("16:00");
   const [saving, setSaving] = useState(false);
+
+  const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const toggleWeekday = (d: number) => {
+    setPlayWeekdays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort());
+  };
 
   const submit = async () => {
     if (!name.trim()) return;
+    if (dayEnd <= dayStart) {
+      toast({ title: "Day window invalid", description: "Latest kickoff must be after earliest.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("competition_divisions").insert({
       competition_id: competitionId,
       name: name.trim(),
       age_group: ageGroup.trim() || null,
       gender: gender || null,
+      play_weekdays: playWeekdays.length ? playWeekdays : null,
+      day_start_time: dayStart,
+      day_end_time: dayEnd,
     });
     setSaving(false);
     if (error) {
@@ -930,7 +945,9 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
       return;
     }
     toast({ title: "Division added" });
-    setName(""); setAgeGroup(""); setGender(""); setOpen(false); onDone();
+    setName(""); setAgeGroup(""); setGender("");
+    setPlayWeekdays([]); setDayStart("09:00"); setDayEnd("16:00");
+    setOpen(false); onDone();
   };
 
   if (!open) {
@@ -971,8 +988,44 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
               </SelectContent>
             </Select>
           </div>
-
         </div>
+
+        <div className="pt-2 border-t">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Scheduling defaults</Label>
+          <p className="text-xs text-muted-foreground mt-1 mb-2">
+            Used when generating fixtures for this division. Leave weekdays empty for "any day".
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {WEEKDAY_SHORT.map((label, i) => {
+              const active = playWeekdays.includes(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => toggleWeekday(i)}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Earliest kickoff</Label>
+              <Input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} />
+            </div>
+            <div>
+              <Label>Latest kickoff</Label>
+              <Input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={!name.trim() || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
@@ -983,3 +1036,4 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
     </Card>
   );
 }
+
