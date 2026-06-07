@@ -286,7 +286,16 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const { error } = await supabase.from("competition_matches").insert(rows);
     setGenerating(false);
     if (error) {
-      toast({ title: "Could not save fixtures", description: error.message, variant: "destructive" });
+      const raw = (error.message || "").toLowerCase();
+      let description = "Something went wrong while saving these fixtures. Please try again in a moment.";
+      if (raw.includes("duplicate") || raw.includes("unique")) {
+        description = "Some of these fixtures already exist for this competition. Try regenerating or shuffling first.";
+      } else if (raw.includes("permission") || raw.includes("row-level") || raw.includes("not authorized")) {
+        description = "You don't have permission to save fixtures for this competition.";
+      } else if (raw.includes("network") || raw.includes("fetch")) {
+        description = "We couldn't reach the server. Check your connection and try again.";
+      }
+      toast({ title: "Couldn't save fixtures", description, variant: "destructive" });
       return;
     }
     toast({ title: `Saved ${rows.length} fixtures` });
