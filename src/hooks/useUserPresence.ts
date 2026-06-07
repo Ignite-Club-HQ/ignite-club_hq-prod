@@ -296,3 +296,34 @@ export function useOnlineCount(
 
   return count;
 }
+
+/**
+ * Reactive: returns the subset of the given user IDs that are currently online
+ * according to the realtime presence channel.
+ */
+export function useOnlineSet(userIds: string[] | null | undefined): Set<string> {
+  const key = (userIds || []).join(",");
+
+  const compute = (set: Set<string>): Set<string> => {
+    const out = new Set<string>();
+    if (!userIds?.length) return out;
+    for (const id of userIds) {
+      if (set.has(id)) out.add(id);
+    }
+    return out;
+  };
+
+  const [result, setResult] = useState<Set<string>>(() => compute(onlineUsers));
+
+  useEffect(() => {
+    const handler: Listener = (set) => setResult(compute(set));
+    listeners.add(handler);
+    setResult(compute(onlineUsers));
+    return () => {
+      listeners.delete(handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return result;
+}
