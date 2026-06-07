@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle, ChevronDown } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle, ChevronDown, Users, Sparkles, CloudRain, CalendarClock, Bell, Pencil } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -169,26 +169,33 @@ export default function CompetitionDetailPage() {
           {isAdmin && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Send broadcast" title="Send broadcast">
-                  <Megaphone className="h-[18px] w-[18px]" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Open competition broadcasts"
+                  title="Send announcements to all accepted teams"
+                  className="h-9 min-h-11 sm:min-h-9 px-2.5 sm:px-3 rounded-full gap-1.5 shrink-0 border-border/70 hover:border-primary/50 hover:bg-primary/5 hover:text-primary font-semibold whitespace-nowrap"
+                >
+                  <Megaphone className="h-4 w-4" />
+                  <span className="text-[13px] hidden xs:inline sm:inline">Broadcast</span>
+                  <BroadcastsHeaderBadge competitionId={id!} />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle>Broadcasts</SheetTitle>
-                </SheetHeader>
-                <div className="pt-4">
-                  <BroadcastsPanel
-                    competitionId={id!}
-                    divisions={divisions}
-                    acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
-                  />
-                </div>
+              <SheetContent
+                side="bottom"
+                className="h-[90dvh] max-h-[90dvh] p-0 rounded-t-[20px] border-t-0 flex flex-col gap-0 overflow-hidden"
+              >
+                <BroadcastsPanel
+                  competitionId={id!}
+                  competitionName={competition.name}
+                  divisions={divisions}
+                  acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
+                />
               </SheetContent>
             </Sheet>
           )}
           {isAdmin && (
-            <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label="Competition settings" title="Competition settings">
+            <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
           )}
@@ -228,7 +235,11 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
+          {isAdmin && (
+            <TabsTrigger value="teams" className="flex-1">
+              Teams{entries.length > 0 ? ` (${entries.length})` : ""}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
@@ -242,19 +253,32 @@ export default function CompetitionDetailPage() {
         )}
 
         {isAdmin && (
-          <TabsContent value="teams" className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <InviteTeamForm
-                competitionId={id!}
-                divisions={divisions}
-                defaultOpen={inviteFromUrl}
-                onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
-              />
+          <TabsContent value="teams" className="space-y-2 mt-2">
+            {/* Primary actions — equal-weight recruitment CTAs */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <InviteTeamForm
+                  competitionId={id!}
+                  divisions={divisions}
+                  defaultOpen={inviteFromUrl}
+                  onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+                />
+              </div>
+              <div className="flex-1">
+                <CompetitionShareJoinLink
+                  competitionId={id!}
+                  competitionName={competition.name}
+                  triggerVariant="default"
+                  triggerClassName="w-full"
+                />
+              </div>
+            </div>
+            {/* Secondary action — competition setup */}
+            <div className="flex">
               <AddDivisionForm
                 competitionId={id!}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
               />
-              <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
 
             <TeamsByDivision
@@ -267,6 +291,7 @@ export default function CompetitionDetailPage() {
             />
           </TabsContent>
         )}
+
       </Tabs>
     </div>
   );
@@ -440,9 +465,10 @@ function TeamsByDivision({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {groups.map((g) => (
-        <div key={g.id ?? "unassigned"} className="space-y-2">
+        <div key={g.id ?? "unassigned"} className="space-y-1.5">
+
           {(g.name || g.entries.length > 0) && (
             <div className="flex items-baseline justify-between">
               <div>
@@ -461,84 +487,130 @@ function TeamsByDivision({
           ) : (
             g.entries.map((e: any) => {
               const canRespond = e.status === "invited" && myAdminTeamIds.includes(e.team_id);
+              const statusBadge = e.teams?.is_shell ? (
+                <Badge variant="outline">Awaiting signup</Badge>
+              ) : e.status === "accepted" ? (
+                <Badge variant="default">Accepted</Badge>
+              ) : e.status === "invited" ? (
+                <Badge variant="secondary">Invite sent</Badge>
+              ) : (
+                <Badge variant="outline" className="capitalize">{e.status}</Badge>
+              );
               return (
                 <Card key={e.id}>
-                  <CardContent className="p-4 flex flex-wrap items-center gap-3">
-                    <div className="w-full min-w-0">
-                      <div className="font-medium truncate">{e.teams?.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {e.teams?.clubs?.name || "—"}
-                      </div>
-                      {e.teams?.is_shell && (
-                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate leading-tight">{e.teams?.name}</div>
+                        <div className="text-xs text-muted-foreground truncate leading-tight">
+                          {e.teams?.clubs?.name || "—"}
                         </div>
-                      )}
+                        {e.teams?.is_shell && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                            Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0">{statusBadge}</div>
                     </div>
 
-                    {e.teams?.is_shell ? (
-                      <Badge variant="outline">Awaiting signup</Badge>
-                    ) : e.status === "accepted" ? (
-                      <Badge variant="default">Accepted</Badge>
-                    ) : e.status === "invited" ? (
-                      <Badge variant="secondary">Invite sent</Badge>
-                    ) : (
-                      <Badge variant="outline" className="capitalize">{e.status}</Badge>
-                    )}
-                    {canRespond && (
-                      <div className="flex gap-1">
-                        <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
-                          <Check className="h-4 w-4 mr-1" />
-                          Accept
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
-                          <X className="h-4 w-4 mr-1" />
-                          Decline
-                        </Button>
+                    {(canRespond || (isAdmin && divisions.length > 0 && e.status !== "declined")) && (
+                      <div className="flex items-center gap-2">
+                        {canRespond && (
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
+                              <Check className="h-4 w-4 mr-1" />
+                              Accept
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
+                              <X className="h-4 w-4 mr-1" />
+                              Decline
+                            </Button>
+                          </div>
+                        )}
+                        {isAdmin && divisions.length > 0 && e.status !== "declined" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 ml-auto text-xs font-normal"
+                                disabled={savingId === e.id}
+                              >
+                                {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
+                                <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                                Unassigned
+                              </DropdownMenuItem>
+                              {divisions.map((d: any) => (
+                                <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                                  {d.name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
-                    )}
-                    {isAdmin && divisions.length > 0 && e.status !== "declined" && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 ml-auto text-xs font-normal"
-                            disabled={savingId === e.id}
-                          >
-                            {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
-                            <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
-                            Unassigned
-                          </DropdownMenuItem>
-                          {divisions.map((d: any) => (
-                            <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
-                              {d.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     )}
                   </CardContent>
                 </Card>
               );
             })
+
           )}
         </div>
       ))}
     </div>
   );
 }
+function BroadcastsHeaderBadge({ competitionId }: { competitionId: string }) {
+  const { data } = useQuery({
+    queryKey: ["competition-broadcasts-count", competitionId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("competition_broadcasts")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId);
+      return count ?? 0;
+    },
+    staleTime: 60_000,
+  });
+  if (data == null) return null;
+  if (data === 0) {
+    return (
+      <span className="ml-0.5 hidden sm:inline-flex items-center px-1.5 py-px rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+        New
+      </span>
+    );
+  }
+  return (
+    <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary/15 text-primary text-[10px] font-bold tabular-nums">
+      {data > 99 ? "99+" : data}
+    </span>
+  );
+}
 
-function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { competitionId: string; divisions: any[]; acceptedTeamCount: number }) {
+const BROADCAST_TEMPLATES: { id: string; label: string; icon: any; text: string }[] = [
+  { id: "fixtures", label: "Fixture Update", icon: CalendarClock, text: "Round fixtures have been updated — please check the schedule for your latest match details." },
+  { id: "weather", label: "Weather Alert", icon: CloudRain, text: "Weather update: please monitor conditions ahead of this weekend's fixtures. Further updates to follow if matches are affected." },
+  { id: "competition", label: "Competition Update", icon: Sparkles, text: "Quick update from the competition organisers — " },
+  { id: "reminder", label: "Reminder", icon: Bell, text: "Friendly reminder: " },
+  { id: "custom", label: "Custom", icon: Pencil, text: "" },
+];
+
+function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTeamCount }: { competitionId: string; competitionName: string; divisions: any[]; acceptedTeamCount: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [message, setMessage] = useState("");
   const [selectedDivisionIds, setSelectedDivisionIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [showDivisions, setShowDivisions] = useState(false);
+
+  const MAX_LEN = 1000;
 
   const { data: history = [] } = useQuery({
     queryKey: ["competition-broadcasts", competitionId],
@@ -561,6 +633,17 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
     });
   };
 
+  const applyTemplate = (id: string) => {
+    const tmpl = BROADCAST_TEMPLATES.find((t) => t.id === id);
+    if (!tmpl) return;
+    setActiveTemplate(id);
+    if (tmpl.text) setMessage(tmpl.text);
+  };
+
+  const recipientCount = selectedDivisionIds.size > 0
+    ? acceptedTeamCount // we don't know per-division count; show total as best-effort
+    : acceptedTeamCount;
+
   const send = async () => {
     if (!message.trim()) return;
     setSending(true);
@@ -576,74 +659,206 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
       toast({ title: "Could not send broadcast", description: (data as any)?.error || error?.message, variant: "destructive" });
       return;
     }
-    toast({ title: `Broadcast sent to ${(data as any).recipient_team_count} team${(data as any).recipient_team_count === 1 ? "" : "s"}` });
+    const count = (data as any).recipient_team_count;
+    try { (navigator as any).vibrate?.(15); } catch {}
+    toast({ title: `Broadcast sent to ${count} team${count === 1 ? "" : "s"}` });
     setMessage("");
+    setActiveTemplate(null);
     setSelectedDivisionIds(new Set());
     qc.invalidateQueries({ queryKey: ["competition-broadcasts", competitionId] });
   };
 
+  const initials = competitionName.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const recentThree = history.slice(0, 3);
+
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-primary" />
-          <span className="font-medium">Send broadcast</span>
+    <div className="flex flex-col h-full min-h-0 bg-muted/30">
+      {/* Drag handle */}
+      <div className="pt-2 pb-1 flex justify-center shrink-0">
+        <div className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
+      </div>
+
+      {/* Header */}
+      <div className="px-5 pb-3 shrink-0">
+        <SheetHeader className="space-y-1 text-left">
+          <SheetTitle className="text-[22px] font-bold tracking-tight leading-tight">Competition Broadcast</SheetTitle>
+          <p className="text-sm text-muted-foreground leading-snug">Send an announcement to teams in this competition</p>
+        </SheetHeader>
+        <div className="mt-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+            <Trophy className="h-3 w-3" />
+            <span className="truncate max-w-[240px]">{competitionName}</span>
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Posts as a competition announcement in the team chat of every accepted team
-          {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}. Only teams entered in
-          this competition receive it.
-        </p>
-        <div className="space-y-1.5">
-          <Label htmlFor="broadcast-msg">Message</Label>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 space-y-4">
+        {/* Audience Card */}
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-4 flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-foreground">Recipients</span>
+              {acceptedTeamCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold uppercase tracking-wider">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Ready
+                </span>
+              )}
+            </div>
+            <p className="text-[13px] text-muted-foreground leading-snug mt-0.5">
+              <span className="font-semibold text-foreground">{acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"}</span> will receive this broadcast
+            </p>
+            {divisions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDivisions((v) => !v)}
+                className="mt-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                {selectedDivisionIds.size > 0
+                  ? `Limited to ${selectedDivisionIds.size} division${selectedDivisionIds.size === 1 ? "" : "s"}`
+                  : "Limit to specific divisions"}
+                <ChevronDown className={`inline h-3 w-3 ml-0.5 transition-transform ${showDivisions ? "rotate-180" : ""}`} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showDivisions && divisions.length > 0 && (
+          <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-2 space-y-0.5 animate-fade-in">
+            {divisions.map((d: any) => (
+              <label key={d.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 cursor-pointer text-sm">
+                <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
+                <span className="flex-1">{d.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Template chips */}
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-0.5">Quick templates</div>
+          <div className="flex flex-wrap gap-1.5">
+            {BROADCAST_TEMPLATES.map((t) => {
+              const Icon = t.icon;
+              const active = activeTemplate === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTemplate(t.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Composer */}
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden">
           <Textarea
             id="broadcast-msg"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={4}
-            placeholder="e.g. Round 4 fixtures are up — check the schedule."
+            onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
+            rows={5}
+            placeholder="Write your competition announcement..."
+            className="border-0 shadow-none focus-visible:ring-0 resize-none text-[15px] leading-relaxed min-h-[120px] bg-transparent"
           />
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            <span>Posts to each team's chat as an official announcement</span>
+            <span className={`tabular-nums ${message.length > MAX_LEN * 0.9 ? "text-amber-600 font-semibold" : ""}`}>
+              {message.length}/{MAX_LEN}
+            </span>
+          </div>
         </div>
-        {divisions.length > 0 && (
+
+        {/* Live Preview */}
+        {message.trim() && (
+          <div className="space-y-1.5 animate-fade-in">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5">Preview</div>
+            <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-3.5">
+              <div className="flex items-start gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[12px] font-bold shrink-0">
+                  {initials || <Trophy className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[13px] font-semibold text-foreground truncate">{competitionName}</span>
+                    <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
+                      Announcement
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground leading-none mt-0.5">Just now</div>
+                  <div className="mt-2 text-[14px] text-foreground whitespace-pre-wrap leading-relaxed break-words">
+                    {message}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recent broadcasts */}
+        {recentThree.length > 0 && (
           <div className="space-y-1.5">
-            <Label>Limit to divisions (optional)</Label>
-            <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
-              {divisions.map((d: any) => (
-                <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
-                  <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
-                  <span>{d.name}</span>
-                </label>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5">Recent broadcasts</div>
+            <div className="space-y-2">
+              {recentThree.map((b: any) => (
+                <div key={b.id} className="rounded-2xl bg-card border border-border/60 shadow-sm p-3.5">
+                  <div className="text-[14px] text-foreground line-clamp-2 leading-snug">{b.message}</div>
+                  <div className="flex items-center justify-between mt-2 gap-2">
+                    <div className="text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })} · Sent to {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px] font-semibold text-primary hover:text-primary"
+                      onClick={() => { setMessage(b.message); setActiveTemplate(null); }}
+                    >
+                      Reuse
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-xs text-muted-foreground">
-            {acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} in competition
-          </span>
-          <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
-            {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-            Send
-          </Button>
-        </div>
       </div>
 
-      <div className="space-y-2 border-t pt-4">
-        <div className="text-sm font-medium">Recent broadcasts</div>
-        {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No broadcasts yet.</p>
-        ) : (
-          history.map((b: any) => (
-            <Card key={b.id}>
-              <CardContent className="p-3 space-y-1">
-                <div className="text-sm whitespace-pre-wrap">{b.message}</div>
-                <div className="text-xs text-muted-foreground">
-                  {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"} · {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
+      {/* Sticky footer */}
+      <div
+        className="shrink-0 border-t border-border/60 bg-background/95 px-5 pt-3 flex items-center gap-3"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] text-muted-foreground leading-none">Sending to</div>
+          <div className="text-[13px] font-semibold text-foreground leading-tight mt-0.5">
+            {recipientCount} team{recipientCount === 1 ? "" : "s"}
+          </div>
+        </div>
+        <Button
+          size="lg"
+          onClick={send}
+          disabled={!message.trim() || sending || acceptedTeamCount === 0}
+          className="h-12 px-6 rounded-xl font-semibold text-[15px] shadow-md min-w-[160px]"
+        >
+          {sending ? (
+            <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</>
+          ) : (
+            <><Send className="h-4 w-4 mr-2" /> Send Broadcast</>
+          )}
+        </Button>
       </div>
     </div>
   );
@@ -760,166 +975,166 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
     setOpen(false); onDone();
   };
 
-  if (!open) {
-    return (
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4 mr-1" /> Invite team
-      </Button>
-    );
-  }
-
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
   return (
-    <Card className="w-full">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Invite a team to this competition</h3>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
-        </div>
-
-        <div className="flex gap-1 rounded-md bg-muted p-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setMode("existing")}
-            className={`flex-1 rounded px-2 py-1.5 ${mode === "existing" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-          >
-            On Ignite
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("new")}
-            className={`flex-1 rounded px-2 py-1.5 ${mode === "new" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-          >
-            Not on Ignite yet
-          </button>
-        </div>
-
-        {mode === "existing" ? (
-          <>
-            <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
-            <div className="space-y-1.5">
-              <Label>Filter by club (optional)</Label>
-              {selectedClub ? (
-                <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                  <div className="text-sm font-medium">{selectedClub.name}</div>
-                  <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    value={clubSearch}
-                    onChange={(e) => setClubSearch(e.target.value)}
-                    placeholder="Search clubs"
-                  />
-                  {clubSearch.trim().length > 0 && (
-                    <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
-                      {clubs.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
-                      ) : clubs.map((c: any) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                        >
-                          {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="competition-invite-team-search">Find team</Label>
-              {selectedTeam ? (
-                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                  <div className="text-sm">
-                    <span className="font-medium">{selectedTeam.name}</span>
-                    {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    id="competition-invite-team-search"
-                    value={search}
-                    onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
-                    placeholder="Search by team name"
-                  />
-                  {(search.trim().length > 0 || clubFilterId) && (
-                    <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
-                      {teams.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
-                      ) : teams.map((t: any) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => { setTeamId(t.id); setSearch(""); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                        >
-                          <div className="font-medium">{t.name}</div>
-                          {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground">We'll create a placeholder team and email a magic link so the contact can claim it. Fixtures and ladder work immediately.</p>
-            <div className="space-y-1.5">
-              <Label>Team name *</Label>
-              <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. Basket Range U14 Red" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Club name (optional)</Label>
-              <Input value={newClubName} onChange={(e) => setNewClubName(e.target.value)} placeholder="e.g. Basket Range Cricket Club" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact name (optional)</Label>
-              <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Sam Smith" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact email *</Label>
-              <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
-              <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
-            </div>
-          </>
-        )}
-
-        {divisions.length > 0 && (
-          <div>
-            <Label>Division (optional)</Label>
-            <Select value={divisionId} onValueChange={setDivisionId}>
-              <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
-              <SelectContent>
-                {divisions.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button size="sm" className="w-full">
+          <Plus className="h-4 w-4 mr-1" /> Invite team
+        </Button>
+      </SheetTrigger>
+      <SheetContent
+        side="bottom"
+        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl p-0"
+      >
+        <SheetHeader className="px-4 pt-5 pb-3 border-b">
+          <SheetTitle className="text-base">Invite a team</SheetTitle>
+        </SheetHeader>
+        <div className="px-4 py-4 space-y-3">
+          <div className="flex gap-1 rounded-md bg-muted p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("existing")}
+              className={`flex-1 rounded px-2 py-1.5 ${mode === "existing" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+            >
+              On Ignite
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("new")}
+              className={`flex-1 rounded px-2 py-1.5 ${mode === "new" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+            >
+              Not on Ignite yet
+            </button>
           </div>
-        )}
-        <div className="flex gap-2">
+
           {mode === "existing" ? (
-            <Button size="sm" onClick={submitExisting} disabled={!teamId || saving}>
+            <>
+              <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
+              <div className="space-y-1.5">
+                <Label>Filter by club (optional)</Label>
+                {selectedClub ? (
+                  <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <div className="text-sm font-medium">{selectedClub.name}</div>
+                    <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      value={clubSearch}
+                      onChange={(e) => setClubSearch(e.target.value)}
+                      placeholder="Search clubs"
+                    />
+                    {clubSearch.trim().length > 0 && (
+                      <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
+                        {clubs.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
+                        ) : clubs.map((c: any) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="competition-invite-team-search">Find team</Label>
+                {selectedTeam ? (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <div className="text-sm">
+                      <span className="font-medium">{selectedTeam.name}</span>
+                      {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      id="competition-invite-team-search"
+                      value={search}
+                      onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
+                      placeholder="Search by team name"
+                    />
+                    {(search.trim().length > 0 || clubFilterId) && (
+                      <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+                        {teams.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
+                        ) : teams.map((t: any) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => { setTeamId(t.id); setSearch(""); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          >
+                            <div className="font-medium">{t.name}</div>
+                            {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">We'll create a placeholder team and email a magic link so the contact can claim it. Fixtures and ladder work immediately.</p>
+              <div className="space-y-1.5">
+                <Label>Team name *</Label>
+                <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. Basket Range U14 Red" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Club name (optional)</Label>
+                <Input value={newClubName} onChange={(e) => setNewClubName(e.target.value)} placeholder="e.g. Basket Range Cricket Club" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contact name (optional)</Label>
+                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Sam Smith" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contact email *</Label>
+                <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
+                <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
+              </div>
+            </>
+          )}
+
+          {divisions.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Division (optional)</Label>
+              <Select value={divisionId} onValueChange={setDivisionId}>
+                <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
+                <SelectContent>
+                  {divisions.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <div className="sticky bottom-0 left-0 right-0 flex gap-2 border-t bg-background px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+          <Button variant="ghost" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+          {mode === "existing" ? (
+            <Button className="flex-1" onClick={submitExisting} disabled={!teamId || saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
             </Button>
           ) : (
-            <Button size="sm" onClick={submitNew} disabled={saving}>
+            <Button className="flex-1" onClick={submitNew} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
-      </CardContent>
-    </Card>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -968,11 +1183,12 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Add division
       </Button>
     );
   }
+
 
   return (
     <Card className="w-full">

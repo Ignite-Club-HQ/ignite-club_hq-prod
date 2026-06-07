@@ -12,10 +12,15 @@ const PUBLIC_BASE = "https://igniteclubhq.app";
 export function CompetitionShareJoinLink({
   competitionId,
   competitionName,
+  triggerClassName,
+  triggerVariant = "outline",
 }: {
   competitionId: string;
   competitionName: string;
+  triggerClassName?: string;
+  triggerVariant?: "default" | "outline" | "secondary" | "ghost";
 }) {
+
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -113,11 +118,13 @@ export function CompetitionShareJoinLink({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant={triggerVariant} size="sm" className={triggerClassName}>
           <Share2 className="h-4 w-4 mr-2" />
           Share join link
         </Button>
       </DialogTrigger>
+
+
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Share competition</DialogTitle>

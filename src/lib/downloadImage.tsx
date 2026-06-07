@@ -3,6 +3,8 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import type { DownloadFileResult } from "@capacitor/filesystem";
+import { DownloadSuccessToast } from "@/components/DownloadSuccessToast";
+
 
 type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
 
@@ -249,36 +251,58 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       // of scoped storage; using Share here is not a download and creates the
       // exact wrong UX. The Media plugin writes through Android MediaStore.
       if (platform === "android") {
+        // Strategy: fetch the bytes once, write them to the app's sandboxed
+        // Cache directory (so FileOpener can expose them via FileProvider for
+        // the "Open" action), then ask the Media plugin to copy that local
+        // file into the public Photos library. Using a local path for
+        // Media.savePhoto is also more reliable than a remote URL — it
+        // avoids the plugin's internal HTTP fetch (which can fail on signed
+        // Supabase URLs) and gives us a single source of bytes.
+        const response = await fetch(resolvedUrl);
+        if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+        const blob = await response.blob();
+        const contentType = blob.type || response.headers.get("content-type") || pickContentTypeFromExtension(urlExt);
+        const ext = pickExtension(contentType) || urlExt;
+        const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
+        filename = `${baseName}.${ext}`;
+        const base64 = await blobToBase64(blob);
+
+        // 1. Write to app cache → gives us a sandbox path that FileOpener
+        //    can open through the FileProvider that the plugin registers.
+        const written = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        const cacheUri = written.uri || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
+
+        // 2. Copy that local file into the public Photos library. Failure
+        //    here is non-fatal — the user still has the cached copy and the
+        //    Open action will work.
+        let savedToGallery = false;
         try {
           const { Media } = await import("@capacitor-community/media");
-          const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
-          const saved = await Media.savePhoto({
-            path: resolvedUrl,
+          await Media.savePhoto({
+            path: cacheUri,
             fileName: baseName,
             albumIdentifier,
-          }) as { filePath?: string };
-          showOpenDownloadedPhotoToast(toastId, saved.filePath || null, "Saved to your photos", pickContentTypeFromExtension(urlExt));
-          return;
-        } catch (androidErr) {
-          console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
-          const response = await fetch(resolvedUrl);
-          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-          const blob = await response.blob();
-          const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-          const ext = pickExtension(contentType);
-          filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-          const base64 = await blobToBase64(blob);
-          const written = await Filesystem.writeFile({
-            path: filename,
-            data: base64,
-            directory: Directory.Documents,
-            recursive: true,
           });
-          showOpenDownloadedPhotoToast(toastId, written.uri || null, "Saved to app documents", contentType);
-          return;
+          savedToGallery = true;
+        } catch (galleryErr) {
+          console.warn("[downloadImage] Android MediaStore save failed:", galleryErr);
         }
+
+        showOpenDownloadedPhotoToast(
+          toastId,
+          cacheUri,
+          savedToGallery ? "Saved to your photos" : "Saved to app downloads",
+          contentType,
+        );
+        return;
       }
+
 
       if (platform === "ios") {
         const ext = guessExtensionFromUrl(resolvedUrl);
@@ -507,68 +531,85 @@ function showOpenDownloadedToast(
 ) {
   const title = kind === "video" ? "Video downloaded" : "Photo downloaded";
   const fallbackType = kind === "video" ? "video/*" : "image/*";
-  toast.success(title, {
-    id: toastId,
-    description: description ?? "Saved to Photos",
-    action: {
-      label: "Open",
-      onClick: async (event) => {
-        event?.stopPropagation?.();
-        toast.dismiss(toastId);
-        console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
-        const platform = Capacitor.getPlatform();
+  const desc = description ?? "Saved to Photos";
 
-        // Try multiple path variants — Media plugin may return raw /storage/...
-        // paths or content:// URIs. FileOpener accepts both, but only when the
-        // scheme is present.
-        const candidates: string[] = [];
-        if (filePath) {
-          candidates.push(filePath);
-          if (/^\/(?:storage|sdcard|data)\//.test(filePath)) {
-            candidates.push(`file://${filePath}`);
-          }
-        }
+  const handleOpen = async () => {
+    console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
+    const platform = Capacitor.getPlatform();
+    let opened = false;
 
-        if (candidates.length > 0) {
+    const candidates: string[] = [];
+    if (filePath) {
+      candidates.push(filePath);
+      if (/^\/(?:storage|sdcard|data)\//.test(filePath)) {
+        candidates.push(`file://${filePath}`);
+      }
+    }
+
+    if (candidates.length > 0) {
+      try {
+        const { FileOpener } = await import("@capacitor-community/file-opener");
+        for (const p of candidates) {
           try {
-            const { FileOpener } = await import("@capacitor-community/file-opener");
-            for (const p of candidates) {
-              try {
-                await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
-                return;
-              } catch (innerErr) {
-                console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
-              }
-            }
-          } catch (importErr) {
-            console.warn("[downloadMedia] FileOpener import failed:", importErr);
-          }
-
-          // Android: try opening the content URI directly via AppLauncher.
-          if (platform === "android") {
-            try {
-              const { AppLauncher } = await import("@capacitor/app-launcher");
-              for (const p of candidates) {
-                if (!p.startsWith("content://") && !p.startsWith("file://")) continue;
-                try {
-                  const res = await AppLauncher.openUrl({ url: p });
-                  if (res?.completed) return;
-                } catch (alErr) {
-                  console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
-                }
-              }
-            } catch (alImportErr) {
-              console.warn("[downloadMedia] AppLauncher import failed:", alImportErr);
-            }
+            await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
+            opened = true;
+            break;
+          } catch (innerErr) {
+            console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
           }
         }
+      } catch (importErr) {
+        console.warn("[downloadMedia] FileOpener import failed:", importErr);
+      }
 
-        // Final fallback — launch the gallery / Photos app.
-        await openPhotosApp();
-      },
-    },
-  });
+      if (!opened && platform === "android") {
+        try {
+          const { AppLauncher } = await import("@capacitor/app-launcher");
+          for (const p of candidates) {
+            if (!p.startsWith("content://")) continue;
+            try {
+              const res = await AppLauncher.openUrl({ url: p });
+              if (res?.completed) { opened = true; break; }
+            } catch (alErr) {
+              console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
+            }
+          }
+        } catch (alImportErr) {
+          console.warn("[downloadMedia] AppLauncher import failed:", alImportErr);
+        }
+      }
+    }
+
+    if (opened) {
+      toast.dismiss(toastId);
+      return;
+    }
+
+    // Couldn't open the file directly — fall back to the gallery app and
+    // tell the user where to look, instead of silently doing nothing.
+    toast.dismiss(toastId);
+    await openPhotosApp();
+    toast.message("Open your gallery", {
+      description: kind === "video"
+        ? "Find your video in the Ignite album."
+        : "Find your photo in the Ignite album.",
+    });
+  };
+
+  toast.custom(
+    (id) => (
+      <DownloadSuccessToast
+        toastId={id}
+        title={title}
+        description={desc}
+        onOpen={handleOpen}
+      />
+    ),
+    { id: toastId, duration: 8000 },
+  );
 }
+
+
 
 
 

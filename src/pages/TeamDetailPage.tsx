@@ -534,6 +534,8 @@ export default function TeamDetailPage() {
 
   const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
   const isAdmin = isCoachOrAdmin;
+  // Club admins should have the same team-management actions in the team menu
+  const canManageTeam = isAdmin || isClubAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
   const { data: nearbySubsManagerEventId } = useQuery({
@@ -844,7 +846,7 @@ export default function TeamDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+              {canManageTeam && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>}
@@ -942,8 +944,8 @@ export default function TeamDetailPage() {
                   </AlertDialog>
                 </>
               )}
-              {isAdmin && <DropdownMenuSeparator />}
-              {isAdmin && <ArchiveTeamDialog
+              {canManageTeam && <DropdownMenuSeparator />}
+              {canManageTeam && <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
                 clubId={team?.club_id || ""}
@@ -961,7 +963,7 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {isAdmin && <DropdownMenuItem
+              {canManageTeam && <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
