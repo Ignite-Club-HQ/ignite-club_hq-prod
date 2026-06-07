@@ -13,16 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -217,6 +207,28 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
             </DialogDescription>
           </DialogHeader>
 
+          {confirmDeleteId ? (
+            <div className="space-y-4 mt-4">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                <p className="font-medium mb-1">Remove Passkey?</p>
+                <p className="text-sm text-muted-foreground">
+                  This will remove the passkey from your account. You won't be able to use this device's biometrics to sign in until you add it again.
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" onClick={() => setConfirmDeleteId(null)} disabled={!!deletingId}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmDelete}
+                  disabled={!!deletingId}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
+                </Button>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-4 mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -303,29 +315,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               )}
             </Button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Separate AlertDialog outside the main Dialog to prevent conflicts */}
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Passkey?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the passkey from your account. You won't be able to use this device's biometrics to sign in until you add it again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmDeleteId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={showNativePrompt} onOpenChange={(o) => { if (!o) { setShowNativePrompt(false); setNativePassword(""); } }}>
         <DialogContent className="max-w-sm">
