@@ -143,6 +143,11 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   };
 
   const handleAddPasskey = async () => {
+    if (isNative) {
+      setNativePassword("");
+      setShowNativePrompt(true);
+      return;
+    }
     const result = await registerPasskey();
     if (result.success) {
       toast({
@@ -158,6 +163,39 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
       });
     }
   };
+
+  const handleNativeSave = async () => {
+    if (!user?.email || !nativePassword) return;
+    setNativeSaving(true);
+    try {
+      // Verify password before storing
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: nativePassword,
+      });
+      if (signInError) throw new Error("Incorrect password");
+
+      const result = await storeCredentialsForNativeBiometric(user.email, nativePassword);
+      if (!result.success) throw new Error(result.error || "Failed to enable biometrics");
+
+      toast({
+        title: "Biometric login enabled",
+        description: "You can now sign in with your device's biometrics.",
+      });
+      setShowNativePrompt(false);
+      setNativePassword("");
+      await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
+    } catch (err: any) {
+      toast({
+        title: "Failed to enable biometrics",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setNativeSaving(false);
+    }
+  };
+
 
   const handleConfirmDelete = () => {
     if (confirmDeleteId) {
