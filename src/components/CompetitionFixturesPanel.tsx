@@ -211,6 +211,27 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     };
   }, [schedule, teamsInScope.length]);
 
+  // Map placed fixtures by round → list ordered by scheduled_at.
+  // Keep this before any conditional return so hook order is stable while the
+  // fixtures query moves from loading to loaded.
+  const placedByRound = useMemo(() => {
+    const m = new Map<number, PlacedFixture[]>();
+    if (!schedule) return m;
+    for (const p of schedule.placed) {
+      if (!m.has(p.round)) m.set(p.round, []);
+      m.get(p.round)!.push(p);
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => {
+        const ta = a.scheduledAt?.getTime() ?? 0;
+        const tb = b.scheduledAt?.getTime() ?? 0;
+        if (ta !== tb) return ta - tb;
+        return (a.pitch ?? "").localeCompare(b.pitch ?? "");
+      });
+    }
+    return m;
+  }, [schedule]);
+
   const toggleWeekday = (d: number) => {
     setWeekdaysDirty(true);
     setGenWeekdays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort());
@@ -334,25 +355,6 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const weekdaySummary = genWeekdays.length === 0
     ? "any day"
     : genWeekdays.map((d) => WEEKDAYS_SHORT[d]).join(", ");
-
-  // Map placed fixtures by round → list ordered by scheduled_at
-  const placedByRound = useMemo(() => {
-    const m = new Map<number, PlacedFixture[]>();
-    if (!schedule) return m;
-    for (const p of schedule.placed) {
-      if (!m.has(p.round)) m.set(p.round, []);
-      m.get(p.round)!.push(p);
-    }
-    for (const list of m.values()) {
-      list.sort((a, b) => {
-        const ta = a.scheduledAt?.getTime() ?? 0;
-        const tb = b.scheduledAt?.getTime() ?? 0;
-        if (ta !== tb) return ta - tb;
-        return (a.pitch ?? "").localeCompare(b.pitch ?? "");
-      });
-    }
-    return m;
-  }, [schedule]);
 
   return (
     <div
@@ -1546,9 +1548,11 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [visibleRows, filterDivisionId]);
 
-  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
-    setFilterTeamId("_all");
-  }
+  useEffect(() => {
+    if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+      setFilterTeamId("_all");
+    }
+  }, [filterTeamId, teamOptions]);
   const showTeamFilter = teamOptions.length > 1;
 
   // When a team is selected, show every ladder group that team participates in
