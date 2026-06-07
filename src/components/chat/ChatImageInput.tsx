@@ -669,7 +669,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <Popover
+          open={menuOpen}
+          onOpenChange={(next) => {
+            if (next) {
+              // Snapshot whether the keyboard was already up (composer focused)
+              // at the moment the user opens the tray. We only want to restore
+              // focus on close if it was — otherwise tapping "+" then "X" would
+              // pop the keyboard up unexpectedly.
+              const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+                'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
+              );
+              composerWasFocusedRef.current = !!composer && document.activeElement === composer;
+            }
+            setMenuOpen(next);
+          }}
+        >
+
           <PopoverTrigger asChild>
             <button
               type="button"
