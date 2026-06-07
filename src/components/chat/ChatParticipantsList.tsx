@@ -598,10 +598,18 @@ export function ChatParticipantsList({
                   }`}
                   onClick={canTap ? () => handleMemberTap(member) : undefined}
                 >
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={member.avatar_url || undefined} />
-                    <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={member.avatar_url || undefined} />
+                      <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                    </Avatar>
+                    {onlineIds.has(member.id) && (
+                      <span
+                        className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
+                        aria-label="Online"
+                      />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
                     {member.role && (
