@@ -64,26 +64,9 @@ interface UseNativePushOptions {
   enabled?: boolean;
 }
 
-/** Check if a URL points to an external domain (not our app) */
-const isExternalUrl = (url: string): boolean => {
-  try {
-    const parsed = new URL(url);
-    const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
-    return !appDomains.some(d => parsed.hostname.endsWith(d));
-  } catch {
-    return false;
-  }
-};
+// (Helpers for URL normalization moved to notificationLaunchHandler.ts —
+// this hook no longer routes notification taps directly. BUG-1 consolidation.)
 
-const normalizeNotificationPath = (url: string): string => {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/notifications";
-  } catch {
-    if (url.startsWith("/")) return url;
-    return `/${url.replace(/^\/+/, "")}`;
-  }
-};
 
 export function useNativePush(userId: string | undefined, options: UseNativePushOptions = {}) {
   const { enabled = true } = options;
