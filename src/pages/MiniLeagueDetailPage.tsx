@@ -5,7 +5,7 @@ import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
-  UserPlus, CalendarDays, Shield, UserRound
+  UserPlus, CalendarDays, Shield, UserRound, MessageSquare
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
