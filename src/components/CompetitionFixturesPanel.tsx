@@ -552,29 +552,66 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       <Badge variant="secondary">{preview.length} matches</Badge>
                     </div>
                     <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-                      {Array.from(new Set(preview.map((p) => p.round))).map((r) => {
-                        const roundMatches = preview.filter((p) => p.round === r);
-                        const playingIds = new Set<string>();
-                        roundMatches.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
-                        const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
-                        return (
-                          <div key={r} className="space-y-1">
-                            <div className="text-xs font-semibold text-muted-foreground">Round {r}</div>
-                            {roundMatches.map((p, i) => (
-                              <div key={i} className="text-sm flex items-center gap-2">
-                                <span className="flex-1 text-right truncate">{p.homeName}</span>
-                                <span className="text-muted-foreground">vs</span>
-                                <span className="flex-1 truncate">{p.awayName}</span>
+                      {(() => {
+                        const roundDates = new Map<number, Date | null>();
+                        if (summary?.firstDate) {
+                          let d = new Date(summary.firstDate);
+                          const maxRound = Math.max(...preview.map((p) => p.round));
+                          for (let r = 1; r <= maxRound; r++) {
+                            roundDates.set(r, new Date(d));
+                            d = advanceByFrequency(d, genFrequency, customDaysNum);
+                          }
+                        }
+                        const perRoundPitchIdx = new Map<number, number>();
+                        return Array.from(new Set(preview.map((p) => p.round))).map((r) => {
+                          const roundDate = roundDates.get(r) ?? null;
+                          const roundMatches = preview.filter((p) => p.round === r);
+                          const playingIds = new Set<string>();
+                          roundMatches.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
+                          const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
+                          return (
+                            <div key={r} className="space-y-1">
+                              <div className="text-xs font-semibold text-muted-foreground">
+                                Round {r}
+                                {roundDate && ` · ${format(roundDate, "EEE d MMM yyyy")}`}
+                                {roundDate && genKickoff && genMode !== "stagger" ? ` · ${genKickoff}` : ""}
                               </div>
-                            ))}
-                            {byeTeams.length > 0 && (
-                              <div className="text-xs text-muted-foreground italic pl-1">
-                                Bye: {byeTeams.map((t: any) => t.name).join(", ")}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                              {roundMatches.map((p, i) => {
+                                let pitch: string | null = null;
+                                let matchTime = genKickoff || "";
+                                if (pitchCount > 0) {
+                                  const idx = perRoundPitchIdx.get(r) ?? 0;
+                                  pitch = String((idx % pitchCount) + 1);
+                                  if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
+                                    const slot = Math.floor(idx / pitchCount);
+                                    const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
+                                    matchTime = format(shifted, "HH:mm");
+                                  }
+                                  perRoundPitchIdx.set(r, idx + 1);
+                                }
+                                return (
+                                  <div key={i} className="text-sm flex items-center gap-2">
+                                    {pitchCount > 0 && (
+                                      <span className="text-xs text-muted-foreground w-14 shrink-0">Pitch {pitch}</span>
+                                    )}
+                                    <span className="flex-1 text-right truncate">{p.homeName}</span>
+                                    <span className="text-muted-foreground">vs</span>
+                                    <span className="flex-1 truncate">{p.awayName}</span>
+                                    {genMode === "stagger" && pitchCount > 0 && (
+                                      <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{matchTime}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {byeTeams.length > 0 && (
+                                <div className="text-xs text-muted-foreground italic pl-1">
+                                  Bye: {byeTeams.map((t: any) => t.name).join(", ")}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" onClick={saveFixtures} disabled={generating}>
