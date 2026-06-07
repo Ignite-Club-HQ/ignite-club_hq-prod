@@ -792,25 +792,27 @@ function MatchRow({ match, isAdmin, competitionId, hideRoundBadge = false }: { m
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-4 sm:p-5 space-y-4">
-        {/* Header: round pill + status pill */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {match.round_number != null && (
-              <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
-                Round {match.round_number}
-              </Badge>
-            )}
-            {match.competition_divisions?.name && (
-              <span className="text-xs text-muted-foreground truncate">{match.competition_divisions.name}</span>
-            )}
+        {/* Header: round pill (when not grouped) + division + status pill */}
+        {(!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name || true ? (
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {!hideRoundBadge && match.round_number != null && (
+                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
+                  Round {match.round_number}
+                </Badge>
+              )}
+              {match.competition_divisions?.name && (
+                <span className="text-xs text-muted-foreground truncate">{match.competition_divisions.name}</span>
+              )}
+            </div>
+            <Badge
+              variant={statusVariant}
+              className="rounded-full px-2.5 py-0.5 text-xs capitalize whitespace-nowrap shrink-0"
+            >
+              {statusLabel}
+            </Badge>
           </div>
-          <Badge
-            variant={statusVariant}
-            className="rounded-full px-2.5 py-0.5 text-xs capitalize whitespace-nowrap shrink-0"
-          >
-            {statusLabel}
-          </Badge>
-        </div>
+        ) : null}
 
         {/* Date & venue */}
         {(match.scheduled_at || venueLine) && (
@@ -824,23 +826,30 @@ function MatchRow({ match, isAdmin, competitionId, hideRoundBadge = false }: { m
           </div>
         )}
 
-        {/* Match: teams + score */}
-        <div className="grid grid-cols-[1fr_3rem_1fr] items-center gap-2">
-          <span className="text-right text-base sm:text-lg font-semibold leading-tight truncate">
-            {match.home?.name ?? "?"}
-          </span>
-          <span className="text-center">
+        {/* Match: teams stacked, left-aligned */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-3">
+            <span className="flex-1 min-w-0 text-base sm:text-lg font-semibold leading-tight truncate">
+              {match.home?.name ?? "?"}
+            </span>
+            {hasScore && (
+              <span className="text-lg font-bold tabular-nums shrink-0 w-8 text-right">
+                {match.home_score ?? "–"}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex-1 min-w-0 text-base sm:text-lg font-semibold leading-tight truncate">
+              {match.away?.name ?? "?"}
+            </span>
             {hasScore ? (
-              <span className="text-lg font-bold tabular-nums">
-                {match.home_score ?? "–"} : {match.away_score ?? "–"}
+              <span className="text-lg font-bold tabular-nums shrink-0 w-8 text-right">
+                {match.away_score ?? "–"}
               </span>
             ) : (
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">vs</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">vs</span>
             )}
-          </span>
-          <span className="text-left text-base sm:text-lg font-semibold leading-tight truncate">
-            {match.away?.name ?? "?"}
-          </span>
+          </div>
         </div>
 
         {/* Actions */}
