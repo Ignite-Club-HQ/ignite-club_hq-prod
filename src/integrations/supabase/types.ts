@@ -2346,11 +2346,14 @@ export type Database = {
           age_group: string | null
           competition_id: string
           created_at: string
+          day_end_time: string
+          day_start_time: string
           gender: string | null
           hide_ladder: boolean
           id: string
           max_entries: number | null
           name: string
+          play_weekdays: number[] | null
           skill_level: string | null
           sort_order: number
           updated_at: string
@@ -2359,11 +2362,14 @@ export type Database = {
           age_group?: string | null
           competition_id: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
           gender?: string | null
           hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name: string
+          play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
           updated_at?: string
@@ -2372,11 +2378,14 @@ export type Database = {
           age_group?: string | null
           competition_id?: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
           gender?: string | null
           hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name?: string
+          play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
           updated_at?: string
@@ -9607,6 +9616,10 @@ export type Database = {
           status: string
         }[]
       }
+      get_competition_join_token_status: {
+        Args: { p_token: string }
+        Returns: string
+      }
       get_engagement_streak: {
         Args: { _club_id: string; _user_id: string }
         Returns: number
@@ -10186,6 +10199,13 @@ export type Database = {
           name: string
           skill_level: string
           sort_order: number
+        }[]
+      }
+      list_entered_team_ids_by_join_token: {
+        Args: { p_token: string }
+        Returns: {
+          status: string
+          team_id: string
         }[]
       }
       list_leaderboard_teams: {

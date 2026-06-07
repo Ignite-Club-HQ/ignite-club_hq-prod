@@ -9,6 +9,8 @@
           "/media/*",
           "/join/*",
           "/join-club/*",
+          "/competitions/join",
+          "/competitions/join*",
           "/reset-password",
           "/reset-password*"
         ]

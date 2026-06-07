@@ -128,6 +128,25 @@ Deno.serve(async (req) => {
       }
 
       redirectUrl = `${APP_URL}/vault/folder/${id}`;
+    } else if (type === "competition") {
+      // `id` here is the competition join token (UUID)
+      const { data: rows } = await supabase
+        .rpc("get_competition_by_join_token", { p_token: id });
+      const comp = Array.isArray(rows) ? (rows as any[])[0] : null;
+      if (comp) {
+        const organiser = comp.organizer_club_name;
+        const bits = [comp.sport, comp.season].filter(Boolean).join(" · ");
+        title = organiser
+          ? `${comp.name} — ${organiser}`
+          : `${comp.name} on Ignite Club HQ`;
+        description = bits
+          ? `Join ${comp.name} on Ignite Club HQ · ${bits}`
+          : `You're invited to join ${comp.name} on Ignite Club HQ`;
+      } else {
+        title = "Join a competition on Ignite Club HQ";
+        description = "Open the link to enter your team in this competition.";
+      }
+      redirectUrl = `${APP_URL}/competitions/join?token=${id}`;
     }
   } catch (err) {
     console.error("Error fetching share data:", err);

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { Loader2, CheckCircle2, AlertCircle, Trophy } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Trophy, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +23,8 @@ type CompInfo = {
 type Division = { id: string; name: string };
 type TeamOpt = { id: string; name: string; club_id: string; club_name: string | null };
 
+const ENTERED_STATUSES = new Set(["accepted", "invited"]);
+
 export default function CompetitionJoinPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -34,27 +37,39 @@ export default function CompetitionJoinPage() {
   const [comp, setComp] = useState<CompInfo | null>(null);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<TeamOpt[]>([]);
+  const [enteredTeamIds, setEnteredTeamIds] = useState<Set<string>>(new Set());
   const [teamId, setTeamId] = useState<string>("");
   const [divisionId, setDivisionId] = useState<string>("");
+  const [teamSearch, setTeamSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string>("");
   const [done, setDone] = useState(false);
 
-  // Load competition info (works pre-auth via SECURITY DEFINER RPC)
+  // Load competition info + token status (works pre-auth via SECURITY DEFINER RPCs)
   useEffect(() => {
     if (!token) {
-      setError("Missing or invalid join link.");
+      setError("This join link is missing its token. Ask the organiser for a fresh link.");
       setLoading(false);
       return;
     }
     (async () => {
-      const [{ data: compRows, error: cErr }, { data: divRows }] = await Promise.all([
-        supabase.rpc("get_competition_by_join_token", { p_token: token }),
-        supabase.rpc("list_divisions_by_join_token", { p_token: token }),
-      ]);
+      const [{ data: compRows, error: cErr }, { data: divRows }, { data: statusVal }] =
+        await Promise.all([
+          supabase.rpc("get_competition_by_join_token", { p_token: token }),
+          supabase.rpc("list_divisions_by_join_token", { p_token: token }),
+          supabase.rpc("get_competition_join_token_status", { p_token: token }),
+        ]);
+
       if (cErr || !compRows || !(compRows as any[]).length) {
-        setError("This join link is invalid or has been disabled.");
+        const status = (statusVal as unknown as string) || "unknown";
+        if (status === "disabled") {
+          setError("The organiser has disabled this join link. Ask them for a new one.");
+        } else if (status === "archived") {
+          setError("This competition has been archived and is no longer accepting entries.");
+        } else {
+          setError("This join link isn't recognised. Double-check the URL or ask the organiser for a new one.");
+        }
         setLoading(false);
         return;
       }
@@ -64,29 +79,85 @@ export default function CompetitionJoinPage() {
     })();
   }, [token]);
 
-  // Load user's admin teams once signed in
+  // Load user's admin teams + already-entered teams once signed in
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data, error } = await supabase
+      // 1) Direct team-admin rows (team-scoped)
+      const teamAdminRowsP = supabase
         .from("user_roles")
         .select("team_id, teams:team_id(id, name, club_id, clubs:club_id(name))")
         .eq("user_id", user.id)
-        .in("role", ["team_admin", "club_admin", "app_admin"])
+        .in("role", ["team_admin", "app_admin"])
         .not("team_id", "is", null);
-      if (error) return;
+
+      // 2) Club-scoped admin/app_admin rows → expand to all teams in those clubs
+      const clubAdminRowsP = supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user.id)
+        .in("role", ["club_admin", "app_admin"])
+        .not("club_id", "is", null);
+
+      // 3) Teams already entered in this comp (any status)
+      const enteredP = supabase.rpc("list_entered_team_ids_by_join_token", { p_token: token });
+
+      const [
+        { data: teamRows },
+        { data: clubRows },
+        { data: enteredRows },
+      ] = await Promise.all([teamAdminRowsP, clubAdminRowsP, enteredP]);
+
       const seen = new Set<string>();
       const opts: TeamOpt[] = [];
-      for (const row of (data as any[]) || []) {
+
+      for (const row of (teamRows as any[]) || []) {
         const t = row.teams;
         if (!t || seen.has(t.id)) continue;
         seen.add(t.id);
         opts.push({ id: t.id, name: t.name, club_id: t.club_id, club_name: t.clubs?.name ?? null });
       }
+
+      const clubIds = Array.from(
+        new Set(((clubRows as any[]) || []).map((r) => r.club_id).filter(Boolean))
+      );
+      if (clubIds.length > 0) {
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id, name, club_id, clubs:club_id(name)")
+          .in("club_id", clubIds);
+        for (const t of (clubTeams as any[]) || []) {
+          if (seen.has(t.id)) continue;
+          seen.add(t.id);
+          opts.push({ id: t.id, name: t.name, club_id: t.club_id, club_name: t.clubs?.name ?? null });
+        }
+      }
+
+      opts.sort((a, b) => a.name.localeCompare(b.name));
       setTeams(opts);
-      if (opts.length === 1) setTeamId(opts[0].id);
+
+      const entered = new Set<string>(
+        ((enteredRows as any[]) || [])
+          .filter((r) => ENTERED_STATUSES.has(r.status))
+          .map((r) => r.team_id as string)
+      );
+      setEnteredTeamIds(entered);
+
+      // Auto-select only if exactly one eligible (not already-entered) team
+      const eligible = opts.filter((o) => !entered.has(o.id));
+      if (eligible.length === 1) setTeamId(eligible[0].id);
     })();
-  }, [user]);
+  }, [user, token]);
+
+  const filteredTeams = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    if (!q) return teams;
+    return teams.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.club_name ?? "").toLowerCase().includes(q)
+    );
+  }, [teams, teamSearch]);
 
   const requireSignIn = () => {
     sessionStorage.setItem("redirectAfterAuth", `/competitions/join?token=${token}`);
@@ -99,6 +170,15 @@ export default function CompetitionJoinPage() {
       toast({ title: "Pick a team to enter", variant: "destructive" });
       return;
     }
+    if (enteredTeamIds.has(teamId)) {
+      // Already entered — just take them to the competition page
+      navigate(`/competitions/${comp!.id}`);
+      return;
+    }
+    if (divisions.length > 0 && !divisionId) {
+      toast({ title: "Pick a division", variant: "destructive" });
+      return;
+    }
     setJoining(true);
     const { data, error } = await supabase.rpc("join_competition_with_token", {
       p_token: token,
@@ -107,7 +187,13 @@ export default function CompetitionJoinPage() {
     });
     setJoining(false);
     if (error) {
-      toast({ title: "Could not join", description: error.message, variant: "destructive" });
+      const msg = (error.message || "").toLowerCase();
+      let friendly = error.message;
+      if (msg.includes("not_team_admin")) friendly = "You don't have admin rights for that team.";
+      else if (msg.includes("invalid_token")) friendly = "This join link is no longer valid.";
+      else if (msg.includes("team_not_found")) friendly = "That team could not be found.";
+      else if (msg.includes("auth_required")) friendly = "Please sign in first.";
+      toast({ title: "Could not join", description: friendly, variant: "destructive" });
       return;
     }
     setDone(true);
@@ -115,7 +201,16 @@ export default function CompetitionJoinPage() {
     setTimeout(() => navigate(`/competitions/${compId}`), 1200);
   };
 
+  const goStartTeam = () => {
+    const back = `/competitions/join?token=${token}`;
+    sessionStorage.setItem("redirectAfterAuth", back);
+    sessionStorage.setItem("pendingCompetitionJoinToken", token);
+    navigate("/teams/new");
+  };
+
   const heading = useMemo(() => comp?.name ?? "Competition", [comp]);
+  const selectedAlreadyEntered = teamId && enteredTeamIds.has(teamId);
+  const eligibleCount = teams.filter((t) => !enteredTeamIds.has(t.id)).length;
 
   if (loading || authLoading) {
     return (
@@ -177,29 +272,76 @@ export default function CompetitionJoinPage() {
           ) : teams.length === 0 ? (
             <>
               <p className="text-sm">
-                You need to be a team admin to join a competition. Create or take admin of a team first.
+                You don't admin any teams yet. Start a team to enter it in this competition.
               </p>
-              <Button asChild className="w-full"><Link to="/teams">Go to my teams</Link></Button>
+              <Button className="w-full" onClick={goStartTeam}>Start a new team</Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/teams">Go to my teams</Link>
+              </Button>
+            </>
+          ) : eligibleCount === 0 ? (
+            <>
+              <p className="text-sm">
+                All of your teams are already entered in this competition.
+              </p>
+              <Button className="w-full" onClick={() => navigate(`/competitions/${comp.id}`)}>
+                View competition
+              </Button>
+              <Button variant="outline" className="w-full" onClick={goStartTeam}>
+                Enter a new team
+              </Button>
             </>
           ) : (
             <>
               <div className="space-y-2">
                 <Label>Choose team</Label>
+                {teams.length > 8 && (
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={teamSearch}
+                      onChange={(e) => setTeamSearch(e.target.value)}
+                      placeholder="Search teams…"
+                      className="pl-8"
+                    />
+                  </div>
+                )}
                 <Select value={teamId} onValueChange={setTeamId}>
                   <SelectTrigger><SelectValue placeholder="Select a team" /></SelectTrigger>
                   <SelectContent>
-                    {teams.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}{t.club_name ? ` · ${t.club_name}` : ""}
-                      </SelectItem>
-                    ))}
+                    {filteredTeams.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-muted-foreground">
+                        No teams match "{teamSearch}".
+                      </div>
+                    ) : filteredTeams.map((t) => {
+                      const already = enteredTeamIds.has(t.id);
+                      return (
+                        <SelectItem key={t.id} value={t.id} disabled={already}>
+                          <span className="flex items-center gap-2">
+                            <span>{t.name}{t.club_name ? ` · ${t.club_name}` : ""}</span>
+                            {already && (
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                already in
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
+                <button
+                  type="button"
+                  onClick={goStartTeam}
+                  className="text-xs text-primary underline underline-offset-2"
+                >
+                  Don't see your team? Start a new one
+                </button>
               </div>
 
-              {divisions.length > 0 && (
+              {divisions.length > 0 && !selectedAlreadyEntered && (
                 <div className="space-y-2">
-                  <Label>Division (optional)</Label>
+                  <Label>Division</Label>
                   <Select value={divisionId} onValueChange={setDivisionId}>
                     <SelectTrigger><SelectValue placeholder="Pick a division" /></SelectTrigger>
                     <SelectContent>
@@ -211,9 +353,17 @@ export default function CompetitionJoinPage() {
                 </div>
               )}
 
-              <Button className="w-full" onClick={handleJoin} disabled={joining || !teamId}>
+              <Button
+                className="w-full"
+                onClick={handleJoin}
+                disabled={
+                  joining ||
+                  !teamId ||
+                  (!selectedAlreadyEntered && divisions.length > 0 && !divisionId)
+                }
+              >
                 {joining && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Join competition
+                {selectedAlreadyEntered ? "View competition" : "Join competition"}
               </Button>
               <p className="text-xs text-muted-foreground text-center">
                 Organisers can remove teams later from the Teams tab.
