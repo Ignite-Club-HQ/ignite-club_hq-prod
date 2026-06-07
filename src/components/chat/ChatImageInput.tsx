@@ -735,7 +735,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onOpenAutoFocus={(e) => e.preventDefault()}
             onCloseAutoFocus={(e) => {
               e.preventDefault();
-              // Refocus the composer textarea so the keyboard does not collapse.
+              // Only refocus the composer if the keyboard was already up when
+              // the tray opened. Otherwise tapping "+" then "X" would activate
+              // the keyboard unexpectedly.
+              if (!composerWasFocusedRef.current) return;
               const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
                 'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
               );
@@ -752,11 +755,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               // .focus() called later (e.g. from onCloseAutoFocus) will not
               // reopen the soft keyboard because it's no longer a user gesture.
               e.preventDefault();
+              // Only refocus the composer if it was already focused (keyboard up)
+              // when the tray opened — otherwise dismissing the tray should not
+              // pop the keyboard up.
+              if (!composerWasFocusedRef.current) return;
               const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
                 'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
               );
               composer?.focus({ preventScroll: true });
             }}
+
             className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
