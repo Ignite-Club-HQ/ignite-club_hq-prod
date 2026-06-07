@@ -62,7 +62,11 @@ export function AddressAutocomplete({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isSelectingRef = useRef(false);
-  const skipNextSearchRef = useRef(false);
+  // Skip the very first auto-search when the input mounts with a prefilled
+  // value (e.g. editing an existing fixture). Without this, the suggestions
+  // dropdown pops open immediately on dialog open. Subsequent user edits
+  // still trigger search normally.
+  const skipNextSearchRef = useRef(!!value && value.length >= 3);
   const sessionTokenRef = useRef<string>(generateSessionToken());
 
   // Fetch user's saved favorite locations

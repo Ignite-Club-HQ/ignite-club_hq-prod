@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -213,7 +214,7 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
-          <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>
+          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
@@ -224,8 +225,8 @@ export default function CompetitionDetailPage() {
           <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
         </TabsContent>
 
-        <TabsContent value="teams" className="space-y-4">
-          {isAdmin && (
+        {isAdmin && (
+          <TabsContent value="teams" className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
@@ -239,17 +240,17 @@ export default function CompetitionDetailPage() {
               />
               <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
-          )}
 
-          <TeamsByDivision
-            competitionId={id!}
-            divisions={divisions}
-            entries={entries}
-            myAdminTeamIds={myAdminTeamIds}
-            onRespond={respondToInvite}
-            isAdmin={isAdmin}
-          />
-        </TabsContent>
+            <TeamsByDivision
+              competitionId={id!}
+              divisions={divisions}
+              entries={entries}
+              myAdminTeamIds={myAdminTeamIds}
+              onRespond={respondToInvite}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -481,24 +482,29 @@ function TeamsByDivision({
                       </div>
                     )}
                     {isAdmin && divisions.length > 0 && e.status !== "declined" && (
-                      <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground shrink-0">Division</Label>
-                        <Select
-                          value={e.division_id ?? "__none__"}
-                          onValueChange={(v) => assignDivision(e.id, v === "__none__" ? null : v)}
-                          disabled={savingId === e.id}
-                        >
-                          <SelectTrigger className="h-8 w-full sm:w-44">
-                            <SelectValue placeholder="Unassigned" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Unassigned</SelectItem>
-                            {divisions.map((d: any) => (
-                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 ml-auto text-xs font-normal"
+                            disabled={savingId === e.id}
+                          >
+                            {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
+                            <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                            Unassigned
+                          </DropdownMenuItem>
+                          {divisions.map((d: any) => (
+                            <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                              {d.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardContent>
                 </Card>
@@ -953,16 +959,19 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
             <Input value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} placeholder="e.g. U12" />
           </div>
           <div>
-            <Label>Gender</Label>
+            <Label>Category</Label>
             <Select value={gender} onValueChange={setGender}>
               <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="mixed">Mixed</SelectItem>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="boys">Boys</SelectItem>
+                <SelectItem value="girls">Girls</SelectItem>
+                <SelectItem value="mens">Men's</SelectItem>
+                <SelectItem value="womens">Women's</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
         </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={!name.trim() || saving}>

@@ -1,16 +1,57 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import { format, addDays, addMonths } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+type Frequency = "weekly" | "biweekly" | "triweekly" | "monthly" | "custom";
+type SchedulingMode = "simultaneous" | "stagger";
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function advanceByFrequency(d: Date, freq: Frequency, customDays: number): Date {
+  switch (freq) {
+    case "weekly": return addDays(d, 7);
+    case "biweekly": return addDays(d, 14);
+    case "triweekly": return addDays(d, 21);
+    case "monthly": return addMonths(d, 1);
+    case "custom": return addDays(d, Math.max(1, customDays));
+  }
+}
+
+function nextOccurrenceOfWeekday(from: Date, weekday: number): Date {
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  const diff = (weekday - d.getDay() + 7) % 7;
+  return addDays(d, diff);
+}
 
 interface Props {
   competitionId: string;
@@ -53,14 +94,22 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genDivisionId, setGenDivisionId] = useState<string>("");
   const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>(""); // yyyy-mm-dd
   const [genKickoff, setGenKickoff] = useState<string>("09:00");
-  const [genDaysBetween, setGenDaysBetween] = useState<string>("7");
-  const [genEndDate, setGenEndDate] = useState<string>(""); // yyyy-mm-dd, optional cutoff
+  const [genMatchDay, setGenMatchDay] = useState<number>(0); // 0=Sun
+  const [matchDayManual, setMatchDayManual] = useState(false);
+  const [genFrequency, setGenFrequency] = useState<Frequency>("weekly");
+  const [genCustomDays, setGenCustomDays] = useState<string>("7");
+  const [genEndDate, setGenEndDate] = useState<string>(""); // optional cutoff
   const [genStartRound, setGenStartRound] = useState<string>("1");
   const [genVenue, setGenVenue] = useState<string>("");
-  const [genDuration, setGenDuration] = useState<string>("");
+  const [genDuration, setGenDuration] = useState<string>("60");
   const [genArrival, setGenArrival] = useState<string>("");
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
+  const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
+  const [genMode, setGenMode] = useState<SchedulingMode>("simultaneous");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<{ round: number; home: string; away: string; homeName: string; awayName: string }[] | null>(null);
 
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ["competition-matches", competitionId],
@@ -81,75 +130,159 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       .map((e: any) => e.teams)
       .filter(Boolean);
 
-  const generate = async () => {
-    const teams = acceptedByDivision(genDivisionId || null);
+  const teamsInScope = acceptedByDivision(genDivisionId || null);
+  const customDaysNum = Math.max(1, Number(genCustomDays) || 7);
+  const durationNum = Math.max(0, Number(genDuration) || 0);
+  const customPitchLabels = genPitchLabelsInput
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const manualPitchCount = Math.max(0, Number(genAutoPitches) || 0);
+  const autoPitchCount = Math.max(1, Math.floor(teamsInScope.length / 2));
+  const effectivePitchCount = customPitchLabels.length > 0
+    ? customPitchLabels.length
+    : (manualPitchCount > 0 ? manualPitchCount : autoPitchCount);
+  const pitchLabels = customPitchLabels.length > 0
+    ? customPitchLabels
+    : Array.from({ length: effectivePitchCount }, (_, i) => String(i + 1));
+  const pitchCount = pitchLabels.length;
+
+
+  const summary = useMemo(() => {
+    const n = teamsInScope.length;
+    if (n < 2) return null;
+    const fullRounds = n % 2 === 0 ? n - 1 : n;
+    const matchesPerRound = Math.floor(n / 2);
+    const firstDate = genFirstRoundDate
+      ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
+      : null;
+    if (firstDate && genKickoff) {
+      const [hh, mm] = genKickoff.split(":").map(Number);
+      firstDate.setHours(hh || 9, mm || 0, 0, 0);
+    }
+    // If an end date is set, schedule every matching round date in the window.
+    // This can trim a short window or repeat the round-robin cycle for a longer season.
+    let rounds = fullRounds;
+    let adjustedByEndDate = false;
+    if (firstDate && genEndDate) {
+      const end = new Date(`${genEndDate}T23:59:59`);
+      let d = new Date(firstDate);
+      let fit = 0;
+      const maxGeneratedRounds = 500;
+      while (fit < maxGeneratedRounds) {
+        if (d.getTime() > end.getTime()) break;
+        fit++;
+        d = advanceByFrequency(d, genFrequency, customDaysNum);
+      }
+      if (fit !== fullRounds) adjustedByEndDate = true;
+      rounds = Math.max(0, fit);
+    }
+    const totalMatches = rounds * matchesPerRound;
+    let finishDate: Date | null = null;
+    if (firstDate && rounds > 0) {
+      let d = new Date(firstDate);
+      for (let i = 1; i < rounds; i++) d = advanceByFrequency(d, genFrequency, customDaysNum);
+      finishDate = d;
+    }
+    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, adjustedByEndDate };
+  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum, genEndDate]);
+
+  const capacityWarning = useMemo(() => {
+    if (!summary || pitchCount <= 0) return null;
+    if (summary.matchesPerRound <= pitchCount) return null;
+    const slotsPerPitch = Math.ceil(summary.matchesPerRound / pitchCount);
+    return { slotsPerPitch, completionMins: slotsPerPitch * (durationNum || 60) };
+  }, [summary, pitchCount, durationNum]);
+
+  const handleStartDateChange = (v: string) => {
+    setGenFirstRoundDate(v);
+    if (v && !matchDayManual) {
+      const d = new Date(`${v}T12:00:00`);
+      if (!isNaN(d.getTime())) setGenMatchDay(d.getDay());
+    }
+  };
+
+  const buildPreviewRows = (shuffle = false) => {
+    const teams = teamsInScope;
     if (teams.length < 2) {
       toast({ title: "Need at least 2 accepted teams", variant: "destructive" });
-      return;
+      return null;
     }
+    const ids = shuffle ? shuffleArray(teams.map((t: any) => t.id)) : teams.map((t: any) => t.id);
+    const nameById = new Map(teams.map((t: any) => [t.id, t.name as string]));
+    const fx = buildRoundRobin(ids);
+    const targetRounds = summary?.rounds ?? Math.max(...fx.map((f) => f.round));
+    const fullRounds = Math.max(...fx.map((f) => f.round));
+    return Array.from({ length: targetRounds }).flatMap((_, index) => {
+      const displayRound = index + 1;
+      const baseRound = (index % fullRounds) + 1;
+      const shouldSwapHomeAway = Math.floor(index / fullRounds) % 2 === 1;
+      return fx.filter((f) => f.round === baseRound).map((f) => {
+        const home = shouldSwapHomeAway ? f.away : f.home;
+        const away = shouldSwapHomeAway ? f.home : f.away;
+        return {
+          round: displayRound,
+          home,
+          away,
+          homeName: nameById.get(home) ?? "?",
+          awayName: nameById.get(away) ?? "?",
+        };
+      });
+    });
+  };
+
+  const onPreview = () => {
     if (!genVenue.trim()) {
       toast({ title: "Venue is required", variant: "destructive" });
       return;
     }
+    const rows = buildPreviewRows(false);
+    if (rows) setPreview(rows);
+  };
+  const onShuffle = () => { const r = buildPreviewRows(true); if (r) setPreview(r); };
+  const onRegenerate = () => { const r = buildPreviewRows(false); if (r) setPreview(r); };
+
+  const saveFixtures = async () => {
+    if (!preview) return;
     setGenerating(true);
-    const baseFixtures = buildRoundRobin(teams.map((t: any) => t.id));
-    const baseRounds = baseFixtures.length ? Math.max(...baseFixtures.map((f) => f.round)) : 0;
-    const daysBetween = Math.max(0, Number(genDaysBetween) || 0);
-    const baseDate = genFirstRoundDate ? new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`) : null;
+    const baseDate = genFirstRoundDate
+      ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
+      : null;
+    if (baseDate && genKickoff) {
+      const [hh, mm] = genKickoff.split(":").map(Number);
+      baseDate.setHours(hh || 9, mm || 0, 0, 0);
+    }
     const endDate = genEndDate ? new Date(`${genEndDate}T23:59:59`) : null;
-    const duration = genDuration ? Number(genDuration) : null;
+    const duration = durationNum || null;
     const arrival = genArrival ? Number(genArrival) : null;
-    const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
     const startRound = Math.max(1, Number(genStartRound) || 1);
 
-    // Determine how many full cycles to emit.
-    // - If no end date: 1 cycle.
-    // - If end date but no base date: 1 cycle (can't compute time window).
-    // - Otherwise: keep adding cycles while the next round's date <= endDate.
-    let cycles = 1;
-    if (endDate && baseDate && !isNaN(baseDate.getTime()) && daysBetween > 0 && baseRounds > 0) {
-      cycles = 0;
-      // Walk round-by-round and count how many fit within [baseDate, endDate]
-      let roundsFit = 0;
-      // unlimited cap: practical safety
-      const maxRounds = 200;
-      for (let r = 0; r < maxRounds; r++) {
-        const d = new Date(baseDate);
-        d.setDate(d.getDate() + r * daysBetween);
-        if (d.getTime() > endDate.getTime()) break;
-        roundsFit++;
-      }
-      cycles = Math.max(1, Math.ceil(roundsFit / baseRounds));
-      // But cap so we don't generate beyond the window — trim the last cycle's overflow later.
-      // Recompute roundsFit to know hard cap.
-      // We'll truncate rows whose computed date > endDate.
-    }
-
-    const allFixtures: { round: number; home: string; away: string }[] = [];
-    for (let c = 0; c < cycles; c++) {
-      for (const f of baseFixtures) {
-        // Swap home/away on alternating cycles for fairness
-        const home = c % 2 === 0 ? f.home : f.away;
-        const away = c % 2 === 0 ? f.away : f.home;
-        allFixtures.push({ round: c * baseRounds + f.round, home, away });
+    const roundDates = new Map<number, Date | null>();
+    if (baseDate) {
+      let d = new Date(baseDate);
+      const maxRound = Math.max(...preview.map((p) => p.round));
+      for (let r = 1; r <= maxRound; r++) {
+        roundDates.set(r, new Date(d));
+        d = advanceByFrequency(d, genFrequency, customDaysNum);
       }
     }
 
-    const roundPitchCounter = new Map<number, number>();
     const rows: any[] = [];
-    for (const f of allFixtures) {
-      let scheduledAt: string | null = null;
-      if (baseDate && !isNaN(baseDate.getTime())) {
-        const d = new Date(baseDate);
-        d.setDate(d.getDate() + (f.round - 1) * daysBetween);
-        if (endDate && d.getTime() > endDate.getTime()) continue; // outside window
-        scheduledAt = d.toISOString();
-      }
+    const perRoundPitchIdx = new Map<number, number>();
+    for (const f of preview) {
+      const d = roundDates.get(f.round) ?? null;
+      if (d && endDate && d.getTime() > endDate.getTime()) continue;
+      let scheduledAt: string | null = d ? new Date(d).toISOString() : null;
       let pitch: string | null = null;
       if (pitchCount > 0) {
-        const used = roundPitchCounter.get(f.round) ?? 0;
-        pitch = String((used % pitchCount) + 1);
-        roundPitchCounter.set(f.round, used + 1);
+        const idx = perRoundPitchIdx.get(f.round) ?? 0;
+        pitch = pitchLabels[idx % pitchCount];
+        if (genMode === "stagger" && d && durationNum > 0 && idx >= pitchCount) {
+          const slot = Math.floor(idx / pitchCount);
+          const shifted = new Date(d.getTime() + slot * durationNum * 60 * 1000);
+          scheduledAt = shifted.toISOString();
+        }
+        perRoundPitchIdx.set(f.round, idx + 1);
       }
       rows.push({
         competition_id: competitionId,
@@ -169,21 +302,31 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
 
     if (rows.length === 0) {
       setGenerating(false);
-      toast({ title: "No fixtures fit the date window", description: "Adjust the end date or days between rounds.", variant: "destructive" });
+      toast({ title: "No fixtures fit the date window", description: "Adjust the end date or frequency.", variant: "destructive" });
       return;
     }
-
     const { error } = await supabase.from("competition_matches").insert(rows);
     setGenerating(false);
     if (error) {
-      toast({ title: "Could not generate fixtures", description: error.message, variant: "destructive" });
+      const raw = (error.message || "").toLowerCase();
+      let description = "Something went wrong while saving these fixtures. Please try again in a moment.";
+      if (raw.includes("duplicate") || raw.includes("unique")) {
+        description = "Some of these fixtures already exist for this competition. Try regenerating or shuffling first.";
+      } else if (raw.includes("permission") || raw.includes("row-level") || raw.includes("not authorized")) {
+        description = "You don't have permission to save fixtures for this competition.";
+      } else if (raw.includes("network") || raw.includes("fetch")) {
+        description = "We couldn't reach the server. Check your connection and try again.";
+      }
+      toast({ title: "Couldn't save fixtures", description, variant: "destructive" });
       return;
     }
-    toast({ title: `Generated ${rows.length} fixtures across ${cycles > 1 ? cycles + " cycles" : "1 cycle"}` });
+    toast({ title: `Saved ${rows.length} fixtures` });
     setGenOpen(false);
+    setPreview(null);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
-    setGenDaysBetween("7"); setGenEndDate(""); setGenStartRound("1");
-    setGenVenue(""); setGenDuration(""); setGenArrival(""); setGenAutoPitches("");
+    setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
+    setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
+    setMatchDayManual(false); setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -194,8 +337,20 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const totalAccepted = entries.filter((e: any) => e.status === "accepted").length;
   const canGenerate = totalAccepted >= 2;
 
+  const frequencyLabel: Record<Frequency, string> = {
+    weekly: "every week",
+    biweekly: "every 2 weeks",
+    triweekly: "every 3 weeks",
+    monthly: "every month",
+    custom: `every ${customDaysNum} day${customDaysNum === 1 ? "" : "s"}`,
+  };
+
   return (
-    <div className="space-y-3">
+    <div
+      className="space-y-3 box-border"
+      style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
+    >
+
       {isAdmin && (
         <div className="space-y-2">
           {!genOpen ? (
@@ -218,101 +373,491 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
             </div>
           ) : (
             <Card className="w-full">
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <Label>Division (optional)</Label>
-                  <Select value={genDivisionId || "_all"} onValueChange={(v) => setGenDivisionId(v === "_all" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="All accepted teams" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_all">All accepted teams</SelectItem>
-                      {divisions.map((d: any) => (
-                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>First round date</Label>
-                    <Input type="date" value={genFirstRoundDate} onChange={(e) => setGenFirstRoundDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Start time</Label>
-                    <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Days between rounds</Label>
-                    <Input type="number" inputMode="numeric" min={0} value={genDaysBetween} onChange={(e) => setGenDaysBetween(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>End date (optional)</Label>
-                    <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Starting round #</Label>
-                    <Input type="number" inputMode="numeric" min={1} value={genStartRound} onChange={(e) => setGenStartRound(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Default venue <span className="text-destructive">*</span></Label>
-                    <Input required value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
-                  </div>
-                  <div>
-                    <Label># of pitches/courts (auto-assign)</Label>
-                    <Input type="number" inputMode="numeric" min={0} value={genAutoPitches} onChange={(e) => setGenAutoPitches(e.target.value)} placeholder="e.g. 3" />
-                  </div>
-                  <div>
-                    <Label>Duration (mins)</Label>
-                    <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} placeholder="e.g. 90" />
-                  </div>
-                  <div>
-                    <Label>Arrive (mins before)</Label>
-                    <Input type="number" inputMode="numeric" min={0} value={genArrival} onChange={(e) => setGenArrival(e.target.value)} placeholder="e.g. 30" />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Each accepted team plays every other team once per cycle (home/away alternates per round).
-                  Set an end date to repeat cycles within that window — home/away swaps each cycle for fairness.
-                  Leave the first round date blank to generate without times (fill them in per match later).
-                  Scheduled fixtures automatically create a team event so players can RSVP.
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={generate} disabled={generating}>
-                    {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                    Generate
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setGenOpen(false)}>Cancel</Button>
-                </div>
+              <CardContent className="p-4 space-y-4">
+                {!preview ? (
+                  <>
+                    <div>
+                      <Label>Division (optional)</Label>
+                      <Select value={genDivisionId || "_all"} onValueChange={(v) => setGenDivisionId(v === "_all" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="All accepted teams" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_all">All accepted teams</SelectItem>
+                          {divisions.map((d: any) => (
+                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Schedule</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <Label>Competition starts</Label>
+                          <Input type="date" value={genFirstRoundDate} onChange={(e) => handleStartDateChange(e.target.value)} />
+                        </div>
+                        <div className="col-span-2">
+                          <Label>Competition end date (optional)</Label>
+                          <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Trims or repeats rounds to fit within this window.
+                          </p>
+                        </div>
+                        <div>
+                          <Label>Match day</Label>
+                          <Select
+                            value={String(genMatchDay)}
+                            onValueChange={(v) => { setGenMatchDay(Number(v)); setMatchDayManual(true); }}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {WEEKDAYS.map((d, i) => (
+                                <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Frequency</Label>
+                          <Select value={genFrequency} onValueChange={(v) => setGenFrequency(v as Frequency)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+                              <SelectItem value="triweekly">Every 3 weeks</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="custom">Custom</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {genFrequency === "custom" && (
+                          <div className="col-span-2">
+                            <Label>Days between rounds</Label>
+                            <Input type="number" inputMode="numeric" min={1} value={genCustomDays} onChange={(e) => setGenCustomDays(e.target.value)} />
+                          </div>
+                        )}
+                        <div>
+                          <Label>Start time</Label>
+                          <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
+                        </div>
+                        <div>
+                          <Label>Duration (mins)</Label>
+                          <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <Label>Default venue <span className="text-destructive">*</span></Label>
+                        <AddressAutocomplete
+                          value={genVenue}
+                          onChange={setGenVenue}
+                          onSelect={(a) => {
+                            const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+                            setGenVenue(full);
+                          }}
+                          placeholder="Search venue or address…"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Pick a place to attach a full address so each match event can be geocoded and mapped.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Scheduling mode</Label>
+                      <RadioGroup value={genMode} onValueChange={(v) => setGenMode(v as SchedulingMode)} className="space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <RadioGroupItem value="simultaneous" id="mode-sim" className="mt-1" />
+                          <div className="text-sm">
+                            <div className="font-medium">Simultaneous kick-off</div>
+                            <div className="text-xs text-muted-foreground">All matches start together where pitches allow.</div>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <RadioGroupItem value="stagger" id="mode-stagger" className="mt-1" />
+                          <div className="text-sm">
+                            <div className="font-medium">Auto-stagger matches</div>
+                            <div className="text-xs text-muted-foreground">Spreads matches across available pitches and timeslots.</div>
+                          </div>
+                        </label>
+                      </RadioGroup>
+                    </div>
+
+                    {summary && (
+                      <Card className="bg-muted/40 border-dashed">
+                        <CardContent className="p-3 space-y-1 text-sm">
+                          <div className="font-semibold mb-1">Competition summary</div>
+                          <div>· {summary.teamCount} teams</div>
+                          <div>
+                            · {summary.rounds} rounds
+                          </div>
+                          <div>· {summary.totalMatches} total matches</div>
+                          {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
+                          <div>· Matches {frequencyLabel[genFrequency]} on {WEEKDAYS[genMatchDay]}</div>
+                          {summary.firstDate && <div>· Starts {format(summary.firstDate, "EEE d MMM yyyy")}</div>}
+                          {summary.finishDate && <div>· Estimated finish {format(summary.finishDate, "EEE d MMM yyyy")}</div>}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {capacityWarning && summary && (
+                      <Card className="border-amber-500/50 bg-amber-500/10">
+                        <CardContent className="p-3 text-sm space-y-2">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                            <div className="font-medium">
+                              Round 1 requires {summary.matchesPerRound} matches but only {pitchCount} pitch{pitchCount === 1 ? "" : "es"} available.
+                            </div>
+                          </div>
+                          {genMode === "stagger" ? (
+                            <div className="text-xs text-muted-foreground">
+                              Ignite will stagger {capacityWarning.slotsPerPitch} slots per pitch, ~{capacityWarning.completionMins} min to complete the round.
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              Switch to “Auto-stagger” or add more pitches to fit all matches.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-full justify-between px-2">
+                          <span>Advanced options</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Starting round #</Label>
+                            <Input type="number" inputMode="numeric" min={1} value={genStartRound} onChange={(e) => setGenStartRound(e.target.value)} />
+                          </div>
+                          <div>
+                            <Label>Arrive (mins before)</Label>
+                            <Input type="number" inputMode="numeric" min={0} value={genArrival} onChange={(e) => setGenArrival(e.target.value)} placeholder="e.g. 30" />
+                          </div>
+                          <div className="col-span-2">
+                            <Label>Available pitches / courts</Label>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              value={genAutoPitches}
+                              onChange={(e) => setGenAutoPitches(e.target.value)}
+                              placeholder="e.g. 2"
+                              disabled={customPitchLabels.length > 0}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Auto-numbered Pitch 1, Pitch 2…
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <Label>Specific pitch numbers (optional)</Label>
+                            <Input
+                              value={genPitchLabelsInput}
+                              onChange={(e) => setGenPitchLabelsInput(e.target.value)}
+                              placeholder="e.g. 3, 5, 7 or A, B, C"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Comma-separated labels. Overrides the count above.
+                            </p>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Each team plays every other team once. Fixtures, team events and RSVP tracking are created automatically.
+                      </p>
+                      <Collapsible open={learnMoreOpen} onOpenChange={setLearnMoreOpen}>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                            {learnMoreOpen ? "Hide details" : "Learn more"}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-1">
+                          <p className="text-xs text-muted-foreground">
+                            Home/away alternates each round for fairness. Setting an end date repeats the cycle within that window, swapping home/away each cycle. Leave the start date blank to generate fixtures without times and fill them in per match later.
+                          </p>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={onPreview} disabled={!canGenerate}>
+                        Preview fixtures
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setGenOpen(false)}>Cancel</Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-base">Fixture preview</div>
+                      <Badge variant="secondary" className="text-xs font-medium">{preview.length} matches</Badge>
+                    </div>
+                    <div className="space-y-3 max-h-[55vh] overflow-y-auto -mx-1 px-1">
+                      {(() => {
+                        const roundDates = new Map<number, Date | null>();
+                        if (summary?.firstDate) {
+                          let d = new Date(summary.firstDate);
+                          const maxRound = Math.max(...preview.map((p) => p.round));
+                          for (let r = 1; r <= maxRound; r++) {
+                            roundDates.set(r, new Date(d));
+                            d = advanceByFrequency(d, genFrequency, customDaysNum);
+                          }
+                        }
+                        const perRoundPitchIdx = new Map<number, number>();
+                        return Array.from(new Set(preview.map((p) => p.round))).map((r) => {
+                          const roundDate = roundDates.get(r) ?? null;
+                          const roundMatches = preview.filter((p) => p.round === r);
+                          const playingIds = new Set<string>();
+                          roundMatches.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
+                          const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
+                          return (
+                            <div key={r} className="rounded-lg border bg-card overflow-hidden">
+                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                                <div className="flex items-baseline gap-2 min-w-0">
+                                  <span className="text-sm font-semibold">Round {r}</span>
+                                  {roundDate && (
+                                    <span className="text-xs text-muted-foreground truncate">
+                                      {format(roundDate, "EEE d MMM")}
+                                      {genKickoff && genMode !== "stagger" ? ` · ${genKickoff}` : ""}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  {roundMatches.length} {roundMatches.length === 1 ? "match" : "matches"}
+                                </span>
+                              </div>
+                              <ul className="divide-y">
+                                {roundMatches.map((p, i) => {
+                                  let pitch: string | null = null;
+                                  let matchTime = genKickoff || "";
+                                  if (pitchCount > 0) {
+                                    const idx = perRoundPitchIdx.get(r) ?? 0;
+                                    pitch = pitchLabels[idx % pitchCount];
+                                    if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
+                                      const slot = Math.floor(idx / pitchCount);
+                                      const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
+                                      matchTime = format(shifted, "HH:mm");
+                                    }
+                                    perRoundPitchIdx.set(r, idx + 1);
+                                  }
+                                  return (
+                                    <li key={i} className="px-3 py-2.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="flex-1 min-w-0 text-sm font-medium text-right truncate">{p.homeName}</span>
+                                        <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
+                                        <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{p.awayName}</span>
+                                      </div>
+                                      {(pitchCount > 0 || (genMode === "stagger" && matchTime)) && (
+                                        <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+                                          {pitchCount > 0 && <span>Pitch {pitch}</span>}
+                                          {genMode === "stagger" && pitchCount > 0 && matchTime && <span>{matchTime}</span>}
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                              {byeTeams.length > 0 && (
+                                <div className="px-3 py-1.5 text-[11px] text-muted-foreground italic border-t bg-muted/30">
+                                  Bye: {byeTeams.map((t: any) => t.name).join(", ")}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
+                      <Button onClick={saveFixtures} disabled={generating} className="w-full sm:w-auto min-h-11">
+                        {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                        Save fixtures
+                      </Button>
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
+                        <Button variant="outline" onClick={onShuffle} disabled={generating} className="min-h-11">
+                          <Shuffle className="h-4 w-4 mr-1" /> Shuffle
+                        </Button>
+                        <Button variant="outline" onClick={onRegenerate} disabled={generating} className="min-h-11">
+                          <RefreshCw className="h-4 w-4 mr-1" /> Regenerate
+                        </Button>
+                      </div>
+                      <Button variant="ghost" onClick={() => setPreview(null)} disabled={generating} className="w-full sm:w-auto min-h-11 sm:ml-auto">
+                        Back
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
       )}
 
-      {matches.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 text-center space-y-2">
-            <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
-            <h3 className="text-sm font-semibold">No fixtures yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {isAdmin
-                ? "Invite teams first, then generate a round-robin fixture or add matches manually."
-                : "Fixtures will appear here once the organiser adds them."}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        matches.map((m: any) => (
-          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} />
-        ))
-      )}
+
+      <FixturesFilterAndList
+        matches={matches as any[]}
+        divisions={divisions}
+        entries={entries}
+        isAdmin={isAdmin}
+        competitionId={competitionId}
+      />
     </div>
   );
 }
 
-function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: boolean; competitionId: string }) {
+function FixturesFilterAndList({
+  matches,
+  divisions,
+  entries,
+  isAdmin,
+  competitionId,
+}: {
+  matches: any[];
+  divisions: any[];
+  entries: any[];
+  isAdmin: boolean;
+  competitionId: string;
+}) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  // Teams visible in the current division filter
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
+      if (m.home?.id) seen.set(m.home.id, m.home.name);
+      if (m.away?.id) seen.set(m.away.id, m.away.name);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches, filterDivisionId]);
+
+  const filteredMatches = useMemo(() => {
+    return matches.filter((m: any) => {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
+      if (filterTeamId !== "_all" && m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) return false;
+      return true;
+    });
+  }, [matches, filterDivisionId, filterTeamId]);
+
+  // Reset team filter if not in current division scope
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+
+  const showDivisionFilter = divisions.length > 1;
+  const showTeamFilter = teamOptions.length > 1;
+
+  if (matches.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">No fixtures yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {isAdmin
+              ? "Invite teams first, then generate a round-robin fixture or add matches manually."
+              : "Fixtures will appear here once the organiser adds them."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Group matches by round_number, preserving order
+  const groups: { key: string; label: string; items: any[] }[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const m of filteredMatches) {
+    const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
+    const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
+    let idx = indexByKey.get(key);
+    if (idx == null) {
+      idx = groups.length;
+      indexByKey.set(key, idx);
+      groups.push({ key, label, items: [] });
+    }
+    groups[idx].items.push(m);
+  }
+
+  return (
+    <>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {filteredMatches.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No fixtures match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        groups.map((g) => (
+          <section key={g.key} className="space-y-2">
+            <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {g.items.length} {g.items.length === 1 ? "match" : "matches"}
+              </span>
+              <div className="flex-1 min-w-[12px] h-px bg-border" />
+            </div>
+            <div className="space-y-3">
+              {g.items.map((m: any) => (
+                <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </>
+  );
+}
+
+
+
+function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const [status, setStatus] = useState<string>(match.status);
@@ -345,33 +890,119 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
+  const statusLabel = (match.status ?? "scheduled").replace("_", " ");
+  const statusVariant: "secondary" | "default" | "destructive" | "outline" =
+    match.status === "completed" ? "default"
+    : match.status === "cancelled" ? "destructive"
+    : match.status === "postponed" ? "outline"
+    : "secondary";
+  const hasScore = match.home_score != null || match.away_score != null;
+  const venueName = match.venue ? String(match.venue).split(",")[0].trim() : null;
+  const venueLine = venueName
+    ? `${venueName}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
+    : null;
+
   return (
-    <Card>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {match.round_number != null && <Badge variant="outline">Round {match.round_number}</Badge>}
-          {match.competition_divisions?.name && <span>{match.competition_divisions.name}</span>}
-          {match.scheduled_at && <span>· {format(new Date(match.scheduled_at), "EEE d MMM HH:mm")}</span>}
-          {match.venue && <span>· {match.venue}{match.pitch_number ? ` — Pitch ${match.pitch_number}` : ""}</span>}
-          <Badge variant="secondary" className="capitalize ml-auto">{match.status.replace("_", " ")}</Badge>
+    <Card className="overflow-hidden w-full box-border">
+      <CardContent className="p-4 space-y-3">
+        {/* Top row: date/venue on the left, status badge on the right */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            {(!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name ? (
+              <div className="flex items-center gap-2 min-w-0">
+                {!hideRoundBadge && match.round_number != null && (
+                  <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
+                    Round {match.round_number}
+                  </Badge>
+                )}
+                {match.competition_divisions?.name && (
+                  <span className="text-xs text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+                )}
+              </div>
+            ) : null}
+            {(match.scheduled_at || venueLine) && (
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                {match.scheduled_at && (
+                  <div className="font-medium text-foreground/80">
+                    {format(new Date(match.scheduled_at), "EEE d MMM yyyy • h:mm a")}
+                  </div>
+                )}
+                {venueLine && <div className="truncate">{venueLine}</div>}
+              </div>
+            )}
+          </div>
+          <Badge
+            variant={statusVariant}
+            className="rounded-full px-2 py-0.5 text-[11px] capitalize whitespace-nowrap shrink-0"
+          >
+            {statusLabel}
+          </Badge>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="flex-1 font-medium truncate text-right">{match.home?.name ?? "?"}</span>
-          <span className="px-2 font-bold tabular-nums">
-            {match.home_score ?? "–"} : {match.away_score ?? "–"}
-          </span>
-          <span className="flex-1 font-medium truncate">{match.away?.name ?? "?"}</span>
+
+
+        {/* Match-up: Team A / vs / Team B centered vertically */}
+        <div className="flex flex-col items-center text-center gap-1 py-1">
+          <div className="flex items-center justify-center gap-3 w-full min-w-0">
+            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
+              {match.home?.name ?? "?"}
+            </span>
+            {hasScore && (
+              <span className="text-base font-bold tabular-nums shrink-0">
+                {match.home_score ?? "–"}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">vs</span>
+          <div className="flex items-center justify-center gap-3 w-full min-w-0">
+            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
+              {match.away?.name ?? "?"}
+            </span>
+            {hasScore && (
+              <span className="text-base font-bold tabular-nums shrink-0">
+                {match.away_score ?? "–"}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Actions */}
         {isAdmin && (
-          <div className="pt-2">
+          <div>
             {!editing ? (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit result</Button>
-                <Button size="sm" variant="ghost" onClick={remove}><X className="h-4 w-4" /></Button>
+              <div className="space-y-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full min-h-11"
+                  onClick={() => setEditDetailsOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4 mr-1.5" />
+                  Edit details
+                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-11 w-full"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Edit score
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-11 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={remove}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-3 gap-2 items-end">
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label>Home</Label>
                     <Input type="number" inputMode="numeric" value={home} onChange={(e) => setHome(e.target.value)} />
@@ -380,7 +1011,7 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
                     <Label>Away</Label>
                     <Input type="number" inputMode="numeric" value={away} onChange={(e) => setAway(e.target.value)} />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <Label>Status</Label>
                     <Select value={status} onValueChange={setStatus}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -392,16 +1023,216 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
                     </Select>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={save}><Save className="h-4 w-4 mr-1" /> Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" className="min-h-11 w-full" onClick={save}>
+                    <Save className="h-4 w-4 mr-1" /> Save
+                  </Button>
+                  <Button size="sm" variant="ghost" className="min-h-11 w-full" onClick={() => setEditing(false)}>
+                    Cancel
+                  </Button>
                 </div>
               </div>
             )}
           </div>
         )}
       </CardContent>
+      {isAdmin && editDetailsOpen && (
+        <EditMatchDetailsDialog
+          open={editDetailsOpen}
+          onOpenChange={setEditDetailsOpen}
+          match={match}
+          competitionId={competitionId}
+          entries={entries}
+          divisions={divisions}
+        />
+      )}
     </Card>
+  );
+}
+
+function EditMatchDetailsDialog({
+  open,
+  onOpenChange,
+  match,
+  competitionId,
+  entries,
+  divisions,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  match: any;
+  competitionId: string;
+  entries: any[];
+  divisions: any[];
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const accepted = entries.filter((e: any) => e.status === "accepted");
+
+  const initialDate = match.scheduled_at ? new Date(match.scheduled_at) : null;
+  const initialDateStr = initialDate ? format(initialDate, "yyyy-MM-dd") : "";
+  const initialTimeStr = initialDate ? format(initialDate, "HH:mm") : "";
+
+  const [homeId, setHomeId] = useState<string>(match.home_team_id ?? "");
+  const [awayId, setAwayId] = useState<string>(match.away_team_id ?? "");
+  const [divisionId, setDivisionId] = useState<string>(match.division_id ?? "");
+  const [dateStr, setDateStr] = useState<string>(initialDateStr);
+  const [timeStr, setTimeStr] = useState<string>(initialTimeStr || "09:00");
+  const [venue, setVenue] = useState<string>(match.venue ?? "");
+  const [pitch, setPitch] = useState<string>(match.pitch_number ?? "");
+  const [round, setRound] = useState<string>(match.round_number != null ? String(match.round_number) : "");
+  const [duration, setDuration] = useState<string>(match.duration_minutes != null ? String(match.duration_minutes) : "");
+  const [arrival, setArrival] = useState<string>(match.arrival_minutes_before != null ? String(match.arrival_minutes_before) : "");
+  const [notes, setNotes] = useState<string>(match.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!homeId || !awayId || homeId === awayId) {
+      toast({ title: "Pick two different teams", variant: "destructive" });
+      return;
+    }
+    if (!venue.trim()) {
+      toast({ title: "Venue is required", variant: "destructive" });
+      return;
+    }
+    let scheduledAt: string | null = match.scheduled_at ?? null;
+    if (dateStr) {
+      const iso = new Date(`${dateStr}T${timeStr || "09:00"}:00`).toISOString();
+      scheduledAt = iso;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("competition_matches")
+      .update({
+        home_team_id: homeId,
+        away_team_id: awayId,
+        division_id: divisionId || null,
+        scheduled_at: scheduledAt,
+        venue: venue,
+        pitch_number: pitch.trim() || null,
+        round_number: round ? Number(round) : null,
+        duration_minutes: duration ? Number(duration) : null,
+        arrival_minutes_before: arrival ? Number(arrival) : null,
+        notes: notes || null,
+      })
+      .eq("id", match.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Could not update match", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Match updated" });
+    onOpenChange(false);
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
+  };
+
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Edit match details</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
+            Updates flow through to the linked team events.
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Home team</Label>
+              <Select value={homeId} onValueChange={setHomeId}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {accepted.map((e: any) => (
+                    <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Away team</Label>
+              <Select value={awayId} onValueChange={setAwayId}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {accepted.map((e: any) => (
+                    <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {divisions.length > 0 && (
+            <div>
+              <Label>Division (optional)</Label>
+              <Select value={divisionId || "_none"} onValueChange={(v) => setDivisionId(v === "_none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {divisions.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Date</Label>
+              <Input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
+            </div>
+            <div>
+              <Label>Start time</Label>
+              <Input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <Label>Round</Label>
+              <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <Label>Venue</Label>
+              <AddressAutocomplete
+                value={venue}
+                onChange={setVenue}
+                onSelect={(a) => {
+                  const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+                  setVenue(full);
+                }}
+                placeholder="Search venue or address…"
+              />
+            </div>
+            <div>
+              <Label>Pitch / Court #</Label>
+              <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" />
+            </div>
+            <div>
+              <Label>Duration (mins)</Label>
+              <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} />
+            </div>
+            <div>
+              <Label>Arrive (mins before)</Label>
+              <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Shown on the team event" />
+            </div>
+          </div>
+        </div>
+
+        <ResponsiveDialogFooter className="flex-row gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving} className="flex-1 min-h-11">
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving} className="flex-1 min-h-11">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+            Save
+          </Button>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
@@ -543,7 +1374,15 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
           </div>
           <div>
             <Label>Venue <span className="text-destructive">*</span></Label>
-            <Input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+            <AddressAutocomplete
+              value={venue}
+              onChange={setVenue}
+              onSelect={(a) => {
+                const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+                setVenue(full);
+              }}
+              placeholder="Search venue or address…"
+            />
           </div>
           <div>
             <Label>Pitch / Court #</Label>
@@ -580,14 +1419,56 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("competition_ladder")
-        .select("*, teams:team_id(id, name)")
-        .eq("competition_id", competitionId)
-        .order("points", { ascending: false })
-        .order("goal_diff", { ascending: false })
-        .order("goals_for", { ascending: false });
-      return data ?? [];
+      const [ladderRes, entriesRes] = await Promise.all([
+        supabase
+          .from("competition_ladder")
+          .select("*")
+          .eq("competition_id", competitionId)
+          .order("points", { ascending: false })
+          .order("goal_diff", { ascending: false })
+          .order("goals_for", { ascending: false }),
+        supabase
+          .from("competition_entries")
+          .select("team_id, division_id, status")
+          .eq("competition_id", competitionId)
+          .eq("status", "accepted"),
+      ]);
+      if (ladderRes.error) throw ladderRes.error;
+      const ladderData = ladderRes.data ?? [];
+      const entriesData = entriesRes.data ?? [];
+
+      // Build placeholder zero-rows for accepted entries without a ladder row yet
+      const haveKey = new Set(
+        ladderData.map((r: any) => `${r.team_id ?? ""}::${r.division_id ?? ""}`)
+      );
+      const placeholders: any[] = [];
+      for (const e of entriesData) {
+        const key = `${e.team_id ?? ""}::${e.division_id ?? ""}`;
+        if (!e.team_id || haveKey.has(key)) continue;
+        haveKey.add(key);
+        placeholders.push({
+          competition_id: competitionId,
+          team_id: e.team_id,
+          division_id: e.division_id,
+          played: 0, wins: 0, draws: 0, losses: 0,
+          goals_for: 0, goals_against: 0, goal_diff: 0, points: 0,
+        });
+      }
+      const combined = [...ladderData, ...placeholders];
+
+      const teamIds = Array.from(new Set(combined.map((r: any) => r.team_id).filter(Boolean)));
+      if (teamIds.length === 0) return combined;
+
+      const { data: teams } = await supabase
+        .from("teams")
+        .select("id, name")
+        .in("id", teamIds);
+
+      const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
+      return combined.map((row: any) => ({
+        ...row,
+        teams: teamById.get(row.team_id) ?? null,
+      }));
     },
   });
 
@@ -601,73 +1482,196 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
           <Trophy className="h-8 w-8 text-muted-foreground mx-auto" />
           <h3 className="text-sm font-semibold">No ladder yet</h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Once match results are entered, standings will appear here.
+            Once teams are accepted into divisions, standings will appear here.
           </p>
         </CardContent>
       </Card>
     );
   }
 
-  const hiddenDivisionIds = new Set(
-    divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)
+  return <LadderView rows={rows} divisions={divisions} />;
+}
+
+
+function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  const hiddenDivisionIds = useMemo(
+    () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
+    [divisions]
   );
-  const groups = new Map<string, any[]>();
-  rows.forEach((r: any) => {
-    if (r.division_id && hiddenDivisionIds.has(r.division_id)) return;
-    const key = r.division_id ?? "__none";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
+
+  const visibleRows = useMemo(
+    () => rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
+    [rows, hiddenDivisionIds]
+  );
+
+  const presentDivisionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of visibleRows) if (r.division_id) ids.add(r.division_id);
+    return ids;
+  }, [visibleRows]);
+
+  const divisionOptions = divisions.filter((d: any) => presentDivisionIds.has(d.id));
+  const showDivisionFilter = divisionOptions.length > 1;
+
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of visibleRows) {
+      if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) continue;
+      if (r.team_id) seen.set(r.team_id, r.teams?.name ?? "?");
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [visibleRows, filterDivisionId]);
+
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+  const showTeamFilter = teamOptions.length > 1;
+
+  // When a team is selected, show every ladder group that team participates in
+  // (full standings, not just the selected team's row). Competitions without
+  // divisions use the "Overall" ladder, where division_id is null.
+  const teamDivisionKeys = useMemo(() => {
+    if (filterTeamId === "_all") return null;
+    const ids = new Set<string>();
+    for (const r of visibleRows) {
+      if (r.team_id === filterTeamId) ids.add(r.division_id ?? "__none");
+    }
+    return ids;
+  }, [visibleRows, filterTeamId]);
+
+  const filteredRows = visibleRows.filter((r: any) => {
+    if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
+    if (teamDivisionKeys && !teamDivisionKeys.has(r.division_id ?? "__none")) return false;
+    return true;
   });
 
-  if (groups.size === 0) {
-    return <p className="text-sm text-muted-foreground">Ladder is hidden for all divisions in this competition.</p>;
+  const groups = new Map<string, any[]>();
+  if (divisionOptions.length <= 1) {
+    // Only one division — collapse Overall rows into the divisional ladder by team_id
+    const overallRows = filteredRows.filter((r: any) => !r.division_id);
+    const divRows = filteredRows.filter((r: any) => r.division_id);
+    if (divRows.length) {
+      const overallByTeam = new Map(overallRows.map((r: any) => [r.team_id, r]));
+      const merged = divRows.map((r: any) => {
+        const o = overallByTeam.get(r.team_id);
+        if (!o) return r;
+        // Prefer the row with actual played matches
+        const hasDivData = (r.played ?? 0) > 0;
+        const hasOverallData = (o.played ?? 0) > 0;
+        if (hasOverallData && !hasDivData) {
+          return { ...o, division_id: r.division_id, teams: r.teams ?? o.teams };
+        }
+        return r;
+      });
+      // Re-sort by points / goal_diff / goals_for
+      merged.sort((a: any, b: any) =>
+        (b.points ?? 0) - (a.points ?? 0) ||
+        (b.goal_diff ?? 0) - (a.goal_diff ?? 0) ||
+        (b.goals_for ?? 0) - (a.goals_for ?? 0)
+      );
+      groups.set(divRows[0].division_id, merged);
+    } else if (overallRows.length) {
+      groups.set("__none", overallRows);
+    }
+  } else {
+    filteredRows.forEach((r: any) => {
+      const key = r.division_id ?? "__none";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    });
   }
 
   return (
     <div className="space-y-4">
-      {Array.from(groups.entries()).map(([divId, list]) => {
-        const div = divisions.find((d: any) => d.id === divId);
-        return (
-          <Card key={divId}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="h-4 w-4 text-primary" />
-                <div className="font-medium">{div?.name ?? "Overall"}</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground">
-                      <th className="py-1.5">#</th>
-                      <th>Team</th>
-                      <th className="text-right">P</th>
-                      <th className="text-right">W</th>
-                      <th className="text-right">D</th>
-                      <th className="text-right">L</th>
-                      <th className="text-right">+/-</th>
-                      <th className="text-right">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((r: any, i: number) => (
-                      <tr key={r.team_id} className="border-t">
-                        <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
-                        <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
-                        <td className="text-right tabular-nums">{r.played}</td>
-                        <td className="text-right tabular-nums">{r.wins}</td>
-                        <td className="text-right tabular-nums">{r.draws}</td>
-                        <td className="text-right tabular-nums">{r.losses}</td>
-                        <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
-                        <td className="text-right tabular-nums font-bold">{r.points}</td>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisionOptions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {groups.size === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No standings match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        Array.from(groups.entries()).map(([divId, list]) => {
+          const div = divisions.find((d: any) => d.id === divId);
+          return (
+            <Card key={divId}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <div className="font-medium">{div?.name ?? "Overall"}</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1.5">#</th>
+                        <th>Team</th>
+                        <th className="text-right">P</th>
+                        <th className="text-right">W</th>
+                        <th className="text-right">D</th>
+                        <th className="text-right">L</th>
+                        <th className="text-right">+/-</th>
+                        <th className="text-right">Pts</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                    </thead>
+                    <tbody>
+                      {list.map((r: any, i: number) => (
+                        <tr key={r.team_id} className="border-t">
+                          <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
+                          <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
+                          <td className="text-right tabular-nums">{r.played}</td>
+                          <td className="text-right tabular-nums">{r.wins}</td>
+                          <td className="text-right tabular-nums">{r.draws}</td>
+                          <td className="text-right tabular-nums">{r.losses}</td>
+                          <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
+                          <td className="text-right tabular-nums font-bold">{r.points}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
 }
+
+

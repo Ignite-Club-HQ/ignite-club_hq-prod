@@ -2519,7 +2519,7 @@ export default function EventDetailPage() {
               <CalendarPlus className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
-          {event.address && (
+          {event.address ? (
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div>
@@ -2529,7 +2529,17 @@ export default function EventDetailPage() {
                 </p>
               </div>
             </div>
-          )}
+          ) : ((event as any).location_name || (event as any).location) ? (
+            <div className="flex items-start gap-3">
+              <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                {(event as any).location_name && <p>{(event as any).location_name}</p>}
+                {(event as any).location && (event as any).location !== (event as any).location_name && (
+                  <p className="text-muted-foreground">{(event as any).location}</p>
+                )}
+              </div>
+            </div>
+          ) : null}
           {event.type === "game" && event.opponent && (
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
@@ -2667,12 +2677,20 @@ export default function EventDetailPage() {
       })()}
 
       {/* Map */}
-      {event.address && (
-        <GoogleMapEmbed
-          address={event.address}
-          className="w-full h-48 rounded-lg border"
-        />
-      )}
+      {(() => {
+        const mapAddress =
+          event.address ||
+          (event as any).location ||
+          (event as any).location_name ||
+          null;
+        if (!mapAddress) return null;
+        return (
+          <GoogleMapEmbed
+            address={mapAddress}
+            className="w-full h-48 rounded-lg border"
+          />
+        );
+      })()}
 
       {/* Mini League Matches — PRIMARY section for league events, placed at top */}
       {isMiniLeagueEvent && event.mini_league_id && (
