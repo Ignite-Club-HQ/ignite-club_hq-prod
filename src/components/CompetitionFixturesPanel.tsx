@@ -973,27 +973,25 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   };
 
   const statusLabel = (match.status ?? "scheduled").replace("_", " ");
-  const statusVariant: "secondary" | "default" | "destructive" | "outline" =
-    match.status === "completed" ? "default"
-    : match.status === "cancelled" ? "destructive"
-    : match.status === "postponed" ? "outline"
-    : "secondary";
   const hasScore = match.home_score != null || match.away_score != null;
   const venueName = match.venue ? String(match.venue).split(",")[0].trim() : null;
   const venueLine = venueName
-    ? `${venueName}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
+    ? `${venueName}${match.pitch_number ? ` · Pitch ${match.pitch_number}` : ""}`
     : null;
 
   const scheduledDate = match.scheduled_at ? new Date(match.scheduled_at) : null;
   const isCompleted = match.status === "completed";
   const isCancelled = match.status === "cancelled";
   const isPostponed = match.status === "postponed";
-  const statusDotClass =
-    isCompleted ? "bg-emerald-500"
-    : isCancelled ? "bg-destructive"
-    : isPostponed ? "bg-amber-500"
-    : match.status === "in_progress" ? "bg-blue-500"
-    : "bg-muted-foreground/40";
+  const isInProgress = match.status === "in_progress";
+
+  // Color-coded status pill
+  const statusPillClass =
+    isCompleted ? "bg-muted text-muted-foreground"
+    : isCancelled ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+    : isPostponed ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+    : isInProgress ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 animate-pulse"
+    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
 
   const homeName = match.home?.name ?? "TBD";
   const awayName = match.away?.name ?? "TBD";
@@ -1002,6 +1000,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
   const homeWon = hasScore && match.home_score != null && match.away_score != null && match.home_score > match.away_score;
   const awayWon = hasScore && match.home_score != null && match.away_score != null && match.away_score > match.home_score;
+
 
   return (
     <Card className={`overflow-hidden w-full box-border ${isCancelled ? "opacity-60" : ""}`}>
