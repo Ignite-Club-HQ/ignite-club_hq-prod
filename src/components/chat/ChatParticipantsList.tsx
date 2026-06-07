@@ -21,6 +21,7 @@ import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
 import { cn } from "@/lib/utils";
+import { useOnlineSet } from "@/hooks/useUserPresence";
 
 interface ChatParticipantsListProps {
   chatType: "team" | "club" | "group";
