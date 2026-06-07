@@ -578,11 +578,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">Fixture preview</div>
-                      <Badge variant="secondary">{preview.length} matches</Badge>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-base">Fixture preview</div>
+                      <Badge variant="secondary" className="text-xs font-medium">{preview.length} matches</Badge>
                     </div>
-                    <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                    <div className="space-y-3 max-h-[55vh] overflow-y-auto -mx-1 px-1">
                       {(() => {
                         const roundDates = new Map<number, Date | null>();
                         if (summary?.firstDate) {
@@ -601,41 +601,54 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           roundMatches.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
                           const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
                           return (
-                            <div key={r} className="space-y-1">
-                              <div className="text-xs font-semibold text-muted-foreground">
-                                Round {r}
-                                {roundDate && ` · ${format(roundDate, "EEE d MMM yyyy")}`}
-                                {roundDate && genKickoff && genMode !== "stagger" ? ` · ${genKickoff}` : ""}
+                            <div key={r} className="rounded-lg border bg-card overflow-hidden">
+                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                                <div className="flex items-baseline gap-2 min-w-0">
+                                  <span className="text-sm font-semibold">Round {r}</span>
+                                  {roundDate && (
+                                    <span className="text-xs text-muted-foreground truncate">
+                                      {format(roundDate, "EEE d MMM")}
+                                      {genKickoff && genMode !== "stagger" ? ` · ${genKickoff}` : ""}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  {roundMatches.length} {roundMatches.length === 1 ? "match" : "matches"}
+                                </span>
                               </div>
-                              {roundMatches.map((p, i) => {
-                                let pitch: string | null = null;
-                                let matchTime = genKickoff || "";
-                                if (pitchCount > 0) {
-                                  const idx = perRoundPitchIdx.get(r) ?? 0;
-                                  pitch = pitchLabels[idx % pitchCount];
-                                  if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
-                                    const slot = Math.floor(idx / pitchCount);
-                                    const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
-                                    matchTime = format(shifted, "HH:mm");
+                              <ul className="divide-y">
+                                {roundMatches.map((p, i) => {
+                                  let pitch: string | null = null;
+                                  let matchTime = genKickoff || "";
+                                  if (pitchCount > 0) {
+                                    const idx = perRoundPitchIdx.get(r) ?? 0;
+                                    pitch = pitchLabels[idx % pitchCount];
+                                    if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
+                                      const slot = Math.floor(idx / pitchCount);
+                                      const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
+                                      matchTime = format(shifted, "HH:mm");
+                                    }
+                                    perRoundPitchIdx.set(r, idx + 1);
                                   }
-                                  perRoundPitchIdx.set(r, idx + 1);
-                                }
-                                return (
-                                  <div key={i} className="text-sm flex items-center gap-2">
-                                    {pitchCount > 0 && (
-                                      <span className="text-xs text-muted-foreground w-14 shrink-0">Pitch {pitch}</span>
-                                    )}
-                                    <span className="flex-1 text-right truncate">{p.homeName}</span>
-                                    <span className="text-muted-foreground">vs</span>
-                                    <span className="flex-1 truncate">{p.awayName}</span>
-                                    {genMode === "stagger" && pitchCount > 0 && (
-                                      <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{matchTime}</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                  return (
+                                    <li key={i} className="px-3 py-2.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="flex-1 min-w-0 text-sm font-medium text-right truncate">{p.homeName}</span>
+                                        <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
+                                        <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{p.awayName}</span>
+                                      </div>
+                                      {(pitchCount > 0 || (genMode === "stagger" && matchTime)) && (
+                                        <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+                                          {pitchCount > 0 && <span>Pitch {pitch}</span>}
+                                          {genMode === "stagger" && pitchCount > 0 && matchTime && <span>{matchTime}</span>}
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
                               {byeTeams.length > 0 && (
-                                <div className="text-xs text-muted-foreground italic pl-1">
+                                <div className="px-3 py-1.5 text-[11px] text-muted-foreground italic border-t bg-muted/30">
                                   Bye: {byeTeams.map((t: any) => t.name).join(", ")}
                                 </div>
                               )}
@@ -644,18 +657,22 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         });
                       })()}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={saveFixtures} disabled={generating}>
+                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
+                      <Button onClick={saveFixtures} disabled={generating} className="w-full sm:w-auto min-h-11">
                         {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                         Save fixtures
                       </Button>
-                      <Button size="sm" variant="outline" onClick={onShuffle} disabled={generating}>
-                        <Shuffle className="h-4 w-4 mr-1" /> Shuffle
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
+                        <Button variant="outline" onClick={onShuffle} disabled={generating} className="min-h-11">
+                          <Shuffle className="h-4 w-4 mr-1" /> Shuffle
+                        </Button>
+                        <Button variant="outline" onClick={onRegenerate} disabled={generating} className="min-h-11">
+                          <RefreshCw className="h-4 w-4 mr-1" /> Regenerate
+                        </Button>
+                      </div>
+                      <Button variant="ghost" onClick={() => setPreview(null)} disabled={generating} className="w-full sm:w-auto min-h-11 sm:ml-auto">
+                        Back
                       </Button>
-                      <Button size="sm" variant="outline" onClick={onRegenerate} disabled={generating}>
-                        <RefreshCw className="h-4 w-4 mr-1" /> Regenerate
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setPreview(null)} disabled={generating}>Back</Button>
                     </div>
                   </>
                 )}
