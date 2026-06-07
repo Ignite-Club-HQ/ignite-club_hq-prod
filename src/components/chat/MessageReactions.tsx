@@ -346,7 +346,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
             crowding the timestamp / read receipt row that follows. Solid
             surfaces only (no blur) per WebView perf rule. */}
         <div
-          className={`relative z-10 flex flex-wrap gap-[3px] -mt-1 mb-1 px-0.5 ${
+          className={`relative z-10 flex flex-wrap gap-[3px] mt-1 mb-1 px-0.5 ${
             isOwn ? "justify-end" : "justify-start"
           }`}
         >
