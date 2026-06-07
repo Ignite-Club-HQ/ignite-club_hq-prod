@@ -1,6 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil, Settings2 } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays } from "lucide-react";
+import {
+  buildRoundRobinPairings,
+  scheduleFixtures,
+  parseTimeToMins,
+  dateKey,
+  type Frequency,
+  type SchedulingMode,
+  type OccupiedSlot,
+  type PlacedFixture,
+} from "@/lib/competitionScheduler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
