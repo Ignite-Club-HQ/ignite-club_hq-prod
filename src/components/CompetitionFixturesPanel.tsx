@@ -129,9 +129,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const summary = useMemo(() => {
     const n = teamsInScope.length;
     if (n < 2) return null;
-    const rounds = n % 2 === 0 ? n - 1 : n;
+    const fullRounds = n % 2 === 0 ? n - 1 : n;
     const matchesPerRound = Math.floor(n / 2);
-    const totalMatches = rounds * matchesPerRound;
     const firstDate = genFirstRoundDate
       ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
       : null;
@@ -139,14 +138,30 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       const [hh, mm] = genKickoff.split(":").map(Number);
       firstDate.setHours(hh || 9, mm || 0, 0, 0);
     }
+    // Cap rounds by optional end date.
+    let rounds = fullRounds;
+    let cappedByEndDate = false;
+    if (firstDate && genEndDate) {
+      const end = new Date(`${genEndDate}T23:59:59`);
+      let d = new Date(firstDate);
+      let fit = 0;
+      for (let i = 0; i < fullRounds; i++) {
+        if (d.getTime() > end.getTime()) break;
+        fit++;
+        d = advanceByFrequency(d, genFrequency, customDaysNum);
+      }
+      if (fit < fullRounds) cappedByEndDate = true;
+      rounds = Math.max(0, fit);
+    }
+    const totalMatches = rounds * matchesPerRound;
     let finishDate: Date | null = null;
-    if (firstDate) {
+    if (firstDate && rounds > 0) {
       let d = new Date(firstDate);
       for (let i = 1; i < rounds; i++) d = advanceByFrequency(d, genFrequency, customDaysNum);
       finishDate = d;
     }
-    return { teamCount: n, rounds, matchesPerRound, totalMatches, firstDate, finishDate };
-  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum]);
+    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, cappedByEndDate };
+  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum, genEndDate]);
 
   const capacityWarning = useMemo(() => {
     if (!summary || pitchCount <= 0) return null;
@@ -172,13 +187,16 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const ids = shuffle ? shuffleArray(teams.map((t: any) => t.id)) : teams.map((t: any) => t.id);
     const nameById = new Map(teams.map((t: any) => [t.id, t.name as string]));
     const fx = buildRoundRobin(ids);
-    return fx.map((f) => ({
-      round: f.round,
-      home: f.home,
-      away: f.away,
-      homeName: nameById.get(f.home) ?? "?",
-      awayName: nameById.get(f.away) ?? "?",
-    }));
+    const roundCap = summary?.rounds ?? Infinity;
+    return fx
+      .filter((f) => f.round <= roundCap)
+      .map((f) => ({
+        round: f.round,
+        home: f.home,
+        away: f.away,
+        homeName: nameById.get(f.home) ?? "?",
+        awayName: nameById.get(f.away) ?? "?",
+      }));
   };
 
   const onPreview = () => {
@@ -424,7 +442,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         <CardContent className="p-3 space-y-1 text-sm">
                           <div className="font-semibold mb-1">Competition summary</div>
                           <div>· {summary.teamCount} teams</div>
-                          <div>· {summary.rounds} rounds</div>
+                          <div>· {summary.rounds} rounds{summary.cappedByEndDate ? ` (capped from ${summary.fullRounds} by end date)` : ""}</div>
                           <div>· {summary.totalMatches} total matches</div>
                           {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
                           <div>· Matches {frequencyLabel[genFrequency]} on {WEEKDAYS[genMatchDay]}</div>
