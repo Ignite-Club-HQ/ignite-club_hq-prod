@@ -738,7 +738,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
               </div>
               <div className="space-y-3">
                 {g.items.map((m: any) => (
-                  <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} hideRoundBadge />
+                  <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
                 ))}
               </div>
             </section>
