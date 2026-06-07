@@ -949,19 +949,19 @@ function RoundSection({
   const completed = items.filter((m) => m.status === "completed").length;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="space-y-1.5">
-      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-1.5">
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-2 border-b border-border/40">
         <div className="flex items-center gap-2 min-w-0 text-left">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <h3 className="text-[12px] font-extrabold tracking-wider text-foreground shrink-0 uppercase">{label}</h3>
-          <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums truncate min-w-0">
-            · {items.length} {items.length === 1 ? "Match" : "Matches"}
-            {dateRange ? ` · ${dateRange}` : ""}
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] font-extrabold tracking-wider text-foreground uppercase leading-tight">{label}</div>
+            <div className="text-[11px] text-muted-foreground tabular-nums leading-tight mt-0.5">
+              {items.length} {items.length === 1 ? "Match" : "Matches"}{dateRange ? ` • ${dateRange}` : ""}
+            </div>
+          </div>
+          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums ${completed === items.length ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+            {completed}/{items.length} {completed === items.length ? "Complete" : "Complete"}
           </span>
-          <span className="text-[10px] text-muted-foreground/70 shrink-0 ml-auto tabular-nums">
-            {completed}/{items.length} Completed
-          </span>
-          <div className="min-w-[8px] h-px bg-border/50" />
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
