@@ -1212,11 +1212,11 @@ export default function ClubDetailPage() {
         return (
       <section className="space-y-4">
         {/* Header with title, count, and Add Team */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-1.5">
           <button
             type="button"
             onClick={() => collapsible && setTeamsExpanded((v) => !(v ?? false))}
-            className={`flex items-center gap-2 min-w-0 flex-1 text-left ${collapsible ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}
+            className={`flex items-center gap-1.5 min-w-0 flex-1 text-left ${collapsible ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}
             aria-expanded={isExpanded}
             disabled={!collapsible}
           >
@@ -1229,25 +1229,32 @@ export default function ClubDetailPage() {
                 : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
           </button>
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setAnnouncementDialogOpen(true)} title="Send announcement to team chats">
-                  <Megaphone className="h-4 w-4" />
-                </Button>
-                <Link to={`/clubs/${id}/teams/new`}>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
+          {isAdmin && (
+            <Link to={`/clubs/${id}/teams/new`}>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+              </Button>
+            </Link>
+          )}
         </div>
 
         {isExpanded && (<>
 
         {isAdmin && <PendingTeamRequests clubId={id!} />}
+
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setAnnouncementDialogOpen(true)}
+            aria-label="Open broadcast message dialog"
+            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
+          >
+            <Megaphone className="h-4 w-4 text-primary" />
+            <span className="font-medium">Broadcast Message</span>
+            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">Announce to team chats</span>
+          </Button>
+        )}
 
         {/* Filter chips */}
         {activeTeams && activeTeams.length > 0 && (
