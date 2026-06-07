@@ -3,6 +3,8 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import type { DownloadFileResult } from "@capacitor/filesystem";
+import { DownloadSuccessToast } from "@/components/DownloadSuccessToast";
+
 
 type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
 
