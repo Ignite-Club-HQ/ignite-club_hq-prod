@@ -530,8 +530,30 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                             <Input type="number" inputMode="numeric" min={0} value={genArrival} onChange={(e) => setGenArrival(e.target.value)} placeholder="e.g. 30" />
                           </div>
                           <div className="col-span-2">
-                            <Label>Competition end date (optional)</Label>
-                            <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
+                            <Label>Available pitches / courts</Label>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              value={genAutoPitches}
+                              onChange={(e) => setGenAutoPitches(e.target.value)}
+                              placeholder="e.g. 2"
+                              disabled={customPitchLabels.length > 0}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Auto-numbered Pitch 1, Pitch 2…
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <Label>Specific pitch numbers (optional)</Label>
+                            <Input
+                              value={genPitchLabelsInput}
+                              onChange={(e) => setGenPitchLabelsInput(e.target.value)}
+                              placeholder="e.g. 3, 5, 7 or A, B, C"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Comma-separated labels. Overrides the count above.
+                            </p>
                           </div>
                         </div>
                       </CollapsibleContent>
