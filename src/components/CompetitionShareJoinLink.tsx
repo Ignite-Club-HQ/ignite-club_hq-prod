@@ -12,10 +12,15 @@ const PUBLIC_BASE = "https://igniteclubhq.app";
 export function CompetitionShareJoinLink({
   competitionId,
   competitionName,
+  triggerClassName,
+  triggerVariant = "outline",
 }: {
   competitionId: string;
   competitionName: string;
+  triggerClassName?: string;
+  triggerVariant?: "default" | "outline" | "secondary" | "ghost";
 }) {
+
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState<string | null>(null);
