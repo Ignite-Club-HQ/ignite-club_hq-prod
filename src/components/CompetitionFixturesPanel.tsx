@@ -1070,44 +1070,26 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 py-2.5 space-y-1">
-        {/* Metadata strip — strong visual hierarchy; time + pitch prominent, date + venue subdued */}
+      <CardContent className="px-3 pt-2 pb-1.5 space-y-0.5">
+        {/* 1. Time — compact metadata row */}
         {!editing && (
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Date — tertiary */}
-              <span className="text-[11px] text-muted-foreground leading-none shrink-0">
-                {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[13px] font-semibold text-foreground tabular-nums leading-none">
+              {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
+            </span>
+            <span className="text-[11px] text-muted-foreground leading-none">
+              {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
+            </span>
+            <div className="flex-1 min-w-0" />
+            {!isScheduled && (
+              <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
+                {statusLabel}
               </span>
-              {/* Time — secondary, most prominent metadata */}
-              <span className="text-[15px] font-semibold text-foreground leading-none tabular-nums">
-                {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
-              </span>
-              {/* Pitch — highlighted badge */}
-              {match.pitch_number && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 font-semibold shrink-0">
-                  Pitch {match.pitch_number}
-                </Badge>
-              )}
-              <div className="flex-1 min-w-0" />
-              {/* Status */}
-              {!isScheduled && (
-                <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
-                  {statusLabel}
-                </span>
-              )}
-            </div>
-            {/* Venue — tertiary, subtle */}
-            {venueName && (
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground leading-tight truncate">
-                <MapPin className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate">{venueName}</span>
-              </div>
             )}
           </div>
         )}
 
-        {/* Matchup section — primary visual focus */}
+        {/* 2. Teams — primary visual focus */}
         {editing ? (
           <div className="space-y-3 py-1">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -1136,7 +1118,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 py-0.5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
               <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={24} />
@@ -1151,7 +1133,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             {/* Score / vs */}
             <div className="flex flex-col items-center justify-center px-1 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
+                <div className="flex items-center gap-1 text-xl font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
                   <span className="text-muted-foreground text-sm">-</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
@@ -1174,16 +1156,24 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
 
-        {/* Admin actions */}
+        {/* 3. Venue + Pitch — subtle, secondary */}
+        {!editing && (venueLine || match.pitch_number) && (
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 leading-tight">
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
+          </div>
+        )}
+
+        {/* 4. Admin actions — compact, flush to bottom */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1 pt-0.5">
+          <div className="flex items-center justify-end gap-1">
             <Button
               size="sm"
               variant={hasScore ? "ghost" : "outline"}
               className={
                 hasScore
-                  ? "h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                  : "h-7 px-2.5 text-[11px] font-semibold text-primary border-primary/40 hover:bg-primary/5"
+                  ? "h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  : "h-6 px-2 text-[11px] font-semibold text-primary border-primary/40 hover:bg-primary/5"
               }
               onClick={() => setEditing(true)}
             >
@@ -1196,14 +1186,11 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   size="sm"
                   variant="ghost"
                   aria-label="Fixture settings"
-                  className="h-7 w-7 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+                  className="h-6 w-6 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
                   }}
                   onPointerUp={(e) => {
-                    // Scroll-tolerance gate: only treat as a tap if the pointer
-                    // hasn't moved more than ~10px since pointerdown. Prevents
-                    // accidental opens while scrolling the fixture list.
                     const start = tapStartRef.current;
                     tapStartRef.current = null;
                     if (!start) return;
@@ -1217,7 +1204,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   onPointerCancel={() => { tapStartRef.current = null; }}
                   onContextMenu={(e) => e.preventDefault()}
                 >
-                  <Settings2 className="h-4 w-4" />
+                  <Settings2 className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
