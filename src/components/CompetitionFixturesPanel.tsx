@@ -982,19 +982,31 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const save = async () => {
     const homeN = home === "" ? null : Number(home);
     const awayN = away === "" ? null : Number(away);
+    // Auto-mark as completed when both scores are entered (unless it's already
+    // in a non-scheduled state like cancelled/postponed, which we preserve).
+    let nextStatus = status;
+    const bothScores = homeN != null && awayN != null;
+    if (bothScores && (status === "scheduled" || status === "in_progress")) {
+      nextStatus = "completed";
+    } else if (!bothScores && status === "completed") {
+      // Clearing scores reverts an auto-completed match back to scheduled.
+      nextStatus = "scheduled";
+    }
     const { error } = await supabase
       .from("competition_matches")
-      .update({ home_score: homeN, away_score: awayN, status })
+      .update({ home_score: homeN, away_score: awayN, status: nextStatus })
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
     }
+    setStatus(nextStatus);
     toast({ title: "Match updated" });
     setEditing(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
+
 
   const remove = async () => {
     if (!window.confirm("Delete this match?")) return;
