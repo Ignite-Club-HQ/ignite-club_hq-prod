@@ -2677,12 +2677,20 @@ export default function EventDetailPage() {
       })()}
 
       {/* Map */}
-      {event.address && (
-        <GoogleMapEmbed
-          address={event.address}
-          className="w-full h-48 rounded-lg border"
-        />
-      )}
+      {(() => {
+        const mapAddress =
+          event.address ||
+          (event as any).location ||
+          (event as any).location_name ||
+          null;
+        if (!mapAddress) return null;
+        return (
+          <GoogleMapEmbed
+            address={mapAddress}
+            className="w-full h-48 rounded-lg border"
+          />
+        );
+      })()}
 
       {/* Mini League Matches — PRIMARY section for league events, placed at top */}
       {isMiniLeagueEvent && event.mini_league_id && (
