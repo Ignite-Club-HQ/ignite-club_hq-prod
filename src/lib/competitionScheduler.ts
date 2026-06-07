@@ -274,6 +274,7 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
   return {
     placed,
     overflowRounds: Array.from(overflowRounds).sort((a, b) => a - b),
+    extraWaveRounds: Array.from(extraWaveRounds).sort((a, b) => a - b),
     unscheduled,
     roundSummaries,
   };
