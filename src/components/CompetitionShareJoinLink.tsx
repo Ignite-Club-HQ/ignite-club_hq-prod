@@ -124,7 +124,7 @@ export function CompetitionShareJoinLink({
         </Button>
       </DialogTrigger>
 
-      </DialogTrigger>
+
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Share competition</DialogTitle>
