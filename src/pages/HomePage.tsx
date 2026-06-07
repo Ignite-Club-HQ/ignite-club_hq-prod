@@ -72,9 +72,13 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
-const MyTeamsPremiumCarousel = lazy(() =>
-  import("@/components/MyTeamsPremiumCarousel").then((m) => ({ default: m.MyTeamsPremiumCarousel }))
-);
+// Eager prefetch: kick the chunk request off at module-eval time so it's in flight
+// before the section becomes visible. Still lazy() so it doesn't block first paint.
+const myTeamsCarouselImport = () =>
+  import("@/components/MyTeamsPremiumCarousel").then((m) => ({ default: m.MyTeamsPremiumCarousel }));
+// Fire the request immediately (don't await — let it stream alongside other resources).
+myTeamsCarouselImport();
+const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
@@ -1891,14 +1895,26 @@ export default function HomePage() {
       {/* Pending competition invites for team/club admins */}
       <HomePendingCompetitionInvitesCard activeClubFilter={activeClubFilter} />
 
-      {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
-          minHeight matches the rendered carousel (section title 28px + gap 12px +
-          card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
-      <LazyMount minHeight={260} rootMargin="400px">
-        <Suspense fallback={<div className="h-[260px] rounded-xl bg-muted/40 animate-pulse" />}>
-          <MyTeamsPremiumCarousel />
-        </Suspense>
-      </LazyMount>
+      {/* My Teams & Leagues - Primary content. Mounted immediately (no viewport gate)
+          so the chunk + first query start in parallel with above-fold render. The
+          carousel itself hydrates from localStorage snapshot for instant warm paint. */}
+      <Suspense
+        fallback={
+          <section className="space-y-2.5">
+            <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
+            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="shrink-0 w-[85vw] max-w-[320px] h-[212px] rounded-lg bg-muted/50 animate-pulse"
+                />
+              ))}
+            </div>
+          </section>
+        }
+      >
+        <MyTeamsPremiumCarousel />
+      </Suspense>
 
       {/* My Competitions - entries for the user's teams / admin clubs */}
       <HomeMyCompetitionsCard />
