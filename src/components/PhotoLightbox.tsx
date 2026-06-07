@@ -132,6 +132,7 @@ export function PhotoLightbox({
   const lastTapRef = useRef<number>(0);
   const dismissStartRef = useRef<{ x: number; y: number } | null>(null);
   const dismissingRef = useRef(false);
+  const downloadCloseGuardRef = useRef(false);
 
   const {
     scale,
@@ -308,13 +309,27 @@ export function PhotoLightbox({
     const url = downloadSignedUrl || photoSrc;
     if (!url) return;
     if (isDownloadInFlight(url)) return;
+    downloadCloseGuardRef.current = true;
     try {
       const kind = isVideoUrl(url) ? "video" : "photo";
       await downloadMedia(url, kind);
     } catch (err) {
       console.warn("Download failed:", err);
       toast.error("Could not download");
+    } finally {
+      setTimeout(() => {
+        downloadCloseGuardRef.current = false;
+      }, 750);
     }
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) return;
+    // Web downloads create/click a temporary anchor outside the Radix dialog.
+    // Radix can treat that synthetic outside interaction as a dismiss request;
+    // keep the lightbox open unless the user explicitly taps Back/swipes down.
+    if (downloadCloseGuardRef.current) return;
+    onClose();
   };
 
   const handleShare = async () => {
@@ -398,7 +413,7 @@ export function PhotoLightbox({
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="!max-w-none !max-h-none !w-screen !h-[100dvh] p-0 bg-black border-none rounded-none [&>button]:hidden !translate-x-[-50%] !translate-y-[-50%]"
         onKeyDown={handleKeyDown}
@@ -446,7 +461,7 @@ export function PhotoLightbox({
                 variant="ghost"
                 size="icon"
                 className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
-                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDownload(); }}
                 aria-label="Download photo"
               >
                 <Download className="h-5 w-5" />
