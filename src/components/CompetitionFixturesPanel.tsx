@@ -1532,20 +1532,21 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
   }
   const showTeamFilter = teamOptions.length > 1;
 
-  // When a team is selected, show every division that team participates in
-  // (full standings, not just the selected team's row).
-  const teamDivisionIds = useMemo(() => {
+  // When a team is selected, show every ladder group that team participates in
+  // (full standings, not just the selected team's row). Competitions without
+  // divisions use the "Overall" ladder, where division_id is null.
+  const teamDivisionKeys = useMemo(() => {
     if (filterTeamId === "_all") return null;
     const ids = new Set<string>();
     for (const r of visibleRows) {
-      if (r.team_id === filterTeamId && r.division_id) ids.add(r.division_id);
+      if (r.team_id === filterTeamId) ids.add(r.division_id ?? "__none");
     }
     return ids;
   }, [visibleRows, filterTeamId]);
 
   const filteredRows = visibleRows.filter((r: any) => {
     if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
-    if (teamDivisionIds && !(r.division_id && teamDivisionIds.has(r.division_id))) return false;
+    if (teamDivisionKeys && !teamDivisionKeys.has(r.division_id ?? "__none")) return false;
     return true;
   });
 
