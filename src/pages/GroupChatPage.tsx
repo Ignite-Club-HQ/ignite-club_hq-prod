@@ -1954,28 +1954,29 @@ export default function GroupChatPage() {
 
 
       {/* Compact invite banner — mini-league chats */}
-      {group.mini_league_id && miniLeagueInfo && (
+      {group.mini_league_id && group.club_id && (
         <>
           <button
             onClick={() => setMiniLeagueInviteOpen(true)}
-            aria-label={`Invite people to ${miniLeagueInfo.name}`}
+            aria-label={`Invite people to ${miniLeagueInfo?.name || group.name}`}
             className="group w-full flex items-center gap-2 px-3.5 py-1.5 bg-background border-b border-border/40 text-left touch-manipulation active:bg-muted/60 transition-colors shrink-0"
           >
             <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
             <span className="flex-1 min-w-0 text-[12.5px] text-foreground/80 truncate">
-              Invite to <span className="font-medium text-foreground">{miniLeagueInfo.name}</span>
+              Invite to <span className="font-medium text-foreground">{miniLeagueInfo?.name || group.name}</span>
             </span>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" strokeWidth={2} />
           </button>
           <AddMiniLeagueMemberSheet
-            miniLeagueId={miniLeagueInfo.id}
-            miniLeagueName={miniLeagueInfo.name}
-            clubId={miniLeagueInfo.club_id}
+            miniLeagueId={group.mini_league_id}
+            miniLeagueName={miniLeagueInfo?.name || group.name}
+            clubId={group.club_id}
             externalOpen={miniLeagueInviteOpen}
             onExternalOpenChange={setMiniLeagueInviteOpen}
           />
         </>
       )}
+
 
       {/* Notification Nudge */}
       {notificationNudge.shouldShowNudge && (
