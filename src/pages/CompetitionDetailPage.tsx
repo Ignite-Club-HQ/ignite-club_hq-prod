@@ -214,7 +214,7 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
-          <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>
+          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
@@ -225,8 +225,8 @@ export default function CompetitionDetailPage() {
           <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
         </TabsContent>
 
-        <TabsContent value="teams" className="space-y-4">
-          {isAdmin && (
+        {isAdmin && (
+          <TabsContent value="teams" className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
@@ -240,17 +240,17 @@ export default function CompetitionDetailPage() {
               />
               <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
-          )}
 
-          <TeamsByDivision
-            competitionId={id!}
-            divisions={divisions}
-            entries={entries}
-            myAdminTeamIds={myAdminTeamIds}
-            onRespond={respondToInvite}
-            isAdmin={isAdmin}
-          />
-        </TabsContent>
+            <TeamsByDivision
+              competitionId={id!}
+              divisions={divisions}
+              entries={entries}
+              myAdminTeamIds={myAdminTeamIds}
+              onRespond={respondToInvite}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
