@@ -1437,13 +1437,11 @@ function AddMatchMenuItem(props: { competitionId: string; entries: any[]; divisi
         <Plus className="h-4 w-4 mr-2" /> Add match
       </DropdownMenuItem>
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Add match</SheetTitle>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8">
+          <SheetHeader className="mb-5">
+            <SheetTitle className="text-xl font-bold">Add match</SheetTitle>
           </SheetHeader>
-          <div className="pt-4">
-            <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
-          </div>
+          <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
         </SheetContent>
       </Sheet>
     </>
