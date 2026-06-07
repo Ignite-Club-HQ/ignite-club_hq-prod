@@ -60,7 +60,7 @@ export default function CompetitionDetailPage() {
     },
   });
 
-  const { data: isAdmin = false } = useQuery({
+  const { data: isAdmin = false, isLoading: isAdminLoading } = useQuery({
     queryKey: ["competition-isadmin", id, user?.id],
     enabled: !!id && !!user,
     queryFn: async () => {
@@ -72,7 +72,7 @@ export default function CompetitionDetailPage() {
     },
   });
 
-  const { data: divisions = [] } = useQuery({
+  const { data: divisions = [], isLoading: divisionsLoading } = useQuery({
     queryKey: ["competition-divisions", id],
     enabled: !!id,
     queryFn: async () => {
@@ -154,6 +154,10 @@ export default function CompetitionDetailPage() {
     );
   }
 
+  const ladderVisibilityLoading = (!!user && isAdminLoading) || divisionsLoading;
+  const allDivisionLaddersHidden = divisions.length > 0 && divisions.every((d: any) => !!d.hide_ladder);
+  const canViewLadder = !ladderVisibilityLoading && (isAdmin || !allDivisionLaddersHidden);
+
   return (
     <div className="container max-w-3xl mx-auto px-4 py-4 space-y-4">
       <header className="space-y-1.5">
@@ -223,7 +227,7 @@ export default function CompetitionDetailPage() {
       }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
-          <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
+          {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
           {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
         </TabsList>
 
@@ -231,9 +235,11 @@ export default function CompetitionDetailPage() {
           <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
         </TabsContent>
 
-        <TabsContent value="ladder" className="space-y-2">
-          <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
-        </TabsContent>
+        {canViewLadder && (
+          <TabsContent value="ladder" className="space-y-2">
+            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-4">
