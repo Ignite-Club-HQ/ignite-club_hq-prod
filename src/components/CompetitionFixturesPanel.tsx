@@ -439,7 +439,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         <CardContent className="p-3 space-y-1 text-sm">
                           <div className="font-semibold mb-1">Competition summary</div>
                           <div>· {summary.teamCount} teams</div>
-                          <div>· {summary.rounds} rounds</div>
+                          <div>· {summary.rounds} rounds{summary.cappedByEndDate ? ` (capped from ${summary.fullRounds} by end date)` : ""}</div>
                           <div>· {summary.totalMatches} total matches</div>
                           {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
                           <div>· Matches {frequencyLabel[genFrequency]} on {WEEKDAYS[genMatchDay]}</div>
