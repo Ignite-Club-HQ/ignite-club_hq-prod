@@ -125,7 +125,15 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const teamsInScope = acceptedByDivision(genDivisionId || null);
   const customDaysNum = Math.max(1, Number(genCustomDays) || 7);
   const durationNum = Math.max(0, Number(genDuration) || 0);
-  const pitchCount = Math.max(0, Number(genAutoPitches) || 0);
+  const customPitchLabels = genPitchLabelsInput
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const pitchLabels = customPitchLabels.length > 0
+    ? customPitchLabels
+    : Array.from({ length: Math.max(0, Number(genAutoPitches) || 0) }, (_, i) => String(i + 1));
+  const pitchCount = pitchLabels.length;
+
 
   const summary = useMemo(() => {
     const n = teamsInScope.length;
