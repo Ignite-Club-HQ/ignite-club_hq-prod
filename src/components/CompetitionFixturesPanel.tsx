@@ -37,6 +37,41 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
+function TeamAvatar({
+  name,
+  logoUrl,
+  initials,
+  size = 32,
+}: {
+  name: string;
+  logoUrl?: string | null;
+  initials: string;
+  size?: number;
+}) {
+  const dim = { width: size, height: size };
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={name}
+        loading="lazy"
+        decoding="async"
+        style={dim}
+        className="rounded-full object-cover bg-muted shrink-0 ring-1 ring-border/40"
+      />
+    );
+  }
+  return (
+    <div
+      style={dim}
+      className="rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0"
+    >
+      {initials || "?"}
+    </div>
+  );
+}
+
+
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -89,7 +124,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_matches")
-        .select("*, home:home_team_id(id, name), away:away_team_id(id, name), competition_divisions:division_id(name)")
+        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
@@ -1070,9 +1105,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                {homeInitials || "?"}
-              </div>
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} />
               <div className={`text-[15px] font-bold leading-tight truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
@@ -1096,10 +1129,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               <div className={`text-[15px] font-bold leading-tight truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                {awayInitials || "?"}
-              </div>
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} />
             </div>
+
           </div>
         )}
 
@@ -1563,7 +1595,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
 
       const { data: teams } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, logo_url")
         .in("id", teamIds);
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
@@ -1850,9 +1882,8 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
                       </td>
                       <td className={cn("py-3 px-1.5 align-middle min-w-0", rowBg)}>
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                            {initials || "?"}
-                          </span>
+                          <TeamAvatar name={teamName} logoUrl={r.teams?.logo_url} initials={initials} size={28} />
+
                           <span className="font-semibold text-foreground truncate">{teamName}</span>
                           {rank <= 3 && (
                             <Medal
