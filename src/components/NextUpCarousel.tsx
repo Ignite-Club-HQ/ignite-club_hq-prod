@@ -127,11 +127,9 @@ function WatchLiveCta({ event }: { event: EventItem }) {
 // so the home page never grows / pushes other content downward as the
 // per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
 // moment after first paint.
-// Soft minimum height — keeps cards visually consistent across the carousel
-// without locking them so tall they feel oversized. Some growth on expand
-// is permitted; the collapsed state fills the reserved space with a compact
-// summary panel (see below) so the lower area never reads as empty.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[300px]";
+// Soft minimum height — reserves the loaded collapsed layout without leaving
+// a large empty tail under normal RSVP controls.
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[420px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
@@ -601,7 +599,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}

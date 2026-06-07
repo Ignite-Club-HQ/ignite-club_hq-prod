@@ -52,6 +52,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const composerWasFocusedRef = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closingViaTriggerRef = useRef(false);
+
   const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
   const [attachChooserOpen, setAttachChooserOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +151,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   });
 
   const canShowBoardPicker = showBoardPicker && !!teamId && hasActiveBoard;
+
+  const getComposerElement = () => document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+    'textarea[data-chat-composer], input[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
+  );
+
+  const isComposerFocused = () => {
+    const composer = getComposerElement();
+    return !!composer && document.activeElement === composer;
+  };
 
   const boardSubtitle = (() => {
     const s = (clubSport || "").toLowerCase();
@@ -669,28 +682,43 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <Popover
+          open={menuOpen}
+          onOpenChange={(next) => {
+            if (next) {
+                // Snapshot whether the keyboard was already up (composer focused)
+                // at the moment the user opens the tray. This is also set on
+                // pointerdown before the trigger can take focus, which prevents
+                // stale focus from reopening the keyboard on the next + tap.
+                composerWasFocusedRef.current = isComposerFocused();
+              } else {
+                window.setTimeout(() => {
+                  closingViaTriggerRef.current = false;
+                }, 0);
+            }
+            setMenuOpen(next);
+          }}
+        >
+
           <PopoverTrigger asChild>
             <button
+              ref={triggerRef}
               type="button"
               disabled={disabled}
               aria-label="More actions"
               title="More actions"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              // Prevent the textarea from blurring on press so the keyboard
-              // does NOT dismiss when opening the attachment tray. The tray
-              // should feel like an extension of the composer, not a modal
-              // workflow that closes the keyboard.
+              // Always prevent the trigger from taking focus. If the composer
+              // was already focused this keeps the keyboard up; if it was not,
+              // repeated + / X taps cannot move focus into the composer later.
               onPointerDown={(e) => {
-                if (document.activeElement && document.activeElement !== e.currentTarget) {
-                  e.preventDefault();
-                }
+                closingViaTriggerRef.current = menuOpen;
+                composerWasFocusedRef.current = isComposerFocused();
+                e.preventDefault();
               }}
               onMouseDown={(e) => {
-                if (document.activeElement && document.activeElement !== e.currentTarget) {
-                  e.preventDefault();
-                }
+                e.preventDefault();
               }}
               className={`inline-flex items-center justify-center h-11 w-11 -ml-0.5 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation ${
                 menuOpen
@@ -717,10 +745,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onOpenAutoFocus={(e) => e.preventDefault()}
             onCloseAutoFocus={(e) => {
               e.preventDefault();
-              // Refocus the composer textarea so the keyboard does not collapse.
-              const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
-                'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
-              );
+              // Only refocus the composer if the keyboard was already up when
+              // the tray opened. Otherwise tapping "+" then "X" would activate
+              // the keyboard unexpectedly.
+              if (!composerWasFocusedRef.current) {
+                const composer = getComposerElement();
+                const active = document.activeElement as HTMLElement | null;
+                if (active === triggerRef.current || (closingViaTriggerRef.current && active === composer)) {
+                  active?.blur();
+                }
+                return;
+              }
+              const composer = getComposerElement();
               composer?.focus({ preventScroll: true });
             }}
             onPointerDownOutside={(e) => {
@@ -734,11 +770,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               // .focus() called later (e.g. from onCloseAutoFocus) will not
               // reopen the soft keyboard because it's no longer a user gesture.
               e.preventDefault();
-              const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
-                'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
-              );
+              // Only refocus the composer if it was already focused (keyboard up)
+              // when the tray opened — otherwise dismissing the tray should not
+              // pop the keyboard up.
+              if (!composerWasFocusedRef.current) return;
+              const composer = getComposerElement();
               composer?.focus({ preventScroll: true });
             }}
+
             className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
