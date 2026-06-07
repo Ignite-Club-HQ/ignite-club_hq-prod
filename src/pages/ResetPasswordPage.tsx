@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, XCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import {
   InputOTP,
   InputOTPGroup,
@@ -55,8 +57,13 @@ export default function ResetPasswordPage() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
+  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const resetScrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === "android";
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +157,73 @@ export default function ResetPasswordPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [password, breachedPasswords]);
+
+  useEffect(() => {
+    if (!isNativePlatform) return;
+
+    let keyboardShowListener: { remove: () => void } | undefined;
+    let keyboardHideListener: { remove: () => void } | undefined;
+
+    Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
+      setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardVisible(true);
+    }).then((handle) => {
+      keyboardShowListener = handle;
+    });
+
+    Keyboard.addListener("keyboardDidHide", () => {
+      setNativeKeyboardHeight(0);
+      setNativeKeyboardVisible(false);
+    }).then((handle) => {
+      keyboardHideListener = handle;
+    });
+
+    return () => {
+      keyboardShowListener?.remove();
+      keyboardHideListener?.remove();
+    };
+  }, [isNativePlatform]);
+
+  useEffect(() => {
+    if (!isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") return;
+
+    let timeoutId: number | undefined;
+    const resetViewportScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      resetScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetViewportScroll();
+      timeoutId = window.setTimeout(resetViewportScroll, 80);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [isNativePlatform, nativeKeyboardVisible]);
+
+  const resetViewportHeight = nativeKeyboardVisible && nativeKeyboardHeight > 0
+    ? isNativeAndroid
+      ? "100vh"
+      : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
+    : "var(--stable-vh, 100dvh)";
+  const resetShellStyle = {
+    height: resetViewportHeight,
+    paddingTop: "var(--safe-area-top, env(safe-area-inset-top, 0px))",
+    paddingBottom: nativeKeyboardVisible
+      ? "0px"
+      : "var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))",
+  };
+  const resetViewportClassName = nativeKeyboardVisible
+    ? "justify-start overflow-y-auto py-3"
+    : "justify-center py-4";
+  const resetStackClassName = nativeKeyboardVisible
+    ? "space-y-4 py-2"
+    : "space-y-8 py-6 animate-slide-up";
 
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
@@ -263,8 +337,9 @@ export default function ResetPasswordPage() {
 
   if (error) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true" style={resetShellStyle}>
+        <div ref={resetScrollRef} className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}>
+        <div className={`w-full max-w-md ${resetStackClassName}`}>
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
               <Flame className="h-10 w-10 text-primary-foreground" />
@@ -366,14 +441,16 @@ export default function ResetPasswordPage() {
             )}
           </Card>
         </div>
+        </div>
       </div>
     );
   }
 
   if (success) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true" style={resetShellStyle}>
+        <div ref={resetScrollRef} className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}>
+        <div className={`w-full max-w-md ${resetStackClassName}`}>
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
               <Flame className="h-10 w-10 text-primary-foreground" />
@@ -389,19 +466,21 @@ export default function ResetPasswordPage() {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="w-full max-w-md space-y-8 animate-slide-up">
-        <div className="flex flex-col items-center gap-3">
-          <div className="p-4 rounded-2xl bg-primary glow-emerald">
-            <Flame className="h-10 w-10 text-primary-foreground" />
+    <div className="flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true" style={resetShellStyle}>
+      <div ref={resetScrollRef} className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}>
+      <div className={`w-full max-w-md ${resetStackClassName}`}>
+        <div className={`flex flex-col items-center transition-all duration-200 ${nativeKeyboardVisible ? "gap-1 mt-1" : "gap-3"}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${nativeKeyboardVisible ? "p-2" : "p-4"}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${nativeKeyboardVisible ? "h-5 w-5" : "h-10 w-10"}`} />
           </div>
-          <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-          <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
+          {!nativeKeyboardVisible && <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>}
+          {!nativeKeyboardVisible && <p className="text-sm font-medium text-muted-foreground">Club HQ</p>}
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -480,6 +559,7 @@ export default function ResetPasswordPage() {
             </Button>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
