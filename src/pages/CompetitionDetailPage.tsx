@@ -558,13 +558,24 @@ function TeamsByDivision({
     </div>
   );
 }
+const BROADCAST_TEMPLATES: { id: string; label: string; icon: any; text: string }[] = [
+  { id: "fixtures", label: "Fixture Update", icon: CalendarClock, text: "Round fixtures have been updated — please check the schedule for your latest match details." },
+  { id: "weather", label: "Weather Alert", icon: CloudRain, text: "Weather update: please monitor conditions ahead of this weekend's fixtures. Further updates to follow if matches are affected." },
+  { id: "competition", label: "Competition Update", icon: Sparkles, text: "Quick update from the competition organisers — " },
+  { id: "reminder", label: "Reminder", icon: Bell, text: "Friendly reminder: " },
+  { id: "custom", label: "Custom", icon: Pencil, text: "" },
+];
 
-function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { competitionId: string; divisions: any[]; acceptedTeamCount: number }) {
+function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTeamCount }: { competitionId: string; competitionName: string; divisions: any[]; acceptedTeamCount: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [message, setMessage] = useState("");
   const [selectedDivisionIds, setSelectedDivisionIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [showDivisions, setShowDivisions] = useState(false);
+
+  const MAX_LEN = 1000;
 
   const { data: history = [] } = useQuery({
     queryKey: ["competition-broadcasts", competitionId],
@@ -587,6 +598,17 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
     });
   };
 
+  const applyTemplate = (id: string) => {
+    const tmpl = BROADCAST_TEMPLATES.find((t) => t.id === id);
+    if (!tmpl) return;
+    setActiveTemplate(id);
+    if (tmpl.text) setMessage(tmpl.text);
+  };
+
+  const recipientCount = selectedDivisionIds.size > 0
+    ? acceptedTeamCount // we don't know per-division count; show total as best-effort
+    : acceptedTeamCount;
+
   const send = async () => {
     if (!message.trim()) return;
     setSending(true);
@@ -602,74 +624,206 @@ function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { comp
       toast({ title: "Could not send broadcast", description: (data as any)?.error || error?.message, variant: "destructive" });
       return;
     }
-    toast({ title: `Broadcast sent to ${(data as any).recipient_team_count} team${(data as any).recipient_team_count === 1 ? "" : "s"}` });
+    const count = (data as any).recipient_team_count;
+    try { (navigator as any).vibrate?.(15); } catch {}
+    toast({ title: `Broadcast sent to ${count} team${count === 1 ? "" : "s"}` });
     setMessage("");
+    setActiveTemplate(null);
     setSelectedDivisionIds(new Set());
     qc.invalidateQueries({ queryKey: ["competition-broadcasts", competitionId] });
   };
 
+  const initials = competitionName.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const recentThree = history.slice(0, 3);
+
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-primary" />
-          <span className="font-medium">Send broadcast</span>
+    <div className="flex flex-col h-full min-h-0 bg-muted/30">
+      {/* Drag handle */}
+      <div className="pt-2 pb-1 flex justify-center shrink-0">
+        <div className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
+      </div>
+
+      {/* Header */}
+      <div className="px-5 pb-3 shrink-0">
+        <SheetHeader className="space-y-1 text-left">
+          <SheetTitle className="text-[22px] font-bold tracking-tight leading-tight">Competition Broadcast</SheetTitle>
+          <p className="text-sm text-muted-foreground leading-snug">Send an announcement to teams in this competition</p>
+        </SheetHeader>
+        <div className="mt-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+            <Trophy className="h-3 w-3" />
+            <span className="truncate max-w-[240px]">{competitionName}</span>
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Posts as a competition announcement in the team chat of every accepted team
-          {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}. Only teams entered in
-          this competition receive it.
-        </p>
-        <div className="space-y-1.5">
-          <Label htmlFor="broadcast-msg">Message</Label>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4 space-y-4">
+        {/* Audience Card */}
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-4 flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-foreground">Recipients</span>
+              {acceptedTeamCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold uppercase tracking-wider">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Ready
+                </span>
+              )}
+            </div>
+            <p className="text-[13px] text-muted-foreground leading-snug mt-0.5">
+              <span className="font-semibold text-foreground">{acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"}</span> will receive this broadcast
+            </p>
+            {divisions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDivisions((v) => !v)}
+                className="mt-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                {selectedDivisionIds.size > 0
+                  ? `Limited to ${selectedDivisionIds.size} division${selectedDivisionIds.size === 1 ? "" : "s"}`
+                  : "Limit to specific divisions"}
+                <ChevronDown className={`inline h-3 w-3 ml-0.5 transition-transform ${showDivisions ? "rotate-180" : ""}`} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showDivisions && divisions.length > 0 && (
+          <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-2 space-y-0.5 animate-fade-in">
+            {divisions.map((d: any) => (
+              <label key={d.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 cursor-pointer text-sm">
+                <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
+                <span className="flex-1">{d.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Template chips */}
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-0.5">Quick templates</div>
+          <div className="flex flex-wrap gap-1.5">
+            {BROADCAST_TEMPLATES.map((t) => {
+              const Icon = t.icon;
+              const active = activeTemplate === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTemplate(t.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Composer */}
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm overflow-hidden">
           <Textarea
             id="broadcast-msg"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={4}
-            placeholder="e.g. Round 4 fixtures are up — check the schedule."
+            onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
+            rows={5}
+            placeholder="Write your competition announcement..."
+            className="border-0 shadow-none focus-visible:ring-0 resize-none text-[15px] leading-relaxed min-h-[120px] bg-transparent"
           />
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            <span>Posts to each team's chat as an official announcement</span>
+            <span className={`tabular-nums ${message.length > MAX_LEN * 0.9 ? "text-amber-600 font-semibold" : ""}`}>
+              {message.length}/{MAX_LEN}
+            </span>
+          </div>
         </div>
-        {divisions.length > 0 && (
+
+        {/* Live Preview */}
+        {message.trim() && (
+          <div className="space-y-1.5 animate-fade-in">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5">Preview</div>
+            <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-3.5">
+              <div className="flex items-start gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[12px] font-bold shrink-0">
+                  {initials || <Trophy className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[13px] font-semibold text-foreground truncate">{competitionName}</span>
+                    <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
+                      Announcement
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground leading-none mt-0.5">Just now</div>
+                  <div className="mt-2 text-[14px] text-foreground whitespace-pre-wrap leading-relaxed break-words">
+                    {message}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recent broadcasts */}
+        {recentThree.length > 0 && (
           <div className="space-y-1.5">
-            <Label>Limit to divisions (optional)</Label>
-            <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
-              {divisions.map((d: any) => (
-                <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
-                  <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
-                  <span>{d.name}</span>
-                </label>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5">Recent broadcasts</div>
+            <div className="space-y-2">
+              {recentThree.map((b: any) => (
+                <div key={b.id} className="rounded-2xl bg-card border border-border/60 shadow-sm p-3.5">
+                  <div className="text-[14px] text-foreground line-clamp-2 leading-snug">{b.message}</div>
+                  <div className="flex items-center justify-between mt-2 gap-2">
+                    <div className="text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })} · Sent to {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px] font-semibold text-primary hover:text-primary"
+                      onClick={() => { setMessage(b.message); setActiveTemplate(null); }}
+                    >
+                      Reuse
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-xs text-muted-foreground">
-            {acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} in competition
-          </span>
-          <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
-            {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-            Send
-          </Button>
-        </div>
       </div>
 
-      <div className="space-y-2 border-t pt-4">
-        <div className="text-sm font-medium">Recent broadcasts</div>
-        {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No broadcasts yet.</p>
-        ) : (
-          history.map((b: any) => (
-            <Card key={b.id}>
-              <CardContent className="p-3 space-y-1">
-                <div className="text-sm whitespace-pre-wrap">{b.message}</div>
-                <div className="text-xs text-muted-foreground">
-                  {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"} · {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
+      {/* Sticky footer */}
+      <div
+        className="shrink-0 border-t border-border/60 bg-background/95 px-5 pt-3 flex items-center gap-3"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] text-muted-foreground leading-none">Sending to</div>
+          <div className="text-[13px] font-semibold text-foreground leading-tight mt-0.5">
+            {recipientCount} team{recipientCount === 1 ? "" : "s"}
+          </div>
+        </div>
+        <Button
+          size="lg"
+          onClick={send}
+          disabled={!message.trim() || sending || acceptedTeamCount === 0}
+          className="h-12 px-6 rounded-xl font-semibold text-[15px] shadow-md min-w-[160px]"
+        >
+          {sending ? (
+            <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</>
+          ) : (
+            <><Send className="h-4 w-4 mr-2" /> Send Broadcast</>
+          )}
+        </Button>
       </div>
     </div>
   );
