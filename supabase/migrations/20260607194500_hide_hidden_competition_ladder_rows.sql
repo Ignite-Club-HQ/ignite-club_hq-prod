@@ -38,7 +38,6 @@ SELECT
    + SUM(pt.losses) * COALESCE(MAX(c.points_loss), 0))::int AS points
 FROM per_team pt
 JOIN public.competitions c ON c.id = pt.competition_id
-LEFT JOIN public.competition_divisions d ON d.id = pt.division_id
 WHERE public.is_competition_admin(auth.uid(), pt.competition_id)
    OR NOT EXISTS (
      SELECT 1
