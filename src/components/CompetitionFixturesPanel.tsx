@@ -1,16 +1,48 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { format, addDays, addMonths } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+type Frequency = "weekly" | "biweekly" | "triweekly" | "monthly" | "custom";
+type SchedulingMode = "simultaneous" | "stagger";
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function advanceByFrequency(d: Date, freq: Frequency, customDays: number): Date {
+  switch (freq) {
+    case "weekly": return addDays(d, 7);
+    case "biweekly": return addDays(d, 14);
+    case "triweekly": return addDays(d, 21);
+    case "monthly": return addMonths(d, 1);
+    case "custom": return addDays(d, Math.max(1, customDays));
+  }
+}
+
+function nextOccurrenceOfWeekday(from: Date, weekday: number): Date {
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  const diff = (weekday - d.getDay() + 7) % 7;
+  return addDays(d, diff);
+}
 
 interface Props {
   competitionId: string;
