@@ -263,7 +263,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       let pitch: string | null = null;
       if (pitchCount > 0) {
         const idx = perRoundPitchIdx.get(f.round) ?? 0;
-        pitch = String((idx % pitchCount) + 1);
+        pitch = pitchLabels[idx % pitchCount];
         if (genMode === "stagger" && d && durationNum > 0 && idx >= pitchCount) {
           const slot = Math.floor(idx / pitchCount);
           const shifted = new Date(d.getTime() + slot * durationNum * 60 * 1000);
@@ -590,7 +590,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                                 let matchTime = genKickoff || "";
                                 if (pitchCount > 0) {
                                   const idx = perRoundPitchIdx.get(r) ?? 0;
-                                  pitch = String((idx % pitchCount) + 1);
+                                  pitch = pitchLabels[idx % pitchCount];
                                   if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
                                     const slot = Math.floor(idx / pitchCount);
                                     const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
