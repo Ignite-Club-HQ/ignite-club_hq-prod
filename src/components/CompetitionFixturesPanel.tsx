@@ -1074,10 +1074,10 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
         {/* 1. Time — compact metadata row */}
         {!editing && (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[13px] font-semibold text-foreground tabular-nums leading-none">
+            <span className="text-sm font-semibold text-foreground tabular-nums leading-snug">
               {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
             </span>
-            <span className="text-[11px] text-muted-foreground leading-none">
+            <span className="text-xs text-muted-foreground leading-snug">
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
