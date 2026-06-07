@@ -169,8 +169,16 @@ export default function CompetitionDetailPage() {
           {isAdmin && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Send broadcast" title="Send broadcast">
-                  <Megaphone className="h-[18px] w-[18px]" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Open competition broadcasts"
+                  title="Send announcements to all accepted teams"
+                  className="h-9 min-h-11 sm:min-h-9 px-2.5 sm:px-3 rounded-full gap-1.5 shrink-0 border-border/70 hover:border-primary/50 hover:bg-primary/5 hover:text-primary font-semibold whitespace-nowrap"
+                >
+                  <Megaphone className="h-4 w-4" />
+                  <span className="text-[13px] hidden xs:inline sm:inline">Broadcast</span>
+                  <BroadcastsHeaderBadge competitionId={id!} />
                 </Button>
               </SheetTrigger>
               <SheetContent
@@ -187,7 +195,7 @@ export default function CompetitionDetailPage() {
             </Sheet>
           )}
           {isAdmin && (
-            <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label="Competition settings" title="Competition settings">
+            <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
           )}
@@ -558,6 +566,33 @@ function TeamsByDivision({
     </div>
   );
 }
+function BroadcastsHeaderBadge({ competitionId }: { competitionId: string }) {
+  const { data } = useQuery({
+    queryKey: ["competition-broadcasts-count", competitionId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("competition_broadcasts")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId);
+      return count ?? 0;
+    },
+    staleTime: 60_000,
+  });
+  if (data == null) return null;
+  if (data === 0) {
+    return (
+      <span className="ml-0.5 hidden sm:inline-flex items-center px-1.5 py-px rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+        New
+      </span>
+    );
+  }
+  return (
+    <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary/15 text-primary text-[10px] font-bold tabular-nums">
+      {data > 99 ? "99+" : data}
+    </span>
+  );
+}
+
 const BROADCAST_TEMPLATES: { id: string; label: string; icon: any; text: string }[] = [
   { id: "fixtures", label: "Fixture Update", icon: CalendarClock, text: "Round fixtures have been updated — please check the schedule for your latest match details." },
   { id: "weather", label: "Weather Alert", icon: CloudRain, text: "Weather update: please monitor conditions ahead of this weekend's fixtures. Further updates to follow if matches are affected." },
