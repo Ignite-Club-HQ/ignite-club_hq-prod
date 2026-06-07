@@ -513,8 +513,8 @@ function showOpenDownloadedToast(
     action: {
       label: "Open",
       onClick: async (event) => {
-        event?.preventDefault?.();
         event?.stopPropagation?.();
+        toast.dismiss(toastId);
         console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
         const platform = Capacitor.getPlatform();
 

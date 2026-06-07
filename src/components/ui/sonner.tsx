@@ -19,7 +19,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       position="top-center"
       style={{ 
-        zIndex: 1000010,
+        zIndex: 2147483600,
         top: topOffset,
       }}
       toastOptions={{
