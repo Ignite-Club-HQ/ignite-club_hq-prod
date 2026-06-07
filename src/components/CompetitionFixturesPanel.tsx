@@ -803,29 +803,27 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
     : null;
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4 sm:p-5 space-y-4">
+    <Card className="overflow-hidden w-full box-border">
+      <CardContent className="p-4 space-y-3">
         {/* Header: round pill (when not grouped) + division + status pill */}
-        {(!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name || true ? (
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {!hideRoundBadge && match.round_number != null && (
-                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0">
-                  Round {match.round_number}
-                </Badge>
-              )}
-              {match.competition_divisions?.name && (
-                <span className="text-xs text-muted-foreground truncate">{match.competition_divisions.name}</span>
-              )}
-            </div>
-            <Badge
-              variant={statusVariant}
-              className="rounded-full px-2.5 py-0.5 text-xs capitalize whitespace-nowrap shrink-0"
-            >
-              {statusLabel}
-            </Badge>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {!hideRoundBadge && match.round_number != null && (
+              <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
+                Round {match.round_number}
+              </Badge>
+            )}
+            {match.competition_divisions?.name && (
+              <span className="text-xs text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+            )}
           </div>
-        ) : null}
+          <Badge
+            variant={statusVariant}
+            className="rounded-full px-2 py-0.5 text-[11px] capitalize whitespace-nowrap shrink-0"
+          >
+            {statusLabel}
+          </Badge>
+        </div>
 
         {/* Date & venue */}
         {(match.scheduled_at || venueLine) && (
@@ -839,28 +837,27 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
 
-        {/* Match: teams stacked, left-aligned */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-3">
-            <span className="flex-1 min-w-0 text-base sm:text-lg font-semibold leading-tight truncate">
+        {/* Match-up: Team A / vs / Team B centered vertically */}
+        <div className="flex flex-col items-center text-center gap-1 py-1">
+          <div className="flex items-center justify-center gap-3 w-full min-w-0">
+            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
               {match.home?.name ?? "?"}
             </span>
             {hasScore && (
-              <span className="text-lg font-bold tabular-nums shrink-0 w-8 text-right">
+              <span className="text-base font-bold tabular-nums shrink-0">
                 {match.home_score ?? "–"}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <span className="flex-1 min-w-0 text-base sm:text-lg font-semibold leading-tight truncate">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">vs</span>
+          <div className="flex items-center justify-center gap-3 w-full min-w-0">
+            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
               {match.away?.name ?? "?"}
             </span>
-            {hasScore ? (
-              <span className="text-lg font-bold tabular-nums shrink-0 w-8 text-right">
+            {hasScore && (
+              <span className="text-base font-bold tabular-nums shrink-0">
                 {match.away_score ?? "–"}
               </span>
-            ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">vs</span>
             )}
           </div>
         </div>
@@ -869,23 +866,40 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
         {isAdmin && (
           <div>
             {!editing ? (
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditDetailsOpen(true)}>
+              <div className="space-y-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full min-h-11"
+                  onClick={() => setEditDetailsOpen(true)}
+                >
                   <Settings2 className="h-4 w-4 mr-1.5" />
                   Edit details
                 </Button>
-                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditing(true)}>
-                  <Pencil className="h-4 w-4 mr-1.5" />
-                  Edit score
-                </Button>
-                <Button size="sm" variant="ghost" className="min-h-11 text-destructive hover:text-destructive" onClick={remove}>
-                  <Trash2 className="h-4 w-4 mr-1.5" />
-                  Delete
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-11 w-full"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Edit score
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-11 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={remove}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-3 gap-2 items-end">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label>Home</Label>
                     <Input type="number" inputMode="numeric" value={home} onChange={(e) => setHome(e.target.value)} />
@@ -894,7 +908,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                     <Label>Away</Label>
                     <Input type="number" inputMode="numeric" value={away} onChange={(e) => setAway(e.target.value)} />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <Label>Status</Label>
                     <Select value={status} onValueChange={setStatus}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -906,9 +920,13 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                     </Select>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="min-h-11" onClick={save}><Save className="h-4 w-4 mr-1" /> Save</Button>
-                  <Button size="sm" variant="ghost" className="min-h-11" onClick={() => setEditing(false)}>Cancel</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" className="min-h-11 w-full" onClick={save}>
+                    <Save className="h-4 w-4 mr-1" /> Save
+                  </Button>
+                  <Button size="sm" variant="ghost" className="min-h-11 w-full" onClick={() => setEditing(false)}>
+                    Cancel
+                  </Button>
                 </div>
               </div>
             )}
