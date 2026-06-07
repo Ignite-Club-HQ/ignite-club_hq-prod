@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   buildRoundRobinPairings,
   scheduleFixtures,
@@ -852,23 +853,76 @@ function FixturesFilterAndList({
         </Card>
       ) : (
         groups.map((g) => (
-          <section key={g.key} className="space-y-2">
-            <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
-              <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {g.items.length} {g.items.length === 1 ? "match" : "matches"}
-              </span>
-              <div className="flex-1 min-w-[12px] h-px bg-border" />
-            </div>
-            <div className="space-y-3">
-              {g.items.map((m: any) => (
-                <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
-              ))}
-            </div>
-          </section>
+          <RoundSection
+            key={g.key}
+            label={g.label}
+            items={g.items}
+            isAdmin={isAdmin}
+            competitionId={competitionId}
+            entries={entries}
+            divisions={divisions}
+          />
         ))
       )}
     </>
+  );
+}
+
+function RoundSection({
+  label,
+  items,
+  isAdmin,
+  competitionId,
+  entries,
+  divisions,
+}: {
+  label: string;
+  items: any[];
+  isAdmin: boolean;
+  competitionId: string;
+  entries: any[];
+  divisions: any[];
+}) {
+  const [open, setOpen] = useState(true);
+
+  // Derive a date summary for the round header
+  const dateRange = useMemo(() => {
+    const dates = items
+      .map((m) => (m.scheduled_at ? new Date(m.scheduled_at) : null))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dates.length === 0) return null;
+    const first = format(dates[0], "EEE d MMM");
+    const last = format(dates[dates.length - 1], "EEE d MMM");
+    return first === last ? first : `${first} – ${last}`;
+  }, [items]);
+
+  const completed = items.filter((m) => m.status === "completed").length;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+      <CollapsibleTrigger className="w-full group">
+        <div className="flex items-center gap-2 px-1 pt-2 min-w-0 text-left">
+          <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          <h3 className="text-base font-bold tracking-tight text-foreground shrink-0">{label}</h3>
+          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-semibold shrink-0">
+            {items.length}
+          </Badge>
+          {dateRange && (
+            <span className="text-xs text-muted-foreground truncate min-w-0">· {dateRange}</span>
+          )}
+          {completed > 0 && (
+            <span className="text-[11px] text-muted-foreground shrink-0 ml-auto">{completed}/{items.length} done</span>
+          )}
+          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[12px] h-px bg-border`} />
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        {items.map((m: any) => (
+          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -923,137 +977,173 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
     ? `${venueName}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
     : null;
 
+  const scheduledDate = match.scheduled_at ? new Date(match.scheduled_at) : null;
+  const isCompleted = match.status === "completed";
+  const isCancelled = match.status === "cancelled";
+  const isPostponed = match.status === "postponed";
+  const statusDotClass =
+    isCompleted ? "bg-emerald-500"
+    : isCancelled ? "bg-destructive"
+    : isPostponed ? "bg-amber-500"
+    : match.status === "in_progress" ? "bg-blue-500"
+    : "bg-muted-foreground/40";
+
+  const homeName = match.home?.name ?? "TBD";
+  const awayName = match.away?.name ?? "TBD";
+  const homeInitials = homeName.split(/\s+/).map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  const awayInitials = awayName.split(/\s+/).map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const homeWon = hasScore && match.home_score != null && match.away_score != null && match.home_score > match.away_score;
+  const awayWon = hasScore && match.home_score != null && match.away_score != null && match.away_score > match.home_score;
+
   return (
-    <Card className="overflow-hidden w-full box-border">
-      <CardContent className="p-4 space-y-3">
-        {/* Top row: date/venue on the left, status badge on the right */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            {(!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name ? (
-              <div className="flex items-center gap-2 min-w-0">
-                {!hideRoundBadge && match.round_number != null && (
-                  <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
-                    Round {match.round_number}
-                  </Badge>
-                )}
-                {match.competition_divisions?.name && (
-                  <span className="text-xs text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
-                )}
-              </div>
-            ) : null}
-            {(match.scheduled_at || venueLine) && (
-              <div className="space-y-0.5 text-xs text-muted-foreground">
-                {match.scheduled_at && (
-                  <div className="font-medium text-foreground/80">
-                    {format(new Date(match.scheduled_at), "EEE d MMM yyyy • h:mm a")}
-                  </div>
-                )}
-                {venueLine && <div className="truncate">{venueLine}</div>}
-              </div>
+    <Card className={`overflow-hidden w-full box-border ${isCancelled ? "opacity-60" : ""}`}>
+      <CardContent className="p-3 space-y-2.5">
+        {/* Header strip: round/division + tiny status */}
+        {((!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name || match.status) && (
+          <div className="flex items-center gap-2 min-w-0 text-[11px]">
+            {!hideRoundBadge && match.round_number != null && (
+              <span className="font-semibold text-muted-foreground shrink-0">R{match.round_number}</span>
             )}
-          </div>
-          <Badge
-            variant={statusVariant}
-            className="rounded-full px-2 py-0.5 text-[11px] capitalize whitespace-nowrap shrink-0"
-          >
-            {statusLabel}
-          </Badge>
-        </div>
-
-
-        {/* Match-up: Team A / vs / Team B centered vertically */}
-        <div className="flex flex-col items-center text-center gap-1 py-1">
-          <div className="flex items-center justify-center gap-3 w-full min-w-0">
-            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
-              {match.home?.name ?? "?"}
+            {match.competition_divisions?.name && (
+              <span className="text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+            )}
+            <div className="flex-1" />
+            <span className="flex items-center gap-1.5 shrink-0 text-muted-foreground capitalize">
+              <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+              {statusLabel}
             </span>
-            {hasScore && (
-              <span className="text-base font-bold tabular-nums shrink-0">
-                {match.home_score ?? "–"}
+          </div>
+        )}
+
+        {/* Matchup section — primary visual focus */}
+        {editing ? (
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Home</div>
+                <div className="text-sm font-bold truncate">{homeName}</div>
+                <Input type="number" inputMode="numeric" value={home} onChange={(e) => setHome(e.target.value)} className="h-9 text-center text-lg font-bold tabular-nums" />
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pt-5">vs</span>
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold text-right">Away</div>
+                <div className="text-sm font-bold truncate text-right">{awayName}</div>
+                <Input type="number" inputMode="numeric" value={away} onChange={(e) => setAway(e.target.value)} className="h-9 text-center text-lg font-bold tabular-nums" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["scheduled","in_progress","completed","postponed","cancelled"].map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" className="h-9 w-full" onClick={save}>
+                <Save className="h-4 w-4 mr-1" /> Save
+              </Button>
+              <Button size="sm" variant="ghost" className="h-9 w-full" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            {/* Home */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
+                {homeInitials || "?"}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Home</div>
+                <div className={`text-base font-bold leading-tight break-words ${homeWon ? "text-foreground" : "text-foreground"} ${awayWon ? "text-muted-foreground" : ""}`}>
+                  {homeName}
+                </div>
+              </div>
+            </div>
+
+            {/* Score / vs */}
+            <div className="flex flex-col items-center justify-center px-1 shrink-0">
+              {hasScore ? (
+                <div className="flex items-center gap-1.5 text-xl font-bold tabular-nums leading-none">
+                  <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
+                  <span className="text-muted-foreground text-sm">:</span>
+                  <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
+                </div>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">vs</span>
+              )}
+            </div>
+
+            {/* Away */}
+            <div className="flex items-center gap-2 min-w-0 justify-end">
+              <div className="min-w-0 text-right">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Away</div>
+                <div className={`text-base font-bold leading-tight break-words ${awayWon ? "text-foreground" : "text-foreground"} ${homeWon ? "text-muted-foreground" : ""}`}>
+                  {awayName}
+                </div>
+              </div>
+              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
+                {awayInitials || "?"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Date / time / venue — secondary */}
+        {!editing && (scheduledDate || venueLine) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground border-t pt-2">
+            {scheduledDate && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {format(scheduledDate, "EEE d MMM · h:mm a")}
+              </span>
+            )}
+            {venueLine && (
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="truncate">{venueLine}</span>
               </span>
             )}
           </div>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">vs</span>
-          <div className="flex items-center justify-center gap-3 w-full min-w-0">
-            <span className="flex-1 min-w-0 text-base font-semibold leading-tight break-words">
-              {match.away?.name ?? "?"}
-            </span>
-            {hasScore && (
-              <span className="text-base font-bold tabular-nums shrink-0">
-                {match.away_score ?? "–"}
-              </span>
-            )}
-          </div>
-        </div>
+        )}
 
-        {/* Actions */}
-        {isAdmin && (
-          <div>
-            {!editing ? (
-              <div className="space-y-2 pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full min-h-11"
-                  onClick={() => setEditDetailsOpen(true)}
-                >
-                  <Settings2 className="h-4 w-4 mr-1.5" />
-                  Edit details
+        {/* Compact admin actions — overflow menu */}
+        {isAdmin && !editing && (
+          <div className="flex items-center justify-end gap-1 -mb-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" />
+              Score
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 w-full"
-                    onClick={() => setEditing(true)}
-                  >
-                    <Pencil className="h-4 w-4 mr-1.5" />
-                    Edit score
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                    onClick={remove}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Home</Label>
-                    <Input type="number" inputMode="numeric" value={home} onChange={(e) => setHome(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Away</Label>
-                    <Input type="number" inputMode="numeric" value={away} onChange={(e) => setAway(e.target.value)} />
-                  </div>
-                  <div className="col-span-2">
-                    <Label>Status</Label>
-                    <Select value={status} onValueChange={setStatus}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["scheduled","in_progress","completed","postponed","cancelled"].map((s) => (
-                          <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" className="min-h-11 w-full" onClick={save}>
-                    <Save className="h-4 w-4 mr-1" /> Save
-                  </Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 w-full" onClick={() => setEditing(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => setEditDetailsOpen(true)}>
+                  <Settings2 className="h-4 w-4 mr-2" /> Edit details
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Edit score
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={remove} className="text-destructive focus:text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </CardContent>
