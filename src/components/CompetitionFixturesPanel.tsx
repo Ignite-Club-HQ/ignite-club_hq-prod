@@ -803,7 +803,15 @@ function AddMatchButton({ competitionId, entries, divisions }: { competitionId: 
           </div>
           <div>
             <Label>Venue <span className="text-destructive">*</span></Label>
-            <Input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Oval" />
+            <AddressAutocomplete
+              value={venue}
+              onChange={setVenue}
+              onSelect={(a) => {
+                const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+                setVenue(full);
+              }}
+              placeholder="Search venue or address…"
+            />
           </div>
           <div>
             <Label>Pitch / Court #</Label>
