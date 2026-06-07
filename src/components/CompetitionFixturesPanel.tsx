@@ -1319,14 +1319,28 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("competition_ladder")
-        .select("*, teams:team_id(id, name)")
+        .select("*")
         .eq("competition_id", competitionId)
         .order("points", { ascending: false })
         .order("goal_diff", { ascending: false })
         .order("goals_for", { ascending: false });
-      return data ?? [];
+      if (error) throw error;
+
+      const teamIds = Array.from(new Set((data ?? []).map((r: any) => r.team_id).filter(Boolean)));
+      if (teamIds.length === 0) return data ?? [];
+
+      const { data: teams } = await supabase
+        .from("teams")
+        .select("id, name")
+        .in("id", teamIds);
+
+      const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        teams: teamById.get(row.team_id) ?? null,
+      }));
     },
   });
 
