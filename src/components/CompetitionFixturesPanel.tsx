@@ -379,7 +379,18 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2">
                         <Label>Default venue <span className="text-destructive">*</span></Label>
-                        <Input required value={genVenue} onChange={(e) => setGenVenue(e.target.value)} placeholder="e.g. Main Oval" />
+                        <AddressAutocomplete
+                          value={genVenue}
+                          onChange={setGenVenue}
+                          onSelect={(a) => {
+                            const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+                            setGenVenue(full);
+                          }}
+                          placeholder="Search venue or address…"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Pick a place to attach a full address so each match event can be geocoded and mapped.
+                        </p>
                       </div>
                       <div className="col-span-2">
                         <Label>Available pitches / courts</Label>
