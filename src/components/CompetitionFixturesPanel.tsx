@@ -796,11 +796,11 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
         )}
 
         {/* Match: teams + score */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="grid grid-cols-[1fr_3rem_1fr] items-center gap-2">
           <span className="text-right text-base sm:text-lg font-semibold leading-tight truncate">
             {match.home?.name ?? "?"}
           </span>
-          <span className="px-1 text-center">
+          <span className="text-center">
             {hasScore ? (
               <span className="text-lg font-bold tabular-nums">
                 {match.home_score ?? "–"} : {match.away_score ?? "–"}
