@@ -1119,17 +1119,20 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 py-0.5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 py-0.5">
             {/* Home */}
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={24} />
-              <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+              <div
+                className={`flex-1 min-w-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}
+                title={homeName}
+              >
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1 shrink-0">
               {hasScore ? (
                 <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
@@ -1137,16 +1140,19 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">vs</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/70">vs</span>
               )}
             </div>
 
-            {/* Away */}
-            <div className="flex items-center gap-1.5 min-w-0 justify-end">
-              <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+            {/* Away — mirrored: avatar on outside, name flush to centre */}
+            <div className="flex flex-row-reverse items-center gap-2 min-w-0">
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={24} />
+              <div
+                className={`flex-1 min-w-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}
+                title={awayName}
+              >
                 {awayName}
               </div>
-              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={24} />
             </div>
           </div>
         )}
