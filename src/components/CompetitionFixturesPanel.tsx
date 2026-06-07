@@ -942,7 +942,7 @@ function RoundSection({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="space-y-1.5">
-      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-1 px-1 py-1.5">
+      <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-1.5">
         <div className="flex items-center gap-2 min-w-0 text-left">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
           <h3 className="text-[11px] font-bold tracking-wider text-foreground/80 shrink-0 uppercase">{label}</h3>
