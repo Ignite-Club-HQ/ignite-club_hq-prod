@@ -248,6 +248,24 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
 
   const saveFixtures = async () => {
     if (!schedule || !previewPairings) return;
+    // In simultaneous mode, surface overflow before saving so the organiser
+    // can confirm — same-day waves first, then cross-day overflow.
+    if (genMode === "simultaneous") {
+      if (schedule.extraWaveRounds.length > 0) {
+        const rs = schedule.extraWaveRounds.join(", ");
+        const ok = window.confirm(
+          `Not all matches fit in a single kickoff wave. Round${schedule.extraWaveRounds.length === 1 ? "" : "s"} ${rs} will run extra time slots on the same day. Continue?`
+        );
+        if (!ok) return;
+      }
+      if (schedule.overflowRounds.length > 0) {
+        const rs = schedule.overflowRounds.join(", ");
+        const ok = window.confirm(
+          `Round${schedule.overflowRounds.length === 1 ? "" : "s"} ${rs} won't fit in one day and will roll over to the next allowed weekday for this division. Continue?`
+        );
+        if (!ok) return;
+      }
+    }
     setGenerating(true);
     const arrival = genArrival ? Number(genArrival) : null;
     const startRoundOffset = Math.max(1, Number(genStartRound) || 1) - 1;
