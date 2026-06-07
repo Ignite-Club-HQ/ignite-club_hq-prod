@@ -1190,35 +1190,31 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               <Pencil className="h-3 w-3 mr-1" />
               {hasScore ? "Edit score" : "Enter score"}
             </Button>
-            <DropdownMenu open={manageOpen} onOpenChange={(open) => { if (open && !longPressFiredRef.current) return; if (!open) longPressFiredRef.current = false; setManageOpen(open); }}>
+            <DropdownMenu open={manageOpen} onOpenChange={setManageOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
                   variant="ghost"
-                  aria-label="Fixture settings (hold)"
+                  aria-label="Fixture settings"
                   className="h-7 w-7 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
-                    longPressFiredRef.current = false;
-                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = setTimeout(() => {
-                      longPressFiredRef.current = true;
-                      setManageOpen(true);
-                      try { navigator.vibrate?.(10); } catch {}
-                    }, 550);
                   }}
-                  onPointerMove={(e) => {
-                    if (!tapStartRef.current) return;
-                    const dx = e.clientX - tapStartRef.current.x;
-                    const dy = e.clientY - tapStartRef.current.y;
+                  onPointerUp={(e) => {
+                    // Scroll-tolerance gate: only treat as a tap if the pointer
+                    // hasn't moved more than ~10px since pointerdown. Prevents
+                    // accidental opens while scrolling the fixture list.
+                    const start = tapStartRef.current;
+                    tapStartRef.current = null;
+                    if (!start) return;
+                    const dx = e.clientX - start.x;
+                    const dy = e.clientY - start.y;
                     if (Math.sqrt(dx * dx + dy * dy) > 10) {
-                      clearLongPress();
+                      e.preventDefault();
+                      e.stopPropagation();
                     }
                   }}
-                  onPointerUp={clearLongPress}
-                  onPointerCancel={clearLongPress}
-                  onPointerLeave={clearLongPress}
+                  onPointerCancel={() => { tapStartRef.current = null; }}
                   onContextMenu={(e) => e.preventDefault()}
                 >
                   <Settings2 className="h-4 w-4" />
