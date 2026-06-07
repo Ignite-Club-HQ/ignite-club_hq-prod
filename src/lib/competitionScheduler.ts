@@ -152,6 +152,7 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
   const dur = Math.max(1, durationMins || 60);
   const placed: PlacedFixture[] = [];
   const overflowRounds = new Set<number>();
+  const extraWaveRounds = new Set<number>();
   const unscheduled: Pairing[] = [];
 
   // Group pairings by round
