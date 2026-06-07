@@ -50,7 +50,9 @@ function parsePayload(data: any): ParsedPreload | null {
     kind = "club_admin";
     targetId = data.context_id || data.contextId;
   } else if (data.club_id || data.clubId) {
-    kind = data.is_admin_thread ? "club_admin" : "club";
+    // BUG-7: FCM serializes all data fields as strings, so accept both.
+    const isAdminThread = data.is_admin_thread === true || data.is_admin_thread === "true";
+    kind = isAdminThread ? "club_admin" : "club";
     targetId = data.club_id || data.clubId;
   } else if (data.broadcast_id || data.broadcastId) {
     kind = "broadcast";
