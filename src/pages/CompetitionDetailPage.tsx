@@ -169,8 +169,16 @@ export default function CompetitionDetailPage() {
           {isAdmin && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Send broadcast" title="Send broadcast">
-                  <Megaphone className="h-[18px] w-[18px]" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Open competition broadcasts"
+                  title="Send announcements to all accepted teams"
+                  className="h-9 min-h-11 sm:min-h-9 px-2.5 sm:px-3 rounded-full gap-1.5 shrink-0 border-border/70 hover:border-primary/50 hover:bg-primary/5 hover:text-primary font-semibold whitespace-nowrap"
+                >
+                  <Megaphone className="h-4 w-4" />
+                  <span className="text-[13px] hidden xs:inline sm:inline">Broadcast</span>
+                  <BroadcastsHeaderBadge competitionId={id!} />
                 </Button>
               </SheetTrigger>
               <SheetContent
@@ -187,7 +195,7 @@ export default function CompetitionDetailPage() {
             </Sheet>
           )}
           {isAdmin && (
-            <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label="Competition settings" title="Competition settings">
+            <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
           )}
