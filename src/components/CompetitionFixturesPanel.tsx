@@ -1003,20 +1003,28 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
   return (
-    <Card className={`overflow-hidden w-full box-border ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="p-3 space-y-2.5">
-        {/* Header strip: round/division + tiny status */}
-        {((!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name || match.status) && (
-          <div className="flex items-center gap-2 min-w-0 text-[11px]">
-            {!hideRoundBadge && match.round_number != null && (
-              <span className="font-semibold text-muted-foreground shrink-0">R{match.round_number}</span>
+    <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
+      <CardContent className="p-2.5 space-y-1.5">
+        {/* Top row: date · venue · status */}
+        {!editing && (
+          <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
+            {scheduledDate ? (
+              <span className="inline-flex items-center gap-1 shrink-0 font-medium text-foreground/80">
+                <Clock className="h-3 w-3" aria-hidden />
+                {format(scheduledDate, "EEE d MMM · h:mm a")}
+              </span>
+            ) : (
+              <span className="shrink-0 italic">Time TBD</span>
             )}
-            {match.competition_divisions?.name && (
-              <span className="text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+            {venueLine && (
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <span className="text-muted-foreground/50">·</span>
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{venueLine}</span>
+              </span>
             )}
             <div className="flex-1" />
-            <span className="flex items-center gap-1.5 shrink-0 text-muted-foreground capitalize">
-              <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+            <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${statusPillClass}`}>
               {statusLabel}
             </span>
           </div>
@@ -1062,23 +1070,20 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                 {homeInitials || "?"}
               </div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Home</div>
-                <div className={`text-base font-bold leading-tight break-words ${homeWon ? "text-foreground" : "text-foreground"} ${awayWon ? "text-muted-foreground" : ""}`}>
-                  {homeName}
-                </div>
+              <div className={`text-[15px] font-bold leading-tight truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+                {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1.5 text-xl font-bold tabular-nums leading-none">
+                <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
-                  <span className="text-muted-foreground text-sm">:</span>
+                  <span className="text-muted-foreground text-xs">:</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
@@ -1088,53 +1093,32 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
             {/* Away */}
             <div className="flex items-center gap-2 min-w-0 justify-end">
-              <div className="min-w-0 text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Away</div>
-                <div className={`text-base font-bold leading-tight break-words ${awayWon ? "text-foreground" : "text-foreground"} ${homeWon ? "text-muted-foreground" : ""}`}>
-                  {awayName}
-                </div>
+              <div className={`text-[15px] font-bold leading-tight truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+                {awayName}
               </div>
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                 {awayInitials || "?"}
               </div>
             </div>
           </div>
         )}
 
-        {/* Date / time / venue — secondary */}
-        {!editing && (scheduledDate || venueLine) && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground border-t pt-2">
-            {scheduledDate && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {format(scheduledDate, "EEE d MMM · h:mm a")}
-              </span>
-            )}
-            {venueLine && (
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <MapPin className="h-3 w-3 shrink-0" />
-                <span className="truncate">{venueLine}</span>
-              </span>
-            )}
-          </div>
-        )}
-
         {/* Compact admin actions — overflow menu */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1 -mb-1">
+          <div className="flex items-center justify-end gap-1 -mb-0.5 -mt-0.5">
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-xs"
               onClick={() => setEditing(true)}
             >
-              <Pencil className="h-3.5 w-3.5 mr-1" />
+              <Pencil className="h-3 w-3 mr-1" />
               Score
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button size="icon" variant="ghost" className="h-7 w-7">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -1153,6 +1137,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
       </CardContent>
+
       {isAdmin && editDetailsOpen && (
         <EditMatchDetailsDialog
           open={editDetailsOpen}
