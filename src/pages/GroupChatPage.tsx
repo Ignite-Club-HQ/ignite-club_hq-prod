@@ -341,6 +341,20 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: miniLeagueInfo } = useQuery({
+    queryKey: ["chat-group-mini-league", group?.mini_league_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("mini_leagues")
+        .select("id, name, club_id")
+        .eq("id", group!.mini_league_id!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!group?.mini_league_id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
 
