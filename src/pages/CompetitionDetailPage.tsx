@@ -458,9 +458,10 @@ function TeamsByDivision({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {groups.map((g) => (
-        <div key={g.id ?? "unassigned"} className="space-y-2">
+        <div key={g.id ?? "unassigned"} className="space-y-1.5">
+
           {(g.name || g.entries.length > 0) && (
             <div className="flex items-baseline justify-between">
               <div>
