@@ -40,18 +40,11 @@ FROM per_team pt
 JOIN public.competitions c ON c.id = pt.competition_id
 LEFT JOIN public.competition_divisions d ON d.id = pt.division_id
 WHERE public.is_competition_admin(auth.uid(), pt.competition_id)
-   OR (
-     pt.division_id IS NOT NULL
-     AND COALESCE(d.hide_ladder, false) = false
-   )
-   OR (
-     pt.division_id IS NULL
-     AND NOT EXISTS (
-       SELECT 1
-       FROM public.competition_divisions hidden_division
-       WHERE hidden_division.competition_id = pt.competition_id
-         AND hidden_division.hide_ladder = true
-     )
+   OR NOT EXISTS (
+     SELECT 1
+     FROM public.competition_divisions hidden_division
+     WHERE hidden_division.competition_id = pt.competition_id
+       AND hidden_division.hide_ladder = true
    )
 GROUP BY pt.competition_id, pt.division_id, pt.team_id;
 
