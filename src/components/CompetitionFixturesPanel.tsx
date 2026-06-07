@@ -1437,13 +1437,11 @@ function AddMatchMenuItem(props: { competitionId: string; entries: any[]; divisi
         <Plus className="h-4 w-4 mr-2" /> Add match
       </DropdownMenuItem>
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Add match</SheetTitle>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8">
+          <SheetHeader className="mb-5">
+            <SheetTitle className="text-xl font-bold">Add match</SheetTitle>
           </SheetHeader>
-          <div className="pt-4">
-            <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
-          </div>
+          <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
         </SheetContent>
       </Sheet>
     </>
@@ -1517,53 +1515,67 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
   if (!open) {
     return <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add match</Button>;
   }
+  // Shared input class so every field looks like the matchmaker direction.
+  const fieldClass =
+    "h-11 bg-muted/40 border border-border/60 rounded-xl text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all";
+  const labelClass =
+    "block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 ml-0.5";
+
   return (
-    <Card className="w-full">
-      <CardContent className="p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Home team</Label>
-            <Select value={homeId} onValueChange={setHomeId}>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                {accepted.map((e: any) => (
-                  <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Away team</Label>
-            <Select value={awayId} onValueChange={setAwayId}>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                {accepted.map((e: any) => (
-                  <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="w-full space-y-7">
+      {/* Teams matchup — hero row with VS divider */}
+      <div className="flex items-end gap-3">
+        <div className="flex-1 min-w-0">
+          <label className={labelClass}>Home team</label>
+          <Select value={homeId} onValueChange={setHomeId}>
+            <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
+            <SelectContent>
+              {accepted.map((e: any) => (
+                <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        {divisions.length > 0 && (
-          <div className="space-y-1.5">
-            <Label>Division (optional)</Label>
-            <Select value={divisionId || "_none"} onValueChange={(v) => setDivisionId(v === "_none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_none">None</SelectItem>
-                {divisions.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Start date <span className="text-destructive">*</span></Label>
+        <div className="pb-3 shrink-0">
+          <span className="text-[11px] font-black tracking-wider text-muted-foreground/60">VS</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <label className={labelClass}>Away team</label>
+          <Select value={awayId} onValueChange={setAwayId}>
+            <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
+            <SelectContent>
+              {accepted.map((e: any) => (
+                <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {divisions.length > 0 && (
+        <div>
+          <label className={labelClass}>Division <span className="lowercase font-normal text-muted-foreground/60">(optional)</span></label>
+          <Select value={divisionId || "_none"} onValueChange={(v) => setDivisionId(v === "_none" ? "" : v)}>
+            <SelectTrigger className={fieldClass}><SelectValue placeholder="None" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">None</SelectItem>
+              {divisions.map((d: any) => (
+                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Schedule */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Start date <span className="text-destructive">*</span></label>
             <Input
               type="date"
               required
+              className={fieldClass}
               value={scheduledAt ? scheduledAt.split("T")[0] : ""}
               onChange={(e) => {
                 const time = scheduledAt.split("T")[1] || "09:00";
@@ -1571,11 +1583,12 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
               }}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>Start time <span className="text-destructive">*</span></Label>
+          <div>
+            <label className={labelClass}>Start time <span className="text-destructive">*</span></label>
             <Input
               type="time"
               required
+              className={fieldClass}
               value={scheduledAt ? (scheduledAt.split("T")[1] || "") : ""}
               onChange={(e) => {
                 const date = scheduledAt.split("T")[0];
@@ -1583,52 +1596,77 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
               }}
             />
           </div>
-          <div className="col-span-2 space-y-1.5">
-            <Label>Round (optional)</Label>
-            <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Duration <span className="lowercase font-normal text-muted-foreground/60">(mins)</span></label>
+            <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 90" className={fieldClass} />
           </div>
-          <div className="space-y-1.5">
-            <Label>Venue <span className="text-destructive">*</span></Label>
-            <AddressAutocomplete
-              value={venue}
-              onChange={setVenue}
-              onSelect={(a) => {
-                const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
-                setVenue(full);
-              }}
-              placeholder="Search venue or address…"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Pitch / Court #</Label>
-            <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Duration (mins)</Label>
-            <Input type="number" inputMode="numeric" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 90" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Arrive (mins before)</Label>
-            <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} placeholder="e.g. 30" />
-          </div>
-          <div className="col-span-2 space-y-1.5">
-            <Label>Notes (optional)</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Shown on the team event" />
+          <div>
+            <label className={labelClass}>Arrive before</label>
+            <Input type="number" inputMode="numeric" min={0} value={arrival} onChange={(e) => setArrival(e.target.value)} placeholder="e.g. 30" className={fieldClass} />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          A team event is created for both sides so players can RSVP.
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={submit} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
+      </div>
+
+      {/* Venue + Pitch */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <label className={labelClass}>Venue <span className="text-destructive">*</span></label>
+          <AddressAutocomplete
+            value={venue}
+            onChange={setVenue}
+            onSelect={(a) => {
+              const full = [a.address, a.suburb, a.state, a.postcode].filter(Boolean).join(", ");
+              setVenue(full);
+            }}
+            placeholder="Search venue or address…"
+          />
         </div>
-      </CardContent>
-    </Card>
+        <div>
+          <label className={labelClass}>Pitch #</label>
+          <Input value={pitch} onChange={(e) => setPitch(e.target.value)} placeholder="e.g. 3" className={fieldClass} />
+        </div>
+      </div>
+
+      {/* Additional details */}
+      <div className="space-y-4">
+        <div>
+          <label className={labelClass}>Round <span className="lowercase font-normal text-muted-foreground/60">(optional)</span></label>
+          <Input type="number" inputMode="numeric" min={1} value={round} onChange={(e) => setRound(e.target.value)} className={fieldClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Notes <span className="lowercase font-normal text-muted-foreground/60">(optional)</span></label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Shown on the team event" className={fieldClass} />
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+        A team event is created for both sides so players can RSVP.
+      </p>
+
+      {/* Actions */}
+      <div className="flex flex-col gap-2 pt-1">
+        <Button
+          onClick={submit}
+          disabled={saving}
+          className="w-full h-12 rounded-2xl font-bold text-base shadow-lg shadow-primary/10 active:scale-[0.98] transition-transform"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save match"}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => { setOpen(false); reset(); }}
+          className="w-full h-11 text-muted-foreground font-medium hover:text-foreground"
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
+
 
 export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
   const { data: rows = [], isLoading } = useQuery({
