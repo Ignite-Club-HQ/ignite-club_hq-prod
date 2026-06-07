@@ -1810,34 +1810,35 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
 
   return (
     <Card className="overflow-hidden">
-      {/* Division header */}
+      {/* Compact division header */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 bg-primary/5 border-b border-border/60 text-left hover:bg-primary/10 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 bg-primary/5 border-b border-border/60 text-left hover:bg-primary/10 transition-colors"
         aria-expanded={open}
       >
-        <Trophy className="h-4 w-4 text-primary shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="text-base font-semibold text-foreground truncate">{title}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {teamCount} {teamCount === 1 ? "team" : "teams"}
-            {!seasonStarted && " · Season not started"}
-          </div>
-        </div>
-        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+        <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />
+        <div className="text-sm font-semibold text-foreground truncate">{title}</div>
+        <span className="text-[11px] text-muted-foreground shrink-0">
+          · {teamCount} {teamCount === 1 ? "team" : "teams"}
+          {!seasonStarted && " · Not started"}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform ml-auto", !open && "-rotate-90")} />
       </button>
 
       {open && (
         <div>
-          {!seasonStarted && (
-            <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 text-[12px] text-muted-foreground">
-              Ladder positions will update automatically once results are entered.
+          {!seasonStarted ? (
+            <div className="px-4 py-8 text-center space-y-2">
+              <Trophy className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                No results entered yet. Rankings will appear once matches are completed.
+              </p>
             </div>
-          )}
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-separate border-spacing-0">
-              <thead className="sticky top-0 bg-primary/5 backdrop-blur supports-[backdrop-filter]:bg-primary/5">
+              <thead className="sticky top-0 bg-primary/5">
                 <tr>
                   <th className="py-2 pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left w-9">#</th>
                   <th className="py-2 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left">Team</th>
@@ -1855,13 +1856,17 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
                   const gd = r.goal_diff ?? 0;
                   const medalColor =
                     rank === 1
-                      ? "bg-amber-400/20 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/40"
+                      ? "bg-amber-400/25 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/50"
                       : rank === 2
-                      ? "bg-slate-400/20 text-slate-700 dark:text-slate-300 ring-1 ring-slate-400/40"
+                      ? "bg-slate-400/25 text-slate-700 dark:text-slate-300 ring-1 ring-slate-400/50"
                       : rank === 3
-                      ? "bg-orange-500/20 text-orange-700 dark:text-orange-300 ring-1 ring-orange-500/40"
+                      ? "bg-orange-500/25 text-orange-700 dark:text-orange-300 ring-1 ring-orange-500/50"
                       : "bg-muted text-muted-foreground";
-                  const rowBg = i % 2 === 1 ? "bg-muted/20" : "";
+                  const topTint =
+                    rank === 1 ? "bg-amber-400/[0.06]"
+                    : rank === 2 ? "bg-slate-400/[0.06]"
+                    : rank === 3 ? "bg-orange-500/[0.06]"
+                    : i % 2 === 1 ? "bg-muted/20" : "";
                   const teamName = r.teams?.name ?? "?";
                   const initials = teamName
                     .split(/\s+/)
@@ -1872,7 +1877,7 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
                     .toUpperCase();
                   const RowContent = (
                     <>
-                      <td className={cn("py-3 pl-3 pr-1 align-middle", rowBg)}>
+                      <td className={cn("py-3 pl-3 pr-1 align-middle", topTint)}>
                         <span
                           className={cn(
                             "inline-flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums",
@@ -1882,40 +1887,28 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
                           {rank}
                         </span>
                       </td>
-                      <td className={cn("py-3 px-1.5 align-middle min-w-0", rowBg)}>
+                      <td className={cn("py-3 px-1.5 align-middle min-w-0", topTint)}>
                         <div className="flex items-center gap-2 min-w-0">
                           <TeamAvatar name={teamName} logoUrl={r.teams?.logo_url} initials={initials} size={28} />
-
                           <span className="font-semibold text-foreground truncate">{teamName}</span>
-                          {rank <= 3 && (
-                            <Medal
-                              className={cn(
-                                "h-3.5 w-3.5 shrink-0",
-                                rank === 1 && "text-amber-500",
-                                rank === 2 && "text-slate-400",
-                                rank === 3 && "text-orange-500",
-                              )}
-                              aria-hidden
-                            />
-                          )}
                         </div>
                       </td>
-                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.played ?? 0}</td>
-                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.wins ?? 0}</td>
-                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.draws ?? 0}</td>
-                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.losses ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", topTint)}>{r.played ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", topTint)}>{r.wins ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", topTint)}>{r.draws ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", topTint)}>{r.losses ?? 0}</td>
                       <td
                         className={cn(
                           "py-3 px-1.5 pl-3 text-right tabular-nums font-medium",
                           gd > 0 && "text-emerald-600 dark:text-emerald-400",
                           gd < 0 && "text-rose-600 dark:text-rose-400",
                           gd === 0 && "text-muted-foreground",
-                          rowBg,
+                          topTint,
                         )}
                       >
                         {gd > 0 ? `+${gd}` : gd}
                       </td>
-                      <td className={cn("py-3 px-1.5 pr-3 text-right tabular-nums font-bold text-foreground", rowBg)}>
+                      <td className={cn("py-3 px-1.5 pr-3 text-right tabular-nums font-bold text-foreground", topTint)}>
                         {r.points ?? 0}
                       </td>
                     </>
@@ -1937,6 +1930,7 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
     </Card>
