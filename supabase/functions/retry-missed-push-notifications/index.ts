@@ -89,22 +89,57 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`[RETRY-PUSH] Found ${missedNotifications.length} notifications without push logs, retrying...`);
 
-    // Build URL for each notification (same logic as the DB trigger)
-    const buildUrl = (type: string, relatedId: string | null): string => {
+    // Build URL for each notification (mirrors public.compute_push_notification_url DB trigger).
+    // Async because some types need to resolve related_id → team/club/group id.
+    const buildUrl = async (type: string, relatedId: string | null): Promise<string> => {
+      const rid = relatedId || '';
       switch (type) {
         case 'direct_message':
-          return `/messages/dm/${relatedId || ''}`;
+          return rid ? `/messages/dm/${rid}` : '/messages';
+
         case 'team_message':
         case 'message_reply':
         case 'message_reaction':
-        case 'message_mention':
-          return relatedId ? `/messages/${relatedId}` : '/messages';
-        case 'club_message':
-          return relatedId ? `/messages/club/${relatedId}` : '/messages';
+        case 'message_mention': {
+          if (!rid) return '/messages';
+          try {
+            const { data } = await supabase
+              .from('team_messages')
+              .select('team_id')
+              .eq('id', rid)
+              .maybeSingle();
+            return data?.team_id ? `/messages/${data.team_id}?message=${rid}` : '/messages';
+          } catch { return '/messages'; }
+        }
+
+        case 'club_message': {
+          if (!rid) return '/messages';
+          try {
+            const { data } = await supabase
+              .from('club_messages')
+              .select('club_id')
+              .eq('id', rid)
+              .maybeSingle();
+            return data?.club_id ? `/messages/club/${data.club_id}?message=${rid}` : '/messages';
+          } catch { return '/messages'; }
+        }
+
         case 'group_message':
-          return relatedId ? `/messages/group/${relatedId}` : '/messages';
+        case 'message_forwarded': {
+          if (!rid) return '/messages';
+          try {
+            const { data } = await supabase
+              .from('group_messages')
+              .select('group_id')
+              .eq('id', rid)
+              .maybeSingle();
+            return data?.group_id ? `/groups/${data.group_id}?message=${rid}` : '/messages';
+          } catch { return '/messages'; }
+        }
+
         case 'broadcast':
           return '/messages/broadcast';
+
         case 'event_invite':
         case 'event_cancelled':
         case 'event_reminder':
@@ -112,37 +147,71 @@ serve(async (req: Request): Promise<Response> => {
         case 'event_updated':
         case 'rsvp_reminder':
         case 'rsvp_updated':
+        case 'rsvp':
         case 'duty_assigned':
-          return relatedId ? `/events/${relatedId}` : '/events';
+          return rid ? `/events/${rid}` : '/events';
+
         case 'photo_uploaded':
         case 'photo_reaction':
         case 'photo_comment':
         case 'comment_reaction':
         case 'comment_reply':
-          return '/media';
+          return rid ? `/media?photo=${rid}` : '/media';
+
         case 'points_awarded':
         case 'reward_redeemed':
         case 'early_rsvp_points':
         case 'player_of_match':
         case 'game_stats_ready':
           return '/profile?section=points-history';
+
         case 'formation_change':
         case 'pending_sub':
         case 'half_time':
         case 'game_finished':
+        case 'game_started':
+        case 'game_ended':
         case 'pitch_board':
+        case 'pitch_board_update':
         case 'substitution':
+        case 'substitution_alert':
           return '/';
+
         case 'member_joined':
         case 'invite_accepted':
         case 'team_join':
-          return relatedId ? `/teams/${relatedId}` : '/notifications';
+        case 'role_assigned':
+          return rid ? `/teams/${rid}` : '/notifications';
+
         case 'club_join':
-          return relatedId ? `/clubs/${relatedId}` : '/notifications';
+          return rid ? `/clubs/${rid}` : '/notifications';
+
+        case 'scheduled_message_failed':
+          return '/messages';
+
+        case 'fee_payment_request':
+        case 'payment_received':
+        case 'payment_overdue':
+        case 'subscription_expiring':
+        case 'subscription_expired':
+        case 'subscription_renewed':
+        case 'storage_limit':
+        case 'system_announcement':
+        case 'reward_available':
+        case 'membership':
+        case 'role_removed':
+        case 'team_invite':
+        case 'join_request':
+        case 'join_request_approved':
+        case 'join_request_denied':
+        case 'join_request_processed':
+          return '/notifications';
+
         default:
           return '/notifications';
       }
     };
+
 
     // NOTE: We deliberately do NOT pre-insert placeholder logs here.
     // send-push-notification has its own claim mechanism (a 'pending' placeholder row)
