@@ -126,6 +126,8 @@ export interface SchedulerOutput {
   placed: PlacedFixture[];
   /** Rounds that overflowed their starting day onto subsequent allowed days */
   overflowRounds: number[];
+  /** Rounds that needed extra same-day waves (simultaneous mode only). */
+  extraWaveRounds: number[];
   /** Matches that could not be scheduled at all (window/end date too tight) */
   unscheduled: Pairing[];
   /** Per-round summary: { round, dates: string[], dayUsed: number } */
