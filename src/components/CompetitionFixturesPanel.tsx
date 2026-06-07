@@ -1062,7 +1062,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-2.5 py-2 space-y-1">
+      <CardContent className="px-1.5 py-2 space-y-1">
         {/* Top row: [status] date • time • venue • pitch (wraps) */}
         {!editing && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-[12px] text-muted-foreground leading-tight">
@@ -1116,17 +1116,17 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
             {/* Home */}
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={26} />
-              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+              <div className={`flex-1 text-[15px] font-bold leading-tight break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-2 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1 shrink-0">
               {hasScore ? (
                 <div className="flex items-center gap-1 text-xl font-extrabold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
@@ -1139,8 +1139,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
 
             {/* Away */}
-            <div className="flex items-center gap-2 min-w-0 justify-end">
-              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+            <div className="flex items-center gap-1.5 min-w-0 justify-end">
+              <div className={`flex-1 text-[15px] font-bold leading-tight break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
               <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={26} />
