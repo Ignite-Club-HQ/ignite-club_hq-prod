@@ -978,6 +978,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const [status, setStatus] = useState<string>(match.status);
+  const [manageOpen, setManageOpen] = useState(false);
+  const tapStartRef = useRef<{ x: number; y: number } | null>(null);
+  const tapValidRef = useRef(false);
 
   const save = async () => {
     const homeN = home === "" ? null : Number(home);
