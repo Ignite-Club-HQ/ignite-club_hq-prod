@@ -1842,6 +1842,7 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
                 key={divId}
                 title={div?.name ?? "Overall"}
                 rows={list}
+                isHidden={isAdmin && !!div?.hide_ladder}
               />
             );
           })}
