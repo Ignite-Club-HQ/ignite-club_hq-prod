@@ -969,11 +969,12 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Add division
       </Button>
     );
   }
+
 
   return (
     <Card className="w-full">
