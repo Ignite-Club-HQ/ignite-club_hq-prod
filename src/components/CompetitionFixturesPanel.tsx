@@ -703,55 +703,155 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       )}
 
 
-      {matches.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 text-center space-y-2">
-            <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
-            <h3 className="text-sm font-semibold">No fixtures yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {isAdmin
-                ? "Invite teams first, then generate a round-robin fixture or add matches manually."
-                : "Fixtures will appear here once the organiser adds them."}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        (() => {
-          // Group matches by round_number, preserving order
-          const groups: { key: string; label: string; items: any[] }[] = [];
-          const indexByKey = new Map<string, number>();
-          for (const m of matches as any[]) {
-            const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
-            const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
-            let idx = indexByKey.get(key);
-            if (idx == null) {
-              idx = groups.length;
-              indexByKey.set(key, idx);
-              groups.push({ key, label, items: [] });
-            }
-            groups[idx].items.push(m);
-          }
-          return groups.map((g) => (
-            <section key={g.key} className="space-y-2">
-              <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
-                <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {g.items.length} {g.items.length === 1 ? "match" : "matches"}
-                </span>
-                <div className="flex-1 min-w-[12px] h-px bg-border" />
-              </div>
-              <div className="space-y-3">
-                {g.items.map((m: any) => (
-                  <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
-                ))}
-              </div>
-            </section>
-          ));
-        })()
-      )}
+      <FixturesFilterAndList
+        matches={matches as any[]}
+        divisions={divisions}
+        entries={entries}
+        isAdmin={isAdmin}
+        competitionId={competitionId}
+      />
     </div>
   );
 }
+
+function FixturesFilterAndList({
+  matches,
+  divisions,
+  entries,
+  isAdmin,
+  competitionId,
+}: {
+  matches: any[];
+  divisions: any[];
+  entries: any[];
+  isAdmin: boolean;
+  competitionId: string;
+}) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  // Teams visible in the current division filter
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
+      if (m.home?.id) seen.set(m.home.id, m.home.name);
+      if (m.away?.id) seen.set(m.away.id, m.away.name);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches, filterDivisionId]);
+
+  const filteredMatches = useMemo(() => {
+    return matches.filter((m: any) => {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
+      if (filterTeamId !== "_all" && m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) return false;
+      return true;
+    });
+  }, [matches, filterDivisionId, filterTeamId]);
+
+  // Reset team filter if not in current division scope
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+
+  const showDivisionFilter = divisions.length > 1;
+  const showTeamFilter = teamOptions.length > 1;
+
+  if (matches.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">No fixtures yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {isAdmin
+              ? "Invite teams first, then generate a round-robin fixture or add matches manually."
+              : "Fixtures will appear here once the organiser adds them."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Group matches by round_number, preserving order
+  const groups: { key: string; label: string; items: any[] }[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const m of filteredMatches) {
+    const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
+    const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
+    let idx = indexByKey.get(key);
+    if (idx == null) {
+      idx = groups.length;
+      indexByKey.set(key, idx);
+      groups.push({ key, label, items: [] });
+    }
+    groups[idx].items.push(m);
+  }
+
+  return (
+    <>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {filteredMatches.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No fixtures match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        groups.map((g) => (
+          <section key={g.key} className="space-y-2">
+            <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {g.items.length} {g.items.length === 1 ? "match" : "matches"}
+              </span>
+              <div className="flex-1 min-w-[12px] h-px bg-border" />
+            </div>
+            <div className="space-y-3">
+              {g.items.map((m: any) => (
+                <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </>
+  );
+}
+
+
 
 function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
   const qc = useQueryClient();
@@ -1361,66 +1461,147 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     );
   }
 
-  const hiddenDivisionIds = new Set(
-    divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)
+  return <LadderView rows={rows} divisions={divisions} />;
+}
+
+function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  const hiddenDivisionIds = useMemo(
+    () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
+    [divisions]
   );
+
+  const visibleRows = useMemo(
+    () => rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
+    [rows, hiddenDivisionIds]
+  );
+
+  const presentDivisionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of visibleRows) if (r.division_id) ids.add(r.division_id);
+    return ids;
+  }, [visibleRows]);
+
+  const divisionOptions = divisions.filter((d: any) => presentDivisionIds.has(d.id));
+  const showDivisionFilter = divisionOptions.length > 1;
+
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of visibleRows) {
+      if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) continue;
+      if (r.team_id) seen.set(r.team_id, r.teams?.name ?? "?");
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [visibleRows, filterDivisionId]);
+
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+  const showTeamFilter = teamOptions.length > 1;
+
+  const filteredRows = visibleRows.filter((r: any) => {
+    if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
+    if (filterTeamId !== "_all" && r.team_id !== filterTeamId) return false;
+    return true;
+  });
+
   const groups = new Map<string, any[]>();
-  rows.forEach((r: any) => {
-    if (r.division_id && hiddenDivisionIds.has(r.division_id)) return;
+  filteredRows.forEach((r: any) => {
     const key = r.division_id ?? "__none";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   });
 
-  if (groups.size === 0) {
-    return <p className="text-sm text-muted-foreground">Ladder is hidden for all divisions in this competition.</p>;
-  }
-
   return (
     <div className="space-y-4">
-      {Array.from(groups.entries()).map(([divId, list]) => {
-        const div = divisions.find((d: any) => d.id === divId);
-        return (
-          <Card key={divId}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="h-4 w-4 text-primary" />
-                <div className="font-medium">{div?.name ?? "Overall"}</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground">
-                      <th className="py-1.5">#</th>
-                      <th>Team</th>
-                      <th className="text-right">P</th>
-                      <th className="text-right">W</th>
-                      <th className="text-right">D</th>
-                      <th className="text-right">L</th>
-                      <th className="text-right">+/-</th>
-                      <th className="text-right">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((r: any, i: number) => (
-                      <tr key={r.team_id} className="border-t">
-                        <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
-                        <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
-                        <td className="text-right tabular-nums">{r.played}</td>
-                        <td className="text-right tabular-nums">{r.wins}</td>
-                        <td className="text-right tabular-nums">{r.draws}</td>
-                        <td className="text-right tabular-nums">{r.losses}</td>
-                        <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
-                        <td className="text-right tabular-nums font-bold">{r.points}</td>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisionOptions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {groups.size === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No standings match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        Array.from(groups.entries()).map(([divId, list]) => {
+          const div = divisions.find((d: any) => d.id === divId);
+          return (
+            <Card key={divId}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <div className="font-medium">{div?.name ?? "Overall"}</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1.5">#</th>
+                        <th>Team</th>
+                        <th className="text-right">P</th>
+                        <th className="text-right">W</th>
+                        <th className="text-right">D</th>
+                        <th className="text-right">L</th>
+                        <th className="text-right">+/-</th>
+                        <th className="text-right">Pts</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                    </thead>
+                    <tbody>
+                      {list.map((r: any, i: number) => (
+                        <tr key={r.team_id} className="border-t">
+                          <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
+                          <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
+                          <td className="text-right tabular-nums">{r.played}</td>
+                          <td className="text-right tabular-nums">{r.wins}</td>
+                          <td className="text-right tabular-nums">{r.draws}</td>
+                          <td className="text-right tabular-nums">{r.losses}</td>
+                          <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
+                          <td className="text-right tabular-nums font-bold">{r.points}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
 }
+
+
