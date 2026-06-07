@@ -1142,11 +1142,11 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
 
             {/* Away */}
-            <div className="flex items-center gap-2 min-w-0 justify-end">
+            <div className="flex items-center gap-1.5 min-w-0 justify-end">
               <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={28} />
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={24} />
             </div>
           </div>
         )}
