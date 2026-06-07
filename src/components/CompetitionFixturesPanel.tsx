@@ -1847,9 +1847,8 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
                       </td>
                       <td className={cn("py-3 px-1.5 align-middle min-w-0", rowBg)}>
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                            {initials || "?"}
-                          </span>
+                          <TeamAvatar name={teamName} logoUrl={r.teams?.logo_url} initials={initials} size={28} />
+
                           <span className="font-semibold text-foreground truncate">{teamName}</span>
                           {rank <= 3 && (
                             <Medal
