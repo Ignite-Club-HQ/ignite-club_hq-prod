@@ -947,15 +947,15 @@ function RoundSection({
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
           <h3 className="text-[11px] font-bold tracking-wider text-foreground/80 shrink-0 uppercase">{label}</h3>
           <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-            · {items.length} {items.length === 1 ? "match" : "matches"}
+            · {items.length} {items.length === 1 ? "Match" : "Matches"}
           </span>
           {dateRange && (
             <span className="text-[10px] text-muted-foreground/70 truncate min-w-0">· {dateRange}</span>
           )}
-          {completed > 0 && (
-            <span className="text-[10px] text-muted-foreground shrink-0 ml-auto tabular-nums">{completed}/{items.length} done</span>
-          )}
-          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[8px] h-px bg-border/50`} />
+          <span className="text-[10px] text-muted-foreground shrink-0 ml-auto tabular-nums font-medium">
+            {completed}/{items.length} Completed
+          </span>
+          <div className="min-w-[8px] h-px bg-border/50" />
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
