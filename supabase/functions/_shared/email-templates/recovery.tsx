@@ -4,7 +4,6 @@ import * as React from 'npm:react@18.3.1'
 
 import {
   Body,
-  Button,
   Container,
   Head,
   Heading,
@@ -21,7 +20,6 @@ interface RecoveryEmailProps {
 
 export const RecoveryEmail = ({
   siteName,
-  confirmationUrl,
   token,
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
@@ -31,21 +29,16 @@ export const RecoveryEmail = ({
       <Container style={container}>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          We received a request to reset your password for {siteName}. Use the
-          verification code below to continue.
+          We received a request to reset your password for {siteName}. Enter
+          the verification code below in the app to continue.
         </Text>
         {token ? (
           <>
             <Text style={codeLabel}>Your verification code</Text>
             <Text style={code}>{token}</Text>
+            <Text style={expiry}>This code expires in 1 hour.</Text>
           </>
         ) : null}
-        <Text style={text}>
-          Or click the button below to reset your password directly:
-        </Text>
-        <Button style={button} href={confirmationUrl}>
-          Reset Password
-        </Button>
         <Text style={footer}>
           If you didn't request a password reset, you can safely ignore this
           email. Your password will not be changed.
@@ -71,15 +64,7 @@ const text = {
   lineHeight: '1.5',
   margin: '0 0 25px',
 }
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
 const codeLabel = { fontSize: '12px', color: '#55575d', margin: '20px 0 6px', textTransform: 'uppercase' as const, letterSpacing: '1px' }
-const code = { fontSize: '32px', fontWeight: 'bold' as const, color: '#000000', letterSpacing: '6px', margin: '0 0 20px', fontFamily: 'monospace' }
-
+const code = { fontSize: '32px', fontWeight: 'bold' as const, color: '#000000', letterSpacing: '6px', margin: '0 0 10px', fontFamily: 'monospace' }
+const expiry = { fontSize: '13px', color: '#55575d', margin: '0 0 20px' }

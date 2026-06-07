@@ -235,6 +235,21 @@ export default function ResetPasswordPage() {
           : msg,
       });
     } else {
+      // Update stored biometric credentials so next biometric sign-in uses the new password
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (Capacitor.isNativePlatform()) {
+          const { storeCredentialsForBiometric, hasStoredCredentials } = await import("@/lib/nativeBiometrics");
+          const { data: { user } } = await supabase.auth.getUser();
+          const email = user?.email;
+          if (email && (await hasStoredCredentials())) {
+            await storeCredentialsForBiometric(email, password);
+          }
+        }
+      } catch (e) {
+        console.log("[ResetPassword] Failed to update biometric credentials:", e);
+      }
+
       setSuccess(true);
       toast({
         title: "Password updated!",
@@ -243,11 +258,12 @@ export default function ResetPasswordPage() {
       // Redirect to home after a short delay
       setTimeout(() => navigate("/"), 2000);
     }
+
   };
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md space-y-8">
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
@@ -356,7 +372,7 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md space-y-8">
           <div className="flex flex-col items-center gap-3">
             <div className="p-4 rounded-2xl bg-primary glow-emerald">
@@ -378,7 +394,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-background pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="w-full max-w-md space-y-8 animate-slide-up">
         <div className="flex flex-col items-center gap-3">
           <div className="p-4 rounded-2xl bg-primary glow-emerald">
