@@ -69,13 +69,14 @@ export function CompetitionShareJoinLink({
   };
 
   const share = async () => {
-    if (!url) return;
+    const linkToShare = shareUrl || url;
+    if (!linkToShare) return;
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Join ${competitionName}`,
           text: `Join ${competitionName} on Ignite`,
-          url,
+          url: linkToShare,
         });
       } catch {
         /* user cancelled */
