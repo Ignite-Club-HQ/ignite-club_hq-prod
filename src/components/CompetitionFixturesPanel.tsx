@@ -1505,6 +1505,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
     toast({ title: "Match added" });
     setOpen(false); reset();
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    onSaved?.();
   };
 
   if (!open) {
