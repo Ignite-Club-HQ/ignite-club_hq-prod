@@ -326,6 +326,37 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showNativePrompt} onOpenChange={(o) => { if (!o) { setShowNativePrompt(false); setNativePassword(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Enable biometric login</DialogTitle>
+            <DialogDescription>
+              Enter your password to securely store credentials for biometric sign-in on this device.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <Label htmlFor="passkey-native-password">Password</Label>
+            <Input
+              id="passkey-native-password"
+              type="password"
+              autoComplete="current-password"
+              value={nativePassword}
+              onChange={(e) => setNativePassword(e.target.value)}
+              disabled={nativeSaving}
+            />
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="ghost" onClick={() => { setShowNativePrompt(false); setNativePassword(""); }} disabled={nativeSaving}>
+                Cancel
+              </Button>
+              <Button onClick={handleNativeSave} disabled={nativeSaving || !nativePassword}>
+                {nativeSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enable"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
+
   );
 }
