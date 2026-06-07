@@ -79,13 +79,14 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { registerPasskey, storeCredentialsForNativeBiometric, loading: registerLoading } = usePasskey();
+  const { registerPasskey, removeAccount, storeCredentialsForNativeBiometric, loading: registerLoading } = usePasskey();
   const isNative = Capacitor.isNativePlatform();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showNativePrompt, setShowNativePrompt] = useState(false);
   const [nativePassword, setNativePassword] = useState("");
   const [nativeSaving, setNativeSaving] = useState(false);
+
 
 
   const { data: passkeys, isLoading } = useQuery({
