@@ -1604,4 +1604,4 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
   );
 }
 
-}
+
