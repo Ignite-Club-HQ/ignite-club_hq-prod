@@ -214,7 +214,7 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
-          <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>
+          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
