@@ -1070,7 +1070,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 pt-2 pb-1.5 space-y-0.5">
+      <CardContent className="px-3 pt-3 pb-2.5 space-y-2.5">
         {/* 1. Time — compact metadata row */}
         {!editing && (
           <div className="flex items-center gap-2 min-w-0">
