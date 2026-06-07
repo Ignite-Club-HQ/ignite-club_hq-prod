@@ -186,7 +186,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     inputMode="email"
                     autoComplete="email"
                     autoCapitalize="none"
-                    autoCorrect="off"
                     enterKeyHint="send"
                     placeholder="you@example.com"
                     className={emailInputClasses}
