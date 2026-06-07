@@ -1706,19 +1706,14 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
     [divisions]
   );
   const hasHiddenDivisions = hiddenDivisionIds.size > 0;
-  const hasDivisions = divisions.length > 0;
 
   // Admins see all rows (with a "Hidden" badge on hidden divisions).
-  // Non-admins never see rows from hidden divisions, or unscoped "Overall"
-  // rows when any division ladder is hidden (prevents partial ladder leaks).
+  // If any ladder is hidden, non-admins see no ladder at all.
   const visibleRows = useMemo(
     () => isAdmin
       ? rows
-      : rows.filter((r: any) => {
-        if (r.division_id) return !hiddenDivisionIds.has(r.division_id);
-        return !(hasDivisions && hasHiddenDivisions);
-      }),
-    [rows, hiddenDivisionIds, hasDivisions, hasHiddenDivisions, isAdmin]
+      : hasHiddenDivisions ? [] : rows,
+    [rows, hasHiddenDivisions, isAdmin]
   );
 
   const presentDivisionIds = useMemo(() => {

@@ -155,8 +155,8 @@ export default function CompetitionDetailPage() {
   }
 
   const ladderVisibilityLoading = (!!user && isAdminLoading) || divisionsLoading;
-  const allDivisionLaddersHidden = divisions.length > 0 && divisions.every((d: any) => !!d.hide_ladder);
-  const canViewLadder = !ladderVisibilityLoading && (isAdmin || !allDivisionLaddersHidden);
+  const hasHiddenDivisionLadder = divisions.some((d: any) => !!d.hide_ladder);
+  const canViewLadder = !ladderVisibilityLoading && (isAdmin || !hasHiddenDivisionLadder);
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-4 space-y-4">
