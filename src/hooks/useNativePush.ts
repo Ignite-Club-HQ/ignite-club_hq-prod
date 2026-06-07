@@ -190,51 +190,12 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     }
   }, [userId]);
 
-  // Handle notification tap - navigate to relevant page
-  const handleNotificationAction = useCallback((notification: any) => {
-    try {
-      const data = notification.notification?.data;
-      const rawUrl = data?.url || data?.link || data?.path;
-      const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
-      const storeUrl = data?.store_url;
+  // BUG-1 fix: the action-tap handler now lives exclusively in
+  // notificationLaunchHandler.ts (single Capacitor listener). We no longer
+  // register a per-hook listener nor pass an onNotificationAction callback
+  // into setupNativePushListeners — that previously caused 2-3 navigate()
+  // calls per tap and broke the back stack.
 
-      // Stash/preload synchronously before navigation. This listener can fire
-      // after the early launch listener and used to re-navigate with the raw
-      // URL, stripping the normalized ?message= target and leaving chat pinned
-      // at the latest row.
-      try { preloadMessageFromNotification(data); } catch {}
-      try { captureJumpFromNotification(data, url); } catch {}
-
-      // Handle store_url (e.g. from update reminders) — open externally
-      if (storeUrl) {
-        console.log('[useNativePush] Store URL detected, opening in browser:', storeUrl);
-        import('@capacitor/browser').then(({ Browser }) => {
-          Browser.open({ url: storeUrl });
-        }).catch(() => {
-          window.open(storeUrl, '_system');
-        });
-        return;
-      }
-      
-      if (url) {
-        // Check if external URL (e.g. App Store / Play Store)
-        if (isExternalUrl(url)) {
-          console.log('[useNativePush] External URL detected, opening in browser:', url);
-          import('@capacitor/browser').then(({ Browser }) => {
-            Browser.open({ url });
-          }).catch(() => {
-            window.open(url, '_system');
-          });
-          return;
-        }
-        // Internal URL - navigate via React Router
-        navigate(normalizeNotificationPath(url));
-        clearPendingNotificationNavigation();
-      }
-    } catch (err) {
-      console.error('[useNativePush] Error handling notification action:', err);
-    }
-  }, [navigate]);
 
   // Once we have an authenticated user, consume any pending push-tap nav
   // that arrived during the auth bootstrap. Without this, Index's redirect
