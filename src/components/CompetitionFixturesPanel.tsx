@@ -462,7 +462,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           <div className="font-semibold mb-1">Competition summary</div>
                           <div>· {summary.teamCount} teams</div>
                           <div>
-                            · {summary.rounds} rounds{summary.adjustedByEndDate ? ` (${summary.rounds < summary.fullRounds ? "capped" : "extended"} by end date)` : ""}
+                            · {summary.rounds} rounds
                           </div>
                           <div>· {summary.totalMatches} total matches</div>
                           {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
