@@ -1419,17 +1419,45 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("competition_ladder")
-        .select("*")
-        .eq("competition_id", competitionId)
-        .order("points", { ascending: false })
-        .order("goal_diff", { ascending: false })
-        .order("goals_for", { ascending: false });
-      if (error) throw error;
+      const [ladderRes, entriesRes] = await Promise.all([
+        supabase
+          .from("competition_ladder")
+          .select("*")
+          .eq("competition_id", competitionId)
+          .order("points", { ascending: false })
+          .order("goal_diff", { ascending: false })
+          .order("goals_for", { ascending: false }),
+        supabase
+          .from("competition_entries")
+          .select("team_id, division_id, status")
+          .eq("competition_id", competitionId)
+          .eq("status", "accepted"),
+      ]);
+      if (ladderRes.error) throw ladderRes.error;
+      const ladderData = ladderRes.data ?? [];
+      const entriesData = entriesRes.data ?? [];
 
-      const teamIds = Array.from(new Set((data ?? []).map((r: any) => r.team_id).filter(Boolean)));
-      if (teamIds.length === 0) return data ?? [];
+      // Build placeholder zero-rows for accepted entries without a ladder row yet
+      const haveKey = new Set(
+        ladderData.map((r: any) => `${r.team_id ?? ""}::${r.division_id ?? ""}`)
+      );
+      const placeholders: any[] = [];
+      for (const e of entriesData) {
+        const key = `${e.team_id ?? ""}::${e.division_id ?? ""}`;
+        if (!e.team_id || haveKey.has(key)) continue;
+        haveKey.add(key);
+        placeholders.push({
+          competition_id: competitionId,
+          team_id: e.team_id,
+          division_id: e.division_id,
+          played: 0, wins: 0, draws: 0, losses: 0,
+          goals_for: 0, goals_against: 0, goal_diff: 0, points: 0,
+        });
+      }
+      const combined = [...ladderData, ...placeholders];
+
+      const teamIds = Array.from(new Set(combined.map((r: any) => r.team_id).filter(Boolean)));
+      if (teamIds.length === 0) return combined;
 
       const { data: teams } = await supabase
         .from("teams")
@@ -1437,7 +1465,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
         .in("id", teamIds);
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
-      return (data ?? []).map((row: any) => ({
+      return combined.map((row: any) => ({
         ...row,
         teams: teamById.get(row.team_id) ?? null,
       }));
@@ -1454,7 +1482,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
           <Trophy className="h-8 w-8 text-muted-foreground mx-auto" />
           <h3 className="text-sm font-semibold">No ladder yet</h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Once match results are entered, standings will appear here.
+            Once teams are accepted into divisions, standings will appear here.
           </p>
         </CardContent>
       </Card>
@@ -1463,6 +1491,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
 
   return <LadderView rows={rows} divisions={divisions} />;
 }
+
 
 function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
