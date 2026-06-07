@@ -1423,11 +1423,32 @@ function EditMatchDetailsDialog({
   );
 }
 
-function AddMatchButton({ competitionId, entries, divisions }: { competitionId: string; entries: any[]; divisions: any[] }) {
+function AddMatchMenuItem(props: { competitionId: string; entries: any[]; divisions: any[] }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  return (
+    <>
+      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSheetOpen(true); }}>
+        <Plus className="h-4 w-4 mr-2" /> Add match
+      </DropdownMenuItem>
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add match</SheetTitle>
+          </SheetHeader>
+          <div className="pt-4">
+            <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false, onSaved }: { competitionId: string; entries: any[]; divisions: any[]; defaultOpen?: boolean; onSaved?: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [homeId, setHomeId] = useState("");
   const [awayId, setAwayId] = useState("");
   const [divisionId, setDivisionId] = useState("");
