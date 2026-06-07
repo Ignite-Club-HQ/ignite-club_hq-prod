@@ -255,8 +255,8 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   console.warn('[useNativePush] Failed to show toast:', toastErr);
                 }
               },
-              // onNotificationAction - handle tap
-              handleNotificationAction,
+              // onNotificationAction - handled centrally in notificationLaunchHandler.ts (BUG-1)
+              undefined,
               // onTokenRefresh - save new token
               handleTokenRefresh
             );
