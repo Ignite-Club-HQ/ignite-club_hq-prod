@@ -741,7 +741,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   );
 }
 
-function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: boolean; competitionId: string }) {
+function MatchRow({ match, isAdmin, competitionId, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; hideRoundBadge?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
