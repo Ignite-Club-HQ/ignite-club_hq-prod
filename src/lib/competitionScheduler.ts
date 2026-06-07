@@ -126,6 +126,8 @@ export interface SchedulerOutput {
   placed: PlacedFixture[];
   /** Rounds that overflowed their starting day onto subsequent allowed days */
   overflowRounds: number[];
+  /** Rounds that needed extra same-day waves (simultaneous mode only). */
+  extraWaveRounds: number[];
   /** Matches that could not be scheduled at all (window/end date too tight) */
   unscheduled: Pairing[];
   /** Per-round summary: { round, dates: string[], dayUsed: number } */
@@ -152,6 +154,7 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
   const dur = Math.max(1, durationMins || 60);
   const placed: PlacedFixture[] = [];
   const overflowRounds = new Set<number>();
+  const extraWaveRounds = new Set<number>();
   const unscheduled: Pairing[] = [];
 
   // Group pairings by round
@@ -215,14 +218,14 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
       const existing = pool.get(key) ?? [];
       datesUsed.push(key);
 
-      // Build timeslots
+      // Build timeslots. Both modes generate waves through the day window so
+      // overflow stays same-day before rolling to the next allowed day. In
+      // "simultaneous" mode we still track when extra waves are used so the
+      // caller can confirm with the user.
       const slots: number[] = [];
-      if (mode === "simultaneous") {
-        slots.push(dayStartMins);
-      } else {
-        for (let t = dayStartMins; t + dur <= dayEndMins; t += dur) slots.push(t);
-        if (slots.length === 0) slots.push(dayStartMins); // window too tight: at least one
-      }
+      for (let t = dayStartMins; t + dur <= dayEndMins; t += dur) slots.push(t);
+      if (slots.length === 0) slots.push(dayStartMins); // window too tight: at least one
+      let wavesUsedThisDay = 0;
 
       for (const slotStart of slots) {
         if (remaining.length === 0) break;
@@ -250,6 +253,10 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
           // Update pool so subsequent rounds/divisions see this booking
           existing.push({ startMins: slotStart, endMins: slotEnd, pitch });
         }
+        wavesUsedThisDay += 1;
+        if (mode === "simultaneous" && wavesUsedThisDay > 1) {
+          extraWaveRounds.add(r);
+        }
       }
       pool.set(key, existing);
 
@@ -267,6 +274,7 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
   return {
     placed,
     overflowRounds: Array.from(overflowRounds).sort((a, b) => a - b),
+    extraWaveRounds: Array.from(extraWaveRounds).sort((a, b) => a - b),
     unscheduled,
     roundSummaries,
   };
