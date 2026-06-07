@@ -251,6 +251,10 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
           // Update pool so subsequent rounds/divisions see this booking
           existing.push({ startMins: slotStart, endMins: slotEnd, pitch });
         }
+        wavesUsedThisDay += 1;
+        if (mode === "simultaneous" && wavesUsedThisDay > 1) {
+          extraWaveRounds.add(r);
+        }
       }
       pool.set(key, existing);
 
