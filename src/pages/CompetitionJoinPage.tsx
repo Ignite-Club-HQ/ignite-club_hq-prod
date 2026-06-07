@@ -155,7 +155,10 @@ export default function CompetitionJoinPage() {
 
   const goStartTeam = () => {
     // Preserve the join intent so the user lands back here after creating a team.
-    sessionStorage.setItem("redirectAfterAuth", `/competitions/join?token=${token}`);
+    const back = `/competitions/join?token=${token}`;
+    sessionStorage.setItem("redirectAfterAuth", back);
+    // CreateTeamPage reads this on success and routes back here instead of /teams/:id
+    sessionStorage.setItem("pendingCompetitionJoinToken", token);
     navigate("/teams/new");
   };
 
