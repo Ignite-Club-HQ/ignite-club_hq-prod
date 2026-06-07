@@ -1104,17 +1104,17 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
             {/* Home */}
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-start gap-2 min-w-0">
               <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} />
-              <div className={`text-[15px] font-bold leading-tight truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1.5 shrink-0 pt-1.5">
               {hasScore ? (
                 <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
@@ -1127,8 +1127,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
 
             {/* Away */}
-            <div className="flex items-center gap-2 min-w-0 justify-end">
-              <div className={`text-[15px] font-bold leading-tight truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+            <div className="flex items-start gap-2 min-w-0 justify-end">
+              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
               <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} />
@@ -1137,9 +1137,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
 
-        {/* Compact admin actions — overflow menu */}
+        {/* Admin actions — explicit labelled buttons, separated from card edge */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1 -mb-0.5 -mt-0.5">
+          <div className="flex items-center justify-end gap-2 pt-1 pr-1">
             <Button
               size="sm"
               variant="ghost"
@@ -1151,8 +1151,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-7 w-7">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+                  <Settings2 className="h-3 w-3 mr-1" />
+                  Manage
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
