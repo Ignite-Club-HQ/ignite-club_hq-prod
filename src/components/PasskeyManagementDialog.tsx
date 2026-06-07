@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fingerprint, Smartphone, Monitor, Tablet, Trash2, Loader2, Plus } from "lucide-react";
@@ -77,6 +77,25 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   const [nativePassword, setNativePassword] = useState("");
   const [nativeSaving, setNativeSaving] = useState(false);
 
+  useEffect(() => {
+    if (!open) {
+      document.body.style.pointerEvents = "";
+      setConfirmDeleteId(null);
+      setShowNativePrompt(false);
+      setNativePassword("");
+    }
+
+    return () => {
+      document.body.style.pointerEvents = "";
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.pointerEvents = "";
+    }
+  }, [open, confirmDeleteId, showNativePrompt]);
+
 
 
   const { data: passkeys, isLoading } = useQuery({
@@ -135,6 +154,7 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   const handleAddPasskey = async () => {
     if (isNative) {
       setNativePassword("");
+      setConfirmDeleteId(null);
       setShowNativePrompt(true);
       return;
     }
@@ -193,21 +213,53 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
     }
   };
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setConfirmDeleteId(null);
+      setShowNativePrompt(false);
+      setNativePassword("");
+      document.body.style.pointerEvents = "";
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange} modal={false}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Fingerprint className="h-5 w-5" />
-              Manage Passkeys
+              {showNativePrompt ? "Enable biometric login" : "Manage Passkeys"}
             </DialogTitle>
             <DialogDescription>
-              View and manage your registered biometric login devices.
+              {showNativePrompt
+                ? "Enter your password to securely store credentials for biometric sign-in on this device."
+                : "View and manage your registered biometric login devices."}
             </DialogDescription>
           </DialogHeader>
 
-          {confirmDeleteId ? (
+          {showNativePrompt ? (
+            <div className="space-y-3 mt-2">
+              <Label htmlFor="passkey-native-password">Password</Label>
+              <Input
+                id="passkey-native-password"
+                type="password"
+                autoComplete="current-password"
+                value={nativePassword}
+                onChange={(e) => setNativePassword(e.target.value)}
+                disabled={nativeSaving}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="ghost" onClick={() => { setShowNativePrompt(false); setNativePassword(""); }} disabled={nativeSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleNativeSave} disabled={nativeSaving || !nativePassword}>
+                  {nativeSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enable"}
+                </Button>
+              </div>
+            </div>
+          ) : confirmDeleteId ? (
             <div className="space-y-4 mt-4">
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
                 <p className="font-medium mb-1">Remove Passkey?</p>
@@ -316,37 +368,6 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
             </Button>
           </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-
-      <Dialog open={showNativePrompt} onOpenChange={(o) => { if (!o) { setShowNativePrompt(false); setNativePassword(""); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Enable biometric login</DialogTitle>
-            <DialogDescription>
-              Enter your password to securely store credentials for biometric sign-in on this device.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            <Label htmlFor="passkey-native-password">Password</Label>
-            <Input
-              id="passkey-native-password"
-              type="password"
-              autoComplete="current-password"
-              value={nativePassword}
-              onChange={(e) => setNativePassword(e.target.value)}
-              disabled={nativeSaving}
-            />
-            <div className="flex gap-2 justify-end pt-2">
-              <Button variant="ghost" onClick={() => { setShowNativePrompt(false); setNativePassword(""); }} disabled={nativeSaving}>
-                Cancel
-              </Button>
-              <Button onClick={handleNativeSave} disabled={nativeSaving || !nativePassword}>
-                {nativeSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enable"}
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </>
