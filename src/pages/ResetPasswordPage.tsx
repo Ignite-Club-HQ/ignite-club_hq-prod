@@ -242,7 +242,7 @@ export default function ResetPasswordPage() {
           const { storeCredentialsForBiometric, hasStoredCredentials } = await import("@/lib/nativeBiometrics");
           const { data: { user } } = await supabase.auth.getUser();
           const email = user?.email;
-          if (email && (await hasStoredBiometricCredentials())) {
+          if (email && (await hasStoredCredentials())) {
             await storeCredentialsForBiometric(email, password);
           }
         }
