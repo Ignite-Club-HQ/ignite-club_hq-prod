@@ -71,6 +71,28 @@ const truncateUrl = (url: string, maxLength = 50): string => {
 const decodedImageUrls: Set<string> = (globalThis as any).__chatDecodedImages
   ?? ((globalThis as any).__chatDecodedImages = new Set<string>());
 
+// Module-level cache of image aspect ratios (width / height), keyed by URL.
+// Lets a remounted row reserve the correct height before decode so the
+// virtualised scroller doesn't shift, and lets us render the image at its
+// natural ratio (clamped) instead of letterboxing inside a fixed 4:3 box.
+const imageAspectRatios: Map<string, number> = (globalThis as any).__chatImageAspectRatios
+  ?? ((globalThis as any).__chatImageAspectRatios = new Map<string, number>());
+
+// Clamp to a tasteful range: very tall portraits get a min ratio so they
+// don't dominate the viewport; very wide panoramas get a max ratio. Within
+// these bounds we honour the image's real shape.
+const MIN_ASPECT_RATIO = 3 / 4;   // tallest allowed (portrait)
+const MAX_ASPECT_RATIO = 16 / 9;  // widest allowed (landscape)
+const DEFAULT_ASPECT_RATIO = 4 / 3;
+const clampAspectRatio = (r: number) =>
+  Math.min(MAX_ASPECT_RATIO, Math.max(MIN_ASPECT_RATIO, r));
+const getCachedAspectRatio = (urls: (string | null | undefined)[]) => {
+  for (const u of urls) {
+    if (u && imageAspectRatios.has(u)) return imageAspectRatios.get(u)!;
+  }
+  return null;
+};
+
 export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, onForwardImage, showImageActions = false }: MessageContentProps) {
   // Get signed URL for private chat attachments
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(imageUrl);
