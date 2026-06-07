@@ -945,14 +945,12 @@ function RoundSection({
       <CollapsibleTrigger className="w-full group sticky top-0 z-10 bg-background -mx-1 px-1 py-1.5">
         <div className="flex items-center gap-2 min-w-0 text-left">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <h3 className="text-[11px] font-bold tracking-wider text-foreground/80 shrink-0 uppercase">{label}</h3>
-          <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+          <h3 className="text-[12px] font-extrabold tracking-wider text-foreground shrink-0 uppercase">{label}</h3>
+          <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums truncate min-w-0">
             · {items.length} {items.length === 1 ? "Match" : "Matches"}
+            {dateRange ? ` · ${dateRange}` : ""}
           </span>
-          {dateRange && (
-            <span className="text-[10px] text-muted-foreground/70 truncate min-w-0">· {dateRange}</span>
-          )}
-          <span className="text-[10px] text-muted-foreground shrink-0 ml-auto tabular-nums font-medium">
+          <span className="text-[10px] text-muted-foreground/70 shrink-0 ml-auto tabular-nums">
             {completed}/{items.length} Completed
           </span>
           <div className="min-w-[8px] h-px bg-border/50" />
