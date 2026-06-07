@@ -1,6 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info, Medal } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   buildRoundRobinPairings,
@@ -33,6 +36,41 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+
+function TeamAvatar({
+  name,
+  logoUrl,
+  initials,
+  size = 32,
+}: {
+  name: string;
+  logoUrl?: string | null;
+  initials: string;
+  size?: number;
+}) {
+  const dim = { width: size, height: size };
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={name}
+        loading="lazy"
+        decoding="async"
+        style={dim}
+        className="rounded-full object-cover bg-muted shrink-0 ring-1 ring-border/40"
+      />
+    );
+  }
+  return (
+    <div
+      style={dim}
+      className="rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0"
+    >
+      {initials || "?"}
+    </div>
+  );
+}
+
 
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -86,7 +124,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_matches")
-        .select("*, home:home_team_id(id, name), away:away_team_id(id, name), competition_divisions:division_id(name)")
+        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
@@ -815,10 +853,10 @@ function FixturesFilterAndList({
   return (
     <>
       {(showDivisionFilter || showTeamFilter) && (
-        <div className="flex flex-wrap gap-2">
+        <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-background/95 backdrop-blur-0 border-b border-border/40 flex flex-wrap gap-2">
           {showDivisionFilter && (
             <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
                 <SelectValue placeholder="All divisions" />
               </SelectTrigger>
               <SelectContent>
@@ -831,7 +869,7 @@ function FixturesFilterAndList({
           )}
           {showTeamFilter && (
             <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
                 <SelectValue placeholder="All teams" />
               </SelectTrigger>
               <SelectContent>
@@ -852,21 +890,24 @@ function FixturesFilterAndList({
           </CardContent>
         </Card>
       ) : (
-        groups.map((g) => (
-          <RoundSection
-            key={g.key}
-            label={g.label}
-            items={g.items}
-            isAdmin={isAdmin}
-            competitionId={competitionId}
-            entries={entries}
-            divisions={divisions}
-          />
-        ))
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <RoundSection
+              key={g.key}
+              label={g.label}
+              items={g.items}
+              isAdmin={isAdmin}
+              competitionId={competitionId}
+              entries={entries}
+              divisions={divisions}
+            />
+          ))}
+        </div>
       )}
     </>
   );
 }
+
 
 function RoundSection({
   label,
@@ -900,24 +941,24 @@ function RoundSection({
   const completed = items.filter((m) => m.status === "completed").length;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-1.5">
       <CollapsibleTrigger className="w-full group">
-        <div className="flex items-center gap-2 px-1 pt-2 min-w-0 text-left">
-          <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <h3 className="text-base font-bold tracking-tight text-foreground shrink-0">{label}</h3>
-          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-semibold shrink-0">
-            {items.length}
-          </Badge>
+        <div className="flex items-center gap-2 px-0.5 min-w-0 text-left">
+          <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          <h3 className="text-[13px] font-bold tracking-tight text-foreground shrink-0 uppercase">{label}</h3>
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            · {items.length} {items.length === 1 ? "Match" : "Matches"}
+          </span>
           {dateRange && (
-            <span className="text-xs text-muted-foreground truncate min-w-0">· {dateRange}</span>
+            <span className="text-[11px] text-muted-foreground/80 truncate min-w-0">· {dateRange}</span>
           )}
           {completed > 0 && (
-            <span className="text-[11px] text-muted-foreground shrink-0 ml-auto">{completed}/{items.length} done</span>
+            <span className="text-[10px] text-muted-foreground shrink-0 ml-auto tabular-nums">{completed}/{items.length} done</span>
           )}
-          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[12px] h-px bg-border`} />
+          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[8px] h-px bg-border/60`} />
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2">
+      <CollapsibleContent className="space-y-1.5">
         {items.map((m: any) => (
           <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
         ))}
@@ -925,6 +966,7 @@ function RoundSection({
     </Collapsible>
   );
 }
+
 
 
 
@@ -966,27 +1008,25 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   };
 
   const statusLabel = (match.status ?? "scheduled").replace("_", " ");
-  const statusVariant: "secondary" | "default" | "destructive" | "outline" =
-    match.status === "completed" ? "default"
-    : match.status === "cancelled" ? "destructive"
-    : match.status === "postponed" ? "outline"
-    : "secondary";
   const hasScore = match.home_score != null || match.away_score != null;
   const venueName = match.venue ? String(match.venue).split(",")[0].trim() : null;
   const venueLine = venueName
-    ? `${venueName}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
+    ? `${venueName}${match.pitch_number ? ` · Pitch ${match.pitch_number}` : ""}`
     : null;
 
   const scheduledDate = match.scheduled_at ? new Date(match.scheduled_at) : null;
   const isCompleted = match.status === "completed";
   const isCancelled = match.status === "cancelled";
   const isPostponed = match.status === "postponed";
-  const statusDotClass =
-    isCompleted ? "bg-emerald-500"
-    : isCancelled ? "bg-destructive"
-    : isPostponed ? "bg-amber-500"
-    : match.status === "in_progress" ? "bg-blue-500"
-    : "bg-muted-foreground/40";
+  const isInProgress = match.status === "in_progress";
+
+  // Color-coded status pill
+  const statusPillClass =
+    isCompleted ? "bg-muted text-muted-foreground"
+    : isCancelled ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+    : isPostponed ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+    : isInProgress ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 animate-pulse"
+    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
 
   const homeName = match.home?.name ?? "TBD";
   const awayName = match.away?.name ?? "TBD";
@@ -996,21 +1036,30 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const homeWon = hasScore && match.home_score != null && match.away_score != null && match.home_score > match.away_score;
   const awayWon = hasScore && match.home_score != null && match.away_score != null && match.away_score > match.home_score;
 
+
   return (
-    <Card className={`overflow-hidden w-full box-border ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="p-3 space-y-2.5">
-        {/* Header strip: round/division + tiny status */}
-        {((!hideRoundBadge && match.round_number != null) || match.competition_divisions?.name || match.status) && (
-          <div className="flex items-center gap-2 min-w-0 text-[11px]">
-            {!hideRoundBadge && match.round_number != null && (
-              <span className="font-semibold text-muted-foreground shrink-0">R{match.round_number}</span>
+    <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
+      <CardContent className="p-2.5 space-y-1.5">
+        {/* Top row: date · venue · status */}
+        {!editing && (
+          <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
+            {scheduledDate ? (
+              <span className="inline-flex items-center gap-1 shrink-0 font-medium text-foreground/80">
+                <Clock className="h-3 w-3" aria-hidden />
+                {format(scheduledDate, "EEE d MMM · h:mm a")}
+              </span>
+            ) : (
+              <span className="shrink-0 italic">Time TBD</span>
             )}
-            {match.competition_divisions?.name && (
-              <span className="text-muted-foreground truncate min-w-0">{match.competition_divisions.name}</span>
+            {venueLine && (
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <span className="text-muted-foreground/50">·</span>
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{venueLine}</span>
+              </span>
             )}
             <div className="flex-1" />
-            <span className="flex items-center gap-1.5 shrink-0 text-muted-foreground capitalize">
-              <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+            <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${statusPillClass}`}>
               {statusLabel}
             </span>
           </div>
@@ -1056,23 +1105,18 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
-                {homeInitials || "?"}
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Home</div>
-                <div className={`text-base font-bold leading-tight break-words ${homeWon ? "text-foreground" : "text-foreground"} ${awayWon ? "text-muted-foreground" : ""}`}>
-                  {homeName}
-                </div>
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} />
+              <div className={`text-[15px] font-bold leading-tight truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+                {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1.5 text-xl font-bold tabular-nums leading-none">
+                <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
-                  <span className="text-muted-foreground text-sm">:</span>
+                  <span className="text-muted-foreground text-xs">:</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
@@ -1082,53 +1126,31 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
             {/* Away */}
             <div className="flex items-center gap-2 min-w-0 justify-end">
-              <div className="min-w-0 text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-none mb-1">Away</div>
-                <div className={`text-base font-bold leading-tight break-words ${awayWon ? "text-foreground" : "text-foreground"} ${homeWon ? "text-muted-foreground" : ""}`}>
-                  {awayName}
-                </div>
+              <div className={`text-[15px] font-bold leading-tight truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+                {awayName}
               </div>
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground shrink-0">
-                {awayInitials || "?"}
-              </div>
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} />
             </div>
-          </div>
-        )}
 
-        {/* Date / time / venue — secondary */}
-        {!editing && (scheduledDate || venueLine) && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground border-t pt-2">
-            {scheduledDate && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {format(scheduledDate, "EEE d MMM · h:mm a")}
-              </span>
-            )}
-            {venueLine && (
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <MapPin className="h-3 w-3 shrink-0" />
-                <span className="truncate">{venueLine}</span>
-              </span>
-            )}
           </div>
         )}
 
         {/* Compact admin actions — overflow menu */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1 -mb-1">
+          <div className="flex items-center justify-end gap-1 -mb-0.5 -mt-0.5">
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-xs"
               onClick={() => setEditing(true)}
             >
-              <Pencil className="h-3.5 w-3.5 mr-1" />
+              <Pencil className="h-3 w-3 mr-1" />
               Score
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button size="icon" variant="ghost" className="h-7 w-7">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -1147,6 +1169,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
       </CardContent>
+
       {isAdmin && editDetailsOpen && (
         <EditMatchDetailsDialog
           open={editDetailsOpen}
@@ -1572,7 +1595,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
 
       const { data: teams } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, logo_url")
         .in("id", teamIds);
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
@@ -1739,52 +1762,185 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
           </CardContent>
         </Card>
       ) : (
-        Array.from(groups.entries()).map(([divId, list]) => {
-          const div = divisions.find((d: any) => d.id === divId);
-          return (
-            <Card key={divId}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="h-4 w-4 text-primary" />
-                  <div className="font-medium">{div?.name ?? "Overall"}</div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-muted-foreground">
-                        <th className="py-1.5">#</th>
-                        <th>Team</th>
-                        <th className="text-right">P</th>
-                        <th className="text-right">W</th>
-                        <th className="text-right">D</th>
-                        <th className="text-right">L</th>
-                        <th className="text-right">+/-</th>
-                        <th className="text-right">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.map((r: any, i: number) => (
-                        <tr key={r.team_id} className="border-t">
-                          <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
-                          <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
-                          <td className="text-right tabular-nums">{r.played}</td>
-                          <td className="text-right tabular-nums">{r.wins}</td>
-                          <td className="text-right tabular-nums">{r.draws}</td>
-                          <td className="text-right tabular-nums">{r.losses}</td>
-                          <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
-                          <td className="text-right tabular-nums font-bold">{r.points}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+        <TooltipProvider delayDuration={150}>
+          {Array.from(groups.entries()).map(([divId, list]) => {
+            const div = divisions.find((d: any) => d.id === divId);
+            return (
+              <LadderDivisionCard
+                key={divId}
+                title={div?.name ?? "Overall"}
+                rows={list}
+              />
+            );
+          })}
+        </TooltipProvider>
       )}
     </div>
   );
 }
+
+const COL_TOOLTIPS: Record<string, string> = {
+  P: "Played",
+  W: "Wins",
+  D: "Draws",
+  L: "Losses",
+  "+/-": "Goal difference (for − against)",
+  Pts: "Competition points",
+};
+
+function ColHead({ label, className }: { label: string; className?: string }) {
+  return (
+    <th className={cn("py-2 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70", className)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help">{label}</span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">{COL_TOOLTIPS[label]}</TooltipContent>
+      </Tooltip>
+    </th>
+  );
+}
+
+function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
+  const [open, setOpen] = useState(true);
+  const teamCount = rows.length;
+  const seasonStarted = rows.some((r) => (r.played ?? 0) > 0);
+
+  return (
+    <Card className="overflow-hidden">
+      {/* Division header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-3 bg-primary/5 border-b border-border/60 text-left hover:bg-primary/10 transition-colors"
+        aria-expanded={open}
+      >
+        <Trophy className="h-4 w-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-semibold text-foreground truncate">{title}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {teamCount} {teamCount === 1 ? "team" : "teams"}
+            {!seasonStarted && " · Season not started"}
+          </div>
+        </div>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+      </button>
+
+      {open && (
+        <div>
+          {!seasonStarted && (
+            <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 text-[12px] text-muted-foreground">
+              Ladder positions will update automatically once results are entered.
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead className="sticky top-0 bg-primary/5 backdrop-blur supports-[backdrop-filter]:bg-primary/5">
+                <tr>
+                  <th className="py-2 pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left w-9">#</th>
+                  <th className="py-2 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 text-left">Team</th>
+                  <ColHead label="P" className="text-right" />
+                  <ColHead label="W" className="text-right" />
+                  <ColHead label="D" className="text-right" />
+                  <ColHead label="L" className="text-right" />
+                  <ColHead label="+/-" className="text-right pl-3" />
+                  <ColHead label="Pts" className="text-right pr-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r: any, i: number) => {
+                  const rank = i + 1;
+                  const gd = r.goal_diff ?? 0;
+                  const medalColor =
+                    rank === 1
+                      ? "bg-amber-400/20 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/40"
+                      : rank === 2
+                      ? "bg-slate-400/20 text-slate-700 dark:text-slate-300 ring-1 ring-slate-400/40"
+                      : rank === 3
+                      ? "bg-orange-500/20 text-orange-700 dark:text-orange-300 ring-1 ring-orange-500/40"
+                      : "bg-muted text-muted-foreground";
+                  const rowBg = i % 2 === 1 ? "bg-muted/20" : "";
+                  const teamName = r.teams?.name ?? "?";
+                  const initials = teamName
+                    .split(/\s+/)
+                    .map((s: string) => s[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase();
+                  const RowContent = (
+                    <>
+                      <td className={cn("py-3 pl-3 pr-1 align-middle", rowBg)}>
+                        <span
+                          className={cn(
+                            "inline-flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums",
+                            medalColor,
+                          )}
+                        >
+                          {rank}
+                        </span>
+                      </td>
+                      <td className={cn("py-3 px-1.5 align-middle min-w-0", rowBg)}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <TeamAvatar name={teamName} logoUrl={r.teams?.logo_url} initials={initials} size={28} />
+
+                          <span className="font-semibold text-foreground truncate">{teamName}</span>
+                          {rank <= 3 && (
+                            <Medal
+                              className={cn(
+                                "h-3.5 w-3.5 shrink-0",
+                                rank === 1 && "text-amber-500",
+                                rank === 2 && "text-slate-400",
+                                rank === 3 && "text-orange-500",
+                              )}
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.played ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.wins ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.draws ?? 0}</td>
+                      <td className={cn("py-3 px-1.5 text-right tabular-nums text-foreground/80", rowBg)}>{r.losses ?? 0}</td>
+                      <td
+                        className={cn(
+                          "py-3 px-1.5 pl-3 text-right tabular-nums font-medium",
+                          gd > 0 && "text-emerald-600 dark:text-emerald-400",
+                          gd < 0 && "text-rose-600 dark:text-rose-400",
+                          gd === 0 && "text-muted-foreground",
+                          rowBg,
+                        )}
+                      >
+                        {gd > 0 ? `+${gd}` : gd}
+                      </td>
+                      <td className={cn("py-3 px-1.5 pr-3 text-right tabular-nums font-bold text-foreground", rowBg)}>
+                        {r.points ?? 0}
+                      </td>
+                    </>
+                  );
+                  return r.team_id ? (
+                    <tr
+                      key={r.team_id}
+                      className="group cursor-pointer hover:bg-accent/40 active:bg-accent/60 transition-colors"
+                      onClick={() => {
+                        window.location.href = `/teams/${r.team_id}`;
+                      }}
+                    >
+                      {RowContent}
+                    </tr>
+                  ) : (
+                    <tr key={`row-${i}`}>{RowContent}</tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
 
 
