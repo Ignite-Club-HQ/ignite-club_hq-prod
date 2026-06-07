@@ -769,9 +769,11 @@ function FixturesFilterAndList({
   }, [matches, filterDivisionId, filterTeamId]);
 
   // Reset team filter if not in current division scope
-  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
-    setFilterTeamId("_all");
-  }
+  useEffect(() => {
+    if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+      setFilterTeamId("_all");
+    }
+  }, [filterTeamId, teamOptions]);
 
   const showDivisionFilter = divisions.length > 1;
   const showTeamFilter = teamOptions.length > 1;
