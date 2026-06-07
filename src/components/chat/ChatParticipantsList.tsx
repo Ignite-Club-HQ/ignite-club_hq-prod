@@ -21,6 +21,7 @@ import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
 import { cn } from "@/lib/utils";
+import { useOnlineSet } from "@/hooks/useUserPresence";
 
 interface ChatParticipantsListProps {
   chatType: "team" | "club" | "group";
@@ -472,6 +473,31 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Online status: combine realtime presence with DB heartbeat (last 90s).
+  const realtimeOnline = useOnlineSet(memberIds);
+  const { data: heartbeatOnlineIds } = useQuery({
+    queryKey: ["chat-members-online-heartbeat", chatType, chatId, memberIds],
+    queryFn: async (): Promise<string[]> => {
+      if (memberIds.length === 0) return [];
+      const { data, error } = await supabase.rpc(
+        "get_online_users_from_set" as any,
+        { _user_ids: memberIds },
+      );
+      if (error || !data) return [];
+      return (data as Array<{ user_id: string }>).map((r) => r.user_id);
+    },
+    enabled: enabled && memberIds.length > 0,
+    staleTime: 30 * 1000,
+    refetchInterval: 45 * 1000,
+  });
+  const onlineIds = useMemo(() => {
+    const s = new Set<string>(realtimeOnline);
+    for (const id of heartbeatOnlineIds || []) s.add(id);
+    return s;
+  }, [realtimeOnline, heartbeatOnlineIds]);
+
+
+
   const formatRole = (role: string) =>
     role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
@@ -572,10 +598,18 @@ export function ChatParticipantsList({
                   }`}
                   onClick={canTap ? () => handleMemberTap(member) : undefined}
                 >
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={member.avatar_url || undefined} />
-                    <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={member.avatar_url || undefined} />
+                      <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                    </Avatar>
+                    {onlineIds.has(member.id) && (
+                      <span
+                        className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
+                        aria-label="Online"
+                      />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
                     {member.role && (

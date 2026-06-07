@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -88,6 +88,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
@@ -218,6 +219,7 @@ export default function GroupChatPage() {
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [miniLeagueInviteOpen, setMiniLeagueInviteOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = groupId
     ? { chat_type: "group", group_id: groupId }
     : null;
@@ -336,6 +338,20 @@ export default function GroupChatPage() {
       return data as ChatGroup;
     },
     enabled: !!groupId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: miniLeagueInfo } = useQuery({
+    queryKey: ["chat-group-mini-league", group?.mini_league_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("mini_leagues")
+        .select("id, name, club_id")
+        .eq("id", group!.mini_league_id!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!group?.mini_league_id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1936,6 +1952,30 @@ export default function GroupChatPage() {
         groupMembershipMode={group.membership_mode}
       />
 
+
+      {/* Compact invite banner — mini-league chats */}
+      {group.mini_league_id && group.club_id && (
+        <>
+          <button
+            onClick={() => setMiniLeagueInviteOpen(true)}
+            aria-label={`Invite people to ${miniLeagueInfo?.name || group.name}`}
+            className="group w-full flex items-center gap-2 px-3.5 py-1.5 bg-background border-b border-border/40 text-left touch-manipulation active:bg-muted/60 transition-colors shrink-0"
+          >
+            <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
+            <span className="flex-1 min-w-0 text-[12.5px] text-foreground/80 truncate">
+              Invite to <span className="font-medium text-foreground">{miniLeagueInfo?.name || group.name}</span>
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" strokeWidth={2} />
+          </button>
+          <AddMiniLeagueMemberSheet
+            miniLeagueId={group.mini_league_id}
+            miniLeagueName={miniLeagueInfo?.name || group.name}
+            clubId={group.club_id}
+            externalOpen={miniLeagueInviteOpen}
+            onExternalOpenChange={setMiniLeagueInviteOpen}
+          />
+        </>
+      )}
 
 
       {/* Notification Nudge */}

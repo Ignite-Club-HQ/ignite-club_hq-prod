@@ -5,7 +5,7 @@ import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
-  UserPlus, CalendarDays, Shield, UserRound
+  UserPlus, CalendarDays, Shield, UserRound, MessageSquare
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +49,19 @@ export default function MiniLeagueDetailPage() {
         .eq("id", id!)
         .single();
       if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: leagueChatGroup } = useQuery({
+    queryKey: ["mini-league-chat-group", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_groups")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .maybeSingle();
       return data;
     },
     enabled: !!id,
@@ -382,6 +395,17 @@ export default function MiniLeagueDetailPage() {
           <h1 className="text-lg font-bold leading-tight">{league.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
+        {leagueChatGroup?.id && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 h-10 w-10"
+            onClick={() => navigate(`/groups/${leagueChatGroup.id}`)}
+            aria-label="Open mini-league chat"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </Button>
+        )}
         {canManageLeague && (
           <Button
             variant="ghost"
