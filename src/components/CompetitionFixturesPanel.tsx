@@ -959,7 +959,7 @@ function RoundSection({
               {items.length} {items.length === 1 ? "Match" : "Matches"}{dateRange ? ` • ${dateRange}` : ""}
             </div>
           </div>
-          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums ${completed === items.length ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+          <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-medium tabular-nums ${completed === items.length ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
             {completed}/{items.length} {completed === items.length ? "Complete" : "Complete"}
           </span>
         </div>
@@ -1070,7 +1070,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 py-3 space-y-2.5">
+      <CardContent className="px-3 py-2.5 space-y-2">
         {/* Top: date/time on first line, venue/pitch on second; status pill only for non-scheduled */}
         {!editing && (
           <div className="flex items-start gap-2 min-w-0">
@@ -1119,21 +1119,21 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 py-0.5">
             {/* Home */}
-            <div className="flex items-center gap-2 min-w-0">
-              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={28} />
+            <div className="flex items-center gap-1.5 min-w-0">
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={24} />
               <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-2 shrink-0">
+            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
               {hasScore ? (
-                <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums leading-none">
+                <div className="flex items-center gap-1 text-lg font-bold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
-                  <span className="text-muted-foreground text-base">-</span>
+                  <span className="text-muted-foreground text-sm">-</span>
                   <span className={awayWon ? "" : homeWon ? "text-muted-foreground" : ""}>{match.away_score ?? "–"}</span>
                 </div>
               ) : (
@@ -1142,11 +1142,11 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </div>
 
             {/* Away */}
-            <div className="flex items-center gap-2 min-w-0 justify-end">
+            <div className="flex items-center gap-1.5 min-w-0 justify-end">
               <div className={`flex-1 text-[16px] font-bold leading-snug break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={28} />
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={24} />
             </div>
           </div>
         )}
