@@ -187,13 +187,16 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const ids = shuffle ? shuffleArray(teams.map((t: any) => t.id)) : teams.map((t: any) => t.id);
     const nameById = new Map(teams.map((t: any) => [t.id, t.name as string]));
     const fx = buildRoundRobin(ids);
-    return fx.map((f) => ({
-      round: f.round,
-      home: f.home,
-      away: f.away,
-      homeName: nameById.get(f.home) ?? "?",
-      awayName: nameById.get(f.away) ?? "?",
-    }));
+    const roundCap = summary?.rounds ?? Infinity;
+    return fx
+      .filter((f) => f.round <= roundCap)
+      .map((f) => ({
+        round: f.round,
+        home: f.home,
+        away: f.away,
+        homeName: nameById.get(f.home) ?? "?",
+        awayName: nameById.get(f.away) ?? "?",
+      }));
   };
 
   const onPreview = () => {
