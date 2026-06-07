@@ -228,9 +228,9 @@ serve(async (req: Request): Promise<Response> => {
     for (let i = 0; i < missedNotifications.length; i += CONCURRENCY) {
       const batch = missedNotifications.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
-        batch.map(notif => {
-          const url = buildUrl(notif.type, notif.related_id);
-          return supabase.functions.invoke('send-push-notification', {
+        batch.map(async notif => {
+          const url = await buildUrl(notif.type, notif.related_id);
+          const result = await supabase.functions.invoke('send-push-notification', {
             body: {
               userId: notif.user_id,
               title: 'Ignite',
@@ -240,11 +240,11 @@ serve(async (req: Request): Promise<Response> => {
               tag: `${notif.type}-${notif.id}`,
               notificationType: notif.type,
             },
-          }).then(result => {
-            if (result.error) throw result.error;
-            return true;
           });
+          if (result.error) throw result.error;
+          return true;
         })
+
       );
 
       retriedCount += results.filter(r => r.status === 'fulfilled').length;
