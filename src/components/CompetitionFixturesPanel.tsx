@@ -1070,22 +1070,39 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 py-2.5 space-y-2">
-        {/* Top: date/time on first line, venue/pitch on second; status pill only for non-scheduled */}
+      <CardContent className="px-3 py-2.5 space-y-1">
+        {/* Metadata strip — strong visual hierarchy; time + pitch prominent, date + venue subdued */}
         {!editing && (
-          <div className="flex items-start gap-2 min-w-0">
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="text-[12px] font-semibold text-foreground/80 leading-tight tabular-nums">
-                {scheduledDate ? `${format(scheduledDate, "EEE d MMM")} • ${format(scheduledDate, "h:mm a")}` : <span className="italic text-muted-foreground">Time TBD</span>}
-              </div>
-              {venueLine && (
-                <div className="text-[11px] text-muted-foreground leading-tight truncate" title={venueLine}>{venueLine}</div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Date — tertiary */}
+              <span className="text-[11px] text-muted-foreground leading-none shrink-0">
+                {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
+              </span>
+              {/* Time — secondary, most prominent metadata */}
+              <span className="text-[15px] font-semibold text-foreground leading-none tabular-nums">
+                {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
+              </span>
+              {/* Pitch — highlighted badge */}
+              {match.pitch_number && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 font-semibold shrink-0">
+                  Pitch {match.pitch_number}
+                </Badge>
+              )}
+              <div className="flex-1 min-w-0" />
+              {/* Status */}
+              {!isScheduled && (
+                <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
+                  {statusLabel}
+                </span>
               )}
             </div>
-            {!isScheduled && (
-              <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
-                {statusLabel}
-              </span>
+            {/* Venue — tertiary, subtle */}
+            {venueName && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground leading-tight truncate">
+                <MapPin className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{venueName}</span>
+              </div>
             )}
           </div>
         )}
