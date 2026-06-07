@@ -1172,7 +1172,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   size="sm"
                   variant="ghost"
                   aria-label="Fixture settings (hold)"
-                  className="h-8 w-8 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+                  className="h-7 w-7 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
