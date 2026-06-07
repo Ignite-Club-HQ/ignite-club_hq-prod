@@ -1070,9 +1070,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                {homeInitials || "?"}
-              </div>
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} />
               <div className={`text-[15px] font-bold leading-tight truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
@@ -1096,10 +1094,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               <div className={`text-[15px] font-bold leading-tight truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                {awayInitials || "?"}
-              </div>
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} />
             </div>
+
           </div>
         )}
 
