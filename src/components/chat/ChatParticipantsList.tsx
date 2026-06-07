@@ -473,6 +473,31 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Online status: combine realtime presence with DB heartbeat (last 90s).
+  const realtimeOnline = useOnlineSet(memberIds);
+  const { data: heartbeatOnlineIds } = useQuery({
+    queryKey: ["chat-members-online-heartbeat", chatType, chatId, memberIds],
+    queryFn: async (): Promise<string[]> => {
+      if (memberIds.length === 0) return [];
+      const { data, error } = await supabase.rpc(
+        "get_online_users_from_set" as any,
+        { _user_ids: memberIds },
+      );
+      if (error || !data) return [];
+      return (data as Array<{ user_id: string }>).map((r) => r.user_id);
+    },
+    enabled: enabled && memberIds.length > 0,
+    staleTime: 30 * 1000,
+    refetchInterval: 45 * 1000,
+  });
+  const onlineIds = useMemo(() => {
+    const s = new Set<string>(realtimeOnline);
+    for (const id of heartbeatOnlineIds || []) s.add(id);
+    return s;
+  }, [realtimeOnline, heartbeatOnlineIds]);
+
+
+
   const formatRole = (role: string) =>
     role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
