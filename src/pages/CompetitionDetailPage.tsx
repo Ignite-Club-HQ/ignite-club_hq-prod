@@ -173,17 +173,16 @@ export default function CompetitionDetailPage() {
                   <Megaphone className="h-[18px] w-[18px]" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle>Broadcasts</SheetTitle>
-                </SheetHeader>
-                <div className="pt-4">
-                  <BroadcastsPanel
-                    competitionId={id!}
-                    divisions={divisions}
-                    acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
-                  />
-                </div>
+              <SheetContent
+                side="bottom"
+                className="h-[90dvh] max-h-[90dvh] p-0 rounded-t-[20px] border-t-0 flex flex-col gap-0 overflow-hidden"
+              >
+                <BroadcastsPanel
+                  competitionId={id!}
+                  competitionName={competition.name}
+                  divisions={divisions}
+                  acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
+                />
               </SheetContent>
             </Sheet>
           )}
