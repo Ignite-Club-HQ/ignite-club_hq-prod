@@ -216,14 +216,14 @@ export function scheduleFixtures(input: SchedulerInput): SchedulerOutput {
       const existing = pool.get(key) ?? [];
       datesUsed.push(key);
 
-      // Build timeslots
+      // Build timeslots. Both modes generate waves through the day window so
+      // overflow stays same-day before rolling to the next allowed day. In
+      // "simultaneous" mode we still track when extra waves are used so the
+      // caller can confirm with the user.
       const slots: number[] = [];
-      if (mode === "simultaneous") {
-        slots.push(dayStartMins);
-      } else {
-        for (let t = dayStartMins; t + dur <= dayEndMins; t += dur) slots.push(t);
-        if (slots.length === 0) slots.push(dayStartMins); // window too tight: at least one
-      }
+      for (let t = dayStartMins; t + dur <= dayEndMins; t += dur) slots.push(t);
+      if (slots.length === 0) slots.push(dayStartMins); // window too tight: at least one
+      let wavesUsedThisDay = 0;
 
       for (const slotStart of slots) {
         if (remaining.length === 0) break;
