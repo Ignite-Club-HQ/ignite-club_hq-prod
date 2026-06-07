@@ -1157,9 +1157,32 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               <Pencil className="h-3 w-3 mr-1" />
               Score
             </Button>
-            <DropdownMenu>
+            <DropdownMenu open={manageOpen} onOpenChange={(open) => { if (open && !tapValidRef.current) return; tapValidRef.current = false; setManageOpen(open); }}>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs select-none touch-manipulation"
+                  onPointerDown={(e) => {
+                    tapStartRef.current = { x: e.clientX, y: e.clientY };
+                    tapValidRef.current = true;
+                  }}
+                  onPointerMove={(e) => {
+                    if (!tapStartRef.current) return;
+                    const dx = e.clientX - tapStartRef.current.x;
+                    const dy = e.clientY - tapStartRef.current.y;
+                    if (Math.sqrt(dx * dx + dy * dy) > 24) {
+                      tapValidRef.current = false;
+                    }
+                  }}
+                  onPointerUp={() => {
+                    tapStartRef.current = null;
+                  }}
+                  onPointerLeave={() => {
+                    tapValidRef.current = false;
+                    tapStartRef.current = null;
+                  }}
+                >
                   <Settings2 className="h-3 w-3 mr-1" />
                   Manage
                 </Button>
