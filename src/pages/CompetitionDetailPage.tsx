@@ -225,8 +225,8 @@ export default function CompetitionDetailPage() {
           <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
         </TabsContent>
 
-        <TabsContent value="teams" className="space-y-4">
-          {isAdmin && (
+        {isAdmin && (
+          <TabsContent value="teams" className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <InviteTeamForm
                 competitionId={id!}
@@ -240,17 +240,17 @@ export default function CompetitionDetailPage() {
               />
               <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
-          )}
 
-          <TeamsByDivision
-            competitionId={id!}
-            divisions={divisions}
-            entries={entries}
-            myAdminTeamIds={myAdminTeamIds}
-            onRespond={respondToInvite}
-            isAdmin={isAdmin}
-          />
-        </TabsContent>
+            <TeamsByDivision
+              competitionId={id!}
+              divisions={divisions}
+              entries={entries}
+              myAdminTeamIds={myAdminTeamIds}
+              onRespond={respondToInvite}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
