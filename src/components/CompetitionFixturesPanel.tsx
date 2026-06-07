@@ -1156,13 +1156,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
 
-        {/* 3. Venue + Pitch — subtle, secondary */}
-        {!editing && (venueLine || match.pitch_number) && (
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 leading-tight">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
-          </div>
-        )}
+        {/* 3. Admin actions moved above; venue rendered below as bottom metadata */}
+
 
         {/* 4. Admin actions — compact, flush to bottom */}
         {isAdmin && !editing && (
