@@ -755,8 +755,9 @@ function MatchRow({ match, isAdmin, competitionId }: { match: any; isAdmin: bool
     : match.status === "postponed" ? "outline"
     : "secondary";
   const hasScore = match.home_score != null || match.away_score != null;
-  const venueLine = match.venue
-    ? `${match.venue}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
+  const venueName = match.venue ? String(match.venue).split(",")[0].trim() : null;
+  const venueLine = venueName
+    ? `${venueName}${match.pitch_number ? ` - Pitch ${match.pitch_number}` : ""}`
     : null;
 
   return (
