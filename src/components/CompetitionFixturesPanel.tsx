@@ -34,9 +34,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-type Frequency = "weekly" | "biweekly" | "triweekly" | "monthly" | "custom";
-type SchedulingMode = "simultaneous" | "stagger";
-
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -46,22 +43,7 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
-function advanceByFrequency(d: Date, freq: Frequency, customDays: number): Date {
-  switch (freq) {
-    case "weekly": return addDays(d, 7);
-    case "biweekly": return addDays(d, 14);
-    case "triweekly": return addDays(d, 21);
-    case "monthly": return addMonths(d, 1);
-    case "custom": return addDays(d, Math.max(1, customDays));
-  }
-}
-
-function nextOccurrenceOfWeekday(from: Date, weekday: number): Date {
-  const d = new Date(from);
-  d.setHours(0, 0, 0, 0);
-  const diff = (weekday - d.getDay() + 7) % 7;
-  return addDays(d, diff);
-}
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface Props {
   competitionId: string;
@@ -70,56 +52,33 @@ interface Props {
   entries: any[]; // includes teams:team_id(id,name)
 }
 
-/** Round-robin fixture list for an even/odd team count using the circle method. */
-function buildRoundRobin(teamIds: string[]): { round: number; home: string; away: string }[] {
-  const teams = [...teamIds];
-  if (teams.length < 2) return [];
-  if (teams.length % 2 === 1) teams.push("__BYE__");
-  const n = teams.length;
-  const rounds = n - 1;
-  const half = n / 2;
-  const fixtures: { round: number; home: string; away: string }[] = [];
-  let arr = [...teams];
-  for (let r = 0; r < rounds; r++) {
-    for (let i = 0; i < half; i++) {
-      const a = arr[i];
-      const b = arr[n - 1 - i];
-      if (a !== "__BYE__" && b !== "__BYE__") {
-        // alternate home/away each round
-        if (r % 2 === 0) fixtures.push({ round: r + 1, home: a, away: b });
-        else fixtures.push({ round: r + 1, home: b, away: a });
-      }
-    }
-    // rotate (keep first fixed)
-    arr = [arr[0], arr[n - 1], ...arr.slice(1, n - 1)];
-  }
-  return fixtures;
-}
-
 export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
   const [genOpen, setGenOpen] = useState(false);
   const [genDivisionId, setGenDivisionId] = useState<string>("");
-  const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>(""); // yyyy-mm-dd
-  const [genKickoff, setGenKickoff] = useState<string>("09:00");
-  const [genMatchDay, setGenMatchDay] = useState<number>(0); // 0=Sun
-  const [matchDayManual, setMatchDayManual] = useState(false);
+  const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>("");
+  const [genDayStart, setGenDayStart] = useState<string>("09:00");
+  const [genDayEnd, setGenDayEnd] = useState<string>("16:00");
+  const [genWeekdays, setGenWeekdays] = useState<number[]>([]); // empty = any
+  const [weekdaysDirty, setWeekdaysDirty] = useState(false);
   const [genFrequency, setGenFrequency] = useState<Frequency>("weekly");
   const [genCustomDays, setGenCustomDays] = useState<string>("7");
-  const [genEndDate, setGenEndDate] = useState<string>(""); // optional cutoff
+  const [genEndDate, setGenEndDate] = useState<string>("");
   const [genStartRound, setGenStartRound] = useState<string>("1");
   const [genVenue, setGenVenue] = useState<string>("");
   const [genDuration, setGenDuration] = useState<string>("60");
   const [genArrival, setGenArrival] = useState<string>("");
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
   const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
-  const [genMode, setGenMode] = useState<SchedulingMode>("simultaneous");
+  const [genMode, setGenMode] = useState<SchedulingMode>("stagger");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState<{ round: number; home: string; away: string; homeName: string; awayName: string }[] | null>(null);
+  const [shuffleSeed, setShuffleSeed] = useState(0); // bumped on "Shuffle"
+  const [previewPairings, setPreviewPairings] = useState<{ round: number; home: string; away: string; homeName: string; awayName: string }[] | null>(null);
+  const [roundDateOverrides, setRoundDateOverrides] = useState<Map<number, string>>(new Map());
 
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ["competition-matches", competitionId],
@@ -157,87 +116,112 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     : Array.from({ length: effectivePitchCount }, (_, i) => String(i + 1));
   const pitchCount = pitchLabels.length;
 
+  // Pre-fill division defaults when a division is picked
+  const selectedDivision = useMemo(
+    () => divisions.find((d: any) => d.id === genDivisionId) ?? null,
+    [divisions, genDivisionId]
+  );
+  useEffect(() => {
+    if (!selectedDivision) return;
+    if (selectedDivision.day_start_time) setGenDayStart(String(selectedDivision.day_start_time).slice(0, 5));
+    if (selectedDivision.day_end_time) setGenDayEnd(String(selectedDivision.day_end_time).slice(0, 5));
+    if (!weekdaysDirty && Array.isArray(selectedDivision.play_weekdays)) {
+      setGenWeekdays([...selectedDivision.play_weekdays].sort());
+    }
+  }, [selectedDivision, weekdaysDirty]);
+
+  // Compute occupied pitch slots from existing matches in this competition
+  // (so newly generated divisions don't clash with already-scheduled ones).
+  const occupiedByDate = useMemo(() => {
+    const m = new Map<string, OccupiedSlot[]>();
+    for (const row of matches as any[]) {
+      if (!row.scheduled_at || !row.pitch_number) continue;
+      const d = new Date(row.scheduled_at);
+      if (isNaN(d.getTime())) continue;
+      const key = dateKey(d);
+      const startMins = d.getHours() * 60 + d.getMinutes();
+      const dur = Number(row.duration_minutes) > 0 ? Number(row.duration_minutes) : 60;
+      const list = m.get(key) ?? [];
+      list.push({ startMins, endMins: startMins + dur, pitch: String(row.pitch_number) });
+      m.set(key, list);
+    }
+    return m;
+  }, [matches]);
+
+  // Build pairings once teams are chosen; re-runs on shuffle/regenerate
+  const pairings = useMemo(() => {
+    if (teamsInScope.length < 2) return [];
+    const ids = shuffleSeed > 0
+      ? shuffleArray(teamsInScope.map((t: any) => t.id))
+      : teamsInScope.map((t: any) => t.id);
+    return buildRoundRobinPairings(ids);
+  }, [teamsInScope, shuffleSeed]);
+
+  // Live scheduling pass: same logic used at save time
+  const schedule = useMemo(() => {
+    if (pairings.length === 0) return null;
+    const dayStartMins = parseTimeToMins(genDayStart, 9 * 60);
+    const dayEndMins = parseTimeToMins(genDayEnd, 16 * 60);
+    if (dayEndMins <= dayStartMins) return null;
+    const start = genFirstRoundDate ? new Date(`${genFirstRoundDate}T00:00:00`) : null;
+    const end = genEndDate ? new Date(`${genEndDate}T23:59:59`) : null;
+    return scheduleFixtures({
+      pairings,
+      startDate: start,
+      endDate: end,
+      allowedWeekdays: genWeekdays,
+      dayStartMins,
+      dayEndMins,
+      durationMins: durationNum || 60,
+      pitchCount,
+      pitchLabels,
+      frequency: genFrequency,
+      customDays: customDaysNum,
+      mode: genMode,
+      occupiedByDate,
+      roundDateOverrides,
+    });
+  }, [pairings, genFirstRoundDate, genEndDate, genWeekdays, genDayStart, genDayEnd, durationNum, pitchCount, pitchLabels, genFrequency, customDaysNum, genMode, occupiedByDate, roundDateOverrides]);
+
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of teamsInScope as any[]) m.set(t.id, t.name);
+    return m;
+  }, [teamsInScope]);
 
   const summary = useMemo(() => {
-    const n = teamsInScope.length;
-    if (n < 2) return null;
-    const fullRounds = n % 2 === 0 ? n - 1 : n;
-    const matchesPerRound = Math.floor(n / 2);
-    const firstDate = genFirstRoundDate
-      ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
+    if (!schedule) return null;
+    const totalRounds = new Set(schedule.placed.map((p) => p.round)).size;
+    const datedRounds = schedule.roundSummaries.filter((s) => s.dates.length > 0);
+    const firstDate = datedRounds[0]?.dates[0]
+      ? new Date(`${datedRounds[0].dates[0]}T00:00:00`)
       : null;
-    if (firstDate && genKickoff) {
-      const [hh, mm] = genKickoff.split(":").map(Number);
-      firstDate.setHours(hh || 9, mm || 0, 0, 0);
-    }
-    // If an end date is set, schedule every matching round date in the window.
-    // This can trim a short window or repeat the round-robin cycle for a longer season.
-    let rounds = fullRounds;
-    let adjustedByEndDate = false;
-    if (firstDate && genEndDate) {
-      const end = new Date(`${genEndDate}T23:59:59`);
-      let d = new Date(firstDate);
-      let fit = 0;
-      const maxGeneratedRounds = 500;
-      while (fit < maxGeneratedRounds) {
-        if (d.getTime() > end.getTime()) break;
-        fit++;
-        d = advanceByFrequency(d, genFrequency, customDaysNum);
-      }
-      if (fit !== fullRounds) adjustedByEndDate = true;
-      rounds = Math.max(0, fit);
-    }
-    const totalMatches = rounds * matchesPerRound;
-    let finishDate: Date | null = null;
-    if (firstDate && rounds > 0) {
-      let d = new Date(firstDate);
-      for (let i = 1; i < rounds; i++) d = advanceByFrequency(d, genFrequency, customDaysNum);
-      finishDate = d;
-    }
-    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, adjustedByEndDate };
-  }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum, genEndDate]);
+    const lastRoundDates = datedRounds[datedRounds.length - 1]?.dates ?? [];
+    const finishDate = lastRoundDates.length
+      ? new Date(`${lastRoundDates[lastRoundDates.length - 1]}T00:00:00`)
+      : null;
+    return {
+      teamCount: teamsInScope.length,
+      rounds: totalRounds,
+      totalMatches: schedule.placed.length,
+      firstDate,
+      finishDate,
+      overflowRounds: schedule.overflowRounds,
+      unscheduledCount: schedule.unscheduled.length,
+    };
+  }, [schedule, teamsInScope.length]);
 
-  const capacityWarning = useMemo(() => {
-    if (!summary || pitchCount <= 0) return null;
-    if (summary.matchesPerRound <= pitchCount) return null;
-    const slotsPerPitch = Math.ceil(summary.matchesPerRound / pitchCount);
-    return { slotsPerPitch, completionMins: slotsPerPitch * (durationNum || 60) };
-  }, [summary, pitchCount, durationNum]);
-
-  const handleStartDateChange = (v: string) => {
-    setGenFirstRoundDate(v);
-    if (v && !matchDayManual) {
-      const d = new Date(`${v}T12:00:00`);
-      if (!isNaN(d.getTime())) setGenMatchDay(d.getDay());
-    }
+  const toggleWeekday = (d: number) => {
+    setWeekdaysDirty(true);
+    setGenWeekdays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort());
   };
 
-  const buildPreviewRows = (shuffle = false) => {
-    const teams = teamsInScope;
-    if (teams.length < 2) {
-      toast({ title: "Need at least 2 accepted teams", variant: "destructive" });
-      return null;
-    }
-    const ids = shuffle ? shuffleArray(teams.map((t: any) => t.id)) : teams.map((t: any) => t.id);
-    const nameById = new Map(teams.map((t: any) => [t.id, t.name as string]));
-    const fx = buildRoundRobin(ids);
-    const targetRounds = summary?.rounds ?? Math.max(...fx.map((f) => f.round));
-    const fullRounds = Math.max(...fx.map((f) => f.round));
-    return Array.from({ length: targetRounds }).flatMap((_, index) => {
-      const displayRound = index + 1;
-      const baseRound = (index % fullRounds) + 1;
-      const shouldSwapHomeAway = Math.floor(index / fullRounds) % 2 === 1;
-      return fx.filter((f) => f.round === baseRound).map((f) => {
-        const home = shouldSwapHomeAway ? f.away : f.home;
-        const away = shouldSwapHomeAway ? f.home : f.away;
-        return {
-          round: displayRound,
-          home,
-          away,
-          homeName: nameById.get(home) ?? "?",
-          awayName: nameById.get(away) ?? "?",
-        };
-      });
+  const setRoundDate = (round: number, isoDate: string) => {
+    setRoundDateOverrides((prev) => {
+      const next = new Map(prev);
+      if (!isoDate) next.delete(round);
+      else next.set(round, isoDate);
+      return next;
     });
   };
 
@@ -246,73 +230,44 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       toast({ title: "Venue is required", variant: "destructive" });
       return;
     }
-    const rows = buildPreviewRows(false);
-    if (rows) setPreview(rows);
+    if (teamsInScope.length < 2) {
+      toast({ title: "Need at least 2 accepted teams", variant: "destructive" });
+      return;
+    }
+    const rows = pairings.map((p) => ({
+      round: p.round,
+      home: p.home,
+      away: p.away,
+      homeName: nameById.get(p.home) ?? "?",
+      awayName: nameById.get(p.away) ?? "?",
+    }));
+    setPreviewPairings(rows);
   };
-  const onShuffle = () => { const r = buildPreviewRows(true); if (r) setPreview(r); };
-  const onRegenerate = () => { const r = buildPreviewRows(false); if (r) setPreview(r); };
+  const onShuffle = () => { setShuffleSeed((s) => s + 1); setRoundDateOverrides(new Map()); };
+  const onRegenerate = () => { setShuffleSeed(0); setRoundDateOverrides(new Map()); };
 
   const saveFixtures = async () => {
-    if (!preview) return;
+    if (!schedule || !previewPairings) return;
     setGenerating(true);
-    const baseDate = genFirstRoundDate
-      ? nextOccurrenceOfWeekday(new Date(`${genFirstRoundDate}T${genKickoff || "09:00"}:00`), genMatchDay)
-      : null;
-    if (baseDate && genKickoff) {
-      const [hh, mm] = genKickoff.split(":").map(Number);
-      baseDate.setHours(hh || 9, mm || 0, 0, 0);
-    }
-    const endDate = genEndDate ? new Date(`${genEndDate}T23:59:59`) : null;
-    const duration = durationNum || null;
     const arrival = genArrival ? Number(genArrival) : null;
-    const startRound = Math.max(1, Number(genStartRound) || 1);
-
-    const roundDates = new Map<number, Date | null>();
-    if (baseDate) {
-      let d = new Date(baseDate);
-      const maxRound = Math.max(...preview.map((p) => p.round));
-      for (let r = 1; r <= maxRound; r++) {
-        roundDates.set(r, new Date(d));
-        d = advanceByFrequency(d, genFrequency, customDaysNum);
-      }
-    }
-
-    const rows: any[] = [];
-    const perRoundPitchIdx = new Map<number, number>();
-    for (const f of preview) {
-      const d = roundDates.get(f.round) ?? null;
-      if (d && endDate && d.getTime() > endDate.getTime()) continue;
-      let scheduledAt: string | null = d ? new Date(d).toISOString() : null;
-      let pitch: string | null = null;
-      if (pitchCount > 0) {
-        const idx = perRoundPitchIdx.get(f.round) ?? 0;
-        pitch = pitchLabels[idx % pitchCount];
-        if (genMode === "stagger" && d && durationNum > 0 && idx >= pitchCount) {
-          const slot = Math.floor(idx / pitchCount);
-          const shifted = new Date(d.getTime() + slot * durationNum * 60 * 1000);
-          scheduledAt = shifted.toISOString();
-        }
-        perRoundPitchIdx.set(f.round, idx + 1);
-      }
-      rows.push({
-        competition_id: competitionId,
-        division_id: genDivisionId || null,
-        round_number: (startRound - 1) + f.round,
-        home_team_id: f.home,
-        away_team_id: f.away,
-        status: "scheduled",
-        created_by: user?.id ?? null,
-        scheduled_at: scheduledAt,
-        venue: genVenue,
-        pitch_number: pitch,
-        duration_minutes: duration,
-        arrival_minutes_before: arrival,
-      });
-    }
-
+    const startRoundOffset = Math.max(1, Number(genStartRound) || 1) - 1;
+    const rows = schedule.placed.map((p) => ({
+      competition_id: competitionId,
+      division_id: genDivisionId || null,
+      round_number: startRoundOffset + p.round,
+      home_team_id: p.home,
+      away_team_id: p.away,
+      status: "scheduled",
+      created_by: user?.id ?? null,
+      scheduled_at: p.scheduledAt ? p.scheduledAt.toISOString() : null,
+      venue: genVenue,
+      pitch_number: p.pitch,
+      duration_minutes: durationNum || null,
+      arrival_minutes_before: arrival,
+    }));
     if (rows.length === 0) {
       setGenerating(false);
-      toast({ title: "No fixtures fit the date window", description: "Adjust the end date or frequency.", variant: "destructive" });
+      toast({ title: "No fixtures fit the window", description: "Widen the time window, add weekdays, or push the end date.", variant: "destructive" });
       return;
     }
     const { error } = await supabase.from("competition_matches").insert(rows);
@@ -332,11 +287,14 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     }
     toast({ title: `Saved ${rows.length} fixtures` });
     setGenOpen(false);
-    setPreview(null);
-    setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
+    setPreviewPairings(null);
+    setRoundDateOverrides(new Map());
+    setGenDivisionId(""); setGenFirstRoundDate("");
+    setGenDayStart("09:00"); setGenDayEnd("16:00");
+    setGenWeekdays([]); setWeekdaysDirty(false);
     setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
     setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
-    setMatchDayManual(false); setAdvancedOpen(false);
+    setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
 
@@ -355,12 +313,34 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     custom: `every ${customDaysNum} day${customDaysNum === 1 ? "" : "s"}`,
   };
 
+  const weekdaySummary = genWeekdays.length === 0
+    ? "any day"
+    : genWeekdays.map((d) => WEEKDAYS_SHORT[d]).join(", ");
+
+  // Map placed fixtures by round → list ordered by scheduled_at
+  const placedByRound = useMemo(() => {
+    const m = new Map<number, PlacedFixture[]>();
+    if (!schedule) return m;
+    for (const p of schedule.placed) {
+      if (!m.has(p.round)) m.set(p.round, []);
+      m.get(p.round)!.push(p);
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => {
+        const ta = a.scheduledAt?.getTime() ?? 0;
+        const tb = b.scheduledAt?.getTime() ?? 0;
+        if (ta !== tb) return ta - tb;
+        return (a.pitch ?? "").localeCompare(b.pitch ?? "");
+      });
+    }
+    return m;
+  }, [schedule]);
+
   return (
     <div
       className="space-y-3 box-border"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
     >
-
       {isAdmin && (
         <div className="space-y-2">
           {!genOpen ? (
@@ -384,11 +364,17 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
           ) : (
             <Card className="w-full">
               <CardContent className="p-4 space-y-4">
-                {!preview ? (
+                {!previewPairings ? (
                   <>
                     <div>
                       <Label>Division (optional)</Label>
-                      <Select value={genDivisionId || "_all"} onValueChange={(v) => setGenDivisionId(v === "_all" ? "" : v)}>
+                      <Select
+                        value={genDivisionId || "_all"}
+                        onValueChange={(v) => {
+                          setGenDivisionId(v === "_all" ? "" : v);
+                          setWeekdaysDirty(false);
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder="All accepted teams" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="_all">All accepted teams</SelectItem>
@@ -397,6 +383,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           ))}
                         </SelectContent>
                       </Select>
+                      {selectedDivision && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Pre-filled from division settings. Override here just for this generation.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -404,29 +395,53 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <Label>Competition starts</Label>
-                          <Input type="date" value={genFirstRoundDate} onChange={(e) => handleStartDateChange(e.target.value)} />
+                          <Input type="date" value={genFirstRoundDate} onChange={(e) => setGenFirstRoundDate(e.target.value)} />
                         </div>
                         <div className="col-span-2">
                           <Label>Competition end date (optional)</Label>
                           <Input type="date" value={genEndDate} onChange={(e) => setGenEndDate(e.target.value)} />
                           <p className="text-xs text-muted-foreground mt-1">
-                            Trims or repeats rounds to fit within this window.
+                            Caps the season. Matches that don't fit will roll into a "could not schedule" note.
                           </p>
                         </div>
-                        <div>
-                          <Label>Match day</Label>
-                          <Select
-                            value={String(genMatchDay)}
-                            onValueChange={(v) => { setGenMatchDay(Number(v)); setMatchDayManual(true); }}
-                          >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {WEEKDAYS.map((d, i) => (
-                                <SelectItem key={i} value={String(i)}>{d}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+
+                        <div className="col-span-2">
+                          <Label>Play days</Label>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {WEEKDAYS_SHORT.map((label, i) => {
+                              const active = genWeekdays.includes(i);
+                              return (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => toggleWeekday(i)}
+                                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                    active
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background text-foreground border-border hover:bg-muted"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {genWeekdays.length === 0
+                              ? "No days selected — fixtures will land on whichever day the frequency lands on."
+                              : `Rounds only land on: ${weekdaySummary}.`}
+                          </p>
                         </div>
+
+                        <div>
+                          <Label>Earliest kickoff</Label>
+                          <Input type="time" value={genDayStart} onChange={(e) => setGenDayStart(e.target.value)} />
+                        </div>
+                        <div>
+                          <Label>Latest kickoff</Label>
+                          <Input type="time" value={genDayEnd} onChange={(e) => setGenDayEnd(e.target.value)} />
+                        </div>
+
                         <div>
                           <Label>Frequency</Label>
                           <Select value={genFrequency} onValueChange={(v) => setGenFrequency(v as Frequency)}>
@@ -440,20 +455,16 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                             </SelectContent>
                           </Select>
                         </div>
+                        <div>
+                          <Label>Duration (mins)</Label>
+                          <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} />
+                        </div>
                         {genFrequency === "custom" && (
                           <div className="col-span-2">
                             <Label>Days between rounds</Label>
                             <Input type="number" inputMode="numeric" min={1} value={genCustomDays} onChange={(e) => setGenCustomDays(e.target.value)} />
                           </div>
                         )}
-                        <div>
-                          <Label>Start time</Label>
-                          <Input type="time" value={genKickoff} onChange={(e) => setGenKickoff(e.target.value)} />
-                        </div>
-                        <div>
-                          <Label>Duration (mins)</Label>
-                          <Input type="number" inputMode="numeric" min={0} value={genDuration} onChange={(e) => setGenDuration(e.target.value)} />
-                        </div>
                       </div>
                     </div>
 
@@ -482,14 +493,14 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           <RadioGroupItem value="simultaneous" id="mode-sim" className="mt-1" />
                           <div className="text-sm">
                             <div className="font-medium">Simultaneous kick-off</div>
-                            <div className="text-xs text-muted-foreground">All matches start together where pitches allow.</div>
+                            <div className="text-xs text-muted-foreground">All matches start at the earliest kickoff. Overflow rolls to the next play day.</div>
                           </div>
                         </label>
                         <label className="flex items-start gap-2 cursor-pointer">
                           <RadioGroupItem value="stagger" id="mode-stagger" className="mt-1" />
                           <div className="text-sm">
                             <div className="font-medium">Auto-stagger matches</div>
-                            <div className="text-xs text-muted-foreground">Spreads matches across available pitches and timeslots.</div>
+                            <div className="text-xs text-muted-foreground">Fills the day window with back-to-back slots across pitches.</div>
                           </div>
                         </label>
                       </RadioGroup>
@@ -500,34 +511,20 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         <CardContent className="p-3 space-y-1 text-sm">
                           <div className="font-semibold mb-1">Competition summary</div>
                           <div>· {summary.teamCount} teams</div>
-                          <div>
-                            · {summary.rounds} rounds
-                          </div>
-                          <div>· {summary.totalMatches} total matches</div>
-                          {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
-                          <div>· Matches {frequencyLabel[genFrequency]} on {WEEKDAYS[genMatchDay]}</div>
+                          <div>· {summary.rounds} rounds · {summary.totalMatches} matches</div>
+                          {pitchCount > 0 && <div>· {pitchCount} pitches in shared pool</div>}
+                          <div>· Matches {frequencyLabel[genFrequency]} on {weekdaySummary}</div>
+                          <div>· Day window {genDayStart} – {genDayEnd}</div>
                           {summary.firstDate && <div>· Starts {format(summary.firstDate, "EEE d MMM yyyy")}</div>}
                           {summary.finishDate && <div>· Estimated finish {format(summary.finishDate, "EEE d MMM yyyy")}</div>}
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {capacityWarning && summary && (
-                      <Card className="border-amber-500/50 bg-amber-500/10">
-                        <CardContent className="p-3 text-sm space-y-2">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                            <div className="font-medium">
-                              Round 1 requires {summary.matchesPerRound} matches but only {pitchCount} pitch{pitchCount === 1 ? "" : "es"} available.
+                          {summary.overflowRounds.length > 0 && (
+                            <div className="text-amber-700 dark:text-amber-400">
+                              · Round{summary.overflowRounds.length === 1 ? "" : "s"} {summary.overflowRounds.join(", ")} span multiple days
                             </div>
-                          </div>
-                          {genMode === "stagger" ? (
-                            <div className="text-xs text-muted-foreground">
-                              Ignite will stagger {capacityWarning.slotsPerPitch} slots per pitch, ~{capacityWarning.completionMins} min to complete the round.
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground">
-                              Switch to “Auto-stagger” or add more pitches to fit all matches.
+                          )}
+                          {summary.unscheduledCount > 0 && (
+                            <div className="text-destructive">
+                              · {summary.unscheduledCount} match{summary.unscheduledCount === 1 ? "" : "es"} couldn't fit before the end date
                             </div>
                           )}
                         </CardContent>
@@ -563,7 +560,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                               disabled={customPitchLabels.length > 0}
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              Auto-numbered Pitch 1, Pitch 2…
+                              Caps simultaneous matches. Shared across divisions in this competition.
                             </p>
                           </div>
                           <div className="col-span-2">
@@ -593,7 +590,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         </CollapsibleTrigger>
                         <CollapsibleContent className="pt-1">
                           <p className="text-xs text-muted-foreground">
-                            Home/away alternates each round for fairness. Setting an end date repeats the cycle within that window, swapping home/away each cycle. Leave the start date blank to generate fixtures without times and fill them in per match later.
+                            Each round fills its play day from earliest kickoff onward across all available pitches. If a round needs more matches than the day fits, it overflows to the next allowed play day before the next round starts. Other divisions' existing matches reserve pitches in the shared pool, so two divisions on the same day won't double-book.
                           </p>
                         </CollapsibleContent>
                       </Collapsible>
@@ -610,85 +607,77 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                   <>
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-semibold text-base">Fixture preview</div>
-                      <Badge variant="secondary" className="text-xs font-medium">{preview.length} matches</Badge>
+                      <Badge variant="secondary" className="text-xs font-medium">
+                        {schedule?.placed.length ?? 0} matches
+                      </Badge>
                     </div>
+                    {summary?.unscheduledCount ? (
+                      <div className="text-xs text-destructive flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>{summary.unscheduledCount} match{summary.unscheduledCount === 1 ? "" : "es"} won't fit before the end date — adjust before saving.</span>
+                      </div>
+                    ) : null}
                     <div className="space-y-3 max-h-[55vh] overflow-y-auto -mx-1 px-1">
-                      {(() => {
-                        const roundDates = new Map<number, Date | null>();
-                        if (summary?.firstDate) {
-                          let d = new Date(summary.firstDate);
-                          const maxRound = Math.max(...preview.map((p) => p.round));
-                          for (let r = 1; r <= maxRound; r++) {
-                            roundDates.set(r, new Date(d));
-                            d = advanceByFrequency(d, genFrequency, customDaysNum);
-                          }
-                        }
-                        const perRoundPitchIdx = new Map<number, number>();
-                        return Array.from(new Set(preview.map((p) => p.round))).map((r) => {
-                          const roundDate = roundDates.get(r) ?? null;
-                          const roundMatches = preview.filter((p) => p.round === r);
-                          const playingIds = new Set<string>();
-                          roundMatches.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
-                          const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
-                          return (
-                            <div key={r} className="rounded-lg border bg-card overflow-hidden">
-                              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
-                                <div className="flex items-baseline gap-2 min-w-0">
-                                  <span className="text-sm font-semibold">Round {r}</span>
-                                  {roundDate && (
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {format(roundDate, "EEE d MMM")}
-                                      {genKickoff && genMode !== "stagger" ? ` · ${genKickoff}` : ""}
-                                    </span>
-                                  )}
-                                </div>
+                      {Array.from(placedByRound.entries()).map(([round, list]) => {
+                        const playingIds = new Set<string>();
+                        list.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
+                        const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
+                        const datesInRound = Array.from(new Set(list.map((p) => p.scheduledAt ? dateKey(p.scheduledAt) : "—")));
+                        const overrideValue = roundDateOverrides.get(round) ?? (datesInRound[0] !== "—" ? datesInRound[0] : "");
+                        return (
+                          <div key={round} className="rounded-lg border bg-card overflow-hidden">
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                              <div className="flex items-baseline gap-2 min-w-0">
+                                <span className="text-sm font-semibold">Round {round}</span>
                                 <span className="text-[11px] text-muted-foreground shrink-0">
-                                  {roundMatches.length} {roundMatches.length === 1 ? "match" : "matches"}
+                                  {list.length} {list.length === 1 ? "match" : "matches"}
+                                  {datesInRound.length > 1 ? ` · ${datesInRound.length} days` : ""}
                                 </span>
                               </div>
-                              <ul className="divide-y">
-                                {roundMatches.map((p, i) => {
-                                  let pitch: string | null = null;
-                                  let matchTime = genKickoff || "";
-                                  if (pitchCount > 0) {
-                                    const idx = perRoundPitchIdx.get(r) ?? 0;
-                                    pitch = pitchLabels[idx % pitchCount];
-                                    if (genMode === "stagger" && roundDate && durationNum > 0 && idx >= pitchCount) {
-                                      const slot = Math.floor(idx / pitchCount);
-                                      const shifted = new Date(roundDate.getTime() + slot * durationNum * 60 * 1000);
-                                      matchTime = format(shifted, "HH:mm");
-                                    }
-                                    perRoundPitchIdx.set(r, idx + 1);
-                                  }
-                                  return (
-                                    <li key={i} className="px-3 py-2.5">
-                                      <div className="flex items-center gap-2">
-                                        <span className="flex-1 min-w-0 text-sm font-medium text-right truncate">{p.homeName}</span>
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
-                                        <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{p.awayName}</span>
-                                      </div>
-                                      {(pitchCount > 0 || (genMode === "stagger" && matchTime)) && (
-                                        <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
-                                          {pitchCount > 0 && <span>Pitch {pitch}</span>}
-                                          {genMode === "stagger" && pitchCount > 0 && matchTime && <span>{matchTime}</span>}
-                                        </div>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                              {byeTeams.length > 0 && (
-                                <div className="px-3 py-1.5 text-[11px] text-muted-foreground italic border-t bg-muted/30">
-                                  Bye: {byeTeams.map((t: any) => t.name).join(", ")}
-                                </div>
-                              )}
+                              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <CalendarDays className="h-3 w-3" />
+                                <span>Move to:</span>
+                                <input
+                                  type="date"
+                                  value={overrideValue}
+                                  onChange={(e) => setRoundDate(round, e.target.value)}
+                                  className="h-7 px-1.5 py-0.5 text-xs bg-background border border-input rounded"
+                                />
+                              </label>
                             </div>
-                          );
-                        });
-                      })()}
+                            <ul className="divide-y">
+                              {list.map((p, i) => {
+                                const timeLabel = p.scheduledAt
+                                  ? format(p.scheduledAt, "EEE d MMM · HH:mm")
+                                  : "(unscheduled)";
+                                const homeName = nameById.get(p.home) ?? "?";
+                                const awayName = nameById.get(p.away) ?? "?";
+                                return (
+                                  <li key={i} className="px-3 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="flex-1 min-w-0 text-sm font-medium text-right truncate">{homeName}</span>
+                                      <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
+                                      <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{awayName}</span>
+                                    </div>
+                                    <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+                                      <span>{timeLabel}</span>
+                                      {p.pitch && <span>· Pitch {p.pitch}</span>}
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            {byeTeams.length > 0 && (
+                              <div className="px-3 py-1.5 text-[11px] text-muted-foreground italic border-t bg-muted/30">
+                                Bye: {byeTeams.map((t: any) => t.name).join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
-                      <Button onClick={saveFixtures} disabled={generating} className="w-full sm:w-auto min-h-11">
+                      <Button onClick={saveFixtures} disabled={generating || (schedule?.placed.length ?? 0) === 0} className="w-full sm:w-auto min-h-11">
                         {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                         Save fixtures
                       </Button>
@@ -700,7 +689,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                           <RefreshCw className="h-4 w-4 mr-1" /> Regenerate
                         </Button>
                       </div>
-                      <Button variant="ghost" onClick={() => setPreview(null)} disabled={generating} className="w-full sm:w-auto min-h-11 sm:ml-auto">
+                      <Button variant="ghost" onClick={() => { setPreviewPairings(null); setRoundDateOverrides(new Map()); }} disabled={generating} className="w-full sm:w-auto min-h-11 sm:ml-auto">
                         Back
                       </Button>
                     </div>
@@ -712,7 +701,6 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         </div>
       )}
 
-
       <FixturesFilterAndList
         matches={matches as any[]}
         divisions={divisions}
@@ -723,6 +711,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     </div>
   );
 }
+
 
 function FixturesFilterAndList({
   matches,
