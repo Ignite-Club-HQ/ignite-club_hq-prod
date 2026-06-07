@@ -1461,66 +1461,147 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     );
   }
 
-  const hiddenDivisionIds = new Set(
-    divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)
+  return <LadderView rows={rows} divisions={divisions} />;
+}
+
+function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
+  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+
+  const hiddenDivisionIds = useMemo(
+    () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
+    [divisions]
   );
+
+  const visibleRows = useMemo(
+    () => rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
+    [rows, hiddenDivisionIds]
+  );
+
+  const presentDivisionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of visibleRows) if (r.division_id) ids.add(r.division_id);
+    return ids;
+  }, [visibleRows]);
+
+  const divisionOptions = divisions.filter((d: any) => presentDivisionIds.has(d.id));
+  const showDivisionFilter = divisionOptions.length > 1;
+
+  const teamOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of visibleRows) {
+      if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) continue;
+      if (r.team_id) seen.set(r.team_id, r.teams?.name ?? "?");
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [visibleRows, filterDivisionId]);
+
+  if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
+    setFilterTeamId("_all");
+  }
+  const showTeamFilter = teamOptions.length > 1;
+
+  const filteredRows = visibleRows.filter((r: any) => {
+    if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
+    if (filterTeamId !== "_all" && r.team_id !== filterTeamId) return false;
+    return true;
+  });
+
   const groups = new Map<string, any[]>();
-  rows.forEach((r: any) => {
-    if (r.division_id && hiddenDivisionIds.has(r.division_id)) return;
+  filteredRows.forEach((r: any) => {
     const key = r.division_id ?? "__none";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   });
 
-  if (groups.size === 0) {
-    return <p className="text-sm text-muted-foreground">Ladder is hidden for all divisions in this competition.</p>;
-  }
-
   return (
     <div className="space-y-4">
-      {Array.from(groups.entries()).map(([divId, list]) => {
-        const div = divisions.find((d: any) => d.id === divId);
-        return (
-          <Card key={divId}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="h-4 w-4 text-primary" />
-                <div className="font-medium">{div?.name ?? "Overall"}</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground">
-                      <th className="py-1.5">#</th>
-                      <th>Team</th>
-                      <th className="text-right">P</th>
-                      <th className="text-right">W</th>
-                      <th className="text-right">D</th>
-                      <th className="text-right">L</th>
-                      <th className="text-right">+/-</th>
-                      <th className="text-right">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((r: any, i: number) => (
-                      <tr key={r.team_id} className="border-t">
-                        <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
-                        <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
-                        <td className="text-right tabular-nums">{r.played}</td>
-                        <td className="text-right tabular-nums">{r.wins}</td>
-                        <td className="text-right tabular-nums">{r.draws}</td>
-                        <td className="text-right tabular-nums">{r.losses}</td>
-                        <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
-                        <td className="text-right tabular-nums font-bold">{r.points}</td>
+      {(showDivisionFilter || showTeamFilter) && (
+        <div className="flex flex-wrap gap-2">
+          {showDivisionFilter && (
+            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All divisions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All divisions</SelectItem>
+                {divisionOptions.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {groups.size === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            No standings match the current filter.
+          </CardContent>
+        </Card>
+      ) : (
+        Array.from(groups.entries()).map(([divId, list]) => {
+          const div = divisions.find((d: any) => d.id === divId);
+          return (
+            <Card key={divId}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <div className="font-medium">{div?.name ?? "Overall"}</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground">
+                        <th className="py-1.5">#</th>
+                        <th>Team</th>
+                        <th className="text-right">P</th>
+                        <th className="text-right">W</th>
+                        <th className="text-right">D</th>
+                        <th className="text-right">L</th>
+                        <th className="text-right">+/-</th>
+                        <th className="text-right">Pts</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                    </thead>
+                    <tbody>
+                      {list.map((r: any, i: number) => (
+                        <tr key={r.team_id} className="border-t">
+                          <td className="py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
+                          <td className="font-medium truncate">{r.teams?.name ?? "?"}</td>
+                          <td className="text-right tabular-nums">{r.played}</td>
+                          <td className="text-right tabular-nums">{r.wins}</td>
+                          <td className="text-right tabular-nums">{r.draws}</td>
+                          <td className="text-right tabular-nums">{r.losses}</td>
+                          <td className="text-right tabular-nums">{r.goal_diff > 0 ? `+${r.goal_diff}` : r.goal_diff}</td>
+                          <td className="text-right tabular-nums font-bold">{r.points}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
+}
+
 }
