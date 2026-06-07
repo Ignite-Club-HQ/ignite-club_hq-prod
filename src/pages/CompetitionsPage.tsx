@@ -56,13 +56,16 @@ export default function CompetitionsPage() {
   });
 
   const competitions = useMemo(() => {
-    if (!activeClubFilter) return allCompetitions;
+    const adminClubIds = new Set((adminClubs as any[]).map((c: any) => c.id));
     return (allCompetitions as any[]).filter((c) => {
+      // Hide drafts from anyone who isn't an admin of the organising club.
+      if (c.status === "draft" && !adminClubIds.has(c.organizer_club_id)) return false;
+      if (!activeClubFilter) return true;
       if (c.organizer_club_id === activeClubFilter) return true;
       const entries = Array.isArray(c.competition_entries) ? c.competition_entries : [];
       return entries.some((e: any) => e?.teams?.club_id === activeClubFilter);
     });
-  }, [allCompetitions, activeClubFilter]);
+  }, [allCompetitions, activeClubFilter, adminClubs]);
 
   // Pending invitations on teams I admin
   const { data: pendingInvites = [] } = useQuery({
