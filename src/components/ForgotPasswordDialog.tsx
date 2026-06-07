@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   InputOTP,
   InputOTPGroup,
@@ -132,40 +132,56 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
     }, 300);
   };
 
+  const emailInputClasses = cn(
+    "pl-10 h-12 bg-white text-foreground border transition-colors rounded-xl",
+    "focus-visible:ring-0 focus-visible:ring-offset-0",
+    emailFocused ? "border-primary ring-1 ring-primary" : "border-input",
+  );
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent
-        className="w-[calc(100vw-2.5rem)] max-w-sm p-0 gap-0 overflow-hidden rounded-2xl max-h-[calc(100dvh-3rem)] flex flex-col"
+    <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
+      <SheetContent
+        side="bottom"
+        hideCloseButton
+        enableDragToClose
+        className="p-0 gap-0 rounded-t-3xl border-t-0 bg-background max-h-[calc(100dvh-3rem)] flex flex-col"
       >
-        <div className="px-5 pt-5 pb-2 shrink-0">
-          <div className="flex justify-center mb-2">
-            <div className="p-2 rounded-full bg-primary/10">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0" aria-hidden="true">
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+        </div>
+
+        <div className="px-5 pt-3 pb-2 shrink-0">
+          <div className="flex justify-center mb-3">
+            <div className="p-2.5 rounded-full bg-primary/10">
               {step === "email" ? (
-                <KeyRound className="h-4 w-4 text-primary" />
+                <KeyRound className="h-5 w-5 text-primary" />
               ) : (
-                <CheckCircle className="h-4 w-4 text-primary" />
+                <CheckCircle className="h-5 w-5 text-primary" />
               )}
             </div>
           </div>
-          <DialogHeader className="space-y-1 text-center">
-            <DialogTitle className="text-lg font-semibold">Reset Password</DialogTitle>
-            <DialogDescription className="text-[13px] leading-snug">
+          <SheetHeader className="space-y-1.5 text-center sm:text-center">
+            <SheetTitle className="text-xl font-semibold">Reset Password</SheetTitle>
+            <SheetDescription className="text-sm leading-snug px-2">
               {step === "email"
-                ? "Enter your email and we'll send a 6-digit code."
+                ? "Enter your email and we'll send you a 6-digit verification code."
                 : (
-                  <>Code sent to<br />
+                  <>We sent a code to<br />
                     <span className="font-medium text-foreground break-all">{email}</span>
                   </>
                 )}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
         </div>
 
-        <div className="px-5 pb-4 overflow-y-auto flex-1 min-h-0">
+        <div className="px-5 pt-3 pb-5 overflow-y-auto flex-1 min-h-0">
           {step === "email" ? (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="reset-email" className="text-xs font-medium text-muted-foreground">Email</Label>
+                <Label htmlFor="reset-email" className="text-xs font-medium text-muted-foreground">
+                  Email Address
+                </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -177,13 +193,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     autoCorrect="off"
                     enterKeyHint="send"
                     placeholder="you@example.com"
-                    className={cn(
-                      "pl-10 h-10 bg-white text-foreground border transition-colors",
-                      "focus-visible:ring-0 focus-visible:ring-offset-0",
-                      emailFocused
-                        ? "border-primary ring-1 ring-primary"
-                        : "border-input",
-                    )}
+                    className={emailInputClasses}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setEmailFocused(true)}
@@ -196,18 +206,20 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               <Button
                 onClick={() => sendCode()}
                 disabled={sending}
-                className="w-full h-11 font-medium"
+                className="w-full h-[52px] rounded-xl text-base font-semibold"
               >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
+                {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Send Code"}
               </Button>
 
               <button
                 type="button"
                 onClick={() => setStep("code")}
-                className="w-full flex items-center justify-center gap-1 text-sm text-primary font-medium py-2 min-h-[44px]"
+                className="w-full flex flex-col items-center justify-center py-1.5 min-h-[44px] text-sm"
               >
-                Already received a code? Enter Code
-                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="text-muted-foreground">Already received a code?</span>
+                <span className="text-primary font-medium inline-flex items-center gap-1 mt-0.5">
+                  Enter Code <ArrowRight className="h-3.5 w-3.5" />
+                </span>
               </button>
 
               <button
@@ -221,7 +233,9 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
           ) : (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="reset-code-email" className="text-xs font-medium text-muted-foreground">Email</Label>
+                <Label htmlFor="reset-code-email" className="text-xs font-medium text-muted-foreground">
+                  Email Address
+                </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -232,13 +246,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     autoCapitalize="none"
                     autoCorrect="off"
                     placeholder="you@example.com"
-                    className={cn(
-                      "pl-10 h-10 bg-white text-foreground border transition-colors",
-                      "focus-visible:ring-0 focus-visible:ring-offset-0",
-                      emailFocused
-                        ? "border-primary ring-1 ring-primary"
-                        : "border-input",
-                    )}
+                    className={emailInputClasses}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setEmailFocused(true)}
@@ -263,7 +271,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                       <InputOTPSlot
                         key={i}
                         index={i}
-                        className="h-11 w-9 text-base rounded-md border"
+                        className="h-12 w-10 text-base rounded-md border"
                       />
                     ))}
                   </InputOTPGroup>
@@ -283,7 +291,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                   size="sm"
                   onClick={() => sendCode(true)}
                   disabled={sending || resendCooldown > 0}
-                  className="h-9 text-sm"
+                  className="h-10 text-sm"
                 >
                   {resendCooldown > 0
                     ? `Resend code in ${resendCooldown}s`
@@ -298,7 +306,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     setStep("email");
                     setCode("");
                   }}
-                  className="text-muted-foreground h-9 text-sm"
+                  className="text-muted-foreground h-10 text-sm"
                 >
                   <ArrowLeft className="h-3 w-3 mr-1" />
                   Use a different email
@@ -311,7 +319,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
