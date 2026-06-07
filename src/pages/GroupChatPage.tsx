@@ -218,6 +218,7 @@ export default function GroupChatPage() {
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [miniLeagueInviteOpen, setMiniLeagueInviteOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = groupId
     ? { chat_type: "group", group_id: groupId }
     : null;
