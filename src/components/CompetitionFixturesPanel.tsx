@@ -1070,27 +1070,22 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-1.5 py-2 space-y-1">
-        {/* Top row: [status] date • time • venue • pitch (wraps) */}
+      <CardContent className="px-3 py-3 space-y-2.5">
+        {/* Top: date/time on first line, venue/pitch on second; status pill only for non-scheduled */}
         {!editing && (
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-[12px] text-muted-foreground leading-tight">
+          <div className="flex items-start gap-2 min-w-0">
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className="text-[12px] font-semibold text-foreground/80 leading-tight tabular-nums">
+                {scheduledDate ? `${format(scheduledDate, "EEE d MMM")} • ${format(scheduledDate, "h:mm a")}` : <span className="italic text-muted-foreground">Time TBD</span>}
+              </div>
+              {venueLine && (
+                <div className="text-[11px] text-muted-foreground leading-tight truncate" title={venueLine}>{venueLine}</div>
+              )}
+            </div>
             {!isScheduled && (
               <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
                 {statusLabel}
               </span>
-            )}
-            {scheduledDate ? (
-              <span className="font-medium text-foreground/80">
-                {format(scheduledDate, "EEE d MMM")} • {format(scheduledDate, "h:mm a")}
-              </span>
-            ) : (
-              <span className="italic">Time TBD</span>
-            )}
-            {venueLine && (
-              <>
-                <span className="text-muted-foreground/40">•</span>
-                <span className="font-medium text-foreground/80" title={venueLine}>{venueLine}</span>
-              </>
             )}
           </div>
         )}
