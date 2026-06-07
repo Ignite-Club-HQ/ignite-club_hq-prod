@@ -1874,7 +1874,7 @@ function ColHead({ label, className }: { label: string; className?: string }) {
   );
 }
 
-function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
+function LadderDivisionCard({ title, rows, isHidden = false }: { title: string; rows: any[]; isHidden?: boolean }) {
   const [open, setOpen] = useState(true);
   const teamCount = rows.length;
   const seasonStarted = rows.some((r) => (r.played ?? 0) > 0);
@@ -1890,12 +1890,18 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
       >
         <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />
         <div className="text-sm font-semibold text-foreground truncate">{title}</div>
+        {isHidden && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+            Hidden
+          </span>
+        )}
         <span className="text-[11px] text-muted-foreground shrink-0">
           · {teamCount} {teamCount === 1 ? "team" : "teams"}
           {!seasonStarted && " · Not started"}
         </span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform ml-auto", !open && "-rotate-90")} />
       </button>
+
 
       {open && (
         <div>
