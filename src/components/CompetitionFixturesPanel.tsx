@@ -1070,14 +1070,14 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 pt-3 pb-2.5 space-y-2.5">
+      <CardContent className="px-4 pt-4 pb-3.5 space-y-4">
         {/* 1. Time — compact metadata row */}
         {!editing && (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[13px] font-semibold text-foreground tabular-nums leading-none">
+            <span className="text-sm font-semibold text-foreground tabular-nums leading-snug">
               {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
             </span>
-            <span className="text-[11px] text-muted-foreground leading-none">
+            <span className="text-xs text-muted-foreground leading-snug">
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
@@ -1220,9 +1220,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
         {/* 4. Venue + Pitch — bottom metadata, subtle */}
         {!editing && (venueLine || match.pitch_number) && (
-          <div className="flex items-center gap-1 pt-1 text-[11px] text-muted-foreground/80 leading-tight border-t border-border/40">
-            <MapPin className="h-3 w-3 shrink-0 mt-1.5" aria-hidden="true" />
-            <span className="truncate mt-1.5">{venueLine || `Pitch ${match.pitch_number}`}</span>
+          <div className="flex items-center gap-1.5 pt-3 text-xs text-muted-foreground leading-relaxed border-t border-border/40">
+            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
           </div>
         )}
       </CardContent>
