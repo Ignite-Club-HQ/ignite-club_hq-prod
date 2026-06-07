@@ -787,167 +787,166 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
     setOpen(false); onDone();
   };
 
-  if (!open) {
-    return (
-      <Button size="sm" className="w-full" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4 mr-1" /> Invite team
-      </Button>
-    );
-  }
-
-
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
   return (
-    <Card className="w-full">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Invite a team to this competition</h3>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
-        </div>
-
-        <div className="flex gap-1 rounded-md bg-muted p-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setMode("existing")}
-            className={`flex-1 rounded px-2 py-1.5 ${mode === "existing" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-          >
-            On Ignite
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("new")}
-            className={`flex-1 rounded px-2 py-1.5 ${mode === "new" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-          >
-            Not on Ignite yet
-          </button>
-        </div>
-
-        {mode === "existing" ? (
-          <>
-            <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
-            <div className="space-y-1.5">
-              <Label>Filter by club (optional)</Label>
-              {selectedClub ? (
-                <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                  <div className="text-sm font-medium">{selectedClub.name}</div>
-                  <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    value={clubSearch}
-                    onChange={(e) => setClubSearch(e.target.value)}
-                    placeholder="Search clubs"
-                  />
-                  {clubSearch.trim().length > 0 && (
-                    <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
-                      {clubs.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
-                      ) : clubs.map((c: any) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                        >
-                          {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="competition-invite-team-search">Find team</Label>
-              {selectedTeam ? (
-                <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-                  <div className="text-sm">
-                    <span className="font-medium">{selectedTeam.name}</span>
-                    {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
-                </div>
-              ) : (
-                <>
-                  <Input
-                    id="competition-invite-team-search"
-                    value={search}
-                    onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
-                    placeholder="Search by team name"
-                  />
-                  {(search.trim().length > 0 || clubFilterId) && (
-                    <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
-                      {teams.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
-                      ) : teams.map((t: any) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => { setTeamId(t.id); setSearch(""); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                        >
-                          <div className="font-medium">{t.name}</div>
-                          {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground">We'll create a placeholder team and email a magic link so the contact can claim it. Fixtures and ladder work immediately.</p>
-            <div className="space-y-1.5">
-              <Label>Team name *</Label>
-              <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. Basket Range U14 Red" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Club name (optional)</Label>
-              <Input value={newClubName} onChange={(e) => setNewClubName(e.target.value)} placeholder="e.g. Basket Range Cricket Club" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact name (optional)</Label>
-              <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Sam Smith" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact email *</Label>
-              <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
-              <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
-            </div>
-          </>
-        )}
-
-        {divisions.length > 0 && (
-          <div>
-            <Label>Division (optional)</Label>
-            <Select value={divisionId} onValueChange={setDivisionId}>
-              <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
-              <SelectContent>
-                {divisions.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button size="sm" className="w-full">
+          <Plus className="h-4 w-4 mr-1" /> Invite team
+        </Button>
+      </SheetTrigger>
+      <SheetContent
+        side="bottom"
+        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl p-0"
+      >
+        <SheetHeader className="px-4 pt-5 pb-3 border-b">
+          <SheetTitle className="text-base">Invite a team</SheetTitle>
+        </SheetHeader>
+        <div className="px-4 py-4 space-y-3">
+          <div className="flex gap-1 rounded-md bg-muted p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("existing")}
+              className={`flex-1 rounded px-2 py-1.5 ${mode === "existing" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+            >
+              On Ignite
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("new")}
+              className={`flex-1 rounded px-2 py-1.5 ${mode === "new" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+            >
+              Not on Ignite yet
+            </button>
           </div>
-        )}
-        <div className="flex gap-2">
+
           {mode === "existing" ? (
-            <Button size="sm" onClick={submitExisting} disabled={!teamId || saving}>
+            <>
+              <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
+              <div className="space-y-1.5">
+                <Label>Filter by club (optional)</Label>
+                {selectedClub ? (
+                  <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <div className="text-sm font-medium">{selectedClub.name}</div>
+                    <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      value={clubSearch}
+                      onChange={(e) => setClubSearch(e.target.value)}
+                      placeholder="Search clubs"
+                    />
+                    {clubSearch.trim().length > 0 && (
+                      <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
+                        {clubs.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
+                        ) : clubs.map((c: any) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="competition-invite-team-search">Find team</Label>
+                {selectedTeam ? (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <div className="text-sm">
+                      <span className="font-medium">{selectedTeam.name}</span>
+                      {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => { setTeamId(""); setSearch(""); }}>Change</Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      id="competition-invite-team-search"
+                      value={search}
+                      onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
+                      placeholder="Search by team name"
+                    />
+                    {(search.trim().length > 0 || clubFilterId) && (
+                      <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+                        {teams.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
+                        ) : teams.map((t: any) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => { setTeamId(t.id); setSearch(""); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          >
+                            <div className="font-medium">{t.name}</div>
+                            {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">We'll create a placeholder team and email a magic link so the contact can claim it. Fixtures and ladder work immediately.</p>
+              <div className="space-y-1.5">
+                <Label>Team name *</Label>
+                <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. Basket Range U14 Red" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Club name (optional)</Label>
+                <Input value={newClubName} onChange={(e) => setNewClubName(e.target.value)} placeholder="e.g. Basket Range Cricket Club" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contact name (optional)</Label>
+                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Sam Smith" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contact email *</Label>
+                <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
+                <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
+              </div>
+            </>
+          )}
+
+          {divisions.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Division (optional)</Label>
+              <Select value={divisionId} onValueChange={setDivisionId}>
+                <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
+                <SelectContent>
+                  {divisions.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <div className="sticky bottom-0 left-0 right-0 flex gap-2 border-t bg-background px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+          <Button variant="ghost" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+          {mode === "existing" ? (
+            <Button className="flex-1" onClick={submitExisting} disabled={!teamId || saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
             </Button>
           ) : (
-            <Button size="sm" onClick={submitNew} disabled={saving}>
+            <Button className="flex-1" onClick={submitNew} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
-      </CardContent>
-    </Card>
+      </SheetContent>
+    </Sheet>
   );
 }
 
