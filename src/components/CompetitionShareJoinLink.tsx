@@ -50,7 +50,13 @@ export function CompetitionShareJoinLink({
     })();
   }, [open, competitionId, token, toast]);
 
+  // Direct join URL (used for QR + copy — clean URL users can read)
   const url = token ? `${PUBLIC_BASE}/competitions/join?token=${token}` : "";
+  // Share URL goes through /share so chat/SMS/socials get rich OG preview.
+  // Cache-bust per session so previews don't get stuck on stale previews.
+  const shareUrl = token
+    ? `${PUBLIC_BASE}/share?type=competition&id=${token}&cb=${Date.now()}`
+    : "";
 
   const copy = async () => {
     if (!url) return;
@@ -63,13 +69,14 @@ export function CompetitionShareJoinLink({
   };
 
   const share = async () => {
-    if (!url) return;
+    const linkToShare = shareUrl || url;
+    if (!linkToShare) return;
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Join ${competitionName}`,
           text: `Join ${competitionName} on Ignite`,
-          url,
+          url: linkToShare,
         });
       } catch {
         /* user cancelled */

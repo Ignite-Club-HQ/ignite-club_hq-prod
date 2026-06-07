@@ -445,6 +445,15 @@ export default function CreateTeamPage() {
         title: `${entityLabel(club)} created!`,
         description: `${name} has been created successfully.`,
       });
+
+      // If user came here from a competition join link, return them to finish joining
+      const pendingCompToken = sessionStorage.getItem("pendingCompetitionJoinToken");
+      if (pendingCompToken) {
+        sessionStorage.removeItem("pendingCompetitionJoinToken");
+        sessionStorage.removeItem("redirectAfterAuth");
+        navigate(`/competitions/join?token=${pendingCompToken}`);
+        return;
+      }
       navigate(`/teams/${team.id}`);
     }
   };
