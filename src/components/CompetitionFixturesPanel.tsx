@@ -96,6 +96,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genDuration, setGenDuration] = useState<string>("60");
   const [genArrival, setGenArrival] = useState<string>("");
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
+  const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
   const [genMode, setGenMode] = useState<SchedulingMode>("simultaneous");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
