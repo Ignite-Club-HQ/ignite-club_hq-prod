@@ -2346,11 +2346,14 @@ export type Database = {
           age_group: string | null
           competition_id: string
           created_at: string
+          day_end_time: string
+          day_start_time: string
           gender: string | null
           hide_ladder: boolean
           id: string
           max_entries: number | null
           name: string
+          play_weekdays: number[] | null
           skill_level: string | null
           sort_order: number
           updated_at: string
@@ -2359,11 +2362,14 @@ export type Database = {
           age_group?: string | null
           competition_id: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
           gender?: string | null
           hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name: string
+          play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
           updated_at?: string
@@ -2372,11 +2378,14 @@ export type Database = {
           age_group?: string | null
           competition_id?: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
           gender?: string | null
           hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name?: string
+          play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
           updated_at?: string
