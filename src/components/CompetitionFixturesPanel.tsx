@@ -129,9 +129,14 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     .split(/[,\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const manualPitchCount = Math.max(0, Number(genAutoPitches) || 0);
+  const autoPitchCount = Math.max(1, Math.floor(teamsInScope.length / 2));
+  const effectivePitchCount = customPitchLabels.length > 0
+    ? customPitchLabels.length
+    : (manualPitchCount > 0 ? manualPitchCount : autoPitchCount);
   const pitchLabels = customPitchLabels.length > 0
     ? customPitchLabels
-    : Array.from({ length: Math.max(0, Number(genAutoPitches) || 0) }, (_, i) => String(i + 1));
+    : Array.from({ length: effectivePitchCount }, (_, i) => String(i + 1));
   const pitchCount = pitchLabels.length;
 
 
