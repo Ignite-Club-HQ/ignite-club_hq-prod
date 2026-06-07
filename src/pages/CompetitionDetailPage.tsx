@@ -132,6 +132,14 @@ export default function CompetitionDetailPage() {
   if (!competition) {
     return <div className="p-6 text-center text-sm text-muted-foreground">Competition not found.</div>;
   }
+  if (competition.status === "draft" && !isAdmin) {
+    return (
+      <div className="p-6 text-center text-sm text-muted-foreground space-y-3">
+        <p>This competition hasn't been published yet.</p>
+        <Button variant="outline" size="sm" onClick={goBack}>Go back</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
