@@ -534,6 +534,8 @@ export default function TeamDetailPage() {
 
   const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
   const isAdmin = isCoachOrAdmin;
+  // Club admins should have the same team-management actions in the team menu
+  const canManageTeam = isAdmin || isClubAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
   const { data: nearbySubsManagerEventId } = useQuery({
