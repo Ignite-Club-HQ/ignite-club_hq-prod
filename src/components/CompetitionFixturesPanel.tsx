@@ -312,7 +312,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setPreview(null);
     setGenDivisionId(""); setGenFirstRoundDate(""); setGenKickoff("09:00");
     setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
-    setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches("");
+    setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
     setMatchDayManual(false); setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
@@ -441,7 +441,29 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       </div>
                       <div className="col-span-2">
                         <Label>Available pitches / courts</Label>
-                        <Input type="number" inputMode="numeric" min={0} value={genAutoPitches} onChange={(e) => setGenAutoPitches(e.target.value)} placeholder="e.g. 2" />
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={genAutoPitches}
+                          onChange={(e) => setGenAutoPitches(e.target.value)}
+                          placeholder="e.g. 2"
+                          disabled={customPitchLabels.length > 0}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Auto-numbered Pitch 1, Pitch 2…
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Specific pitch numbers (optional)</Label>
+                        <Input
+                          value={genPitchLabelsInput}
+                          onChange={(e) => setGenPitchLabelsInput(e.target.value)}
+                          placeholder="e.g. 3, 5, 7 or A, B, C"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Comma-separated labels. Overrides the count above.
+                        </p>
                       </div>
                     </div>
 
