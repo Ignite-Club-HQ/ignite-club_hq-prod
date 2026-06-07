@@ -93,121 +93,54 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const [isNative, setIsNative] = useState(false);
   const pendingNavProcessed = useRef(false);
 
-  // Check if we're on native platform and set up early notification action listener
+  // Check if we're on native platform. The single Capacitor action listener
+  // lives in notificationLaunchHandler.ts (installed at app start). Here we
+  // only register a navigator so warm taps can navigate immediately, and
+  // drain any URL stashed from a cold-start tap.
   useEffect(() => {
-    let actionCleanup: (() => void) | null = null;
-    
+    const nav: (path: string) => void = (path) => navigate(path);
+
     loadNativePushModule().then(mod => {
-      if (mod) {
-        try {
-          const native = mod.isNativePlatform();
-          setIsNative(native);
-          
-          if (native) {
-            // First check for any pending navigation from the launch handler
-            if (!pendingNavProcessed.current) {
-              pendingNavProcessed.current = true;
-              const wasProcessed = processPendingNotificationNavigation(navigate);
-              if (wasProcessed) {
-                console.log('[useNativePush] Processed pending notification navigation');
-              } else {
-                // Retry with increasing delays for cold start timing.
-                // Bail out as soon as the URL is consumed OR another handler
-                // (early action listener) has already marked it handled, so
-                // we never fire a second navigate() that would visibly jump
-                // the user between routes.
-                const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
-                retryDelays.forEach(delay => {
-                  setTimeout(() => {
-                    if (isNotificationNavigationHandled()) return;
-                    const wasProcessedRetry = processPendingNotificationNavigation(navigate);
-                    if (wasProcessedRetry) {
-                      console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
-                    }
-                  }, delay);
-                });
-              }
-            }
-            
-            // Register a direct pushNotificationActionPerformed listener
-            // This catches notification taps for both warm and cold starts
-            // independent of the setupNativePushListeners call (which requires auth)
-            import('@capacitor/push-notifications').then(({ PushNotifications }) => {
-              PushNotifications.addListener(
-                'pushNotificationActionPerformed',
-                (notification: any) => {
-                  console.log('[useNativePush] Early action listener fired:', JSON.stringify(notification));
-                  const data = notification.notification?.data;
-                  // Best-effort: preload message from payload so chat page renders it instantly
-                  try { preloadMessageFromNotification(data); } catch {}
-                  const type = data?.notificationType || data?.type;
-                  const rawUrl = data?.url || data?.link || data?.path;
-                  const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
-                  const storeUrl = data?.store_url;
-                  // Stash scroll target so chat pages can recover from a lost search param
-                  try { captureJumpFromNotification(data, url); } catch {}
-                  
-                  // Handle store_url (e.g. from update reminders) — open externally
-                  if (storeUrl) {
-                    console.log('[useNativePush] Store URL detected, opening in browser:', storeUrl);
-                    import('@capacitor/browser').then(({ Browser }) => {
-                      Browser.open({ url: storeUrl });
-                    }).catch(() => {
-                      window.open(storeUrl, '_system');
-                    });
-                    return;
-                  }
-                  
-                  // Check if URL is external (e.g. App Store / Play Store)
-                  if (url && isExternalUrl(url)) {
-                    console.log('[useNativePush] External URL detected, opening in browser:', url);
-                    import('@capacitor/browser').then(({ Browser }) => {
-                      Browser.open({ url });
-                    }).catch(() => {
-                      window.open(url, '_system');
-                    });
-                    return;
-                  }
-                  
-                  const pitchBoardTypes = ['pending_sub', 'half_time', 'game_finished', 'formation_change'];
-                  const isPitchBoard = pitchBoardTypes.includes(type);
-                  const path = isPitchBoard ? '/' : (url ? normalizeNotificationPath(url) : null);
+      if (!mod) return;
+      try {
+        const native = mod.isNativePlatform();
+        setIsNative(native);
 
-                  if (!path) return;
+        if (native) {
+          setNotificationNavigator(nav);
 
-                  // Mark the launch-handler queue as handled so the post-auth
-                  // consumer + retry timers don't re-navigate to the same URL
-                  // and visibly bounce the user between routes.
-                  clearPendingNotificationNavigation();
-                  navigate(path);
-
-                  if (isPitchBoard) {
-                    // Store the notification type so the pitch board can handle expired subs
-                    if (type) {
-                      localStorage.setItem('pitch-board-open-source', type);
-                    }
-                    window.setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('open-pitch-board', { detail: { notificationType: type } }));
-                    }, 500);
+          // Cold start: try to drain any URL already stashed by the launch handler.
+          if (!pendingNavProcessed.current) {
+            pendingNavProcessed.current = true;
+            const wasProcessed = processPendingNotificationNavigation(navigate);
+            if (wasProcessed) {
+              console.log('[useNativePush] Processed pending notification navigation');
+            } else {
+              // Retry with increasing delays for cold start timing. Bail as soon
+              // as the URL is consumed or another handler has marked it handled.
+              const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
+              retryDelays.forEach(delay => {
+                setTimeout(() => {
+                  if (isNotificationNavigationHandled()) return;
+                  const wasProcessedRetry = processPendingNotificationNavigation(navigate);
+                  if (wasProcessedRetry) {
+                    console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
                   }
-                }
-              ).then(handle => {
-                actionCleanup = () => handle.remove();
+                }, delay);
               });
-            }).catch(err => {
-              console.warn('[useNativePush] Failed to set up early action listener:', err);
-            });
+            }
           }
-        } catch {
-          setIsNative(false);
         }
+      } catch {
+        setIsNative(false);
       }
     });
-    
+
     return () => {
-      actionCleanup?.();
+      clearNotificationNavigator(nav);
     };
   }, [navigate]);
+
 
   // Save refreshed token to database
   const handleTokenRefresh = useCallback(async (token: string) => {
