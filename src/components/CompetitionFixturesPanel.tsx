@@ -1221,8 +1221,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
         {/* 4. Venue + Pitch — bottom metadata, subtle */}
         {!editing && (venueLine || match.pitch_number) && (
-          <div className="flex items-center gap-1.5 pt-3 text-xs text-muted-foreground leading-relaxed border-t border-border/40">
-            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-1.5 pt-3 text-sm text-muted-foreground leading-relaxed border-t border-border/40">
+            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
           </div>
         )}
