@@ -1161,27 +1161,28 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
         {/* 4. Admin actions — compact, flush to bottom */}
         {isAdmin && !editing && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-between gap-2">
             <Button
               size="sm"
               variant={hasScore ? "ghost" : "outline"}
               className={
                 hasScore
-                  ? "h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                  : "h-6 px-2 text-[11px] font-semibold text-primary border-primary/40 hover:bg-primary/5"
+                  ? "h-9 flex-1 px-3 text-sm text-muted-foreground hover:text-foreground"
+                  : "h-9 flex-1 px-3 text-sm font-semibold text-primary border-primary/40 hover:bg-primary/5"
               }
               onClick={() => setEditing(true)}
             >
-              <Pencil className="h-3 w-3 mr-1" />
+              <Pencil className="h-4 w-4 mr-1.5" />
               {hasScore ? "Edit score" : "Enter score"}
             </Button>
             <DropdownMenu open={manageOpen} onOpenChange={setManageOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   aria-label="Fixture settings"
-                  className="h-6 w-6 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+                  className="h-9 w-9 p-0 text-muted-foreground select-none touch-manipulation shrink-0"
+
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
                   }}
