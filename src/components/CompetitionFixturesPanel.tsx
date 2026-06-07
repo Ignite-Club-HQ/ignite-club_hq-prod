@@ -851,9 +851,6 @@ function FixturesFilterAndList({
   );
 }
 
-function _UnusedFixturesPanelFooter() {
-  return (
-    <div>
 
 
 function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
