@@ -762,11 +762,12 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" className="w-full" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Invite team
       </Button>
     );
   }
+
 
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
