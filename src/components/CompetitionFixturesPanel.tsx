@@ -959,7 +959,7 @@ function RoundSection({
               {items.length} {items.length === 1 ? "Match" : "Matches"}{dateRange ? ` • ${dateRange}` : ""}
             </div>
           </div>
-          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums ${completed === items.length ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+          <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-medium tabular-nums ${completed === items.length ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
             {completed}/{items.length} {completed === items.length ? "Complete" : "Complete"}
           </span>
         </div>
