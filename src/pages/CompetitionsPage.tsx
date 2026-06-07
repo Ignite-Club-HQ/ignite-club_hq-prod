@@ -107,16 +107,13 @@ export default function CompetitionsPage() {
         )}
       </header>
 
-      {!proLoading && !hasPro && (
+      {!proLoading && !hasPro && adminClubs.length > 0 && (
         <ProFeatureLock
-          title="Competitions is a Pro feature"
-          description="Run leagues and tournaments with divisions, fixtures and ladders. Upgrade your club to Pro to unlock."
+          title="Organising a competition is a Pro feature"
+          description="Free clubs and teams can join competitions, view ladders, fixtures and linked match events. Upgrade to Pro to organise your own leagues and tournaments."
           clubId={activeClubFilter}
         />
       )}
-
-      {hasPro && (<>
-
 
       {pendingInvites.length > 0 && (
         <section>
