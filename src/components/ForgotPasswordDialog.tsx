@@ -146,10 +146,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
         enableDragToClose
         className="p-0 gap-0 rounded-t-3xl border-t-0 bg-background max-h-[calc(100dvh-3rem)] flex flex-col"
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-2.5 pb-1 shrink-0" aria-hidden="true">
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-        </div>
 
         <div className="px-5 pt-3 pb-2 shrink-0">
           <div className="flex justify-center mb-3">
