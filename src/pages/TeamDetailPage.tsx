@@ -944,8 +944,8 @@ export default function TeamDetailPage() {
                   </AlertDialog>
                 </>
               )}
-              {isAdmin && <DropdownMenuSeparator />}
-              {isAdmin && <ArchiveTeamDialog
+              {canManageTeam && <DropdownMenuSeparator />}
+              {canManageTeam && <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
                 clubId={team?.club_id || ""}
@@ -963,7 +963,7 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {isAdmin && <DropdownMenuItem
+              {canManageTeam && <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
