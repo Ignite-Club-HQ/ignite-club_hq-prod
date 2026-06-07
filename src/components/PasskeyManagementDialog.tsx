@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fingerprint, Smartphone, Monitor, Tablet, Trash2, Loader2, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 import {
   Dialog,
   DialogContent,
@@ -9,16 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,13 +65,42 @@ function getDeviceName(deviceType: string | null) {
   }
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagementDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { registerPasskey, removeAccount, loading: registerLoading } = usePasskey();
+  const { registerPasskey, removeAccount, storeCredentialsForNativeBiometric, loading: registerLoading } = usePasskey();
+  const isNative = Capacitor.isNativePlatform();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showNativePrompt, setShowNativePrompt] = useState(false);
+  const [nativePassword, setNativePassword] = useState("");
+  const [nativeSaving, setNativeSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      document.body.style.pointerEvents = "";
+      setConfirmDeleteId(null);
+      setShowNativePrompt(false);
+      setNativePassword("");
+    }
+
+    return () => {
+      document.body.style.pointerEvents = "";
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.pointerEvents = "";
+    }
+  }, [open, confirmDeleteId, showNativePrompt]);
+
+
 
   const { data: passkeys, isLoading } = useQuery({
     queryKey: ["user-passkeys", user?.id],
@@ -121,10 +144,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
       });
 
       await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Failed to remove passkey",
-        description: error.message || "Please try again.",
+        description: getErrorMessage(error, "Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -133,6 +156,12 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   };
 
   const handleAddPasskey = async () => {
+    if (isNative) {
+      setNativePassword("");
+      setConfirmDeleteId(null);
+      setShowNativePrompt(true);
+      return;
+    }
     const result = await registerPasskey();
     if (result.success) {
       toast({
@@ -149,26 +178,113 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
     }
   };
 
+  const handleNativeSave = async () => {
+    if (!user?.email || !nativePassword) return;
+    setNativeSaving(true);
+    try {
+      // Verify password before storing
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: nativePassword,
+      });
+      if (signInError) throw new Error("Incorrect password");
+
+      const result = await storeCredentialsForNativeBiometric(user.email, nativePassword);
+      if (!result.success) throw new Error(result.error || "Failed to enable biometrics");
+
+      toast({
+        title: "Biometric login enabled",
+        description: "You can now sign in with your device's biometrics.",
+      });
+      setShowNativePrompt(false);
+      setNativePassword("");
+      await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
+    } catch (err: unknown) {
+      toast({
+        title: "Failed to enable biometrics",
+        description: getErrorMessage(err, "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setNativeSaving(false);
+    }
+  };
+
+
   const handleConfirmDelete = () => {
     if (confirmDeleteId) {
       handleDelete(confirmDeleteId);
     }
   };
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setConfirmDeleteId(null);
+      setShowNativePrompt(false);
+      setNativePassword("");
+      document.body.style.pointerEvents = "";
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange} modal={false}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Fingerprint className="h-5 w-5" />
-              Manage Passkeys
+              {showNativePrompt ? "Enable biometric login" : "Manage Passkeys"}
             </DialogTitle>
             <DialogDescription>
-              View and manage your registered biometric login devices.
+              {showNativePrompt
+                ? "Enter your password to securely store credentials for biometric sign-in on this device."
+                : "View and manage your registered biometric login devices."}
             </DialogDescription>
           </DialogHeader>
 
+          {showNativePrompt ? (
+            <div className="space-y-3 mt-2">
+              <Label htmlFor="passkey-native-password">Password</Label>
+              <Input
+                id="passkey-native-password"
+                type="password"
+                autoComplete="current-password"
+                value={nativePassword}
+                onChange={(e) => setNativePassword(e.target.value)}
+                disabled={nativeSaving}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="ghost" onClick={() => { setShowNativePrompt(false); setNativePassword(""); }} disabled={nativeSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleNativeSave} disabled={nativeSaving || !nativePassword}>
+                  {nativeSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enable"}
+                </Button>
+              </div>
+            </div>
+          ) : confirmDeleteId ? (
+            <div className="space-y-4 mt-4">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                <p className="font-medium mb-1">Remove Passkey?</p>
+                <p className="text-sm text-muted-foreground">
+                  This will remove the passkey from your account. You won't be able to use this device's biometrics to sign in until you add it again.
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" onClick={() => setConfirmDeleteId(null)} disabled={!!deletingId}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmDelete}
+                  disabled={!!deletingId}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
+                </Button>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-4 mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -255,29 +371,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               )}
             </Button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
-
-      {/* Separate AlertDialog outside the main Dialog to prevent conflicts */}
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Passkey?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the passkey from your account. You won't be able to use this device's biometrics to sign in until you add it again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmDeleteId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
+
   );
 }

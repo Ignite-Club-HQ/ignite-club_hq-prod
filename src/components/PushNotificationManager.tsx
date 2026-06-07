@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { usePushSubscriptionHealth } from "@/hooks/usePushSubscriptionHealth";
 import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
@@ -28,12 +29,50 @@ export function PushNotificationManager() {
   // Safely get auth context - component must be inside AuthProvider
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+  const { setActiveClubTheme, activeClubFilter } = useClubTheme();
+
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);
 
   // Sample realtime delivery latency (10% of sessions, batched writes)
   useRealtimePerfSampler(user?.id);
+
+  // BUG-8 + BUG-3: react to centralized notification taps for cross-cutting
+  // concerns (switch active club so multi-club users land in the right context,
+  // and open the pitch board for kickoff/sub/half-time/etc pushes). The actual
+  // navigation is performed by notificationLaunchHandler.ts.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const data = detail.data || {};
+      const isPitchBoard = !!detail.isPitchBoard;
+      const type = detail.type;
+
+      // Switch active club if the notification targets a specific club the
+      // user belongs to and it's not already active.
+      const clubId: string | null = data.club_id || data.clubId || null;
+      if (clubId && clubId !== activeClubFilter) {
+        try {
+          setActiveClubTheme(clubId);
+        } catch (err) {
+          console.warn("[PushManager] Failed to switch active club:", err);
+        }
+      }
+
+      if (isPitchBoard) {
+        if (type) {
+          try { localStorage.setItem("pitch-board-open-source", type); } catch {}
+        }
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("open-pitch-board", { detail: { notificationType: type } }));
+        }, 500);
+      }
+    };
+
+    window.addEventListener("ignite:notification-tapped", handler);
+    return () => window.removeEventListener("ignite:notification-tapped", handler);
+  }, [activeClubFilter, setActiveClubTheme]);
+
   
   // Helper to navigate from a push notification URL
   const navigateToUrl = (url: string) => {

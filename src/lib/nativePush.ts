@@ -517,40 +517,14 @@ export function setupNativePushListeners(
     console.warn('[NativePush] Failed to add received listener:', err);
   }
 
-  try {
-    actionListener = PushNotifications.addListener(
-      'pushNotificationActionPerformed',
-      (notification: any) => {
-        console.log('[NativePush] Notification action:', notification);
-        
-        // Handle force_update_prompt from notification taps
-        const data = notification.notification?.data;
-        if (data?.force_update_prompt === 'true') {
-          if (data?.store_url) {
-            console.log('[NativePush] Force update notification tapped, opening store URL:', data.store_url);
-            import('@capacitor/browser').then(({ Browser }) => {
-              Browser.open({ url: data.store_url });
-            }).catch(() => {
-              window.open(data.store_url, '_system');
-            });
-            return;
-          }
+  // BUG-1 fix: the `pushNotificationActionPerformed` listener is registered
+  // exactly ONCE in src/lib/notificationLaunchHandler.ts. Do NOT register a
+  // second listener here — duplicate registrations caused 2-3 navigate()
+  // calls per tap and a broken back stack. The `onNotificationAction`
+  // callback is intentionally ignored; navigation, force-update prompts and
+  // external URL handling are all centralized in the launch handler.
+  void onNotificationAction;
 
-          console.log('[NativePush] Force update prompt detected without store URL, dispatching event');
-          window.dispatchEvent(new CustomEvent('force-update-prompt', {
-            detail: { storeUrl: data?.store_url },
-          }));
-          return;
-        }
-        
-        onNotificationAction?.(notification);
-        // Navigation is handled by onNotificationAction callback via React Router
-        // Do NOT use window.location.href here - it bypasses the SPA router and causes 404s
-      }
-    );
-  } catch (err) {
-    console.warn('[NativePush] Failed to add action listener:', err);
-  }
 
   try {
     if (FirebaseMessaging) {
