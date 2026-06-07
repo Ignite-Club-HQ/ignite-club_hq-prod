@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, Shuffle, RefreshCw, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
