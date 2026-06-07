@@ -500,12 +500,41 @@ function CachedMeasureRow({
   }, [messageId]);
   // Re-write the cached height whenever the signature changes (edit, reaction,
   // preview hydrate) — content height may shift before the ResizeObserver
-  // fires, so capture it eagerly.
+  // fires, so capture it eagerly. Also fires a short-lived ResizeObserver to
+  // catch animated/late layout changes (Android WebView skips the live
+  // observer above, and Virtuoso's own observer can miss a reaction chip
+  // landing inside a `contain: layout` wrapper — visible as overlapping rows
+  // immediately after reacting).
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const h = el.offsetHeight;
-    if (h > 0) setCachedRowHeight(messageId, h, signature);
+    const write = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setCachedRowHeight(messageId, h, signature);
+    };
+    write();
+    const raf = requestAnimationFrame(write);
+    const t1 = setTimeout(write, 120);
+    const t2 = setTimeout(write, 360);
+    let ro: ResizeObserver | null = null;
+    let roTimer: ReturnType<typeof setTimeout> | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(write);
+      ro.observe(el);
+      // Short-lived: disconnect after the reaction/edit animation settles so
+      // we don't reintroduce the Android per-row observer storm.
+      roTimer = setTimeout(() => {
+        ro?.disconnect();
+        ro = null;
+      }, 600);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (roTimer) clearTimeout(roTimer);
+      ro?.disconnect();
+    };
   }, [messageId, signature]);
   return (
     <div ref={ref} data-row-id={messageId}>
