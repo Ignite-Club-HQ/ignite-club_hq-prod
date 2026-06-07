@@ -1563,7 +1563,7 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
 
       const { data: teams } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, logo_url")
         .in("id", teamIds);
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
