@@ -98,6 +98,19 @@ export default function CompetitionDetailPage() {
     },
   });
 
+  // Summary metrics for header
+  const { data: summary } = useQuery({
+    queryKey: ["competition-summary", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const [{ count: matchCount }, { data: firstMatch }] = await Promise.all([
+        supabase.from("competition_matches").select("id", { count: "exact", head: true }).eq("competition_id", id!),
+        supabase.from("competition_matches").select("scheduled_at").eq("competition_id", id!).not("scheduled_at", "is", null).order("scheduled_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      return { matchCount: matchCount ?? 0, firstScheduledAt: firstMatch?.scheduled_at ?? null };
+    },
+  });
+
   // Teams the current user can manage (for accept/decline)
   const { data: myAdminTeamIds = [] } = useQuery({
     queryKey: ["my-admin-team-ids", user?.id],
@@ -179,20 +192,47 @@ export default function CompetitionDetailPage() {
             </Button>
           )}
         </div>
-        <div>
+        <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            <Badge
-              variant={competition.status === "published" ? "default" : "secondary"}
-              className="capitalize"
-              aria-label={`Status: ${competition.status}`}
-            >
-              {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
-            </Badge>
+          {(() => {
+            const acceptedTeams = entries.filter((e: any) => e.status === "accepted").length;
+            const matchCount = summary?.matchCount ?? 0;
+            const start = summary?.firstScheduledAt ? new Date(summary.firstScheduledAt) : null;
+            const parts: string[] = [];
+            if (acceptedTeams) parts.push(`${acceptedTeams} ${acceptedTeams === 1 ? "Team" : "Teams"}`);
+            if (matchCount) parts.push(`${matchCount} ${matchCount === 1 ? "Match" : "Matches"}`);
+            if (start) parts.push(`Starts ${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
+            return parts.length ? (
+              <p className="text-xs font-medium text-foreground/70 tabular-nums">{parts.join(" • ")}</p>
+            ) : null;
+          })()}
+          <div className="flex gap-1.5 flex-wrap">
+            {(() => {
+              const status = competition.status as string;
+              const cfg =
+                status === "published" || status === "active"
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                  : status === "completed"
+                  ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
+                  : status === "archived"
+                  ? "bg-muted text-muted-foreground ring-1 ring-border"
+                  : "bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/30";
+              const label = status === "draft" ? "Draft" : status === "published" ? "Active" : status.charAt(0).toUpperCase() + status.slice(1);
+              return (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${cfg}`}
+                  aria-label={`Status: ${status}`}
+                >
+                  {label}
+                </span>
+              );
+            })()}
             {competition.visibility !== "public" && (
-              <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-muted text-muted-foreground ring-1 ring-border" aria-label="Visibility: private">
+                Private
+              </span>
             )}
           </div>
         </div>
