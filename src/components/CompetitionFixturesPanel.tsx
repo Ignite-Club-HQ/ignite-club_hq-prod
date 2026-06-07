@@ -818,10 +818,10 @@ function FixturesFilterAndList({
   return (
     <>
       {(showDivisionFilter || showTeamFilter) && (
-        <div className="flex flex-wrap gap-2">
+        <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-background/95 backdrop-blur-0 border-b border-border/40 flex flex-wrap gap-2">
           {showDivisionFilter && (
             <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
                 <SelectValue placeholder="All divisions" />
               </SelectTrigger>
               <SelectContent>
@@ -834,7 +834,7 @@ function FixturesFilterAndList({
           )}
           {showTeamFilter && (
             <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
                 <SelectValue placeholder="All teams" />
               </SelectTrigger>
               <SelectContent>
@@ -855,21 +855,24 @@ function FixturesFilterAndList({
           </CardContent>
         </Card>
       ) : (
-        groups.map((g) => (
-          <RoundSection
-            key={g.key}
-            label={g.label}
-            items={g.items}
-            isAdmin={isAdmin}
-            competitionId={competitionId}
-            entries={entries}
-            divisions={divisions}
-          />
-        ))
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <RoundSection
+              key={g.key}
+              label={g.label}
+              items={g.items}
+              isAdmin={isAdmin}
+              competitionId={competitionId}
+              entries={entries}
+              divisions={divisions}
+            />
+          ))}
+        </div>
       )}
     </>
   );
 }
+
 
 function RoundSection({
   label,
