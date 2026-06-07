@@ -1503,9 +1503,20 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
   }
   const showTeamFilter = teamOptions.length > 1;
 
+  // When a team is selected, show every division that team participates in
+  // (full standings, not just the selected team's row).
+  const teamDivisionIds = useMemo(() => {
+    if (filterTeamId === "_all") return null;
+    const ids = new Set<string>();
+    for (const r of visibleRows) {
+      if (r.team_id === filterTeamId && r.division_id) ids.add(r.division_id);
+    }
+    return ids;
+  }, [visibleRows, filterTeamId]);
+
   const filteredRows = visibleRows.filter((r: any) => {
     if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
-    if (filterTeamId !== "_all" && r.team_id !== filterTeamId) return false;
+    if (teamDivisionIds && !(r.division_id && teamDivisionIds.has(r.division_id))) return false;
     return true;
   });
 
