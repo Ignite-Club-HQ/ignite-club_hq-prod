@@ -1552,15 +1552,31 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
 
   const groups = new Map<string, any[]>();
   if (divisionOptions.length <= 1) {
-    // Only one (or zero) divisions — show a single combined ladder, no Overall split
+    // Only one division — collapse Overall rows into the divisional ladder by team_id
     const overallRows = filteredRows.filter((r: any) => !r.division_id);
     const divRows = filteredRows.filter((r: any) => r.division_id);
-    // Prefer the group that has actual match data; fall back to whichever has rows
-    const hasOverallData = overallRows.some((r: any) => (r.played ?? 0) > 0);
-    const chosen = hasOverallData || divRows.length === 0 ? overallRows : divRows;
-    if (chosen.length) {
-      const key = chosen[0].division_id ?? "__none";
-      groups.set(key, chosen);
+    if (divRows.length) {
+      const overallByTeam = new Map(overallRows.map((r: any) => [r.team_id, r]));
+      const merged = divRows.map((r: any) => {
+        const o = overallByTeam.get(r.team_id);
+        if (!o) return r;
+        // Prefer the row with actual played matches
+        const hasDivData = (r.played ?? 0) > 0;
+        const hasOverallData = (o.played ?? 0) > 0;
+        if (hasOverallData && !hasDivData) {
+          return { ...o, division_id: r.division_id, teams: r.teams ?? o.teams };
+        }
+        return r;
+      });
+      // Re-sort by points / goal_diff / goals_for
+      merged.sort((a: any, b: any) =>
+        (b.points ?? 0) - (a.points ?? 0) ||
+        (b.goal_diff ?? 0) - (a.goal_diff ?? 0) ||
+        (b.goals_for ?? 0) - (a.goals_for ?? 0)
+      );
+      groups.set(divRows[0].division_id, merged);
+    } else if (overallRows.length) {
+      groups.set("__none", overallRows);
     }
   } else {
     filteredRows.forEach((r: any) => {
