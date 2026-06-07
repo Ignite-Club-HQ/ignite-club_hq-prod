@@ -403,22 +403,29 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       {isAdmin && (
         <div className="space-y-2">
           {!genOpen ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setGenOpen(true)}
-                disabled={!canGenerate}
-                title={canGenerate ? undefined : "Needs at least 2 accepted teams"}
-              >
-                <CalendarPlus className="h-4 w-4 mr-1" /> Generate round-robin
-              </Button>
-              <AddMatchButton competitionId={competitionId} entries={entries} divisions={divisions} />
+            <div className="flex items-center justify-end gap-2">
               {!canGenerate && (
-                <span className="text-xs text-muted-foreground">
-                  Needs at least 2 accepted teams to generate a round-robin.
+                <span className="text-[11px] text-muted-foreground flex-1">
+                  Add at least 2 accepted teams to generate fixtures.
                 </span>
               )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1">
+                    <Settings2 className="h-4 w-4" />
+                    <span className="text-[12px] font-medium">Manage</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem
+                    disabled={!canGenerate}
+                    onClick={() => setGenOpen(true)}
+                  >
+                    <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
+                  </DropdownMenuItem>
+                  <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : (
             <Card className="w-full">
