@@ -1200,7 +1200,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                   onPointerCancel={() => { tapStartRef.current = null; }}
                   onContextMenu={(e) => e.preventDefault()}
                 >
-                  <Settings2 className="h-3.5 w-3.5" />
+                  <Settings2 className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
