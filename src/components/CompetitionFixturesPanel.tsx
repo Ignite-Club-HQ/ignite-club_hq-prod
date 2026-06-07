@@ -138,19 +138,21 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       const [hh, mm] = genKickoff.split(":").map(Number);
       firstDate.setHours(hh || 9, mm || 0, 0, 0);
     }
-    // Cap rounds by optional end date.
+    // If an end date is set, schedule every matching round date in the window.
+    // This can trim a short window or repeat the round-robin cycle for a longer season.
     let rounds = fullRounds;
-    let cappedByEndDate = false;
+    let adjustedByEndDate = false;
     if (firstDate && genEndDate) {
       const end = new Date(`${genEndDate}T23:59:59`);
       let d = new Date(firstDate);
       let fit = 0;
-      for (let i = 0; i < fullRounds; i++) {
+      const maxGeneratedRounds = 500;
+      while (fit < maxGeneratedRounds) {
         if (d.getTime() > end.getTime()) break;
         fit++;
         d = advanceByFrequency(d, genFrequency, customDaysNum);
       }
-      if (fit < fullRounds) cappedByEndDate = true;
+      if (fit !== fullRounds) adjustedByEndDate = true;
       rounds = Math.max(0, fit);
     }
     const totalMatches = rounds * matchesPerRound;
@@ -160,7 +162,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       for (let i = 1; i < rounds; i++) d = advanceByFrequency(d, genFrequency, customDaysNum);
       finishDate = d;
     }
-    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, cappedByEndDate };
+    return { teamCount: n, rounds, fullRounds, matchesPerRound, totalMatches, firstDate, finishDate, adjustedByEndDate };
   }, [teamsInScope.length, genFirstRoundDate, genKickoff, genMatchDay, genFrequency, customDaysNum, genEndDate]);
 
   const capacityWarning = useMemo(() => {
@@ -187,16 +189,24 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const ids = shuffle ? shuffleArray(teams.map((t: any) => t.id)) : teams.map((t: any) => t.id);
     const nameById = new Map(teams.map((t: any) => [t.id, t.name as string]));
     const fx = buildRoundRobin(ids);
-    const roundCap = summary?.rounds ?? Infinity;
-    return fx
-      .filter((f) => f.round <= roundCap)
-      .map((f) => ({
-        round: f.round,
-        home: f.home,
-        away: f.away,
+    const targetRounds = summary?.rounds ?? Math.max(...fx.map((f) => f.round));
+    const fullRounds = Math.max(...fx.map((f) => f.round));
+    return Array.from({ length: targetRounds }).flatMap((_, index) => {
+      const displayRound = index + 1;
+      const baseRound = (index % fullRounds) + 1;
+      const shouldSwapHomeAway = Math.floor(index / fullRounds) % 2 === 1;
+      return fx.filter((f) => f.round === baseRound).map((f) => {
+        const home = shouldSwapHomeAway ? f.away : f.home;
+        const away = shouldSwapHomeAway ? f.home : f.away;
+        return {
+        round: displayRound,
+        home,
+        away,
         homeName: nameById.get(f.home) ?? "?",
         awayName: nameById.get(f.away) ?? "?",
-      }));
+        };
+      });
+    });
   };
 
   const onPreview = () => {
