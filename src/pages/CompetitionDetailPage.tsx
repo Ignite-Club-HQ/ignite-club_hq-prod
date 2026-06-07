@@ -228,7 +228,11 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
+          {isAdmin && (
+            <TabsTrigger value="teams" className="flex-1">
+              Teams{entries.length > 0 ? ` (${entries.length})` : ""}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
@@ -242,19 +246,32 @@ export default function CompetitionDetailPage() {
         )}
 
         {isAdmin && (
-          <TabsContent value="teams" className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <InviteTeamForm
-                competitionId={id!}
-                divisions={divisions}
-                defaultOpen={inviteFromUrl}
-                onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
-              />
+          <TabsContent value="teams" className="space-y-2 mt-2">
+            {/* Primary actions — equal-weight recruitment CTAs */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <InviteTeamForm
+                  competitionId={id!}
+                  divisions={divisions}
+                  defaultOpen={inviteFromUrl}
+                  onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+                />
+              </div>
+              <div className="flex-1">
+                <CompetitionShareJoinLink
+                  competitionId={id!}
+                  competitionName={competition.name}
+                  triggerVariant="default"
+                  triggerClassName="w-full"
+                />
+              </div>
+            </div>
+            {/* Secondary action — competition setup */}
+            <div className="flex">
               <AddDivisionForm
                 competitionId={id!}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
               />
-              <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
 
             <TeamsByDivision
@@ -267,6 +284,7 @@ export default function CompetitionDetailPage() {
             />
           </TabsContent>
         )}
+
       </Tabs>
     </div>
   );
@@ -440,9 +458,10 @@ function TeamsByDivision({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {groups.map((g) => (
-        <div key={g.id ?? "unassigned"} className="space-y-2">
+        <div key={g.id ?? "unassigned"} className="space-y-1.5">
+
           {(g.name || g.entries.length > 0) && (
             <div className="flex items-baseline justify-between">
               <div>
@@ -461,71 +480,79 @@ function TeamsByDivision({
           ) : (
             g.entries.map((e: any) => {
               const canRespond = e.status === "invited" && myAdminTeamIds.includes(e.team_id);
+              const statusBadge = e.teams?.is_shell ? (
+                <Badge variant="outline">Awaiting signup</Badge>
+              ) : e.status === "accepted" ? (
+                <Badge variant="default">Accepted</Badge>
+              ) : e.status === "invited" ? (
+                <Badge variant="secondary">Invite sent</Badge>
+              ) : (
+                <Badge variant="outline" className="capitalize">{e.status}</Badge>
+              );
               return (
                 <Card key={e.id}>
-                  <CardContent className="p-4 flex flex-wrap items-center gap-3">
-                    <div className="w-full min-w-0">
-                      <div className="font-medium truncate">{e.teams?.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {e.teams?.clubs?.name || "—"}
-                      </div>
-                      {e.teams?.is_shell && (
-                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate leading-tight">{e.teams?.name}</div>
+                        <div className="text-xs text-muted-foreground truncate leading-tight">
+                          {e.teams?.clubs?.name || "—"}
                         </div>
-                      )}
+                        {e.teams?.is_shell && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                            Invited: {e.teams?.shell_contact_name ? `${e.teams.shell_contact_name} · ` : ""}{e.teams?.shell_contact_email}
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0">{statusBadge}</div>
                     </div>
 
-                    {e.teams?.is_shell ? (
-                      <Badge variant="outline">Awaiting signup</Badge>
-                    ) : e.status === "accepted" ? (
-                      <Badge variant="default">Accepted</Badge>
-                    ) : e.status === "invited" ? (
-                      <Badge variant="secondary">Invite sent</Badge>
-                    ) : (
-                      <Badge variant="outline" className="capitalize">{e.status}</Badge>
-                    )}
-                    {canRespond && (
-                      <div className="flex gap-1">
-                        <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
-                          <Check className="h-4 w-4 mr-1" />
-                          Accept
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
-                          <X className="h-4 w-4 mr-1" />
-                          Decline
-                        </Button>
+                    {(canRespond || (isAdmin && divisions.length > 0 && e.status !== "declined")) && (
+                      <div className="flex items-center gap-2">
+                        {canRespond && (
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
+                              <Check className="h-4 w-4 mr-1" />
+                              Accept
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
+                              <X className="h-4 w-4 mr-1" />
+                              Decline
+                            </Button>
+                          </div>
+                        )}
+                        {isAdmin && divisions.length > 0 && e.status !== "declined" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 ml-auto text-xs font-normal"
+                                disabled={savingId === e.id}
+                              >
+                                {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
+                                <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                                Unassigned
+                              </DropdownMenuItem>
+                              {divisions.map((d: any) => (
+                                <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                                  {d.name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
-                    )}
-                    {isAdmin && divisions.length > 0 && e.status !== "declined" && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 ml-auto text-xs font-normal"
-                            disabled={savingId === e.id}
-                          >
-                            {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
-                            <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
-                            Unassigned
-                          </DropdownMenuItem>
-                          {divisions.map((d: any) => (
-                            <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
-                              {d.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     )}
                   </CardContent>
                 </Card>
               );
             })
+
           )}
         </div>
       ))}
@@ -762,11 +789,12 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" className="w-full" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Invite team
       </Button>
     );
   }
+
 
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
@@ -968,11 +996,12 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4 mr-1" /> Add division
       </Button>
     );
   }
+
 
   return (
     <Card className="w-full">
