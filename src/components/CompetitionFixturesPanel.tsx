@@ -733,12 +733,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
           }
           return groups.map((g) => (
             <section key={g.key} className="space-y-2">
-              <div className="flex items-center gap-3 px-1 pt-2">
-                <h3 className="text-sm font-semibold text-foreground">{g.label}</h3>
-                <span className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
+                <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
+                <span className="text-xs text-muted-foreground shrink-0">
                   {g.items.length} {g.items.length === 1 ? "match" : "matches"}
                 </span>
-                <div className="flex-1 h-px bg-border" />
+                <div className="flex-1 min-w-[12px] h-px bg-border" />
               </div>
               <div className="space-y-3">
                 {g.items.map((m: any) => (
