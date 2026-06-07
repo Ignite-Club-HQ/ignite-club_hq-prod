@@ -232,7 +232,7 @@ export default function CompetitionDetailPage() {
         </TabsContent>
 
         <TabsContent value="ladder" className="space-y-2">
-          <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
+          <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
         </TabsContent>
 
         {isAdmin && (

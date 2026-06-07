@@ -1619,7 +1619,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
   );
 }
 
-export function CompetitionLadderPanel({ competitionId, divisions }: { competitionId: string; divisions: any[] }) {
+export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
@@ -1693,11 +1693,11 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     );
   }
 
-  return <LadderView rows={rows} divisions={divisions} />;
+  return <LadderView rows={rows} divisions={divisions} isAdmin={isAdmin} />;
 }
 
 
-function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
+function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisions: any[]; isAdmin?: boolean }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
 
@@ -1706,9 +1706,11 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
     [divisions]
   );
 
+  // Admins see all rows (with a "Hidden" badge on hidden divisions).
+  // Non-admins never see rows from divisions flagged as hidden.
   const visibleRows = useMemo(
-    () => rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
-    [rows, hiddenDivisionIds]
+    () => isAdmin ? rows : rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
+    [rows, hiddenDivisionIds, isAdmin]
   );
 
   const presentDivisionIds = useMemo(() => {
@@ -1840,6 +1842,7 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
                 key={divId}
                 title={div?.name ?? "Overall"}
                 rows={list}
+                isHidden={isAdmin && !!div?.hide_ladder}
               />
             );
           })}
@@ -1871,7 +1874,7 @@ function ColHead({ label, className }: { label: string; className?: string }) {
   );
 }
 
-function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
+function LadderDivisionCard({ title, rows, isHidden = false }: { title: string; rows: any[]; isHidden?: boolean }) {
   const [open, setOpen] = useState(true);
   const teamCount = rows.length;
   const seasonStarted = rows.some((r) => (r.played ?? 0) > 0);
@@ -1887,12 +1890,18 @@ function LadderDivisionCard({ title, rows }: { title: string; rows: any[] }) {
       >
         <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />
         <div className="text-sm font-semibold text-foreground truncate">{title}</div>
+        {isHidden && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+            Hidden
+          </span>
+        )}
         <span className="text-[11px] text-muted-foreground shrink-0">
           · {teamCount} {teamCount === 1 ? "team" : "teams"}
           {!seasonStarted && " · Not started"}
         </span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform ml-auto", !open && "-rotate-90")} />
       </button>
+
 
       {open && (
         <div>
