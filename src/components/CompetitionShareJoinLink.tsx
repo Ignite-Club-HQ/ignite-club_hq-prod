@@ -118,10 +118,12 @@ export function CompetitionShareJoinLink({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant={triggerVariant} size="sm" className={triggerClassName}>
           <Share2 className="h-4 w-4 mr-2" />
           Share join link
         </Button>
+      </DialogTrigger>
+
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
