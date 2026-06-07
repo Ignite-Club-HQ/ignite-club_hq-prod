@@ -76,9 +76,25 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
       return;
     }
 
+    // Update stored biometric credentials so next biometric sign-in uses the new password
+    try {
+      const { Capacitor } = await import("@capacitor/core");
+      if (Capacitor.isNativePlatform()) {
+        const { storeCredentialsForBiometric, hasStoredCredentials } = await import("@/lib/nativeBiometrics");
+        const { data: { user } } = await supabase.auth.getUser();
+        const email = user?.email;
+        if (email && (await hasStoredCredentials())) {
+          await storeCredentialsForBiometric(email, password);
+        }
+      }
+    } catch (e) {
+      console.log("[ChangePassword] Failed to update biometric credentials:", e);
+    }
+
     toast({ title: "Password updated", description: "Your password has been changed." });
     handleClose();
   };
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={(o) => !o && handleClose()}>
