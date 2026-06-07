@@ -133,6 +133,10 @@ export default function CompetitionJoinPage() {
       toast({ title: "Pick a team to enter", variant: "destructive" });
       return;
     }
+    if (divisions.length > 0 && !divisionId) {
+      toast({ title: "Pick a division", variant: "destructive" });
+      return;
+    }
     setJoining(true);
     const { data, error } = await supabase.rpc("join_competition_with_token", {
       p_token: token,
@@ -148,6 +152,13 @@ export default function CompetitionJoinPage() {
     const compId = (data as any[])?.[0]?.competition_id;
     setTimeout(() => navigate(`/competitions/${compId}`), 1200);
   };
+
+  const goStartTeam = () => {
+    // Preserve the join intent so the user lands back here after creating a team.
+    sessionStorage.setItem("redirectAfterAuth", `/competitions/join?token=${token}`);
+    navigate("/teams/new");
+  };
+
 
   const heading = useMemo(() => comp?.name ?? "Competition", [comp]);
 
@@ -211,9 +222,12 @@ export default function CompetitionJoinPage() {
           ) : teams.length === 0 ? (
             <>
               <p className="text-sm">
-                You need to be a team admin to join a competition. Create or take admin of a team first.
+                You don't admin any teams yet. Start a team to enter it in this competition.
               </p>
-              <Button asChild className="w-full"><Link to="/teams">Go to my teams</Link></Button>
+              <Button className="w-full" onClick={goStartTeam}>Start a new team</Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/teams">Go to my teams</Link>
+              </Button>
             </>
           ) : (
             <>
@@ -229,11 +243,18 @@ export default function CompetitionJoinPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <button
+                  type="button"
+                  onClick={goStartTeam}
+                  className="text-xs text-primary underline underline-offset-2"
+                >
+                  Don't see your team? Start a new one
+                </button>
               </div>
 
               {divisions.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Division (optional)</Label>
+                  <Label>Division</Label>
                   <Select value={divisionId} onValueChange={setDivisionId}>
                     <SelectTrigger><SelectValue placeholder="Pick a division" /></SelectTrigger>
                     <SelectContent>
@@ -245,7 +266,11 @@ export default function CompetitionJoinPage() {
                 </div>
               )}
 
-              <Button className="w-full" onClick={handleJoin} disabled={joining || !teamId}>
+              <Button
+                className="w-full"
+                onClick={handleJoin}
+                disabled={joining || !teamId || (divisions.length > 0 && !divisionId)}
+              >
                 {joining && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Join competition
               </Button>
@@ -258,4 +283,5 @@ export default function CompetitionJoinPage() {
       </Card>
     </div>
   );
+
 }
