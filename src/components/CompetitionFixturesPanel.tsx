@@ -853,23 +853,76 @@ function FixturesFilterAndList({
         </Card>
       ) : (
         groups.map((g) => (
-          <section key={g.key} className="space-y-2">
-            <div className="flex items-center gap-2 px-1 pt-2 min-w-0">
-              <h3 className="text-sm font-semibold text-foreground shrink-0">{g.label}</h3>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {g.items.length} {g.items.length === 1 ? "match" : "matches"}
-              </span>
-              <div className="flex-1 min-w-[12px] h-px bg-border" />
-            </div>
-            <div className="space-y-3">
-              {g.items.map((m: any) => (
-                <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
-              ))}
-            </div>
-          </section>
+          <RoundSection
+            key={g.key}
+            label={g.label}
+            items={g.items}
+            isAdmin={isAdmin}
+            competitionId={competitionId}
+            entries={entries}
+            divisions={divisions}
+          />
         ))
       )}
     </>
+  );
+}
+
+function RoundSection({
+  label,
+  items,
+  isAdmin,
+  competitionId,
+  entries,
+  divisions,
+}: {
+  label: string;
+  items: any[];
+  isAdmin: boolean;
+  competitionId: string;
+  entries: any[];
+  divisions: any[];
+}) {
+  const [open, setOpen] = useState(true);
+
+  // Derive a date summary for the round header
+  const dateRange = useMemo(() => {
+    const dates = items
+      .map((m) => (m.scheduled_at ? new Date(m.scheduled_at) : null))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dates.length === 0) return null;
+    const first = format(dates[0], "EEE d MMM");
+    const last = format(dates[dates.length - 1], "EEE d MMM");
+    return first === last ? first : `${first} – ${last}`;
+  }, [items]);
+
+  const completed = items.filter((m) => m.status === "completed").length;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+      <CollapsibleTrigger className="w-full group">
+        <div className="flex items-center gap-2 px-1 pt-2 min-w-0 text-left">
+          <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          <h3 className="text-base font-bold tracking-tight text-foreground shrink-0">{label}</h3>
+          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-semibold shrink-0">
+            {items.length}
+          </Badge>
+          {dateRange && (
+            <span className="text-xs text-muted-foreground truncate min-w-0">· {dateRange}</span>
+          )}
+          {completed > 0 && (
+            <span className="text-[11px] text-muted-foreground shrink-0 ml-auto">{completed}/{items.length} done</span>
+          )}
+          <div className={`${completed > 0 ? "" : "flex-1"} min-w-[12px] h-px bg-border`} />
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        {items.map((m: any) => (
+          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
