@@ -1037,31 +1037,33 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const awayWon = hasScore && match.home_score != null && match.away_score != null && match.away_score > match.home_score;
 
 
+  const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="p-2.5 space-y-1.5">
-        {/* Top row: date · venue · status */}
+      <CardContent className="p-2 space-y-1">
+        {/* Top row: date • time • venue • status (single line) */}
         {!editing && (
-          <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
-            {scheduledDate ? (
-              <span className="inline-flex items-center gap-1 shrink-0 font-medium text-foreground/80">
-                <Clock className="h-3 w-3" aria-hidden />
-                {format(scheduledDate, "EEE d MMM · h:mm a")}
-              </span>
-            ) : (
-              <span className="shrink-0 italic">Time TBD</span>
-            )}
-            {venueLine && (
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <span className="text-muted-foreground/50">·</span>
-                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{venueLine}</span>
-              </span>
-            )}
-            <div className="flex-1" />
-            <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${statusPillClass}`}>
-              {statusLabel}
+          <div className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground/90">
+            <span className="inline-flex items-center gap-1 min-w-0 flex-1 truncate">
+              {scheduledDate ? (
+                <span className="font-medium text-foreground/75 shrink-0">
+                  {format(scheduledDate, "EEE d MMM")} • {format(scheduledDate, "h:mm a")}
+                </span>
+              ) : (
+                <span className="shrink-0 italic">Time TBD</span>
+              )}
+              {venueLine && (
+                <>
+                  <span className="text-muted-foreground/40 shrink-0">•</span>
+                  <span className="truncate" title={venueLine}>{venueLine}</span>
+                </>
+              )}
             </span>
+            {!isScheduled && (
+              <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
+                {statusLabel}
+              </span>
+            )}
           </div>
         )}
 
