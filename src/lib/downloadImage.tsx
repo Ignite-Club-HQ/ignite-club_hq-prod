@@ -3,6 +3,8 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import type { DownloadFileResult } from "@capacitor/filesystem";
+import { DownloadSuccessToast } from "@/components/DownloadSuccessToast";
+
 
 type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
 
@@ -529,77 +531,84 @@ function showOpenDownloadedToast(
 ) {
   const title = kind === "video" ? "Video downloaded" : "Photo downloaded";
   const fallbackType = kind === "video" ? "video/*" : "image/*";
-  toast.success(title, {
-    id: toastId,
-    description: description ?? "Saved to Photos",
-    duration: 8000,
-    action: {
-      label: "Open",
-      onClick: async (event) => {
-        event?.stopPropagation?.();
-        console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
-        const platform = Capacitor.getPlatform();
-        let opened = false;
+  const desc = description ?? "Saved to Photos";
 
-        const candidates: string[] = [];
-        if (filePath) {
-          candidates.push(filePath);
-          if (/^\/(?:storage|sdcard|data)\//.test(filePath)) {
-            candidates.push(`file://${filePath}`);
-          }
-        }
+  const handleOpen = async () => {
+    console.log("[downloadMedia] Open tapped. filePath=", filePath, "contentType=", contentType);
+    const platform = Capacitor.getPlatform();
+    let opened = false;
 
-        if (candidates.length > 0) {
+    const candidates: string[] = [];
+    if (filePath) {
+      candidates.push(filePath);
+      if (/^\/(?:storage|sdcard|data)\//.test(filePath)) {
+        candidates.push(`file://${filePath}`);
+      }
+    }
+
+    if (candidates.length > 0) {
+      try {
+        const { FileOpener } = await import("@capacitor-community/file-opener");
+        for (const p of candidates) {
           try {
-            const { FileOpener } = await import("@capacitor-community/file-opener");
-            for (const p of candidates) {
-              try {
-                await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
-                opened = true;
-                break;
-              } catch (innerErr) {
-                console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
-              }
-            }
-          } catch (importErr) {
-            console.warn("[downloadMedia] FileOpener import failed:", importErr);
+            await FileOpener.open({ filePath: p, contentType: contentType || fallbackType });
+            opened = true;
+            break;
+          } catch (innerErr) {
+            console.warn("[downloadMedia] FileOpener failed for", p, innerErr);
           }
+        }
+      } catch (importErr) {
+        console.warn("[downloadMedia] FileOpener import failed:", importErr);
+      }
 
-          if (!opened && platform === "android") {
+      if (!opened && platform === "android") {
+        try {
+          const { AppLauncher } = await import("@capacitor/app-launcher");
+          for (const p of candidates) {
+            if (!p.startsWith("content://")) continue;
             try {
-              const { AppLauncher } = await import("@capacitor/app-launcher");
-              for (const p of candidates) {
-                if (!p.startsWith("content://")) continue;
-                try {
-                  const res = await AppLauncher.openUrl({ url: p });
-                  if (res?.completed) { opened = true; break; }
-                } catch (alErr) {
-                  console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
-                }
-              }
-            } catch (alImportErr) {
-              console.warn("[downloadMedia] AppLauncher import failed:", alImportErr);
+              const res = await AppLauncher.openUrl({ url: p });
+              if (res?.completed) { opened = true; break; }
+            } catch (alErr) {
+              console.warn("[downloadMedia] AppLauncher openUrl failed for", p, alErr);
             }
           }
+        } catch (alImportErr) {
+          console.warn("[downloadMedia] AppLauncher import failed:", alImportErr);
         }
+      }
+    }
 
-        if (opened) {
-          toast.dismiss(toastId);
-          return;
-        }
+    if (opened) {
+      toast.dismiss(toastId);
+      return;
+    }
 
-        // Couldn't open the file directly — fall back to the gallery app and
-        // tell the user where to look, instead of silently doing nothing.
-        await openPhotosApp();
-        toast.message("Open your gallery", {
-          description: kind === "video"
-            ? "Find your video in the Ignite album."
-            : "Find your photo in the Ignite album.",
-        });
-      },
-    },
-  });
+    // Couldn't open the file directly — fall back to the gallery app and
+    // tell the user where to look, instead of silently doing nothing.
+    toast.dismiss(toastId);
+    await openPhotosApp();
+    toast.message("Open your gallery", {
+      description: kind === "video"
+        ? "Find your video in the Ignite album."
+        : "Find your photo in the Ignite album.",
+    });
+  };
+
+  toast.custom(
+    (id) => (
+      <DownloadSuccessToast
+        toastId={id}
+        title={title}
+        description={desc}
+        onOpen={handleOpen}
+      />
+    ),
+    { id: toastId, duration: 8000 },
+  );
 }
+
 
 
 
