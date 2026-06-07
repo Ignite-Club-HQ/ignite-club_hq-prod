@@ -346,7 +346,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   };
 
   return (
-    <div className="space-y-3">
+    <div
+      className="space-y-3 box-border"
+      style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
+    >
+
       {isAdmin && (
         <div className="space-y-2">
           {!genOpen ? (
