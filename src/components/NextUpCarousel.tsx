@@ -131,7 +131,7 @@ function WatchLiveCta({ event }: { event: EventItem }) {
 // without locking them so tall they feel oversized. Some growth on expand
 // is permitted; the collapsed state fills the reserved space with a compact
 // summary panel (see below) so the lower area never reads as empty.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[300px]";
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[560px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
