@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Loader2, CheckCircle, ArrowLeft, KeyRound } from "lucide-react";
+import { Mail, Loader2, CheckCircle, ArrowLeft, KeyRound, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -37,6 +38,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -63,25 +65,15 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
     }
 
     setSending(true);
-
-    // No redirectTo — we want the email's OTP code, not a magic link click.
-    // The recovery email template in Supabase must include {{ .Token }}.
-    // redirectTo points to /verify-reset-code so users who DO click the
-    // email link land on the OTP entry page (where they can paste the
-    // 6-digit code from the same email). Cross-device users can also
-    // navigate there directly via "I already have a code".
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: getPasswordResetRedirectUrl(email),
     });
-
     setSending(false);
 
     if (error) {
       console.error("[ForgotPassword] resetPasswordForEmail error:", error);
     }
 
-    // Always advance to the code step regardless of error to avoid email
-    // enumeration. If the email isn't registered, the code simply won't verify.
     setStep("code");
     setResendCooldown(45);
 
@@ -119,8 +111,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
       return;
     }
 
-    // verifyOtp puts the user in a recovery session — ResetPasswordPage
-    // detects the session and shows the new-password form.
     handleClose();
     navigate("/reset-password");
   };
@@ -134,7 +124,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
   const handleClose = () => {
     onOpenChange(false);
-    // Reset state after dialog closes
     setTimeout(() => {
       setStep("email");
       setCode("");
@@ -145,24 +134,26 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-md p-0 gap-0 overflow-hidden rounded-2xl sm:rounded-xl max-h-[calc(100dvh-2rem)] flex flex-col">
-        <div className="px-4 pt-5 pb-3 sm:px-6 sm:pt-7 sm:pb-4 shrink-0">
-          <div className="flex justify-center mb-2 sm:mb-3">
-            <div className="p-2 sm:p-2.5 rounded-full bg-primary/10">
+      <DialogContent
+        className="w-[calc(100vw-2.5rem)] max-w-sm p-0 gap-0 overflow-hidden rounded-2xl max-h-[calc(100dvh-3rem)] flex flex-col"
+      >
+        <div className="px-5 pt-5 pb-2 shrink-0">
+          <div className="flex justify-center mb-2">
+            <div className="p-2 rounded-full bg-primary/10">
               {step === "email" ? (
-                <KeyRound className="h-5 w-5 text-primary" />
+                <KeyRound className="h-4 w-4 text-primary" />
               ) : (
-                <CheckCircle className="h-5 w-5 text-primary" />
+                <CheckCircle className="h-4 w-4 text-primary" />
               )}
             </div>
           </div>
-          <DialogHeader className="space-y-1 text-center sm:text-center">
-            <DialogTitle className="text-base sm:text-xl">Reset Password</DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm leading-relaxed">
+          <DialogHeader className="space-y-1 text-center">
+            <DialogTitle className="text-lg font-semibold">Reset Password</DialogTitle>
+            <DialogDescription className="text-[13px] leading-snug">
               {step === "email"
-                ? "Enter your email and we'll send you a 6-digit code."
+                ? "Enter your email and we'll send a 6-digit code."
                 : (
-                  <>We sent a 6-digit code to<br />
+                  <>Code sent to<br />
                     <span className="font-medium text-foreground break-all">{email}</span>
                   </>
                 )}
@@ -170,11 +161,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
           </DialogHeader>
         </div>
 
-        <div className="px-4 pb-4 sm:px-6 sm:pb-6 overflow-y-auto flex-1 min-h-0">
+        <div className="px-5 pb-4 overflow-y-auto flex-1 min-h-0">
           {step === "email" ? (
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="reset-email" className="text-sm">Email</Label>
+                <Label htmlFor="reset-email" className="text-xs font-medium text-muted-foreground">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -184,39 +175,53 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     autoComplete="email"
                     autoCapitalize="none"
                     autoCorrect="off"
+                    enterKeyHint="send"
                     placeholder="you@example.com"
-                    className="pl-10 h-11"
+                    className={cn(
+                      "pl-10 h-10 bg-white text-foreground border transition-colors",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      emailFocused
+                        ? "border-primary ring-1 ring-primary"
+                        : "border-input",
+                    )}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
                     onKeyDown={(e) => e.key === "Enter" && sendCode()}
                   />
                 </div>
               </div>
-              <div className="flex flex-col-reverse sm:flex-row gap-2">
-                <Button variant="outline" onClick={handleClose} className="flex-1 h-11">
-                  Cancel
-                </Button>
-                <Button onClick={() => sendCode()} disabled={sending} className="flex-1 h-11">
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
-                </Button>
-              </div>
+
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setStep("code")}
-                className="w-full text-muted-foreground h-9"
+                onClick={() => sendCode()}
+                disabled={sending}
+                className="w-full h-11 font-medium"
               >
-                I already have a code
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
               </Button>
-              <p className="text-[11px] sm:text-xs text-muted-foreground text-center pt-2 sm:pt-3 border-t border-border/50">
-                Already signed in? Change your password from{" "}
-                <span className="font-medium text-foreground">Settings → Change Password</span>.
-              </p>
+
+              <button
+                type="button"
+                onClick={() => setStep("code")}
+                className="w-full flex items-center justify-center gap-1 text-sm text-primary font-medium py-2 min-h-[44px]"
+              >
+                Already received a code? Enter Code
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full text-sm text-muted-foreground py-2 min-h-[44px]"
+              >
+                Cancel
+              </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="reset-code-email" className="text-sm">Email</Label>
+                <Label htmlFor="reset-code-email" className="text-xs font-medium text-muted-foreground">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -227,15 +232,23 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     autoCapitalize="none"
                     autoCorrect="off"
                     placeholder="you@example.com"
-                    className="pl-10 h-11"
+                    className={cn(
+                      "pl-10 h-10 bg-white text-foreground border transition-colors",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      emailFocused
+                        ? "border-primary ring-1 ring-primary"
+                        : "border-input",
+                    )}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm">6-digit code</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">6-digit code</Label>
                 <InputOTP
                   maxLength={6}
                   value={code}
@@ -245,12 +258,12 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                   containerClassName="justify-center"
                   inputMode="numeric"
                 >
-                  <InputOTPGroup className="gap-1.5 sm:gap-2">
+                  <InputOTPGroup className="gap-1.5">
                     {[0,1,2,3,4,5].map((i) => (
                       <InputOTPSlot
                         key={i}
                         index={i}
-                        className="h-11 w-9 sm:h-12 sm:w-11 text-base sm:text-lg rounded-md border"
+                        className="h-11 w-9 text-base rounded-md border"
                       />
                     ))}
                   </InputOTPGroup>
@@ -264,13 +277,13 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                 </div>
               )}
 
-              <div className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center gap-0.5 pt-1">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => sendCode(true)}
                   disabled={sending || resendCooldown > 0}
-                  className="h-9"
+                  className="h-9 text-sm"
                 >
                   {resendCooldown > 0
                     ? `Resend code in ${resendCooldown}s`
@@ -285,14 +298,14 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                     setStep("email");
                     setCode("");
                   }}
-                  className="text-muted-foreground h-9"
+                  className="text-muted-foreground h-9 text-sm"
                 >
                   <ArrowLeft className="h-3 w-3 mr-1" />
                   Use a different email
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground text-center">
+              <p className="text-[11px] text-muted-foreground text-center">
                 Don't see the email? Check your spam folder.
               </p>
             </div>
