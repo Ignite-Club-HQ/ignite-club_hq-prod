@@ -1551,11 +1551,24 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
   });
 
   const groups = new Map<string, any[]>();
-  filteredRows.forEach((r: any) => {
-    const key = r.division_id ?? "__none";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
-  });
+  if (divisionOptions.length <= 1) {
+    // Only one (or zero) divisions — show a single combined ladder, no Overall split
+    const overallRows = filteredRows.filter((r: any) => !r.division_id);
+    const divRows = filteredRows.filter((r: any) => r.division_id);
+    // Prefer the group that has actual match data; fall back to whichever has rows
+    const hasOverallData = overallRows.some((r: any) => (r.played ?? 0) > 0);
+    const chosen = hasOverallData || divRows.length === 0 ? overallRows : divRows;
+    if (chosen.length) {
+      const key = chosen[0].division_id ?? "__none";
+      groups.set(key, chosen);
+    }
+  } else {
+    filteredRows.forEach((r: any) => {
+      const key = r.division_id ?? "__none";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    });
+  }
 
   return (
     <div className="space-y-4">
