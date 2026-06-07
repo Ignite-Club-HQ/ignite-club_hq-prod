@@ -184,7 +184,7 @@ export default function CompetitionsPage() {
           </div>
         )}
       </section>
-      </>)}
+      
     </div>
   );
 }
