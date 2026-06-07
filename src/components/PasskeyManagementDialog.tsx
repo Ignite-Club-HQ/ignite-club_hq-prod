@@ -65,6 +65,10 @@ function getDeviceName(deviceType: string | null) {
   }
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagementDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -140,10 +144,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
       });
 
       await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Failed to remove passkey",
-        description: error.message || "Please try again.",
+        description: getErrorMessage(error, "Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -195,10 +199,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
       setShowNativePrompt(false);
       setNativePassword("");
       await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Failed to enable biometrics",
-        description: err?.message || "Please try again.",
+        description: getErrorMessage(err, "Please try again."),
         variant: "destructive",
       });
     } finally {
