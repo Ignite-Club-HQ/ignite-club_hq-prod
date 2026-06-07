@@ -19,11 +19,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   processPendingNotificationNavigation,
-  clearPendingNotificationNavigation,
   isNotificationNavigationHandled,
+  setNotificationNavigator,
+  clearNotificationNavigator,
 } from '@/lib/notificationLaunchHandler';
-import { preloadMessageFromNotification } from '@/lib/notificationPreload';
-import { captureJumpFromNotification, normalizeNotificationChatUrl } from '@/lib/pendingChatJump';
 
 let capacitorAppModule: typeof import('@capacitor/app') | null = null;
 
