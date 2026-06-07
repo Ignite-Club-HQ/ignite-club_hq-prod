@@ -228,7 +228,11 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
+          {isAdmin && (
+            <TabsTrigger value="teams" className="flex-1">
+              Teams{entries.length > 0 ? ` (${entries.length})` : ""}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
@@ -242,19 +246,32 @@ export default function CompetitionDetailPage() {
         )}
 
         {isAdmin && (
-          <TabsContent value="teams" className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <InviteTeamForm
-                competitionId={id!}
-                divisions={divisions}
-                defaultOpen={inviteFromUrl}
-                onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
-              />
+          <TabsContent value="teams" className="space-y-2 mt-2">
+            {/* Primary actions — equal-weight recruitment CTAs */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <InviteTeamForm
+                  competitionId={id!}
+                  divisions={divisions}
+                  defaultOpen={inviteFromUrl}
+                  onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+                />
+              </div>
+              <div className="flex-1">
+                <CompetitionShareJoinLink
+                  competitionId={id!}
+                  competitionName={competition.name}
+                  triggerVariant="default"
+                  triggerClassName="w-full"
+                />
+              </div>
+            </div>
+            {/* Secondary action — competition setup */}
+            <div className="flex">
               <AddDivisionForm
                 competitionId={id!}
                 onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
               />
-              <CompetitionShareJoinLink competitionId={id!} competitionName={competition.name} />
             </div>
 
             <TeamsByDivision
@@ -267,6 +284,7 @@ export default function CompetitionDetailPage() {
             />
           </TabsContent>
         )}
+
       </Tabs>
     </div>
   );
