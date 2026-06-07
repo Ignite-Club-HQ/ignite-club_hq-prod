@@ -1070,7 +1070,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 pt-2 pb-1.5 space-y-0.5">
+      <CardContent className="px-3 pt-3 pb-2.5 space-y-2.5">
         {/* 1. Time — compact metadata row */}
         {!editing && (
           <div className="flex items-center gap-2 min-w-0">
@@ -1156,13 +1156,8 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           </div>
         )}
 
-        {/* 3. Venue + Pitch — subtle, secondary */}
-        {!editing && (venueLine || match.pitch_number) && (
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 leading-tight">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{venueLine || `Pitch ${match.pitch_number}`}</span>
-          </div>
-        )}
+        {/* 3. Admin actions moved above; venue rendered below as bottom metadata */}
+
 
         {/* 4. Admin actions — compact, flush to bottom */}
         {isAdmin && !editing && (
@@ -1222,7 +1217,16 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
             </DropdownMenu>
           </div>
         )}
+
+        {/* 4. Venue + Pitch — bottom metadata, subtle */}
+        {!editing && (venueLine || match.pitch_number) && (
+          <div className="flex items-center gap-1 pt-1 text-[11px] text-muted-foreground/80 leading-tight border-t border-border/40">
+            <MapPin className="h-3 w-3 shrink-0 mt-1.5" aria-hidden="true" />
+            <span className="truncate mt-1.5">{venueLine || `Pitch ${match.pitch_number}`}</span>
+          </div>
+        )}
       </CardContent>
+
 
       {isAdmin && editDetailsOpen && (
         <EditMatchDetailsDialog
