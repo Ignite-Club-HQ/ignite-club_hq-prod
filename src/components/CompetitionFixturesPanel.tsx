@@ -13,6 +13,7 @@ import { format, addDays, addMonths } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 type Frequency = "weekly" | "biweekly" | "triweekly" | "monthly" | "custom";
