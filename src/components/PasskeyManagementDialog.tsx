@@ -296,26 +296,6 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
         </DialogContent>
       </Dialog>
 
-      {/* Separate AlertDialog outside the main Dialog to prevent conflicts */}
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Passkey?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the passkey from your account. You won't be able to use this device's biometrics to sign in until you add it again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmDeleteId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={showNativePrompt} onOpenChange={(o) => { if (!o) { setShowNativePrompt(false); setNativePassword(""); } }}>
         <DialogContent className="max-w-sm">
