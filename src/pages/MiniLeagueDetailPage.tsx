@@ -54,6 +54,19 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
+  const { data: leagueChatGroup } = useQuery({
+    queryKey: ["mini-league-chat-group", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_groups")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id,
+  });
+
   // Check Pro Football subscription for the league's club
   const { data: hasProFootball, isLoading: proLoading } = useQuery({
     queryKey: ["club-pro-football", league?.club_id],
