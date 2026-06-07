@@ -1693,11 +1693,11 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
     );
   }
 
-  return <LadderView rows={rows} divisions={divisions} />;
+  return <LadderView rows={rows} divisions={divisions} isAdmin={isAdmin} />;
 }
 
 
-function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
+function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisions: any[]; isAdmin?: boolean }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
 
@@ -1706,9 +1706,11 @@ function LadderView({ rows, divisions }: { rows: any[]; divisions: any[] }) {
     [divisions]
   );
 
+  // Admins see all rows (with a "Hidden" badge on hidden divisions).
+  // Non-admins never see rows from divisions flagged as hidden.
   const visibleRows = useMemo(
-    () => rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
-    [rows, hiddenDivisionIds]
+    () => isAdmin ? rows : rows.filter((r: any) => !(r.division_id && hiddenDivisionIds.has(r.division_id))),
+    [rows, hiddenDivisionIds, isAdmin]
   );
 
   const presentDivisionIds = useMemo(() => {
