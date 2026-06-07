@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings, Link as LinkIcon, CircleCheck, Circle, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -481,24 +482,29 @@ function TeamsByDivision({
                       </div>
                     )}
                     {isAdmin && divisions.length > 0 && e.status !== "declined" && (
-                      <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground shrink-0">Division</Label>
-                        <Select
-                          value={e.division_id ?? "__none__"}
-                          onValueChange={(v) => assignDivision(e.id, v === "__none__" ? null : v)}
-                          disabled={savingId === e.id}
-                        >
-                          <SelectTrigger className="h-8 w-full sm:w-44">
-                            <SelectValue placeholder="Unassigned" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Unassigned</SelectItem>
-                            {divisions.map((d: any) => (
-                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 ml-auto text-xs font-normal"
+                            disabled={savingId === e.id}
+                          >
+                            {divisions.find((d: any) => d.id === e.division_id)?.name ?? "Unassigned"}
+                            <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                            Unassigned
+                          </DropdownMenuItem>
+                          {divisions.map((d: any) => (
+                            <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                              {d.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardContent>
                 </Card>
