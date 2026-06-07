@@ -1121,14 +1121,14 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={28} />
-              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
+              <TeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={26} />
+              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 min-w-0 ${awayWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {homeName}
               </div>
             </div>
 
             {/* Score / vs */}
-            <div className="flex flex-col items-center justify-center px-1.5 shrink-0">
+            <div className="flex flex-col items-center justify-center px-2 shrink-0">
               {hasScore ? (
                 <div className="flex items-center gap-1 text-xl font-extrabold tabular-nums leading-none">
                   <span className={homeWon ? "" : awayWon ? "text-muted-foreground" : ""}>{match.home_score ?? "–"}</span>
@@ -1142,27 +1142,30 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
             {/* Away */}
             <div className="flex items-center gap-2 min-w-0 justify-end">
-              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
+              <div className={`text-[15px] font-bold leading-tight break-words line-clamp-2 text-right min-w-0 ${homeWon ? "text-muted-foreground" : "text-foreground"}`}>
                 {awayName}
               </div>
-              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={28} />
+              <TeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={26} />
             </div>
           </div>
         )}
 
         {/* Admin actions */}
         {isAdmin && !editing && (
-          <div className="flex items-center gap-2 pt-0.5">
+          <div className="flex items-center justify-end gap-1 pt-0.5">
             <Button
               size="sm"
-              variant={hasScore ? "ghost" : "default"}
-              className={hasScore ? "h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground" : "h-8 flex-1 text-xs font-semibold"}
+              variant={hasScore ? "ghost" : "outline"}
+              className={
+                hasScore
+                  ? "h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  : "h-7 px-2.5 text-[11px] font-semibold text-primary border-primary/40 hover:bg-primary/5"
+              }
               onClick={() => setEditing(true)}
             >
-              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              <Pencil className="h-3 w-3 mr-1" />
               {hasScore ? "Edit score" : "Enter score"}
             </Button>
-            {hasScore && <div className="flex-1" />}
             <DropdownMenu open={manageOpen} onOpenChange={(open) => { if (open && !longPressFiredRef.current) return; if (!open) longPressFiredRef.current = false; setManageOpen(open); }}>
               <DropdownMenuTrigger asChild>
                 <Button
