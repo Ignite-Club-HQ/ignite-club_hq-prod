@@ -959,16 +959,19 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
             <Input value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} placeholder="e.g. U12" />
           </div>
           <div>
-            <Label>Gender</Label>
+            <Label>Category</Label>
             <Select value={gender} onValueChange={setGender}>
               <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="mixed">Mixed</SelectItem>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="boys">Boys</SelectItem>
+                <SelectItem value="girls">Girls</SelectItem>
+                <SelectItem value="mens">Men's</SelectItem>
+                <SelectItem value="womens">Women's</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
         </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={submit} disabled={!name.trim() || saving}>
