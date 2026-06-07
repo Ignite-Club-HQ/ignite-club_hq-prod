@@ -980,7 +980,16 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const [status, setStatus] = useState<string>(match.status);
   const [manageOpen, setManageOpen] = useState(false);
   const tapStartRef = useRef<{ x: number; y: number } | null>(null);
-  const tapValidRef = useRef(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    tapStartRef.current = null;
+  };
 
   const save = async () => {
     const homeN = home === "" ? null : Number(home);
@@ -1157,34 +1166,38 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               <Pencil className="h-3 w-3 mr-1" />
               Score
             </Button>
-            <DropdownMenu open={manageOpen} onOpenChange={(open) => { if (open && !tapValidRef.current) return; tapValidRef.current = false; setManageOpen(open); }}>
+            <DropdownMenu open={manageOpen} onOpenChange={(open) => { if (open && !longPressFiredRef.current) return; if (!open) longPressFiredRef.current = false; setManageOpen(open); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs select-none touch-manipulation"
+                  variant="ghost"
+                  aria-label="Manage match (hold)"
+                  className="h-7 w-7 p-0 text-muted-foreground select-none touch-manipulation"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   onPointerDown={(e) => {
                     tapStartRef.current = { x: e.clientX, y: e.clientY };
-                    tapValidRef.current = true;
+                    longPressFiredRef.current = false;
+                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = setTimeout(() => {
+                      longPressFiredRef.current = true;
+                      setManageOpen(true);
+                      try { navigator.vibrate?.(10); } catch {}
+                    }, 550);
                   }}
                   onPointerMove={(e) => {
                     if (!tapStartRef.current) return;
                     const dx = e.clientX - tapStartRef.current.x;
                     const dy = e.clientY - tapStartRef.current.y;
-                    if (Math.sqrt(dx * dx + dy * dy) > 24) {
-                      tapValidRef.current = false;
+                    if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                      clearLongPress();
                     }
                   }}
-                  onPointerUp={() => {
-                    tapStartRef.current = null;
-                  }}
-                  onPointerLeave={() => {
-                    tapValidRef.current = false;
-                    tapStartRef.current = null;
-                  }}
+                  onPointerUp={clearLongPress}
+                  onPointerCancel={clearLongPress}
+                  onPointerLeave={clearLongPress}
+                  onContextMenu={(e) => e.preventDefault()}
                 >
-                  <Settings2 className="h-3 w-3 mr-1" />
-                  Manage
+                  <Settings2 className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
