@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, XCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import {
   InputOTP,
   InputOTPGroup,
@@ -55,8 +57,13 @@ export default function ResetPasswordPage() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [breachedPasswords, setBreachedPasswords] = useState<Set<string>>(new Set());
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
+  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const resetScrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === "android";
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +157,73 @@ export default function ResetPasswordPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [password, breachedPasswords]);
+
+  useEffect(() => {
+    if (!isNativePlatform) return;
+
+    let keyboardShowListener: { remove: () => void } | undefined;
+    let keyboardHideListener: { remove: () => void } | undefined;
+
+    Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
+      setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardVisible(true);
+    }).then((handle) => {
+      keyboardShowListener = handle;
+    });
+
+    Keyboard.addListener("keyboardDidHide", () => {
+      setNativeKeyboardHeight(0);
+      setNativeKeyboardVisible(false);
+    }).then((handle) => {
+      keyboardHideListener = handle;
+    });
+
+    return () => {
+      keyboardShowListener?.remove();
+      keyboardHideListener?.remove();
+    };
+  }, [isNativePlatform]);
+
+  useEffect(() => {
+    if (!isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") return;
+
+    let timeoutId: number | undefined;
+    const resetViewportScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      resetScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetViewportScroll();
+      timeoutId = window.setTimeout(resetViewportScroll, 80);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [isNativePlatform, nativeKeyboardVisible]);
+
+  const resetViewportHeight = nativeKeyboardVisible && nativeKeyboardHeight > 0
+    ? isNativeAndroid
+      ? "100vh"
+      : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
+    : "var(--stable-vh, 100dvh)";
+  const resetShellStyle = {
+    height: resetViewportHeight,
+    paddingTop: "var(--safe-area-top, env(safe-area-inset-top, 0px))",
+    paddingBottom: nativeKeyboardVisible
+      ? "0px"
+      : "var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))",
+  };
+  const resetViewportClassName = nativeKeyboardVisible
+    ? "justify-start overflow-y-auto py-3"
+    : "justify-center py-4";
+  const resetStackClassName = nativeKeyboardVisible
+    ? "space-y-4 py-2"
+    : "space-y-8 py-6 animate-slide-up";
 
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
