@@ -865,7 +865,11 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
         {isAdmin && (
           <div>
             {!editing ? (
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditDetailsOpen(true)}>
+                  <Settings2 className="h-4 w-4 mr-1.5" />
+                  Edit details
+                </Button>
                 <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditing(true)}>
                   <Pencil className="h-4 w-4 mr-1.5" />
                   Edit score
