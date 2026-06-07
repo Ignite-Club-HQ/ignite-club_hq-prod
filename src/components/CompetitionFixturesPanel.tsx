@@ -982,19 +982,31 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const save = async () => {
     const homeN = home === "" ? null : Number(home);
     const awayN = away === "" ? null : Number(away);
+    // Auto-mark as completed when both scores are entered (unless it's already
+    // in a non-scheduled state like cancelled/postponed, which we preserve).
+    let nextStatus = status;
+    const bothScores = homeN != null && awayN != null;
+    if (bothScores && (status === "scheduled" || status === "in_progress")) {
+      nextStatus = "completed";
+    } else if (!bothScores && status === "completed") {
+      // Clearing scores reverts an auto-completed match back to scheduled.
+      nextStatus = "scheduled";
+    }
     const { error } = await supabase
       .from("competition_matches")
-      .update({ home_score: homeN, away_score: awayN, status })
+      .update({ home_score: homeN, away_score: awayN, status: nextStatus })
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
     }
+    setStatus(nextStatus);
     toast({ title: "Match updated" });
     setEditing(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
+
 
   const remove = async () => {
     if (!window.confirm("Delete this match?")) return;
@@ -1083,17 +1095,9 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                 <Input type="number" inputMode="numeric" value={away} onChange={(e) => setAway(e.target.value)} className="h-9 text-center text-lg font-bold tabular-nums" />
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["scheduled","in_progress","completed","postponed","cancelled"].map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Entering both scores marks this match as completed. Use Manage → Edit details to change status (e.g. postponed, cancelled).
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" className="h-9 w-full" onClick={save}>
                 <Save className="h-4 w-4 mr-1" /> Save
@@ -1102,6 +1106,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
                 Cancel
               </Button>
             </div>
+
           </div>
         ) : (
           <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
