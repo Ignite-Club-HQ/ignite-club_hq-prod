@@ -251,10 +251,27 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
+  const [aspectRatio, setAspectRatio] = useState<number | null>(
+    () => getCachedAspectRatio([effectiveImageUrl, imageUrl]),
+  );
+
+  useEffect(() => {
+    setAspectRatio(getCachedAspectRatio([effectiveImageUrl, imageUrl]));
+  }, [effectiveImageUrl, imageUrl]);
+
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
+    const target = e.currentTarget as HTMLImageElement & HTMLVideoElement;
+    const naturalW = (target as HTMLImageElement).naturalWidth || (target as HTMLVideoElement).videoWidth || 0;
+    const naturalH = (target as HTMLImageElement).naturalHeight || (target as HTMLVideoElement).videoHeight || 0;
+    if (naturalW > 0 && naturalH > 0) {
+      const ratio = clampAspectRatio(naturalW / naturalH);
+      if (effectiveImageUrl) imageAspectRatios.set(effectiveImageUrl, ratio);
+      if (imageUrl) imageAspectRatios.set(imageUrl, ratio);
+      setAspectRatio(ratio);
+    }
   }, [effectiveImageUrl, imageUrl]);
 
   const handleImageError = useCallback(() => {
