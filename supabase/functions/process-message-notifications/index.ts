@@ -116,7 +116,20 @@ Deno.serve(async (req) => {
       .select('display_name')
       .eq('id', authorId)
       .maybeSingle();
-    const senderName = senderProfile?.display_name || 'Someone';
+    let senderName = senderProfile?.display_name || 'Someone';
+
+    // For team messages that are club/competition announcements, prefer the
+    // announcement name (e.g. competition broadcasts post as "<Comp> (competition)").
+    if (messageType === 'team') {
+      const { data: tm } = await supabase
+        .from('team_messages')
+        .select('is_club_announcement, club_announcement_name')
+        .eq('id', messageId)
+        .maybeSingle();
+      if (tm?.is_club_announcement && tm.club_announcement_name) {
+        senderName = String(tm.club_announcement_name).replace(/\s*\(competition\)\s*$/i, '').trim() || senderName;
+      }
+    }
 
     // Determine recipients and context based on message type
     let recipientUserIds: string[] = [];
