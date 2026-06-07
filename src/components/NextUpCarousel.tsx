@@ -127,11 +127,9 @@ function WatchLiveCta({ event }: { event: EventItem }) {
 // so the home page never grows / pushes other content downward as the
 // per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
 // moment after first paint.
-// Soft minimum height — keeps cards visually consistent across the carousel
-// without locking them so tall they feel oversized. Some growth on expand
-// is permitted; the collapsed state fills the reserved space with a compact
-// summary panel (see below) so the lower area never reads as empty.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[560px]";
+// Soft minimum height — reserves the loaded collapsed layout without leaving
+// a large empty tail under normal RSVP controls.
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[420px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
