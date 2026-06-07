@@ -71,6 +71,28 @@ const truncateUrl = (url: string, maxLength = 50): string => {
 const decodedImageUrls: Set<string> = (globalThis as any).__chatDecodedImages
   ?? ((globalThis as any).__chatDecodedImages = new Set<string>());
 
+// Module-level cache of image aspect ratios (width / height), keyed by URL.
+// Lets a remounted row reserve the correct height before decode so the
+// virtualised scroller doesn't shift, and lets us render the image at its
+// natural ratio (clamped) instead of letterboxing inside a fixed 4:3 box.
+const imageAspectRatios: Map<string, number> = (globalThis as any).__chatImageAspectRatios
+  ?? ((globalThis as any).__chatImageAspectRatios = new Map<string, number>());
+
+// Clamp to a tasteful range: very tall portraits get a min ratio so they
+// don't dominate the viewport; very wide panoramas get a max ratio. Within
+// these bounds we honour the image's real shape.
+const MIN_ASPECT_RATIO = 3 / 4;   // tallest allowed (portrait)
+const MAX_ASPECT_RATIO = 16 / 9;  // widest allowed (landscape)
+const DEFAULT_ASPECT_RATIO = 4 / 3;
+const clampAspectRatio = (r: number) =>
+  Math.min(MAX_ASPECT_RATIO, Math.max(MIN_ASPECT_RATIO, r));
+const getCachedAspectRatio = (urls: (string | null | undefined)[]) => {
+  for (const u of urls) {
+    if (u && imageAspectRatios.has(u)) return imageAspectRatios.get(u)!;
+  }
+  return null;
+};
+
 export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, onForwardImage, showImageActions = false }: MessageContentProps) {
   // Get signed URL for private chat attachments
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(imageUrl);
@@ -229,10 +251,27 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     };
   }, [parts]);
 
+  const [aspectRatio, setAspectRatio] = useState<number | null>(
+    () => getCachedAspectRatio([effectiveImageUrl, imageUrl]),
+  );
+
+  useEffect(() => {
+    setAspectRatio(getCachedAspectRatio([effectiveImageUrl, imageUrl]));
+  }, [effectiveImageUrl, imageUrl]);
+
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     setImageLoaded(true);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     if (imageUrl) decodedImageUrls.add(imageUrl);
+    const target = e.currentTarget as HTMLImageElement & HTMLVideoElement;
+    const naturalW = (target as HTMLImageElement).naturalWidth || (target as HTMLVideoElement).videoWidth || 0;
+    const naturalH = (target as HTMLImageElement).naturalHeight || (target as HTMLVideoElement).videoHeight || 0;
+    if (naturalW > 0 && naturalH > 0) {
+      const ratio = clampAspectRatio(naturalW / naturalH);
+      if (effectiveImageUrl) imageAspectRatios.set(effectiveImageUrl, ratio);
+      if (imageUrl) imageAspectRatios.set(imageUrl, ratio);
+      setAspectRatio(ratio);
+    }
   }, [effectiveImageUrl, imageUrl]);
 
   const handleImageError = useCallback(() => {
@@ -360,8 +399,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onPointerDown={stopMediaGesture}
         >
           <div
-            className="relative w-full bg-muted/40"
-            style={{ aspectRatio: '4 / 3', contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            className="relative w-full bg-muted/40 overflow-hidden rounded-md"
+            style={{ aspectRatio: String(aspectRatio ?? DEFAULT_ASPECT_RATIO), contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
@@ -403,7 +442,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-contain cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}

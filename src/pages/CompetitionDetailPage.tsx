@@ -60,7 +60,7 @@ export default function CompetitionDetailPage() {
     },
   });
 
-  const { data: isAdmin = false } = useQuery({
+  const { data: isAdmin = false, isLoading: isAdminLoading } = useQuery({
     queryKey: ["competition-isadmin", id, user?.id],
     enabled: !!id && !!user,
     queryFn: async () => {
@@ -72,7 +72,7 @@ export default function CompetitionDetailPage() {
     },
   });
 
-  const { data: divisions = [] } = useQuery({
+  const { data: divisions = [], isLoading: divisionsLoading } = useQuery({
     queryKey: ["competition-divisions", id],
     enabled: !!id,
     queryFn: async () => {
@@ -95,6 +95,19 @@ export default function CompetitionDetailPage() {
         .eq("competition_id", id!)
         .order("created_at");
       return data ?? [];
+    },
+  });
+
+  // Summary metrics for header
+  const { data: summary } = useQuery({
+    queryKey: ["competition-summary", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const [{ count: matchCount }, { data: firstMatch }] = await Promise.all([
+        supabase.from("competition_matches").select("id", { count: "exact", head: true }).eq("competition_id", id!),
+        supabase.from("competition_matches").select("scheduled_at").eq("competition_id", id!).not("scheduled_at", "is", null).order("scheduled_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      return { matchCount: matchCount ?? 0, firstScheduledAt: firstMatch?.scheduled_at ?? null };
     },
   });
 
@@ -132,23 +145,32 @@ export default function CompetitionDetailPage() {
   if (!competition) {
     return <div className="p-6 text-center text-sm text-muted-foreground">Competition not found.</div>;
   }
+  if (competition.status === "draft" && !isAdmin) {
+    return (
+      <div className="p-6 text-center text-sm text-muted-foreground space-y-3">
+        <p>This competition hasn't been published yet.</p>
+        <Button variant="outline" size="sm" onClick={goBack}>Go back</Button>
+      </div>
+    );
+  }
+
+  const ladderVisibilityLoading = (!!user && isAdminLoading) || divisionsLoading;
+  const hasHiddenDivisionLadder = divisions.some((d: any) => !!d.hide_ladder);
+  const canViewLadder = !ladderVisibilityLoading && (isAdmin || !hasHiddenDivisionLadder);
 
   return (
-    <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
-      <header className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="-ml-2 h-10 w-10 shrink-0" aria-label="Go back" onClick={goBack}>
+    <div className="container max-w-3xl mx-auto px-4 py-4 space-y-4">
+      <header className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0" aria-label="Go back" onClick={goBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-            <Trophy className="h-5 w-5 text-primary" />
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold break-words flex-1 min-w-0">{competition.name}</h1>
+          <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
           {isAdmin && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Send broadcast" title="Send broadcast">
-                  <Megaphone className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Send broadcast" title="Send broadcast">
+                  <Megaphone className="h-[18px] w-[18px]" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
@@ -166,34 +188,26 @@ export default function CompetitionDetailPage() {
             </Sheet>
           )}
           {isAdmin && (
-            <Button asChild variant="ghost" size="icon" aria-label="Competition settings" title="Competition settings">
-              <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
+            <Button asChild variant="ghost" size="icon" className="h-9 w-9" aria-label="Competition settings" title="Competition settings">
+              <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
           )}
         </div>
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
-          </p>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            <Badge
-              variant={competition.status === "published" ? "default" : "secondary"}
-              className="capitalize"
-              aria-label={`Status: ${competition.status}`}
-            >
-              {competition.status === "draft" ? "Draft" : competition.status === "published" ? "Published" : competition.status}
-            </Badge>
-            {competition.visibility !== "public" && (
-              <Badge variant="outline" aria-label="Visibility: private">Private</Badge>
-            )}
-          </div>
-        </div>
+        {(() => {
+          const acceptedTeams = entries.filter((e: any) => e.status === "accepted").length;
+          const matchCount = summary?.matchCount ?? 0;
+          const start = summary?.firstScheduledAt ? new Date(summary.firstScheduledAt) : null;
+          const parts: string[] = [];
+          if (acceptedTeams) parts.push(`${acceptedTeams} ${acceptedTeams === 1 ? "Team" : "Teams"}`);
+          if (matchCount) parts.push(`${matchCount} ${matchCount === 1 ? "Match" : "Matches"}`);
+          if (start) parts.push(`Starts ${start.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
+          if (competition.status === "draft") parts.push("Draft");
+          else if (competition.visibility !== "public") parts.push("Private");
+          return parts.length ? (
+            <p className="text-[13px] text-muted-foreground tabular-nums leading-snug pl-1">{parts.join(" • ")}</p>
+          ) : null;
+        })()}
       </header>
-
-
-      {competition.description && (
-        <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
-      )}
 
       {isAdmin && competition.status === "draft" && (
         <DraftSetupProgress
@@ -213,7 +227,7 @@ export default function CompetitionDetailPage() {
       }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
-          <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
+          {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
           {isAdmin && <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>}
         </TabsList>
 
@@ -221,9 +235,11 @@ export default function CompetitionDetailPage() {
           <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
         </TabsContent>
 
-        <TabsContent value="ladder" className="space-y-2">
-          <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
-        </TabsContent>
+        {canViewLadder && (
+          <TabsContent value="ladder" className="space-y-2">
+            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-4">
