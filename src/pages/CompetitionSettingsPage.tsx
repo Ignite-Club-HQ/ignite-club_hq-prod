@@ -269,11 +269,14 @@ export default function CompetitionSettingsPage() {
       {/* Sticky save bar — page-level action */}
       <div
         className={cn(
-          "fixed inset-x-0 z-[60] border-t bg-background shadow-lg transition-transform",
+          "fixed inset-x-0 z-[45] border-t bg-background shadow-lg transition-transform",
           isDirty || justSaved ? "translate-y-0" : "translate-y-full"
         )}
-        style={{ bottom: "var(--bottom-nav-offset, 4rem)" }}
+        style={{
+          bottom: "var(--bottom-nav-offset, calc(4rem + env(safe-area-inset-bottom, 1rem)))",
+        }}
       >
+
         <div className="container max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             {justSaved ? "Changes saved" : isDirty ? "You have unsaved changes" : ""}
