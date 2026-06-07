@@ -199,11 +199,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         const home = shouldSwapHomeAway ? f.away : f.home;
         const away = shouldSwapHomeAway ? f.home : f.away;
         return {
-        round: displayRound,
-        home,
-        away,
-        homeName: nameById.get(f.home) ?? "?",
-        awayName: nameById.get(f.away) ?? "?",
+          round: displayRound,
+          home,
+          away,
+          homeName: nameById.get(home) ?? "?",
+          awayName: nameById.get(away) ?? "?",
         };
       });
     });
@@ -452,7 +452,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                         <CardContent className="p-3 space-y-1 text-sm">
                           <div className="font-semibold mb-1">Competition summary</div>
                           <div>· {summary.teamCount} teams</div>
-                          <div>· {summary.rounds} rounds{summary.cappedByEndDate ? ` (capped from ${summary.fullRounds} by end date)` : ""}</div>
+                          <div>
+                            · {summary.rounds} rounds{summary.adjustedByEndDate ? ` (${summary.rounds < summary.fullRounds ? "capped" : "extended"} by end date)` : ""}
+                          </div>
                           <div>· {summary.totalMatches} total matches</div>
                           {pitchCount > 0 && <div>· {pitchCount} available pitches</div>}
                           <div>· Matches {frequencyLabel[genFrequency]} on {WEEKDAYS[genMatchDay]}</div>
