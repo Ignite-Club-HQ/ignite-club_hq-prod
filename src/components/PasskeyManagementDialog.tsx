@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fingerprint, Smartphone, Monitor, Tablet, Trash2, Loader2, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 import {
   Dialog,
   DialogContent,
