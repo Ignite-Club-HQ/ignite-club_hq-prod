@@ -1070,7 +1070,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
   return (
     <Card className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${isCancelled ? "opacity-60" : ""}`}>
-      <CardContent className="px-3 py-3 space-y-2.5">
+      <CardContent className="px-3 py-2.5 space-y-2">
         {/* Top: date/time on first line, venue/pitch on second; status pill only for non-scheduled */}
         {!editing && (
           <div className="flex items-start gap-2 min-w-0">
