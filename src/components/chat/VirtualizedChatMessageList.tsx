@@ -1550,12 +1550,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
             : align === "start"
             ? el.scrollTop + rowRect.top - scrollerRect.top
             : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+        const previousScrollTop = el.scrollTop;
         el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
         markChatScrollWrite();
         console.log("[jumpToMessage] exact DOM correction", {
           messageId,
           align,
-          previousScrollTop: el.scrollTop,
+          previousScrollTop,
           targetTop: Math.max(0, targetTop),
           rowTop: rowRect.top,
           rowBottom: rowRect.bottom,
