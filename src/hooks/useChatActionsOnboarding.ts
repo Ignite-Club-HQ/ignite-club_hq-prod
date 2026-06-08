@@ -10,14 +10,18 @@ import { useEffect, useState, useCallback } from "react";
  *      once the user has long-pressed once, capped per-session to avoid
  *      repetition).
  *
- * State persisted in localStorage under one `ignite_` key so it is swept by
- * `clearUserScopedCaches`:
+ * State persisted in localStorage. Intentionally NOT using the `ignite_`
+ * prefix so the user's explicit dismissal survives sign-out / user-switch
+ * cache sweeps in `clearUserScopedCaches` — once a user dismisses the tip
+ * (or has long-pressed a message), it should stay dismissed forever on
+ * that device:
  *   - `completed`:  user performed a successful long-press at least once.
  *   - `dismissed`:  user closed the banner explicitly.
  *   - `tapHints`:   how many tap tooltips we've shown (cap to avoid noise).
  */
 
-const STORAGE_KEY = "ignite_chat_actions_onboarding_v1";
+const STORAGE_KEY = "chat_actions_onboarding_v1";
+const LEGACY_STORAGE_KEY = "ignite_chat_actions_onboarding_v1";
 // Show the tap-hint tooltip on every short tap until the user has actually
 // long-pressed a message at least once. We only debounce by a short cooldown
 // to prevent flicker from accidental rapid taps / double-taps on the same
@@ -34,7 +38,9 @@ interface OnboardingState {
 
 function readState(): OnboardingState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return { completed: false, dismissed: false, tapHints: 0 };
     const parsed = JSON.parse(raw);
     return {
@@ -50,6 +56,9 @@ function readState(): OnboardingState {
 function writeState(next: OnboardingState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    // Clean up the legacy ignite_-prefixed key so the auth sweep doesn't
+    // keep wiping a duplicate copy on every sign-in.
+    try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch {}
   } catch {}
 }
 
