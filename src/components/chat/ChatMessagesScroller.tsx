@@ -184,22 +184,19 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
-  // When the keyboard is closed the composer is positioned at
-  // `bottom: var(--bottom-nav-offset)` (which already folds in
-  // safe-area-inset-bottom when the bottom nav is visible, and collapses to
-  // 0 when nav is hidden). We must reserve that offset PLUS the composer
-  // height PLUS the gap, otherwise the last message bubble + its metadata
-  // strip ("18:11 / Sent") gets clipped behind the composer when bottom nav
-  // is present. Falling back to env(safe-area-inset-bottom) via `max` keeps
-  // the home indicator clear when nav is hidden.
+  // The chat shell height already subtracts the bottom navigation / native
+  // keyboard offset. The fixed composer overlaps the bottom of that shell by
+  // exactly its own height in both states, so the virtual list should reserve
+  // only composer height + the same compact breathing gap whether the keyboard
+  // is open or closed. Adding `--bottom-nav-offset` here double-counts the nav
+  // when the keyboard is closed and creates the oversized blank area reported
+  // below the latest message metadata.
   const bottomPad = useMemo(
     () =>
       searchOpen
         ? 16
-        : isKeyboardOpen
-        ? safeComposer + COMPOSER_GAP
-        : `calc(${safeComposer + COMPOSER_GAP}px + max(var(--bottom-nav-offset, 0px), env(safe-area-inset-bottom, 0px)))`,
-    [searchOpen, isKeyboardOpen, safeComposer],
+        : safeComposer + COMPOSER_GAP,
+    [searchOpen, safeComposer],
   );
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
