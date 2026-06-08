@@ -978,17 +978,17 @@ export default function GroupChatPage() {
     loadOlderMessagesRef.current = loadOlderMessages;
   }, [loadOlderMessages]);
 
-  // Notification deep-links can target a message that is older than the
-  // latest page currently in cache. Hydrate that exact row directly so the
-  // jump loop has something concrete to scroll to instead of timing out and
-  // leaving the user at the bottom of the thread.
+  // Notification deep-links must be target-anchored, not index-estimated. On
+  // repeat taps in long Grounds-style histories, the target already exists in
+  // the cached array but Virtuoso can estimate `scrollToIndex` too high and
+  // never mount the target row. For every fresh tap, replace first paint with a
+  // small window around the exact target so the DOM row is guaranteed to exist.
   useEffect(() => {
     if (!targetMessageId || !groupId || !authReady) return;
-    if (localMessagesRef.current?.some((m) => m.id === targetMessageId)) return;
 
     let cancelled = false;
 
-    const hydrateTargetMessage = async () => {
+    const hydrateTargetWindow = async () => {
       const { data: target, error } = await supabase
         .from("group_messages")
         .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
@@ -999,55 +999,90 @@ export default function GroupChatPage() {
 
       if (cancelled || error || !target) return;
 
-      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+      const WINDOW_BEFORE = 12;
+      const WINDOW_AFTER = 24;
+      const [beforeResult, afterResult] = await Promise.all([
         supabase
-          .from("message_reactions")
-          .select("id, user_id, reaction_type, group_message_id")
-          .eq("group_message_id", target.id),
-        target.reply_to_id
-          ? supabase
-              .from("group_messages")
-              .select("id, text, author_id")
-              .eq("id", target.reply_to_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null as any }),
-        fetchProfilesWithCache([target.author_id]),
+          .from("group_messages")
+          .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+          .eq("group_id", groupId)
+          .is("deleted_at", null)
+          .lt("created_at", target.created_at)
+          .order("created_at", { ascending: false })
+          .limit(WINDOW_BEFORE),
+        supabase
+          .from("group_messages")
+          .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+          .eq("group_id", groupId)
+          .is("deleted_at", null)
+          .gt("created_at", target.created_at)
+          .order("created_at", { ascending: true })
+          .limit(WINDOW_AFTER),
       ]);
 
       if (cancelled) return;
 
-      const author = profilesMap.get(target.author_id);
-      const hydrated = {
-        ...target,
-        author: author ? { display_name: author.display_name, avatar_url: author.avatar_url } : null,
-        reply_to: replyToResult.data || null,
-        reactions: reactionsResult.data || [],
-      } as GroupMessage;
+      const existingNewer = (localMessagesRef.current || []).filter(
+        (message) => new Date(message.created_at).getTime() > new Date(target.created_at).getTime(),
+      );
+      const rawWindow = [
+        ...((beforeResult.data || []) as any[]).reverse(),
+        target,
+        ...((afterResult.data || []) as any[]),
+        ...existingNewer,
+      ];
+      const byId = new Map<string, any>();
+      rawWindow.forEach((message) => byId.set(message.id, message));
+      const windowRows = [...byId.values()].sort(
+        (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+      );
+      const messageIds = windowRows.map((message) => message.id);
+      const replyToIds = [...new Set(windowRows.filter((message) => message.reply_to_id).map((message) => message.reply_to_id as string))];
+      const authorIds = [...new Set(windowRows.map((message) => message.author_id).filter(Boolean))];
 
-      setLocalMessages((prev) => {
-        if (prev?.some((m) => m.id === hydrated.id)) return prev;
-        return [...(prev || []), hydrated].sort(
-          (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-        );
+      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+        supabase
+          .from("message_reactions")
+          .select("id, user_id, reaction_type, group_message_id")
+          .in("group_message_id", messageIds),
+        replyToIds.length > 0
+          ? supabase
+              .from("group_messages")
+              .select("id, text, author_id")
+              .in("id", replyToIds)
+          : Promise.resolve({ data: [] as any[] }),
+        fetchProfilesWithCache(authorIds),
+      ]);
+
+      if (cancelled) return;
+
+      const replyToMap = new Map((replyToResult.data || []).map((reply: any) => [reply.id, reply]));
+      const reactionsByMessage = new Map<string, MessageReaction[]>();
+      ((reactionsResult.data || []) as MessageReaction[]).forEach((reaction) => {
+        if (!reaction.group_message_id) return;
+        if (!reactionsByMessage.has(reaction.group_message_id)) reactionsByMessage.set(reaction.group_message_id, []);
+        reactionsByMessage.get(reaction.group_message_id)!.push(reaction);
       });
-
-      queryClient.setQueryData<{ messages: GroupMessage[]; reactions: MessageReaction[]; hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-        if (old?.messages?.some((m: GroupMessage) => m.id === hydrated.id)) return old;
+      const anchoredWindow = windowRows.map((message: any) => {
+        const author = profilesMap.get(message.author_id);
         return {
-          ...(old || {}),
-          messages: [...(old?.messages || []), hydrated],
-          reactions: [...(old?.reactions || []), ...(reactionsResult.data || [])],
-          hasOlderMessages: old?.hasOlderMessages ?? true,
-        };
+          ...message,
+          author: author ? { display_name: author.display_name, avatar_url: author.avatar_url } : message.author ?? null,
+          reply_to: message.reply_to_id ? replyToMap.get(message.reply_to_id) || message.reply_to || null : null,
+          reactions: reactionsByMessage.get(message.id) || (message as any).reactions || [],
+        } as GroupMessage;
       });
+
+      setLocalMessages(anchoredWindow);
+      setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
     };
 
-    void hydrateTargetMessage();
+    void hydrateTargetWindow();
 
     return () => {
       cancelled = true;
     };
-  }, [targetMessageId, groupId, authReady, queryClient]);
+  }, [targetMessageId, targetJumpNonce, groupId, authReady]);
 
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
