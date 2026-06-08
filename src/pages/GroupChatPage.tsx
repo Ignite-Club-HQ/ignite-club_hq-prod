@@ -2089,6 +2089,8 @@ export default function GroupChatPage() {
                     onPublishToGallery={handlePublishToGallery}
                     allowForwarding={group?.allow_forwarding !== false}
                     groupName={group?.name ?? null}
+                    groupedWithPrev={groupedWithPrev}
+                    groupedWithNext={groupedWithNext}
                   />
                 </>
               );
