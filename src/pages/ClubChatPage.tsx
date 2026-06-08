@@ -168,8 +168,9 @@ export default function ClubChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("club", clubId ?? undefined);
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null);
+  const chatReady = useChatPageReady();
+  const pinnedVault = useChatPinnedVault("club", clubId ?? undefined, { enabled: chatReady });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !clubProLoading && !clubHasPro;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
