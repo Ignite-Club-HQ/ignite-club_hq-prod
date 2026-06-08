@@ -3,9 +3,9 @@ import { jumpToMessageInVirtualizedChat } from "./jumpToMessage";
 
 type Msg = { id: string };
 
-const makeHandle = () => ({
+const makeHandle = (scrollToMessageIdResult = false) => ({
   scrollToIndex: vi.fn(),
-  scrollToMessageId: vi.fn(() => true),
+  scrollToMessageId: vi.fn(() => scrollToMessageIdResult),
   scrollToBottom: vi.fn(),
 });
 
@@ -184,6 +184,31 @@ describe("jumpToMessageInVirtualizedChat", () => {
     expect(handle.scrollToMessageId).toHaveBeenCalledWith("f3684898-38dd-4e25-8cf7-739bb0d76f16", "end");
     expect(handle.scrollToMessageId).not.toHaveBeenCalledWith("7df96591-8532-4c27-aa89-dadc5795a3f7", expect.anything());
     expect(handle.scrollToMessageId).not.toHaveBeenCalledWith("c6d02218-252b-4034-a591-273bef15ff4c", expect.anything());
+  });
+
+  it("Grounds Dan repeat tap uses exact DOM correction before any estimated target jump", async () => {
+    const messages: Msg[] = Array.from({ length: 65 }, (_, i) => ({ id: `msg-${i}` }));
+    messages[35] = { id: "7df96591-8532-4c27-aa89-dadc5795a3f7" };
+    messages[37] = { id: "c6d02218-252b-4034-a591-273bef15ff4c" };
+    messages[63] = { id: "f3684898-38dd-4e25-8cf7-739bb0d76f16" };
+    const handle = makeHandle(true);
+
+    jumpToMessageInVirtualizedChat(
+      "f3684898-38dd-4e25-8cf7-739bb0d76f16",
+      () => messages,
+      () => handle as any,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(60);
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(64, "end");
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(handle.scrollToMessageId).toHaveBeenCalledWith("f3684898-38dd-4e25-8cf7-739bb0d76f16", "end");
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(63, "center");
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(63, "end");
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(35, expect.anything());
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(37, expect.anything());
   });
 
   it("returns a cancel function that stops further scroll/highlight work", async () => {
