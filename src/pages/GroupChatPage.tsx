@@ -5,6 +5,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -25,6 +26,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
@@ -234,7 +236,8 @@ export default function GroupChatPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("group", groupId);
+  const chatReady = useChatPageReady();
+  const pinnedVault = useChatPinnedVault("group", groupId, { enabled: chatReady });
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -315,7 +318,7 @@ export default function GroupChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("group", groupId);
+  } = usePinnedMessages("group", groupId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -355,7 +358,7 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
 
   // Sync active club to this group's owning club so push-launched threads
@@ -536,10 +539,10 @@ export default function GroupChatPage() {
           : (reactionsResult.data || []) as MessageReaction[],
       };
     },
-    enabled: !!groupId && authReady,
+    enabled: !!groupId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (!groupId) return prev;
@@ -1850,7 +1853,7 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
-    enabled: !!group,
+    enabled: !!group && chatReady,
   });
 
   const {
@@ -2021,7 +2024,7 @@ export default function GroupChatPage() {
 
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
@@ -2050,7 +2053,12 @@ export default function GroupChatPage() {
               const messageReactions = messageReactionsMap.get(msg.id) || [];
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(currentDate, new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
@@ -2081,6 +2089,8 @@ export default function GroupChatPage() {
                     onPublishToGallery={handlePublishToGallery}
                     allowForwarding={group?.allow_forwarding !== false}
                     groupName={group?.name ?? null}
+                    groupedWithPrev={groupedWithPrev}
+                    groupedWithNext={groupedWithNext}
                   />
                 </>
               );

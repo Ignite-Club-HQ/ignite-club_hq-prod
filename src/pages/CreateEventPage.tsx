@@ -654,6 +654,16 @@ export default function CreateEventPage() {
       return;
     }
 
+    if (!address.trim()) {
+      setOpenSections((s) => ({ ...s, location: true }));
+      toast({
+        title: "Location required",
+        description: "Please add a location for this event.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Require mini league selection for mini league events
     if (type === "mini_league" && !miniLeagueId) {
       toast({
@@ -1556,7 +1566,7 @@ export default function CreateEventPage() {
             title="Location" 
             isOpen={openSections.location}
             onClick={() => toggleSection('location')}
-            badge={address ? "Set" : "Optional"}
+            badge={address.trim() ? "Set" : "Required"}
           />
           <CollapsibleContent>
             <CardContent className="pt-0 pb-4 px-4 space-y-3">
@@ -1639,7 +1649,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg"
           onClick={() => handleSubmit()}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime || ((type === "game" || type === "training") && !teamId)}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || ((type === "game" || type === "training") && !teamId)}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />

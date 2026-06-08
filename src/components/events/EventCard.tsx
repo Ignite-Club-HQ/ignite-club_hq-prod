@@ -345,6 +345,11 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
     queryClient.invalidateQueries({ queryKey: ["quick-rsvp", event.id] });
     queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+    // Also refresh the Next Up carousel's own RSVP caches so the home card
+    // doesn't show "awaiting RSVP" after an RSVP made from the Schedule.
+    queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-children-card", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
   }, [queryClient, event.id]);
 
   // Self RSVP (parent attending too)
@@ -437,13 +442,13 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: "single" | "series"; customMessage?: string; sendPushNotification?: boolean }) => {
       if (cancelType === "series" && event.parent_event_id) {
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", event.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.parent_event_id);
       } else if (cancelType === "series" && event.is_recurring) {
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", event.id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.id);
       } else {
-        const { error } = await supabase.from("events").update({ is_cancelled: true }).eq("id", event.id);
+        const { error } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.id);
         if (error) throw error;
       }
 

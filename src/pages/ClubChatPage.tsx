@@ -18,6 +18,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
@@ -168,8 +169,9 @@ export default function ClubChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("club", clubId ?? undefined);
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null);
+  const chatReady = useChatPageReady();
+  const pinnedVault = useChatPinnedVault("club", clubId ?? undefined, { enabled: chatReady });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(clubId ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !clubProLoading && !clubHasPro;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
@@ -247,7 +249,7 @@ export default function ClubChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("club", clubId);
+  } = usePinnedMessages("club", clubId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -457,10 +459,10 @@ export default function ClubChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!clubId && authReady,
+    enabled: !!clubId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (!clubId) return prev;
@@ -1309,7 +1311,7 @@ export default function ClubChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   // Live online count for the club — only shown in the header sublabel when > 0.
-  const clubOnlineCount = useChatOnlineCount("club", clubId);
+  const clubOnlineCount = useChatOnlineCount("club", clubId, { enabled: chatReady });
   const clubHeaderSublabel = clubOnlineCount > 0
     ? `Club chat · ${clubOnlineCount} online`
     : "Club chat";
@@ -1450,7 +1452,7 @@ export default function ClubChatPage() {
         />
       )}
 
-      <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (

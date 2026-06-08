@@ -3,6 +3,7 @@ import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpP
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -174,6 +175,10 @@ export default function TeamChatPage() {
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
+  // Gate non-critical chat-page queries (pinned, vault, club-pro, online count)
+  // until after first paint + idle so they don't compete with the messages
+  // fetch and visual-settle window on notification opens.
+  const chatReady = useChatPageReady();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -277,7 +282,7 @@ export default function TeamChatPage() {
     unpin: unpinMessage,
     canPinMore,
     isLoading: pinnedMessagesLoading,
-  } = usePinnedMessages("team", teamId);
+  } = usePinnedMessages("team", teamId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -384,8 +389,8 @@ export default function TeamChatPage() {
   });
 
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("team", teamId);
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null);
+  const pinnedVault = useChatPinnedVault("team", teamId, { enabled: chatReady });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !clubProLoading && !clubHasPro;
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
@@ -612,10 +617,10 @@ export default function TeamChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!teamId && authReady,
+    enabled: !!teamId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
-    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
@@ -1574,7 +1579,7 @@ export default function TeamChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   // Live online count for the team — only shown in the header sublabel when > 0.
-  const teamOnlineCount = useChatOnlineCount("team", teamId);
+  const teamOnlineCount = useChatOnlineCount("team", teamId, { enabled: chatReady });
   const onlineLabel = teamOnlineCount > 0 ? `${teamOnlineCount} online` : null;
   const teamHeaderSublabel = team?.clubs?.name
     ? onlineLabel
@@ -1718,7 +1723,7 @@ export default function TeamChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading || !bannersReady ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -1826,7 +1831,7 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

@@ -3811,6 +3811,7 @@ export type Database = {
           allow_guests: boolean | null
           amount: number | null
           arrival_minutes_before: number | null
+          chat_cancel_post_handled: boolean
           chat_post_message_id: string | null
           club_id: string
           coach_note: string | null
@@ -3860,6 +3861,7 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id: string
           coach_note?: string | null
@@ -3909,6 +3911,7 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id?: string
           coach_note?: string | null

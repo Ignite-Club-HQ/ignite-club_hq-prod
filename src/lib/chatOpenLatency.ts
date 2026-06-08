@@ -32,16 +32,27 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
       platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
     } catch {}
 
-    await supabase.from("chat_open_perf").insert({
-      user_id: args.userId,
-      chat_kind: args.kind,
-      target_id: args.targetId,
-      source: args.source,
-      tap_to_render_ms,
-      message_count: args.messageCount,
-      from_cache: args.fromCache,
-      platform,
-    });
+    // Defer the insert until the browser is idle so it doesn't compete with
+    // the messages fetch / first-paint critical path on notification opens.
+    const doInsert = () => {
+      void supabase.from("chat_open_perf").insert({
+        user_id: args.userId!,
+        chat_kind: args.kind,
+        target_id: args.targetId,
+        source: args.source,
+        tap_to_render_ms,
+        message_count: args.messageCount,
+        from_cache: args.fromCache,
+        platform,
+      }).then(() => {}, () => {});
+    };
+
+    const w = window as any;
+    if (typeof w?.requestIdleCallback === "function") {
+      w.requestIdleCallback(doInsert, { timeout: 4000 });
+    } else {
+      setTimeout(doInsert, 2000);
+    }
   } catch {
     // ignore
   }

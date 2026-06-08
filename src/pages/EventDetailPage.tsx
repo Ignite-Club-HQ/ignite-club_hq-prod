@@ -1756,20 +1756,20 @@ export default function EventDetailPage() {
       
       if (cancelType === 'series' && event?.parent_event_id) {
         // Cancel parent and all children
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.parent_event_id);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true }).eq("id", event.parent_event_id);
+        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.parent_event_id);
+        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.parent_event_id);
         if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
         if (err2) { console.error("[CancelEvent] Error cancelling parent:", err2); throw err2; }
       } else if (cancelType === 'series' && event?.is_recurring) {
         // This is the parent - cancel all children and this event
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", id!);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
+        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", id!);
+        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", id!);
         if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
         if (err2) { console.error("[CancelEvent] Error cancelling this event:", err2); throw err2; }
       } else {
         // Just cancel this single event
         console.log("[CancelEvent] Cancelling single event:", id);
-        const { data, error } = await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
+        const { data, error } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", id!);
         console.log("[CancelEvent] Update result:", { data, error });
         if (error) {
           console.error("[CancelEvent] Error cancelling event:", error);

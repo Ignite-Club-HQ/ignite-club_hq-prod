@@ -33,12 +33,17 @@ export function pinnedQueryKey(chatType: PinnedChatType, chatId: string) {
   return ["pinned-messages", chatType, chatId] as const;
 }
 
-export function usePinnedMessages(chatType: PinnedChatType, chatId: string | undefined) {
+export function usePinnedMessages(
+  chatType: PinnedChatType,
+  chatId: string | undefined,
+  options?: { enabled?: boolean },
+) {
   const queryClient = useQueryClient();
+  const enabledOpt = options?.enabled ?? true;
 
   const query = useQuery({
     queryKey: pinnedQueryKey(chatType, chatId ?? ""),
-    enabled: !!chatId,
+    enabled: enabledOpt && !!chatId,
     queryFn: async (): Promise<PinnedMessageWithContent[]> => {
       if (!chatId) return [];
 

@@ -22,6 +22,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -282,13 +283,14 @@ export default function DirectMessagePage() {
   }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages (DM)
+  const chatReady = useChatPageReady();
   const {
     pins: pinnedMessages,
     pinnedMessageIds,
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("dm", conversationId);
+  } = usePinnedMessages("dm", conversationId, { enabled: chatReady });
   const handleJumpToPinned = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -518,10 +520,10 @@ export default function DirectMessagePage() {
         hasOlderMessages: hasMore,
       };
     },
-    enabled: !!conversationId && authReady,
+    enabled: !!conversationId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.

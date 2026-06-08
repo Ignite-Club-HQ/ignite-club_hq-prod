@@ -163,7 +163,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // to overlap the composer's translucent top edge (it's still readable, and
   // a 36px reserved gap made every sent message look stranded mid-screen
   // — feedback received from users comparing against Messenger).
-  const COMPOSER_GAP = 22;
+  // The latest own-message renders TWO metadata lines below the bubble: an
+  // inline timestamp (e.g. "18:11") and a "Sent / Read by" frontier strip,
+  // each ~10px text + ~6px top margin (≈32px combined). Read-frontier data
+  // loads asynchronously so the row can grow AFTER Virtuoso's initial bottom
+  // pin, which previously pushed the metadata behind the composer. Reserve
+  // enough space (32px gap) to keep the metadata comfortably visible without
+  // creating obvious empty space between messages.
+  const COMPOSER_GAP = 32;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -177,14 +184,19 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
+  // The chat shell height already subtracts the bottom navigation / native
+  // keyboard offset. The fixed composer overlaps the bottom of that shell by
+  // exactly its own height in both states, so the virtual list should reserve
+  // only composer height + the same compact breathing gap whether the keyboard
+  // is open or closed. Adding `--bottom-nav-offset` here double-counts the nav
+  // when the keyboard is closed and creates the oversized blank area reported
+  // below the latest message metadata.
   const bottomPad = useMemo(
     () =>
       searchOpen
         ? 16
-        : isKeyboardOpen
-        ? safeComposer + COMPOSER_GAP
-        : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`,
-    [searchOpen, isKeyboardOpen, safeComposer],
+        : safeComposer + COMPOSER_GAP,
+    [searchOpen, safeComposer],
   );
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);

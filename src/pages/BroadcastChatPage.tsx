@@ -316,10 +316,10 @@ export default function BroadcastChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: authReady,
+    enabled: !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (prev) return prev;
@@ -1047,7 +1047,7 @@ export default function BroadcastChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {(isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (

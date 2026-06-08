@@ -769,8 +769,16 @@ function ChatMessageInner({
   const inlineRsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
   const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
 
+  // Subtle entrance animation only for freshly inserted messages (optimistic
+  // sends or just-arrived incoming). Older rows that mount via virtualization
+  // scroll-up must NOT animate.
+  const isFreshlyInserted = (() => {
+    const t = Date.parse(timestamp);
+    if (!Number.isFinite(t)) return false;
+    return Date.now() - t < 2000;
+  })();
   return (
-    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""} ${isFreshlyInserted ? "chat-message-enter" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.18] bg-black/[0.22] z-[99999] animate-in fade-in-0 duration-200 ease-out"
@@ -1118,7 +1126,7 @@ function ChatMessageInner({
             and content-first. The standalone "isLastMessage" frontier
             block below still always renders for the chat tail. */}
         {!groupedWithNext && (
-          <p className={`text-[10px] leading-none text-muted-foreground/55 mt-1.5 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end pr-2.5" : "pl-2.5"}`}>
+          <p className={`text-[9.5px] leading-none text-muted-foreground/45 mt-0.5 flex items-baseline gap-1 whitespace-nowrap overflow-hidden tabular-nums tracking-tight ${isOwn ? "justify-end pr-2.5" : "pl-2.5"}`}>
 
             {isPending && (
               <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
@@ -1126,29 +1134,32 @@ function ChatMessageInner({
               </span>
             )}
             {timestamp}
-            {!isPending && !isLastMessage && isOwn && readCount > 0 && (
-              messageType === "dm" ? (
-                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-              ) : (
-                <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
-                  <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-                </span>
-              )
-            )}
-            {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
-              <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+            {!isPending && isOwn && !isClubAnnouncement && (
+              // Unified inline metadata for own messages — keeps the metadata
+              // strip a single line across every chat type (DM, Team, Club,
+              // Committee, Competition, Group). The standalone reader-avatar
+              // block below only renders when there are real avatars to show
+              // for the chat tail, replacing the "Sent" label entirely.
+              isLastMessage
+                ? (readFrontierReaders.length === 0
+                    ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+                    : null)
+                : (readCount > 0
+                    ? (messageType === "dm"
+                        ? <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                        : <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                            <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                          </span>)
+                    : <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />)
             )}
           </p>
         )}
-        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
-          readFrontierReaders.length > 0
-            ? (messageType === "dm"
-                ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
-                    <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                  </div>
-              )
-            : <p className={`text-[10px] text-muted-foreground/55 mt-1.5 tabular-nums tracking-tight ${isOwn ? "text-right pr-2.5" : "pl-2.5"}`}>Sent</p>
+        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
+          messageType === "dm"
+            ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+            : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+              </div>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
