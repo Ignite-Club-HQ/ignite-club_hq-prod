@@ -5,6 +5,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -2052,7 +2053,12 @@ export default function GroupChatPage() {
               const messageReactions = messageReactionsMap.get(msg.id) || [];
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(currentDate, new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
@@ -2083,6 +2089,8 @@ export default function GroupChatPage() {
                     onPublishToGallery={handlePublishToGallery}
                     allowForwarding={group?.allow_forwarding !== false}
                     groupName={group?.name ?? null}
+                    groupedWithPrev={groupedWithPrev}
+                    groupedWithNext={groupedWithNext}
                   />
                 </>
               );

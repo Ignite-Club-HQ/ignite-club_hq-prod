@@ -112,6 +112,10 @@ interface GroupChatMessageRowProps {
   allowForwarding?: boolean;
   /** Name of the current group — used as source label on forwarded copies. */
   groupName?: string | null;
+  /** True when the previous message is from the same author within the grouping window. */
+  groupedWithPrev?: boolean;
+  /** True when the next message is from the same author within the grouping window. */
+  groupedWithNext?: boolean;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -141,6 +145,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   onPublishToGallery,
   allowForwarding = true,
   groupName,
+  groupedWithPrev = false,
+  groupedWithNext = false,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -390,7 +396,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-      } ${isInteracting ? "relative z-[100000]" : ""}`}
+      } ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`}
       style={{ overflowAnchor: 'none' }}
     >
       {isInteracting && createPortal(
@@ -418,19 +424,25 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         {/* Outgoing messages never show the sender avatar — modern messaging
             apps rely on right-alignment + bubble colour for ownership cues. */}
         {!isOwnMessage && (
-          <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
-            <AvatarImage src={avatarUrl} className="object-cover" />
-            <AvatarFallback
-              className="text-[13px] font-semibold tracking-tight"
-              style={getAvatarFallbackStyle(displayName)}
-            >
-              {getAvatarInitial(displayName)}
-            </AvatarFallback>
-          </Avatar>
+          groupedWithPrev ? (
+            // Spacer keeps bubble aligned under the avatar of the first
+            // message in the burst — matches Team/Club grouping behaviour.
+            <div className="h-9 w-9 shrink-0" aria-hidden="true" />
+          ) : (
+            <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+              <AvatarImage src={avatarUrl} className="object-cover" />
+              <AvatarFallback
+                className="text-[13px] font-semibold tracking-tight"
+                style={getAvatarFallbackStyle(displayName)}
+              >
+                {getAvatarInitial(displayName)}
+              </AvatarFallback>
+            </Avatar>
+          )
         )}
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-          {!isOwnMessage && (
+          {!isOwnMessage && !groupedWithPrev && (
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[12px] font-semibold text-foreground/85 tracking-[-0.005em]">{displayName}</span>
               {msg.id.startsWith("queued-") && (
@@ -599,8 +611,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               Keeping the same vertical footprint as Team is what lets the
               shared `COMPOSER_GAP=32px` in ChatMessagesScroller land the
               bottom-of-thread at the same visual offset across chat types. */}
-          {isOwnMessage ? (
-            <p className="text-[10px] leading-none text-muted-foreground/55 mt-1.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
+          {isOwnMessage && !groupedWithNext ? (
+            <p className="text-[9.5px] leading-none text-muted-foreground/45 mt-0.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
               <span>{format(new Date(msg.created_at), "HH:mm")}</span>
               {frontierReaders.length === 0 ? (
                 <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
