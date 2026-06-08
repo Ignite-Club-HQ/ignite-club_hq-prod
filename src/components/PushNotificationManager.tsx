@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -12,6 +13,7 @@ import { getPlatform, isNativePlatform } from "@/lib/nativePush";
 import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "@/lib/pendingChatJump";
+
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub";
