@@ -657,9 +657,9 @@ function TeamsByDivision({
           <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer">
             <Checkbox checked={clearFixtures} onCheckedChange={(v) => setClearFixtures(!!v)} className="mt-0.5" />
             <span className="text-sm">
-              Also clear existing fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
+              Also clear upcoming/unplayed fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
               <span className="block text-xs text-muted-foreground mt-1">
-                You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
+                Completed match results are kept — the team's existing points carry across to the new division automatically. You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
               </span>
             </span>
           </label>
