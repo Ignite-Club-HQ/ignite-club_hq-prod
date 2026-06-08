@@ -460,7 +460,7 @@ export default function ClubChatPage() {
     enabled: !!clubId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (!clubId) return prev;

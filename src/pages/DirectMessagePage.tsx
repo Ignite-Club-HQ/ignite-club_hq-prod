@@ -521,7 +521,7 @@ export default function DirectMessagePage() {
     enabled: !!conversationId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.

@@ -615,7 +615,7 @@ export default function TeamChatPage() {
     enabled: !!teamId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
-    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
