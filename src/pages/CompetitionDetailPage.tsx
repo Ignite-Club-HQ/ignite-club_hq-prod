@@ -430,19 +430,94 @@ function TeamsByDivision({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [moveConfirm, setMoveConfirm] = useState<{
+    entryId: string;
+    teamId: string;
+    teamName: string;
+    fromDivisionId: string | null;
+    toDivisionId: string | null;
+    toName: string;
+    affectedMatchCount: number;
+  } | null>(null);
+  const [clearFixtures, setClearFixtures] = useState(true);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
-  const assignDivision = async (entryId: string, divisionId: string | null) => {
+  const requestAssignDivision = async (entry: any, divisionId: string | null) => {
+    if ((entry.division_id ?? null) === (divisionId ?? null)) return;
+    const toName = divisionId
+      ? (divisions.find((d: any) => d.id === divisionId)?.name ?? "Unassigned")
+      : "Unassigned";
+    const divFilter = [entry.division_id, divisionId].filter(Boolean) as string[];
+    let count = 0;
+    try {
+      let q = supabase
+        .from("competition_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId)
+        .or(`home_team_id.eq.${entry.team_id},away_team_id.eq.${entry.team_id}`);
+      if (divFilter.length > 0) q = q.in("division_id", divFilter);
+      const { count: c } = await q;
+      count = c ?? 0;
+    } catch {
+      count = 0;
+    }
+    if (count === 0) {
+      await doAssignDivision(entry.id, divisionId, false, entry.team_id, divFilter);
+      return;
+    }
+    setClearFixtures(true);
+    setMoveConfirm({
+      entryId: entry.id,
+      teamId: entry.team_id,
+      teamName: entry.teams?.name ?? "Team",
+      fromDivisionId: entry.division_id ?? null,
+      toDivisionId: divisionId,
+      toName,
+      affectedMatchCount: count,
+    });
+  };
+
+  const doAssignDivision = async (
+    entryId: string,
+    divisionId: string | null,
+    alsoClear: boolean,
+    teamId?: string,
+    affectedDivisionIds: string[] = [],
+  ) => {
     setSavingId(entryId);
     const { error } = await supabase
       .from("competition_entries")
       .update({ division_id: divisionId })
       .eq("id", entryId);
-    setSavingId(null);
     if (error) {
+      setSavingId(null);
       toast({ title: "Could not move team", description: error.message, variant: "destructive" });
       return;
     }
+    let cleared = false;
+    if (alsoClear && teamId) {
+      let dq = supabase
+        .from("competition_matches")
+        .delete()
+        .eq("competition_id", competitionId)
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+      if (affectedDivisionIds.length > 0) dq = dq.in("division_id", affectedDivisionIds);
+      const { error: delErr } = await dq;
+      if (delErr) {
+        toast({ title: "Team moved, fixtures not cleared", description: delErr.message, variant: "destructive" });
+      } else {
+        cleared = true;
+      }
+    }
+    setSavingId(null);
+    toast({
+      title: "Team moved",
+      description: cleared
+        ? "Affected fixtures cleared. Open the Fixtures tab to regenerate."
+        : alsoClear ? undefined : "Existing fixtures kept as-is.",
+    });
     qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
