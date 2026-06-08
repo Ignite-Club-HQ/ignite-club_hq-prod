@@ -50,6 +50,12 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     parentMessageId,
   } = options;
 
+  console.log("[jumpToMessage] starting", {
+    targetMessageId: messageId,
+    parentMessageId,
+    loadedCount: getMessages().length,
+  });
+
   // Auto-cancel any in-flight jump so rapid search-result navigation
   // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
   // or let a stale 2.5s highlight-clear wipe the newest target.
@@ -213,7 +219,15 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       nextTickTimer = setTimeout(tick, intervalMs);
     } else {
       // Polling exhausted without landing — drop the skeleton so the user
-      // isn't stuck staring at it.
+      // isn't stuck staring at it. Per spec: NEVER route to an earlier
+      // message from the same sender; log a warning and leave the chat at
+      // its current position (newest) so the user can scroll to context.
+      console.warn("[jumpToMessage] target not found after polling", {
+        targetMessageId: messageId,
+        attempts,
+        loadedCount: getMessages().length,
+        landedOnParent,
+      });
       endHydration();
     }
   };
