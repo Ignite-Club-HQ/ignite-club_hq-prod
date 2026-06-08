@@ -243,6 +243,7 @@ export default function GroupChatPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const useVirtualizedChat = true;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
@@ -1075,6 +1076,7 @@ export default function GroupChatPage() {
 
       setLocalMessages(anchoredWindow);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
+      setJumpRenderNonce(targetJumpNonce ?? Date.now());
     };
 
     void hydrateTargetWindow();
@@ -2080,7 +2082,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
-            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${targetJumpNonce ?? "initial"}` : `group:${groupId}`}
+            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}` : `group:${groupId}`}
             messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
