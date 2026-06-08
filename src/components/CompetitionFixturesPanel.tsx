@@ -593,6 +593,58 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       </div>
                     </div>
 
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rounds & finals</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <Label>Max regular rounds (optional)</Label>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            value={genMaxRounds}
+                            onChange={(e) => setGenMaxRounds(e.target.value)}
+                            placeholder={teamsInScope.length >= 2 ? `Full round-robin = ${teamsInScope.length % 2 === 0 ? teamsInScope.length - 1 : teamsInScope.length} rounds` : "e.g. 7"}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Cap the league phase. Leave blank for a full round-robin.
+                          </p>
+                        </div>
+                        <div className="col-span-2 flex items-start gap-2 rounded-md border bg-muted/30 p-2.5">
+                          <input
+                            id="add-finals"
+                            type="checkbox"
+                            checked={genAddFinals}
+                            onChange={(e) => setGenAddFinals(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 accent-primary"
+                          />
+                          <label htmlFor="add-finals" className="flex-1 text-sm cursor-pointer">
+                            <div className="font-medium">Add a finals round at the end</div>
+                            <div className="text-xs text-muted-foreground">
+                              Schedules a finals week on the next play day after the last regular round. Teams are TBD and locked in by final standings.
+                            </div>
+                          </label>
+                        </div>
+                        {genAddFinals && (
+                          <div className="col-span-2">
+                            <Label>Finals format</Label>
+                            <Select value={genFinalsFormat} onValueChange={(v) => setGenFinalsFormat(v as FinalsFormat)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="gf">Grand Final only (1 v 2)</SelectItem>
+                                <SelectItem value="top4">Top 4 (1v2, 3v4)</SelectItem>
+                                <SelectItem value="top6">Top 6 (1v2, 3v4, 5v6)</SelectItem>
+                                <SelectItem value="top8">Top 8 (1v2, 3v4, 5v6, 7v8)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {buildFinalsSeedPairings(genFinalsFormat).length} finals match{buildFinalsSeedPairings(genFinalsFormat).length === 1 ? "" : "es"} will be added with placeholder teams.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2">
                         <Label>Default venue <span className="text-destructive">*</span></Label>
