@@ -4,8 +4,8 @@ import { jumpToMessageInVirtualizedChat } from "./jumpToMessage";
 type Msg = { id: string };
 
 const makeHandle = (scrollToMessageIdResult = false) => ({
-  scrollToIndex: vi.fn(),
-  scrollToMessageId: vi.fn(() => scrollToMessageIdResult),
+  scrollToIndex: vi.fn((_idx: number, _align?: string) => {}),
+  scrollToMessageId: vi.fn((_id: string, _align?: string) => scrollToMessageIdResult),
   scrollToBottom: vi.fn(),
 });
 
