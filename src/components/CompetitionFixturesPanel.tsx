@@ -200,8 +200,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const ids = shuffleSeed > 0
       ? shuffleArray(teamsInScope.map((t: any) => t.id))
       : teamsInScope.map((t: any) => t.id);
-    return buildRoundRobinPairings(ids);
-  }, [teamsInScope, shuffleSeed]);
+    const all = buildRoundRobinPairings(ids);
+    const maxR = Math.max(0, Number(genMaxRounds) || 0);
+    if (maxR > 0) return all.filter((p) => p.round <= maxR);
+    return all;
+  }, [teamsInScope, shuffleSeed, genMaxRounds]);
 
   // Live scheduling pass: same logic used at save time
   const schedule = useMemo(() => {
