@@ -22,6 +22,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
