@@ -94,13 +94,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     settleTimers = [];
   };
 
-  // Counter used to defeat Virtuoso's scrollToIndex deduplication. When the
-  // target row is already in (or near) the rendered window — which is the
-  // common case for the SECOND tap of the same notification — Virtuoso will
-  // treat an identical scrollToIndex payload as a no-op and the viewport
-  // never re-anchors, leaving the highlighted row "higher up" than expected.
-  // By varying the payload (via the index passed to the handle, which the
-  // handle then clamps), each pass is treated as a distinct request.
+  // Counter used to defeat Virtuoso's scrollToIndex deduplication. On repeat
+  // notification taps, vary the ALIGNMENT but keep the INDEX fixed on the
+  // target row. Never prime-scroll to idx-1: if the final end-align call is
+  // deduped/dropped, that leaves the viewport on an earlier message.
   let passCounter = 0;
 
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
@@ -112,12 +109,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // source of the observed behaviour: the correct row highlighted, but it
     // was not consistently visible in the expected bottom slot.
     const align: "end" = "end";
-    // Priming nudge: if the row is already in the rendered window from a
-    // previous jump, jiggle the scroll position by one index first so the
-    // subsequent end-aligned call is recognised as a fresh request rather
-    // than a duplicate of the prior one. The nudge target is clamped by the
-    // handle, so passing idx+1 is safe even at the tail of the list.
-    handle.scrollToIndex(Math.max(0, idx - 1), "start");
+    // Priming nudge: use the target row itself with a different alignment so
+    // even if the second call is ignored, the user still lands on the correct
+    // message rather than an older neighbour.
+    handle.scrollToIndex(idx, "center");
     handle.scrollToIndex(idx, align);
     passCounter += 1;
     // Multi-pass settle: row heights shift as deferred sub-content (link
@@ -147,9 +142,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
         // consecutive recenters never present identical payloads to
         // Virtuoso (which would dedupe the second one to a no-op).
         passCounter += 1;
-        if (passCounter % 2 === 0) {
-          h3.scrollToIndex(Math.max(0, idx3 - 1), "start");
-        }
+        if (passCounter % 2 === 0) h3.scrollToIndex(idx3, "center");
         h3.scrollToIndex(idx3, align);
       }
     };
