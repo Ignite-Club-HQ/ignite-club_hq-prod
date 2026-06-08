@@ -1579,7 +1579,7 @@ export default function TeamChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   // Live online count for the team — only shown in the header sublabel when > 0.
-  const teamOnlineCount = useChatOnlineCount("team", teamId);
+  const teamOnlineCount = useChatOnlineCount("team", teamId, { enabled: chatReady });
   const onlineLabel = teamOnlineCount > 0 ? `${teamOnlineCount} online` : null;
   const teamHeaderSublabel = team?.clubs?.name
     ? onlineLabel
