@@ -1852,7 +1852,7 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
-    enabled: !!group,
+    enabled: !!group && chatReady,
   });
 
   const {
