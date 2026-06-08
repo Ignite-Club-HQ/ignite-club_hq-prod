@@ -32,6 +32,8 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   currentUserId?: string | null;
   /** Disable the mount-time bottom pin when a deep-link jump owns first paint. */
   initialBottomPinned?: boolean;
+  /** Message that should be mounted on first paint for notification/search jumps. */
+  initialTargetMessageId?: string | null;
 
   /** Forwarded for parity with existing call sites; not used in virtual mode. */
   loadTriggerStyle?: CSSProperties;
@@ -146,6 +148,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     composerHeight,
     currentUserId,
     initialBottomPinned = true,
+    initialTargetMessageId = null,
     virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
@@ -360,6 +363,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           }}
           scrollerRef={setVirtualScrollerRef}
           initialBottomPinned={initialBottomPinned && (virtualReady || isPinned)}
+          initialTargetMessageId={initialTargetMessageId}
           currentUserId={currentUserId}
         />
       ) : null}
