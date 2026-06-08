@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -12,6 +13,7 @@ import { getPlatform, isNativePlatform } from "@/lib/nativePush";
 import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "@/lib/pendingChatJump";
+
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub";
@@ -29,7 +31,42 @@ export function PushNotificationManager() {
   // Safely get auth context - component must be inside AuthProvider
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { setActiveClubTheme, activeClubFilter } = useClubTheme();
+
+  // Merge preloaded notification messages directly into the live React Query
+  // cache so an already-mounted chat page reflects the new push instantly,
+  // not just on cold mount (placeholderData only runs when there's no data).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const { kind, targetId, message } = (e as CustomEvent).detail || {};
+        if (!kind || !targetId || !message) return;
+        const queryKey =
+          kind === "team" ? ["team-messages", targetId]
+          : kind === "club" ? ["club-messages", targetId]
+          : kind === "group" ? ["group-messages", targetId]
+          : kind === "dm" ? ["dm-messages", targetId]
+          : kind === "broadcast" ? ["broadcast-messages"]
+          : kind === "club_admin" ? ["club-admin-messages", targetId]
+          : null;
+        if (!queryKey) return;
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old; // no live query — placeholderData will pick it up on mount
+          const list: any[] = Array.isArray(old) ? old : (old.messages || []);
+          if (list.some((m) => m?.id === message.id)) return old;
+          const nextList = [...list, message];
+          if (Array.isArray(old)) return nextList;
+          return { ...old, messages: nextList };
+        });
+      } catch (err) {
+        console.warn("[PushManager] preload-message merge failed:", err);
+      }
+    };
+    window.addEventListener("ignite:preload-message", handler);
+    return () => window.removeEventListener("ignite:preload-message", handler);
+  }, [queryClient]);
+
 
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);

@@ -539,7 +539,7 @@ export default function GroupChatPage() {
     enabled: !!groupId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (!groupId) return prev;
