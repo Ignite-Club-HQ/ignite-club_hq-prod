@@ -50,6 +50,12 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     parentMessageId,
   } = options;
 
+  console.log("[jumpToMessage] starting", {
+    targetMessageId: messageId,
+    parentMessageId,
+    loadedCount: getMessages().length,
+  });
+
   // Auto-cancel any in-flight jump so rapid search-result navigation
   // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
   // or let a stale 2.5s highlight-clear wipe the newest target.
