@@ -31,6 +31,10 @@ const KEYWORDS = [
   "scrollToIndex",
   "preloadMessage",
   "normalizeNotification",
+  "ChatJump",
+  "AppHeaderNotifTap",
+  "InAppNotifTap",
+  "WebNotificationLaunch",
 ];
 
 export interface NotifDebugEntry {
