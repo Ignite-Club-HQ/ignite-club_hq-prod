@@ -599,8 +599,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               Keeping the same vertical footprint as Team is what lets the
               shared `COMPOSER_GAP=32px` in ChatMessagesScroller land the
               bottom-of-thread at the same visual offset across chat types. */}
-          {isOwnMessage ? (
-            <p className="text-[10px] leading-none text-muted-foreground/55 mt-1.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
+          {isOwnMessage && !groupedWithNext ? (
+            <p className="text-[9.5px] leading-none text-muted-foreground/45 mt-0.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
               <span>{format(new Date(msg.created_at), "HH:mm")}</span>
               {frontierReaders.length === 0 ? (
                 <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
