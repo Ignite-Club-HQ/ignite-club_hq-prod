@@ -1658,7 +1658,8 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
                 <Label>Division (optional)</Label>
                 <Select value={divisionId || "_all"} onValueChange={(v) => setDivisionId(v === "_all" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[100000]">
+
                     <SelectItem value="_all">No division</SelectItem>
                     {divisions.map((d: any) => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
