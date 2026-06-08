@@ -2080,6 +2080,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
+            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${targetJumpNonce ?? "initial"}` : `group:${groupId}`}
             messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
@@ -2091,6 +2092,7 @@ export default function GroupChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
+            initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
               const messageReactions = messageReactionsMap.get(msg.id) || [];
