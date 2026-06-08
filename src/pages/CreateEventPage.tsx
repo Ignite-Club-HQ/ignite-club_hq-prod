@@ -1556,7 +1556,7 @@ export default function CreateEventPage() {
             title="Location" 
             isOpen={openSections.location}
             onClick={() => toggleSection('location')}
-            badge={address ? "Set" : "Optional"}
+            badge={address.trim() ? "Set" : "Required"}
           />
           <CollapsibleContent>
             <CardContent className="pt-0 pb-4 px-4 space-y-3">
