@@ -483,6 +483,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
                   </DropdownMenuItem>
                   <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
+                  <AddFinalsRoundMenuItem competitionId={competitionId} divisions={divisions} />
+
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
