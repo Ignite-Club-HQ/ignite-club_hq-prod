@@ -21,8 +21,10 @@ import { jumpToMessageInVirtualizedChat } from "./jumpToMessage";
 import {
   setPendingChatJump,
   consumePendingChatJump,
+  getLastConsumedPendingChatJumpTs,
   normalizeNotificationChatUrl,
 } from "./pendingChatJump";
+import { resolveChatJumpTarget } from "./resolveChatJumpTarget";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -231,6 +233,25 @@ describe("Risk 4 – single-slot sessionStorage in consumePendingChatJump", () =
   it("broadcast (null targetId) is matched correctly", () => {
     setPendingChatJump("broadcast", null, "msg-eee");
     expect(consumePendingChatJump("broadcast", null)).toBe("msg-eee");
+  });
+
+  it("keeps the consumed timestamp so fallback can beat stale URL params", () => {
+    vi.setSystemTime(new Date("2026-06-08T22:00:01.000Z"));
+    setPendingChatJump("group", "grp-1", "new-msg");
+    expect(consumePendingChatJump("group", "grp-1")).toBe("new-msg");
+
+    const fallbackJumpTs = getLastConsumedPendingChatJumpTs("new-msg");
+    expect(fallbackJumpTs).toBe(Date.now());
+
+    const resolved = resolveChatJumpTarget({
+      urlMessageId: "old-msg",
+      urlJumpNonce: String(Date.now() - 5_000),
+      liveJumpId: null,
+      liveJumpTs: undefined,
+      fallbackJumpId: "new-msg",
+      fallbackJumpTs,
+    });
+    expect(resolved.messageId).toBe("new-msg");
   });
 
   it("expired entry (> 60s) returns null", () => {
