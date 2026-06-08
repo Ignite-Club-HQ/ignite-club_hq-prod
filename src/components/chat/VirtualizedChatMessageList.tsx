@@ -1552,6 +1552,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
             : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
         el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
         markChatScrollWrite();
+        console.log("[jumpToMessage] exact DOM correction", {
+          messageId,
+          align,
+          previousScrollTop: el.scrollTop,
+          targetTop: Math.max(0, targetTop),
+          rowTop: rowRect.top,
+          rowBottom: rowRect.bottom,
+          scrollerTop: scrollerRect.top,
+          scrollerBottom: scrollerRect.bottom,
+        });
         return true;
       },
       isAtBottom: () => atBottomRef.current,
