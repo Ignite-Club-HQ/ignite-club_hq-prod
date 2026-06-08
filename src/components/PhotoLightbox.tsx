@@ -120,6 +120,7 @@ export function PhotoLightbox({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [dismissOffset, setDismissOffset] = useState(0);
   const [dismissOpacity, setDismissOpacity] = useState(1);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
