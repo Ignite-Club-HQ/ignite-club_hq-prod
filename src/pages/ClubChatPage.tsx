@@ -249,7 +249,7 @@ export default function ClubChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("club", clubId);
+  } = usePinnedMessages("club", clubId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
