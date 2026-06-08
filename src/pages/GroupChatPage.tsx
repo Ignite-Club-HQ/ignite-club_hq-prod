@@ -317,7 +317,7 @@ export default function GroupChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("group", groupId);
+  } = usePinnedMessages("group", groupId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
