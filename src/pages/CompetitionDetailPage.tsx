@@ -638,6 +638,45 @@ function TeamsByDivision({
           )}
         </div>
       ))}
+      <Dialog open={!!moveConfirm} onOpenChange={(o) => { if (!o && !confirmBusy) setMoveConfirm(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move team to {moveConfirm?.toName}?</DialogTitle>
+            <DialogDescription>
+              {moveConfirm?.teamName} has {moveConfirm?.affectedMatchCount} existing fixture
+              {moveConfirm?.affectedMatchCount === 1 ? "" : "s"} in the affected division
+              {moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""}.
+              Moving the team won't update those fixtures automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer">
+            <Checkbox checked={clearFixtures} onCheckedChange={(v) => setClearFixtures(!!v)} className="mt-0.5" />
+            <span className="text-sm">
+              Also clear existing fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
+              <span className="block text-xs text-muted-foreground mt-1">
+                You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
+              </span>
+            </span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveConfirm(null)} disabled={confirmBusy}>Cancel</Button>
+            <Button
+              disabled={confirmBusy}
+              onClick={async () => {
+                if (!moveConfirm) return;
+                setConfirmBusy(true);
+                const divs = [moveConfirm.fromDivisionId, moveConfirm.toDivisionId].filter(Boolean) as string[];
+                await doAssignDivision(moveConfirm.entryId, moveConfirm.toDivisionId, clearFixtures, moveConfirm.teamId, divs);
+                setConfirmBusy(false);
+                setMoveConfirm(null);
+              }}
+            >
+              {confirmBusy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {clearFixtures ? "Move & clear fixtures" : "Move team"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
