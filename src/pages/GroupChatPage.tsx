@@ -357,7 +357,7 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
 
   // Sync active club to this group's owning club so push-launched threads
