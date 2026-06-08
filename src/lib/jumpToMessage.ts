@@ -109,6 +109,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // source of the observed behaviour: the correct row highlighted, but it
     // was not consistently visible in the expected bottom slot.
     const align: "end" = "end";
+    clearSettleTimers();
     const messagesAtFocus = getMessages();
     const lastIdx = messagesAtFocus.length - 1;
     // Specific failure mode from Grounds/Dan notification repeat taps:
@@ -154,7 +155,6 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // jump-active=false and yank the viewport back to the latest message —
     // exactly the symptom reported when tapping a push-notification deep
     // link: the target row is highlighted, but the viewport sits at bottom.
-    clearSettleTimers();
     const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
     const TAIL_RELEASE_MS = 6500;
     const recenter = () => {
