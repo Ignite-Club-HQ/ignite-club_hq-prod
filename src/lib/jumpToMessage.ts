@@ -127,9 +127,15 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       const currentMessages = getMessages();
       const currentIdx = currentMessages.findIndex((m) => m.id === id);
       if (!h || currentIdx < 0) return;
+      // If the row is already mounted (especially after the latest-window
+      // prewarm), use exact DOM geometry FIRST. Calling Virtuoso's estimated
+      // `scrollToIndex` first can jump to an older unmeasured window and
+      // unmount the target before the DOM correction gets a chance to run —
+      // the repeat-tap failure seen on Dan's Grounds notification.
+      if (h.scrollToMessageId?.(id, align)) return;
       h.scrollToIndex(currentIdx, "center");
       h.scrollToIndex(currentIdx, align);
-      h.scrollToMessageId?.(id, align);
+      requestAnimationFrame(() => h.scrollToMessageId?.(id, align));
     };
 
     if (shouldPrewarmLatestWindow) {
@@ -164,13 +170,14 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       const messages3 = getMessages();
       const idx3 = messages3.findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) {
+        if (h3.scrollToMessageId?.(id, align)) return;
         // Alternate a 1px upward nudge on every other pass so two
         // consecutive recenters never present identical payloads to
         // Virtuoso (which would dedupe the second one to a no-op).
         passCounter += 1;
         if (passCounter % 2 === 0) h3.scrollToIndex(idx3, "center");
         h3.scrollToIndex(idx3, align);
-        h3.scrollToMessageId?.(id, align);
+        requestAnimationFrame(() => h3.scrollToMessageId?.(id, align));
       }
     };
     settlePasses.forEach((delay) => {
