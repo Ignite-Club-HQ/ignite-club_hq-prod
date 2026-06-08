@@ -28,12 +28,14 @@ export function pinnedVaultKey(chatType: PinnedVaultChatType, chatId: string) {
 export function useChatPinnedVault(
   chatType: PinnedVaultChatType,
   chatId: string | undefined,
+  options?: { enabled?: boolean },
 ) {
   const qc = useQueryClient();
+  const enabledOpt = options?.enabled ?? true;
 
   const query = useQuery({
     queryKey: pinnedVaultKey(chatType, chatId ?? ""),
-    enabled: !!chatId,
+    enabled: enabledOpt && !!chatId,
     queryFn: async (): Promise<PinnedVaultRecord | null> => {
       if (!chatId) return null;
       const { data, error } = await supabase
