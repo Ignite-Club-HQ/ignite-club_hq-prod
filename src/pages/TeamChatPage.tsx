@@ -174,6 +174,10 @@ export default function TeamChatPage() {
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
+  // Gate non-critical chat-page queries (pinned, vault, club-pro, online count)
+  // until after first paint + idle so they don't compete with the messages
+  // fetch and visual-settle window on notification opens.
+  const chatReady = useChatPageReady();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
