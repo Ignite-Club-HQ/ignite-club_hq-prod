@@ -83,6 +83,7 @@ const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
 export interface VirtualizedChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
+  scrollToMessageId: (messageId: string, align?: "start" | "center" | "end") => boolean;
   isAtBottom: () => boolean;
   /**
    * True when the scroller is within `thresholdPx` of the bottom. Used by
@@ -135,6 +136,11 @@ function isAndroidNativeWebView() {
   } catch { /* ignore */ }
   const ua = navigator.userAgent || "";
   return /Android/i.test(ua) && (/(; wv\)|\bwv\b)/i.test(ua) || /IgniteClubHQ-Android/i.test(ua));
+}
+
+function escapeCssAttributeValue(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function getMessageDay(value?: string | null) {
