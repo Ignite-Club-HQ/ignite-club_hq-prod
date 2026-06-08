@@ -112,6 +112,8 @@ interface Props<TMessage extends { id: string }> {
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
   initialBottomPinned?: boolean;
+  /** Mount this message in view immediately for exact notification jumps. */
+  initialTargetMessageId?: string | null;
   /** Current user id, used only for row-height estimates (own messages have no author label). */
   currentUserId?: string | null;
 }
@@ -659,6 +661,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    initialTargetMessageId = null,
     currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
@@ -1748,7 +1751,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
+      initialTopMostItemIndex={initialTargetMessageId ? { index: initialTargetMessageId, align: "end", behavior: "auto" } : initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
       // pins the BOTTOM of the viewport when content grows above the current
