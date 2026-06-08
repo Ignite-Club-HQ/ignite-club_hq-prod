@@ -1033,13 +1033,18 @@ function FixturesFilterAndList({
             const maxRound = roundNums.length > 0 ? Math.max(...roundNums) : 0;
             if (totalRounds === 0) return null;
             return (
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
                 <span className="font-medium text-foreground">
                   {totalRounds} round{totalRounds === 1 ? "" : "s"} scheduled
+                  <span className="text-muted-foreground font-normal ml-2 tabular-nums">(max: {maxRound})</span>
                 </span>
-                <span className="text-muted-foreground tabular-nums">
-                  Max round: {maxRound}
-                </span>
+                {isAdmin && (
+                  <SetMaxRoundsButton
+                    competitionId={competitionId}
+                    currentMax={maxRound}
+                    roundNums={roundNums}
+                  />
+                )}
               </div>
             );
           })()}
