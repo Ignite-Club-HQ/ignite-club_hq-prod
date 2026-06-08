@@ -345,6 +345,11 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
     queryClient.invalidateQueries({ queryKey: ["quick-rsvp", event.id] });
     queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+    // Also refresh the Next Up carousel's own RSVP caches so the home card
+    // doesn't show "awaiting RSVP" after an RSVP made from the Schedule.
+    queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-children-card", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
   }, [queryClient, event.id]);
 
   // Self RSVP (parent attending too)
