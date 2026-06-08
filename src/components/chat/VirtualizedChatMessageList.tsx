@@ -1397,6 +1397,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       !messagesLengthChanged &&
       bottomPinReadyRef.current
     ) return;
+    // PREPEND GUARD: when lastMessageId is unchanged but length grew, an
+    // older page just landed (Load More / startReached). The user is mid-
+    // history during a fast upward fling — never re-pin to LAST. The
+    // `userHasScrolledAfterPinRef` guard inside `run()` has a 600ms cooldown
+    // that can let a settled fling slip through, and the synchronous +
+    // 200ms/600ms timers would yank the viewport to the bottom mid-scroll.
+    if (
+      messagesLengthChanged &&
+      previousLastMessageId === lastMessageId &&
+      !atBottomRef.current
+    ) return;
 
     const run = () => {
       const viewport = scrollerElRef.current;
