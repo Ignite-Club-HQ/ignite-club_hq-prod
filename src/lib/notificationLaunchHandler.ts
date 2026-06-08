@@ -122,6 +122,15 @@ function handleNotificationTap(notification: any) {
     const data = notification?.notification?.data ?? notification?.data ?? {};
     const rawUrl = data?.url || data?.link || data?.path;
     const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
+    console.log('[NotificationLaunch] tap received', {
+      notificationId: data?.notificationId ?? data?.id ?? null,
+      type: data?.notificationType || data?.type || null,
+      message_id: data?.message_id || data?.messageId || null,
+      related_id: data?.related_id || null,
+      author_id: data?.author_id || data?.sender_id || null,
+      rawUrl,
+      normalizedUrl: url,
+    });
     const storeUrl = data?.store_url;
     const forceUpdatePrompt = data?.force_update_prompt;
     const type = data?.notificationType || data?.type;
