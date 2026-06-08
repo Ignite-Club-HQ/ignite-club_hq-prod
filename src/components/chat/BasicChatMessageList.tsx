@@ -317,7 +317,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         </div>
       )}
       {visible.map((message, index) => (
-        <div key={message.id} data-basic-row-index={index}>
+        <div key={message.id} data-basic-row-index={index} data-row-id={message.id}>
           {renderItem(message, index, visible)}
         </div>
       ))}
