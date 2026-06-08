@@ -1535,6 +1535,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           behavior: "auto",
         });
       },
+      scrollToMessageId: (messageId, align = "center") => {
+        const el = scrollerElRef.current;
+        if (!el) return false;
+        const escapedId = escapeCssAttributeValue(messageId);
+        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
+        if (!row) return false;
+        const rowRect = row.getBoundingClientRect();
+        const scrollerRect = el.getBoundingClientRect();
+        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+        const targetTop =
+          align === "end"
+            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
+            : align === "start"
+            ? el.scrollTop + rowRect.top - scrollerRect.top
+            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+        markChatScrollWrite();
+        return true;
+      },
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
         const el = scrollerElRef.current;
