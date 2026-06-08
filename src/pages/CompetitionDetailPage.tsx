@@ -497,10 +497,14 @@ function TeamsByDivision({
     }
     let cleared = false;
     if (alsoClear && teamId) {
+      // IMPORTANT: never delete completed matches — those carry the team's
+      // points/results which now follow them to the new division via the
+      // competition_ladder view. Only clear scheduled/pending fixtures.
       let dq = supabase
         .from("competition_matches")
         .delete()
         .eq("competition_id", competitionId)
+        .neq("status", "completed")
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
       if (affectedDivisionIds.length > 0) dq = dq.in("division_id", affectedDivisionIds);
       const { error: delErr } = await dq;
@@ -519,6 +523,7 @@ function TeamsByDivision({
     });
     qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
@@ -653,9 +658,9 @@ function TeamsByDivision({
           <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer">
             <Checkbox checked={clearFixtures} onCheckedChange={(v) => setClearFixtures(!!v)} className="mt-0.5" />
             <span className="text-sm">
-              Also clear existing fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
+              Also clear upcoming/unplayed fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
               <span className="block text-xs text-muted-foreground mt-1">
-                You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
+                Completed match results are kept — the team's existing points carry across to the new division automatically. You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
               </span>
             </span>
           </label>
