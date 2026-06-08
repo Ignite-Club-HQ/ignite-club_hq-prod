@@ -430,6 +430,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setGenWeekdays([]); setWeekdaysDirty(false);
     setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
     setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
+    setGenMaxRounds(""); setGenAddFinals(false); setGenFinalsFormat("gf");
     setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
