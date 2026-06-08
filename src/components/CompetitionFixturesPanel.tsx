@@ -293,14 +293,15 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       : null;
     return {
       teamCount: teamsInScope.length,
-      rounds: totalRounds,
-      totalMatches: schedule.placed.length,
+      rounds: totalRounds + (finalsPlaced.length > 0 ? 1 : 0),
+      totalMatches: schedule.placed.length + finalsPlaced.length,
+      finalsCount: finalsPlaced.length,
       firstDate,
       finishDate,
       overflowRounds: schedule.overflowRounds,
       unscheduledCount: schedule.unscheduled.length,
     };
-  }, [schedule, teamsInScope.length]);
+  }, [schedule, teamsInScope.length, finalsPlaced]);
 
   // Map placed fixtures by round → list ordered by scheduled_at.
   // Keep this before any conditional return so hook order is stable while the
