@@ -275,4 +275,65 @@ describe("jumpToMessageInVirtualizedChat", () => {
     expect(setHighlight).toHaveBeenCalledWith("reply");
     expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "end");
   });
+
+  it("E2E: repeat notification taps always mount + focus the anchored target row", async () => {
+    // Simulate the Grounds/Dan scenario: long history, target near the end.
+    // Each notification tap re-invokes jumpToMessageInVirtualizedChat (as
+    // GroupChatPage does on every nonce bump). We assert that on EVERY tap:
+    //  (a) the target row is mounted (handle.scrollToMessageId fires for it)
+    //  (b) the highlight is set to the target id
+    //  (c) no scroll/highlight ever lands on an earlier neighbour
+    const TARGET = "f3684898-38dd-4e25-8cf7-739bb0d76f16";
+    const NEIGHBOUR_A = "7df96591-8532-4c27-aa89-dadc5795a3f7";
+    const NEIGHBOUR_B = "c6d02218-252b-4034-a591-273bef15ff4c";
+    const messages: Msg[] = Array.from({ length: 65 }, (_, i) => ({ id: `msg-${i}` }));
+    messages[35] = { id: NEIGHBOUR_A };
+    messages[37] = { id: NEIGHBOUR_B };
+    messages[63] = { id: TARGET };
+
+    const TAPS = 5;
+    for (let tap = 0; tap < TAPS; tap++) {
+      // Each tap remounts the virtualised list (GroupChatPage uses a key that
+      // includes the jump nonce), so each tap gets a fresh handle whose
+      // `scrollToMessageId` succeeds (target row guaranteed in DOM via the
+      // anchored window). This mirrors the real anchored-jump behaviour.
+      const handle = makeHandle(true);
+      const setHighlight = vi.fn();
+
+      jumpToMessageInVirtualizedChat(
+        TARGET,
+        () => messages,
+        () => handle as any,
+        setHighlight,
+      );
+
+      // Drain the full settle tail so any late re-centre passes also run.
+      await vi.advanceTimersByTimeAsync(7000);
+
+      // (a) target row mounted + driven via exact DOM correction
+      expect(
+        handle.scrollToMessageId.mock.calls.some(([id]) => id === TARGET),
+        `tap ${tap}: target row was never focused via scrollToMessageId`,
+      ).toBe(true);
+
+      // (b) highlight reached the target
+      expect(
+        setHighlight.mock.calls.some(([id]) => id === TARGET),
+        `tap ${tap}: highlight never set to target`,
+      ).toBe(true);
+
+      // (c) neither neighbour was scrolled to or highlighted
+      for (const [id] of handle.scrollToMessageId.mock.calls) {
+        expect(id).not.toBe(NEIGHBOUR_A);
+        expect(id).not.toBe(NEIGHBOUR_B);
+      }
+      for (const [idx] of handle.scrollToIndex.mock.calls) {
+        expect(idx).not.toBe(35);
+        expect(idx).not.toBe(37);
+      }
+      for (const [id] of setHighlight.mock.calls) {
+        expect([TARGET, null]).toContain(id);
+      }
+    }
+  });
 });
