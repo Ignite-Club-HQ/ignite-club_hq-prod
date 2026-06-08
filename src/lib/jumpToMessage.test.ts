@@ -158,6 +158,30 @@ describe("jumpToMessageInVirtualizedChat", () => {
     }
   });
 
+  it("Grounds Dan notification repeat tap pre-warms latest rows before jumping to f368 target", async () => {
+    const messages: Msg[] = Array.from({ length: 65 }, (_, i) => ({ id: `msg-${i}` }));
+    messages[35] = { id: "7df96591-8532-4c27-aa89-dadc5795a3f7" };
+    messages[37] = { id: "c6d02218-252b-4034-a591-273bef15ff4c" };
+    messages[63] = { id: "f3684898-38dd-4e25-8cf7-739bb0d76f16" };
+    const handle = makeHandle();
+
+    jumpToMessageInVirtualizedChat(
+      "f3684898-38dd-4e25-8cf7-739bb0d76f16",
+      () => messages,
+      () => handle as any,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(60);
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(64, "end");
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(35, expect.anything());
+    expect(handle.scrollToIndex).not.toHaveBeenCalledWith(37, expect.anything());
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(63, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(63, "end");
+  });
+
   it("returns a cancel function that stops further scroll/highlight work", async () => {
     const handle = makeHandle();
     const setHighlight = vi.fn();
