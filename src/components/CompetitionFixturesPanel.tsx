@@ -1656,30 +1656,30 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
             {divisions.length > 0 && (
               <div>
                 <Label>Division (optional)</Label>
-                <Select value={divisionId || "_all"} onValueChange={(v) => setDivisionId(v === "_all" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
-                  <SelectContent className="z-[100000]">
-
-                    <SelectItem value="_all">No division</SelectItem>
-                    {divisions.map((d: any) => (
-                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={divisionId || "_all"}
+                  onChange={(e) => setDivisionId(e.target.value === "_all" ? "" : e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="_all">No division</option>
+                  {divisions.map((d: any) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
             )}
             <div>
               <Label>Finals format</Label>
-              <Select value={format} onValueChange={(v) => setFormat(v as FinalsFormat)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[100000]">
-
-                  <SelectItem value="gf">Grand Final only (1 v 2)</SelectItem>
-                  <SelectItem value="top4">Top 4 (1v2, 3v4)</SelectItem>
-                  <SelectItem value="top6">Top 6 (1v2, 3v4, 5v6)</SelectItem>
-                  <SelectItem value="top8">Top 8 (1v2, 3v4, 5v6, 7v8)</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                value={format}
+                onChange={(e) => setFormat(e.target.value as FinalsFormat)}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="gf">Grand Final only (1 v 2)</option>
+                <option value="top4">Top 4 (1v2, 3v4)</option>
+                <option value="top6">Top 6 (1v2, 3v4, 5v6)</option>
+                <option value="top8">Top 8 (1v2, 3v4, 5v6, 7v8)</option>
+              </select>
               <p className="text-xs text-muted-foreground mt-1">
                 {buildFinalsSeedPairings(format).length} match{buildFinalsSeedPairings(format).length === 1 ? "" : "es"} will be created.
               </p>
