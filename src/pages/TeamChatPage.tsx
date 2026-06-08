@@ -3,6 +3,7 @@ import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpP
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
