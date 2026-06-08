@@ -8,12 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   buildRoundRobinPairings,
   scheduleFixtures,
+  placeFinalsFixtures,
+  buildFinalsSeedPairings,
   parseTimeToMins,
   dateKey,
   type Frequency,
   type SchedulingMode,
   type OccupiedSlot,
   type PlacedFixture,
+  type FinalsFormat,
 } from "@/lib/competitionScheduler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
