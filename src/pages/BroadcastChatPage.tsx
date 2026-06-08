@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
@@ -164,12 +164,14 @@ export default function BroadcastChatPage() {
   const liveJumpId = liveJump?.kind === "broadcast" ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
   const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
+  const fallbackJumpTs = getLastConsumedPendingChatJumpTs(fallbackJumpId);
   const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
     urlMessageId,
     urlJumpNonce,
     liveJumpId,
     liveJumpTs: liveJump?.ts,
     fallbackJumpId,
+    fallbackJumpTs,
   });
   const targetParentId = searchParams.get("parent");
 
