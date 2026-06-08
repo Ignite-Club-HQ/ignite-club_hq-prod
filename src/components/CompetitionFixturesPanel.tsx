@@ -744,39 +744,44 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     ) : null}
                     <div className="space-y-3 max-h-[55vh] overflow-y-auto -mx-1 px-1">
                       {Array.from(placedByRound.entries()).map(([round, list]) => {
+                        const isFinalsRound = finalsRoundNumber === round;
                         const playingIds = new Set<string>();
-                        list.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
-                        const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
+                        list.forEach((p) => { if (p.home) playingIds.add(p.home); if (p.away) playingIds.add(p.away); });
+                        const byeTeams = isFinalsRound ? [] : teamsInScope.filter((t: any) => !playingIds.has(t.id));
                         const datesInRound = Array.from(new Set(list.map((p) => p.scheduledAt ? dateKey(p.scheduledAt) : "—")));
                         const overrideValue = roundDateOverrides.get(round) ?? (datesInRound[0] !== "—" ? datesInRound[0] : "");
                         return (
                           <div key={round} className="rounded-lg border bg-card overflow-hidden">
                             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
                               <div className="flex items-baseline gap-2 min-w-0">
-                                <span className="text-sm font-semibold">Round {round}</span>
+                                <span className="text-sm font-semibold">
+                                  {isFinalsRound ? `Finals (Round ${round})` : `Round ${round}`}
+                                </span>
                                 <span className="text-[11px] text-muted-foreground shrink-0">
                                   {list.length} {list.length === 1 ? "match" : "matches"}
                                   {datesInRound.length > 1 ? ` · ${datesInRound.length} days` : ""}
                                 </span>
                               </div>
-                              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <CalendarDays className="h-3 w-3" />
-                                <span>Move to:</span>
-                                <input
-                                  type="date"
-                                  value={overrideValue}
-                                  onChange={(e) => setRoundDate(round, e.target.value)}
-                                  className="h-7 px-1.5 py-0.5 text-xs bg-background border border-input rounded"
-                                />
-                              </label>
+                              {!isFinalsRound && (
+                                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <CalendarDays className="h-3 w-3" />
+                                  <span>Move to:</span>
+                                  <input
+                                    type="date"
+                                    value={overrideValue}
+                                    onChange={(e) => setRoundDate(round, e.target.value)}
+                                    className="h-7 px-1.5 py-0.5 text-xs bg-background border border-input rounded"
+                                  />
+                                </label>
+                              )}
                             </div>
                             <ul className="divide-y">
                               {list.map((p, i) => {
                                 const timeLabel = p.scheduledAt
                                   ? format(p.scheduledAt, "EEE d MMM · HH:mm")
                                   : "(unscheduled)";
-                                const homeName = nameById.get(p.home) ?? "?";
-                                const awayName = nameById.get(p.away) ?? "?";
+                                const homeName = p.homeLabel ?? (p.home ? (nameById.get(p.home) ?? "?") : "TBD");
+                                const awayName = p.awayLabel ?? (p.away ? (nameById.get(p.away) ?? "?") : "TBD");
                                 return (
                                   <li key={i} className="px-3 py-2.5">
                                     <div className="flex items-center gap-2">
@@ -784,6 +789,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                                       <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
                                       <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{awayName}</span>
                                     </div>
+                                    {p.note && (
+                                      <div className="mt-0.5 text-center text-[11px] font-medium text-primary">
+                                        {p.note}
+                                      </div>
+                                    )}
                                     <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
                                       <span>{timeLabel}</span>
                                       {p.pitch && <span>· Pitch {p.pitch}</span>}
