@@ -86,19 +86,13 @@ function LightboxImage({
     );
   }
 
-  // Default: fill the screen edge-to-edge (immersive, photo-first like
-  // Instagram / Facebook Photos). When the user pinch-zooms or double-taps,
-  // switch to object-contain so they can inspect the full uncropped frame.
-  const isZoomed = scale > 1.001;
+  // Fit the whole photo to the screen by default (letterboxed like the chat
+  // image viewer), not edge-to-edge crop. Pinch / double-tap still zooms.
   return (
     <img
       src={effectiveSrc}
       alt={alt}
-      className={`select-none ${
-        isZoomed
-          ? "max-w-[100vw] max-h-[100dvh] object-contain"
-          : "w-screen h-[100dvh] object-cover"
-      }`}
+      className="select-none max-w-[100vw] max-h-[100dvh] w-auto h-auto object-contain"
       style={{
         transform: `translate3d(${translateX}px, ${translateY + dismissOffset}px, 0) scale(${scale})`,
         transition: dismissOffset === 0 ? "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
