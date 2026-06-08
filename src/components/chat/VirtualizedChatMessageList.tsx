@@ -1638,6 +1638,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
+  const initialTargetIndex = initialTargetMessageId
+    ? uniqueMessages.findIndex((message) => message.id === initialTargetMessageId)
+    : -1;
+
 
   // Force integer measurements. React-Virtuoso's default itemSize uses
   // getBoundingClientRect(), which can oscillate by sub-pixels on fractional
@@ -1751,7 +1755,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={initialTargetMessageId ? { index: initialTargetMessageId, align: "end", behavior: "auto" } : initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
+      initialTopMostItemIndex={initialTargetIndex >= 0 ? { index: initialTargetIndex, align: "end", behavior: "auto" } : initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
       // pins the BOTTOM of the viewport when content grows above the current
