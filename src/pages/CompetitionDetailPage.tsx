@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -430,19 +431,99 @@ function TeamsByDivision({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [moveConfirm, setMoveConfirm] = useState<{
+    entryId: string;
+    teamId: string;
+    teamName: string;
+    fromDivisionId: string | null;
+    toDivisionId: string | null;
+    toName: string;
+    affectedMatchCount: number;
+  } | null>(null);
+  const [clearFixtures, setClearFixtures] = useState(true);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
-  const assignDivision = async (entryId: string, divisionId: string | null) => {
+  const requestAssignDivision = async (entry: any, divisionId: string | null) => {
+    if ((entry.division_id ?? null) === (divisionId ?? null)) return;
+    const toName = divisionId
+      ? (divisions.find((d: any) => d.id === divisionId)?.name ?? "Unassigned")
+      : "Unassigned";
+    const divFilter = [entry.division_id, divisionId].filter(Boolean) as string[];
+    let count = 0;
+    try {
+      let q = supabase
+        .from("competition_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", competitionId)
+        .or(`home_team_id.eq.${entry.team_id},away_team_id.eq.${entry.team_id}`);
+      if (divFilter.length > 0) q = q.in("division_id", divFilter);
+      const { count: c } = await q;
+      count = c ?? 0;
+    } catch {
+      count = 0;
+    }
+    if (count === 0) {
+      await doAssignDivision(entry.id, divisionId, false, entry.team_id, divFilter);
+      return;
+    }
+    setClearFixtures(true);
+    setMoveConfirm({
+      entryId: entry.id,
+      teamId: entry.team_id,
+      teamName: entry.teams?.name ?? "Team",
+      fromDivisionId: entry.division_id ?? null,
+      toDivisionId: divisionId,
+      toName,
+      affectedMatchCount: count,
+    });
+  };
+
+  const doAssignDivision = async (
+    entryId: string,
+    divisionId: string | null,
+    alsoClear: boolean,
+    teamId?: string,
+    affectedDivisionIds: string[] = [],
+  ) => {
     setSavingId(entryId);
     const { error } = await supabase
       .from("competition_entries")
       .update({ division_id: divisionId })
       .eq("id", entryId);
-    setSavingId(null);
     if (error) {
+      setSavingId(null);
       toast({ title: "Could not move team", description: error.message, variant: "destructive" });
       return;
     }
+    let cleared = false;
+    if (alsoClear && teamId) {
+      // IMPORTANT: never delete completed matches — those carry the team's
+      // points/results which now follow them to the new division via the
+      // competition_ladder view. Only clear scheduled/pending fixtures.
+      let dq = supabase
+        .from("competition_matches")
+        .delete()
+        .eq("competition_id", competitionId)
+        .neq("status", "completed")
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+      if (affectedDivisionIds.length > 0) dq = dq.in("division_id", affectedDivisionIds);
+      const { error: delErr } = await dq;
+      if (delErr) {
+        toast({ title: "Team moved, fixtures not cleared", description: delErr.message, variant: "destructive" });
+      } else {
+        cleared = true;
+      }
+    }
+    setSavingId(null);
+    toast({
+      title: "Team moved",
+      description: cleared
+        ? "Affected fixtures cleared. Open the Fixtures tab to regenerate."
+        : alsoClear ? undefined : "Existing fixtures kept as-is.",
+    });
     qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
@@ -542,11 +623,11 @@ function TeamsByDivision({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                              <DropdownMenuItem onClick={() => requestAssignDivision(e, null)}>
                                 Unassigned
                               </DropdownMenuItem>
                               {divisions.map((d: any) => (
-                                <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                                <DropdownMenuItem key={d.id} onClick={() => requestAssignDivision(e, d.id)}>
                                   {d.name}
                                 </DropdownMenuItem>
                               ))}
@@ -563,6 +644,45 @@ function TeamsByDivision({
           )}
         </div>
       ))}
+      <Dialog open={!!moveConfirm} onOpenChange={(o) => { if (!o && !confirmBusy) setMoveConfirm(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move team to {moveConfirm?.toName}?</DialogTitle>
+            <DialogDescription>
+              {moveConfirm?.teamName} has {moveConfirm?.affectedMatchCount} existing fixture
+              {moveConfirm?.affectedMatchCount === 1 ? "" : "s"} in the affected division
+              {moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""}.
+              Moving the team won't update those fixtures automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-2 rounded-md border p-3 cursor-pointer">
+            <Checkbox checked={clearFixtures} onCheckedChange={(v) => setClearFixtures(!!v)} className="mt-0.5" />
+            <span className="text-sm">
+              Also clear upcoming/unplayed fixtures involving this team in the affected division{moveConfirm?.fromDivisionId && moveConfirm?.toDivisionId ? "s" : ""} so they can be regenerated.
+              <span className="block text-xs text-muted-foreground mt-1">
+                Completed match results are kept — the team's existing points carry across to the new division automatically. You'll need to re-run "Generate round-robin" in the Fixtures tab afterwards.
+              </span>
+            </span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveConfirm(null)} disabled={confirmBusy}>Cancel</Button>
+            <Button
+              disabled={confirmBusy}
+              onClick={async () => {
+                if (!moveConfirm) return;
+                setConfirmBusy(true);
+                const divs = [moveConfirm.fromDivisionId, moveConfirm.toDivisionId].filter(Boolean) as string[];
+                await doAssignDivision(moveConfirm.entryId, moveConfirm.toDivisionId, clearFixtures, moveConfirm.teamId, divs);
+                setConfirmBusy(false);
+                setMoveConfirm(null);
+              }}
+            >
+              {confirmBusy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {clearFixtures ? "Move & clear fixtures" : "Move team"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

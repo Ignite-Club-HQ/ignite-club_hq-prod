@@ -14,10 +14,15 @@ export interface Pairing {
 
 export interface PlacedFixture {
   round: number;
-  home: string;
-  away: string;
+  home: string | null;
+  away: string | null;
+  /** Optional display label for placeholder/TBD slots (e.g. "1st seed"). */
+  homeLabel?: string;
+  awayLabel?: string;
   scheduledAt: Date | null;
   pitch: string | null;
+  /** Optional note saved to the match (e.g. "Grand Final"). */
+  note?: string;
 }
 
 export interface OccupiedSlot {
@@ -292,4 +297,100 @@ export function minsToTime(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// ---------- finals helpers ----------
+
+export type FinalsFormat = "gf" | "top4" | "top6" | "top8";
+
+/** Seed pairings for the finals round: 1v2, 3v4, 5v6, 7v8. */
+export function buildFinalsSeedPairings(format: FinalsFormat): { homeSeed: number; awaySeed: number; isGrandFinal: boolean }[] {
+  const pairs: { homeSeed: number; awaySeed: number; isGrandFinal: boolean }[] = [
+    { homeSeed: 1, awaySeed: 2, isGrandFinal: true },
+  ];
+  if (format === "top4" || format === "top6" || format === "top8") {
+    pairs.push({ homeSeed: 3, awaySeed: 4, isGrandFinal: false });
+  }
+  if (format === "top6" || format === "top8") {
+    pairs.push({ homeSeed: 5, awaySeed: 6, isGrandFinal: false });
+  }
+  if (format === "top8") {
+    pairs.push({ homeSeed: 7, awaySeed: 8, isGrandFinal: false });
+  }
+  return pairs;
+}
+
+/**
+ * Place finals fixtures (with placeholder/TBD teams) on the next allowed
+ * weekday strictly after `afterDate`. Spreads across the shared pitch pool.
+ */
+export function placeFinalsFixtures(opts: {
+  round: number;
+  format: FinalsFormat;
+  afterDate: Date;
+  allowedWeekdays: number[];
+  dayStartMins: number;
+  dayEndMins: number;
+  durationMins: number;
+  pitchLabels: string[];
+  occupiedByDate: Map<string, OccupiedSlot[]>;
+}): PlacedFixture[] {
+  const { round, format, afterDate, allowedWeekdays, dayStartMins, dayEndMins, durationMins, pitchLabels, occupiedByDate } = opts;
+  const allowed = allowedWeekdays.length ? allowedWeekdays : [0,1,2,3,4,5,6];
+  const dur = Math.max(1, durationMins || 60);
+  const pairs = buildFinalsSeedPairings(format);
+
+  // Start strictly after the last regular date
+  let day = nextAllowedDay(afterDate, allowed);
+  const placed: PlacedFixture[] = [];
+  let remaining = [...pairs];
+  let safety = 60;
+
+  while (remaining.length > 0 && safety-- > 0) {
+    const key = dateKey(day);
+    const existing = occupiedByDate.get(key) ?? [];
+    const slots: number[] = [];
+    for (let t = dayStartMins; t + dur <= dayEndMins; t += dur) slots.push(t);
+    if (slots.length === 0) slots.push(dayStartMins);
+
+    for (const slotStart of slots) {
+      if (remaining.length === 0) break;
+      const slotEnd = slotStart + dur;
+      const taken = new Set<string>();
+      for (const o of existing) {
+        if (o.startMins < slotEnd && o.endMins > slotStart) taken.add(o.pitch);
+      }
+      const freePitches = pitchLabels.filter((p) => !taken.has(p));
+      if (freePitches.length === 0) continue;
+      const take = Math.min(freePitches.length, remaining.length);
+      for (let i = 0; i < take; i++) {
+        const pair = remaining.shift()!;
+        const pitch = freePitches[i];
+        const scheduledAt = new Date(day);
+        scheduledAt.setHours(Math.floor(slotStart / 60), slotStart % 60, 0, 0);
+        placed.push({
+          round,
+          home: null,
+          away: null,
+          homeLabel: `${ordinal(pair.homeSeed)} seed`,
+          awayLabel: `${ordinal(pair.awaySeed)} seed`,
+          scheduledAt,
+          pitch: pitchLabels.length > 0 ? pitch : null,
+          note: pair.isGrandFinal
+            ? `Grand Final · ${pair.homeSeed} v ${pair.awaySeed}`
+            : `Finals · ${pair.homeSeed} v ${pair.awaySeed}`,
+        });
+        existing.push({ startMins: slotStart, endMins: slotEnd, pitch });
+      }
+    }
+    occupiedByDate.set(key, existing);
+    if (remaining.length > 0) day = nextAllowedDay(day, allowed);
+  }
+  return placed;
+}
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
