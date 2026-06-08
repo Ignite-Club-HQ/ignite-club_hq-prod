@@ -1658,7 +1658,8 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
                 <Label>Division (optional)</Label>
                 <Select value={divisionId || "_all"} onValueChange={(v) => setDivisionId(v === "_all" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="No division" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[100000]">
+
                     <SelectItem value="_all">No division</SelectItem>
                     {divisions.map((d: any) => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
@@ -1671,7 +1672,8 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
               <Label>Finals format</Label>
               <Select value={format} onValueChange={(v) => setFormat(v as FinalsFormat)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100000]">
+
                   <SelectItem value="gf">Grand Final only (1 v 2)</SelectItem>
                   <SelectItem value="top4">Top 4 (1v2, 3v4)</SelectItem>
                   <SelectItem value="top6">Top 6 (1v2, 3v4, 5v6)</SelectItem>
