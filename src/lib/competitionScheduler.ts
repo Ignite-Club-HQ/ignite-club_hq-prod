@@ -14,10 +14,15 @@ export interface Pairing {
 
 export interface PlacedFixture {
   round: number;
-  home: string;
-  away: string;
+  home: string | null;
+  away: string | null;
+  /** Optional display label for placeholder/TBD slots (e.g. "1st seed"). */
+  homeLabel?: string;
+  awayLabel?: string;
   scheduledAt: Date | null;
   pitch: string | null;
+  /** Optional note saved to the match (e.g. "Grand Final"). */
+  note?: string;
 }
 
 export interface OccupiedSlot {
