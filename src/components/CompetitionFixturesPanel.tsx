@@ -308,8 +308,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   // fixtures query moves from loading to loaded.
   const placedByRound = useMemo(() => {
     const m = new Map<number, PlacedFixture[]>();
-    if (!schedule) return m;
-    for (const p of schedule.placed) {
+    for (const p of allPlaced) {
       if (!m.has(p.round)) m.set(p.round, []);
       m.get(p.round)!.push(p);
     }
@@ -322,7 +321,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       });
     }
     return m;
-  }, [schedule]);
+  }, [allPlaced]);
+
+  const finalsRoundNumber = useMemo(
+    () => (finalsPlaced.length > 0 ? finalsPlaced[0].round : null),
+    [finalsPlaced]
+  );
 
   const toggleWeekday = (d: number) => {
     setWeekdaysDirty(true);
