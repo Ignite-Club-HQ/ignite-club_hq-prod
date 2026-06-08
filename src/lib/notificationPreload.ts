@@ -91,10 +91,22 @@ export function preloadMessageFromNotification(data: any): void {
     if (!parsed) return;
     addMessageToCache(parsed.kind, parsed.targetId, parsed.message);
     setFromNotificationFlag(parsed.kind, parsed.targetId);
+    // Notify any mounted listener (PushNotificationManager) so it can also
+    // merge the message into the live React Query cache — placeholderData
+    // only runs on a cold mount; without this, an already-mounted chat
+    // would not show the new message until refetch completes.
+    try {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ignite:preload-message", {
+          detail: { kind: parsed.kind, targetId: parsed.targetId, message: parsed.message },
+        }));
+      }
+    } catch {}
   } catch (err) {
     console.warn("[notificationPreload] Failed to preload message", err);
   }
 }
+
 
 function flagKey(kind: ChatKind, targetId: string): string {
   return `${FLAG_PREFIX}${kind}_${targetId}`;
