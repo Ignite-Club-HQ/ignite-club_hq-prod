@@ -37,18 +37,27 @@ export function consumePendingWebPushNav(): string | null {
 function handlePayload(payload: any) {
   if (!payload) return;
   const rawUrl: string | undefined = payload.url;
-  const url = normalizeNotificationChatUrl(payload.data || payload, rawUrl) || rawUrl;
+  const data = payload.data || payload;
+  console.log("[WebNotificationLaunch] tap received", {
+    notificationId: data?.notificationId ?? data?.id ?? null,
+    type: data?.notificationType || data?.type || null,
+    message_id: data?.message_id || data?.messageId || null,
+    related_id: data?.related_id || null,
+    author_id: data?.author_id || data?.sender_id || null,
+    rawUrl,
+  });
+  const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
   if (url) {
     pendingUrl = url;
     persist(url);
     // Persist the exact message target before React navigation starts, so
     // chat pages can still jump correctly if the search param is dropped.
-    try { captureJumpFromNotification(payload.data || payload, url); } catch {}
+    try { captureJumpFromNotification(data, url); } catch {}
   }
   // Best-effort preload — payload may contain the full push data so the chat
   // page can render the new message instantly. Safe no-op if fields missing.
   try {
-    preloadMessageFromNotification(payload.data || payload);
+    preloadMessageFromNotification(data);
   } catch {}
 }
 
