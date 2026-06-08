@@ -1672,7 +1672,8 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
               <Label>Finals format</Label>
               <Select value={format} onValueChange={(v) => setFormat(v as FinalsFormat)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100000]">
+
                   <SelectItem value="gf">Grand Final only (1 v 2)</SelectItem>
                   <SelectItem value="top4">Top 4 (1v2, 3v4)</SelectItem>
                   <SelectItem value="top6">Top 6 (1v2, 3v4, 5v6)</SelectItem>
