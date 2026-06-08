@@ -163,10 +163,16 @@ export default function BroadcastChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "broadcast" ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
-  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
+  const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
+    urlMessageId,
+    urlJumpNonce,
+    liveJumpId,
+    liveJumpTs: liveJump?.ts,
+    fallbackJumpId,
+  });
   const targetParentId = searchParams.get("parent");
+
 
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
