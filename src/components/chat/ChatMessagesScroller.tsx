@@ -177,13 +177,21 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
+  // When the keyboard is closed the composer is positioned at
+  // `bottom: var(--bottom-nav-offset)` (which already folds in
+  // safe-area-inset-bottom when the bottom nav is visible, and collapses to
+  // 0 when nav is hidden). We must reserve that offset PLUS the composer
+  // height PLUS the gap, otherwise the last message bubble + its metadata
+  // strip ("18:11 / Sent") gets clipped behind the composer when bottom nav
+  // is present. Falling back to env(safe-area-inset-bottom) via `max` keeps
+  // the home indicator clear when nav is hidden.
   const bottomPad = useMemo(
     () =>
       searchOpen
         ? 16
         : isKeyboardOpen
         ? safeComposer + COMPOSER_GAP
-        : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`,
+        : `calc(${safeComposer + COMPOSER_GAP}px + max(var(--bottom-nav-offset, 0px), env(safe-area-inset-bottom, 0px)))`,
     [searchOpen, isKeyboardOpen, safeComposer],
   );
 
