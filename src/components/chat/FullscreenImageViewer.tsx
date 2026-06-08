@@ -426,16 +426,26 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+            disabled={isDownloading}
+            className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11 disabled:opacity-60"
             aria-label="Download"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              if (isDownloadInFlight(effectiveSrc)) return;
-              const kind = isVideoUrl(effectiveSrc) ? "video" : "photo";
-              void downloadMedia(effectiveSrc, kind);
+              if (isDownloading || isDownloadInFlight(effectiveSrc)) return;
+              setIsDownloading(true);
+              try {
+                const kind = isVideoUrl(effectiveSrc) ? "video" : "photo";
+                await downloadMedia(effectiveSrc, kind);
+              } finally {
+                setIsDownloading(false);
+              }
             }}
           >
-            <Download className="h-5 w-5" />
+            {isDownloading ? (
+              <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Download className="h-5 w-5" />
+            )}
           </Button>
           <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
