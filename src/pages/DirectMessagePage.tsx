@@ -22,6 +22,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -282,13 +283,14 @@ export default function DirectMessagePage() {
   }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages (DM)
+  const chatReady = useChatPageReady();
   const {
     pins: pinnedMessages,
     pinnedMessageIds,
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("dm", conversationId);
+  } = usePinnedMessages("dm", conversationId, { enabled: chatReady });
   const handleJumpToPinned = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,

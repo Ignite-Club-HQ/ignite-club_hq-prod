@@ -3,6 +3,7 @@ import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpP
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -174,6 +175,10 @@ export default function TeamChatPage() {
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
+  // Gate non-critical chat-page queries (pinned, vault, club-pro, online count)
+  // until after first paint + idle so they don't compete with the messages
+  // fetch and visual-settle window on notification opens.
+  const chatReady = useChatPageReady();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -277,7 +282,7 @@ export default function TeamChatPage() {
     unpin: unpinMessage,
     canPinMore,
     isLoading: pinnedMessagesLoading,
-  } = usePinnedMessages("team", teamId);
+  } = usePinnedMessages("team", teamId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -384,8 +389,8 @@ export default function TeamChatPage() {
   });
 
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("team", teamId);
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null);
+  const pinnedVault = useChatPinnedVault("team", teamId, { enabled: chatReady });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !clubProLoading && !clubHasPro;
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
@@ -1574,7 +1579,7 @@ export default function TeamChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   // Live online count for the team — only shown in the header sublabel when > 0.
-  const teamOnlineCount = useChatOnlineCount("team", teamId);
+  const teamOnlineCount = useChatOnlineCount("team", teamId, { enabled: chatReady });
   const onlineLabel = teamOnlineCount > 0 ? `${teamOnlineCount} online` : null;
   const teamHeaderSublabel = team?.clubs?.name
     ? onlineLabel

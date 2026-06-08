@@ -25,6 +25,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
+import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
@@ -234,7 +235,8 @@ export default function GroupChatPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("group", groupId);
+  const chatReady = useChatPageReady();
+  const pinnedVault = useChatPinnedVault("group", groupId, { enabled: chatReady });
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -315,7 +317,7 @@ export default function GroupChatPage() {
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("group", groupId);
+  } = usePinnedMessages("group", groupId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
@@ -355,7 +357,7 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null);
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
 
   // Sync active club to this group's owning club so push-launched threads
@@ -1850,7 +1852,7 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
-    enabled: !!group,
+    enabled: !!group && chatReady,
   });
 
   const {

@@ -5,10 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
  * Returns whether the given club has active Pro or Pro Football access,
  * including admin overrides. Used to gate Pro-only features client-side.
  */
-export function useClubProAccess(clubId: string | null | undefined) {
+export function useClubProAccess(
+  clubId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  const enabled = (options?.enabled ?? true) && !!clubId;
   const { data, isLoading } = useQuery({
     queryKey: ["club-pro-access", clubId],
-    enabled: !!clubId,
+    enabled,
     staleTime: 60_000,
     queryFn: async () => {
       const { data: sub } = await supabase
