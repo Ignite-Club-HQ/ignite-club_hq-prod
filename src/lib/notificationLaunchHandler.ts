@@ -16,6 +16,7 @@
  *     consumers can react without re-registering plugin listeners.
  */
 
+import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 
