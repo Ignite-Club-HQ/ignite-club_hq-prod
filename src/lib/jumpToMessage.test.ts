@@ -5,6 +5,7 @@ type Msg = { id: string };
 
 const makeHandle = () => ({
   scrollToIndex: vi.fn(),
+  scrollToMessageId: vi.fn(() => true),
   scrollToBottom: vi.fn(),
 });
 
@@ -180,6 +181,9 @@ describe("jumpToMessageInVirtualizedChat", () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(handle.scrollToIndex).toHaveBeenCalledWith(63, "center");
     expect(handle.scrollToIndex).toHaveBeenCalledWith(63, "end");
+    expect(handle.scrollToMessageId).toHaveBeenCalledWith("f3684898-38dd-4e25-8cf7-739bb0d76f16", "end");
+    expect(handle.scrollToMessageId).not.toHaveBeenCalledWith("7df96591-8532-4c27-aa89-dadc5795a3f7", expect.anything());
+    expect(handle.scrollToMessageId).not.toHaveBeenCalledWith("c6d02218-252b-4034-a591-273bef15ff4c", expect.anything());
   });
 
   it("returns a cancel function that stops further scroll/highlight work", async () => {
