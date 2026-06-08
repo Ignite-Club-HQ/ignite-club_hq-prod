@@ -593,26 +593,23 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             <MessageContent text={msg.text} previewsOnly />
           </div>
 
-          {isOwnMessage && frontierReaders.length > 0 ? (
-            <div className="flex items-baseline gap-1 justify-end mt-0.5 px-0.5">
-              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
-                {format(new Date(msg.created_at), "HH:mm")}
-              </span>
-              <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
-                <MessageReadAvatars readers={frontierReaders} isOwn={true} />
-              </div>
-            </div>
-          ) : isOwnMessage ? (
-            <div className="mt-0.5 px-0.5 flex items-baseline gap-1 justify-end">
-              <span className="text-[10px] leading-none text-muted-foreground/55 tabular-nums tracking-tight">
-                {format(new Date(msg.created_at), "HH:mm")}
-              </span>
-              <span
-                className={(readCounts[msg.id] || 0) > 0 ? "cursor-pointer" : ""}
-                onClick={(readCounts[msg.id] || 0) > 0 ? () => setShowReadReceipts(true) : undefined}
-              >
+          {/* Unified two-block metadata to match Team chat (ChatMessage):
+              line 1 = timestamp + inline "Sent" indicator (always),
+              line 2 = reader avatars block (only when readers exist).
+              Keeping the same vertical footprint as Team is what lets the
+              shared `COMPOSER_GAP=32px` in ChatMessagesScroller land the
+              bottom-of-thread at the same visual offset across chat types. */}
+          {isOwnMessage ? (
+            <p className="text-[10px] leading-none text-muted-foreground/55 mt-1.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
+              <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+              {frontierReaders.length === 0 ? (
                 <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
-              </span>
+              ) : null}
+            </p>
+          ) : null}
+          {isOwnMessage && frontierReaders.length > 0 ? (
+            <div className="cursor-pointer self-end pr-0.5" onClick={() => setShowReadReceipts(true)}>
+              <MessageReadAvatars readers={frontierReaders} isOwn={true} />
             </div>
           ) : null}
 
