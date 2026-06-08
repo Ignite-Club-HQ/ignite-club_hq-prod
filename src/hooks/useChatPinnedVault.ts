@@ -51,7 +51,7 @@ export function useChatPinnedVault(
   });
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !enabledOpt) return;
     const channel = supabase
       .channel(`chat-pinned-vault-${chatType}-${chatId}`)
       .on(
