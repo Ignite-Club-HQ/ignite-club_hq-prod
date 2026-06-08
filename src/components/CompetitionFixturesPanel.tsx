@@ -232,6 +232,48 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     });
   }, [pairings, genFirstRoundDate, genEndDate, genWeekdays, genDayStart, genDayEnd, durationNum, pitchCount, pitchLabels, genFrequency, customDaysNum, genMode, occupiedByDate, roundDateOverrides]);
 
+  // Finals fixtures (placeholder/TBD teams), placed on the next allowed day
+  // strictly after the last regular round's last date.
+  const finalsPlaced = useMemo<PlacedFixture[]>(() => {
+    if (!genAddFinals || !schedule || schedule.placed.length === 0) return [];
+    // Find the last scheduled date across regular rounds
+    let last: Date | null = null;
+    for (const p of schedule.placed) {
+      if (p.scheduledAt && (!last || p.scheduledAt.getTime() > last.getTime())) last = p.scheduledAt;
+    }
+    if (!last) return [];
+    const lastRegularRound = Math.max(...schedule.placed.map((p) => p.round));
+    const dayStartMins = parseTimeToMins(genDayStart, 9 * 60);
+    const dayEndMins = parseTimeToMins(genDayEnd, 16 * 60);
+    // Use a fresh local copy so we don't mutate the memo's pool
+    const pool = new Map<string, OccupiedSlot[]>();
+    occupiedByDate.forEach((v, k) => pool.set(k, [...v]));
+    for (const p of schedule.placed) {
+      if (!p.scheduledAt || !p.pitch) continue;
+      const key = dateKey(p.scheduledAt);
+      const startMins = p.scheduledAt.getHours() * 60 + p.scheduledAt.getMinutes();
+      const list = pool.get(key) ?? [];
+      list.push({ startMins, endMins: startMins + (durationNum || 60), pitch: p.pitch });
+      pool.set(key, list);
+    }
+    return placeFinalsFixtures({
+      round: lastRegularRound + 1,
+      format: genFinalsFormat,
+      afterDate: last,
+      allowedWeekdays: genWeekdays,
+      dayStartMins,
+      dayEndMins,
+      durationMins: durationNum || 60,
+      pitchLabels,
+      occupiedByDate: pool,
+    });
+  }, [genAddFinals, genFinalsFormat, schedule, genDayStart, genDayEnd, genWeekdays, durationNum, pitchLabels, occupiedByDate]);
+
+  const allPlaced = useMemo<PlacedFixture[]>(
+    () => (schedule ? [...schedule.placed, ...finalsPlaced] : []),
+    [schedule, finalsPlaced]
+  );
+
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const t of teamsInScope as any[]) m.set(t.id, t.name);
