@@ -2469,7 +2469,7 @@ export type Database = {
           arrival_minutes_before: number | null
           away_event_id: string | null
           away_score: number | null
-          away_team_id: string
+          away_team_id: string | null
           competition_id: string
           created_at: string
           created_by: string | null
@@ -2477,7 +2477,7 @@ export type Database = {
           duration_minutes: number | null
           home_event_id: string | null
           home_score: number | null
-          home_team_id: string
+          home_team_id: string | null
           id: string
           notes: string | null
           pitch_number: string | null
@@ -2491,7 +2491,7 @@ export type Database = {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
           away_score?: number | null
-          away_team_id: string
+          away_team_id?: string | null
           competition_id: string
           created_at?: string
           created_by?: string | null
@@ -2499,7 +2499,7 @@ export type Database = {
           duration_minutes?: number | null
           home_event_id?: string | null
           home_score?: number | null
-          home_team_id: string
+          home_team_id?: string | null
           id?: string
           notes?: string | null
           pitch_number?: string | null
@@ -2513,7 +2513,7 @@ export type Database = {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
           away_score?: number | null
-          away_team_id?: string
+          away_team_id?: string | null
           competition_id?: string
           created_at?: string
           created_by?: string | null
@@ -2521,7 +2521,7 @@ export type Database = {
           duration_minutes?: number | null
           home_event_id?: string | null
           home_score?: number | null
-          home_team_id?: string
+          home_team_id?: string | null
           id?: string
           notes?: string | null
           pitch_number?: string | null

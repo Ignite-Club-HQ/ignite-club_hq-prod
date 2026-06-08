@@ -8,12 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   buildRoundRobinPairings,
   scheduleFixtures,
+  placeFinalsFixtures,
+  buildFinalsSeedPairings,
   parseTimeToMins,
   dateKey,
   type Frequency,
   type SchedulingMode,
   type OccupiedSlot,
   type PlacedFixture,
+  type FinalsFormat,
 } from "@/lib/competitionScheduler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,6 +116,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
   const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
   const [genMode, setGenMode] = useState<SchedulingMode>("stagger");
+  const [genMaxRounds, setGenMaxRounds] = useState<string>(""); // empty = full round-robin
+  const [genAddFinals, setGenAddFinals] = useState<boolean>(false);
+  const [genFinalsFormat, setGenFinalsFormat] = useState<FinalsFormat>("gf");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -194,8 +200,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     const ids = shuffleSeed > 0
       ? shuffleArray(teamsInScope.map((t: any) => t.id))
       : teamsInScope.map((t: any) => t.id);
-    return buildRoundRobinPairings(ids);
-  }, [teamsInScope, shuffleSeed]);
+    const all = buildRoundRobinPairings(ids);
+    const maxR = Math.max(0, Number(genMaxRounds) || 0);
+    if (maxR > 0) return all.filter((p) => p.round <= maxR);
+    return all;
+  }, [teamsInScope, shuffleSeed, genMaxRounds]);
 
   // Live scheduling pass: same logic used at save time
   const schedule = useMemo(() => {
@@ -223,6 +232,48 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     });
   }, [pairings, genFirstRoundDate, genEndDate, genWeekdays, genDayStart, genDayEnd, durationNum, pitchCount, pitchLabels, genFrequency, customDaysNum, genMode, occupiedByDate, roundDateOverrides]);
 
+  // Finals fixtures (placeholder/TBD teams), placed on the next allowed day
+  // strictly after the last regular round's last date.
+  const finalsPlaced = useMemo<PlacedFixture[]>(() => {
+    if (!genAddFinals || !schedule || schedule.placed.length === 0) return [];
+    // Find the last scheduled date across regular rounds
+    let last: Date | null = null;
+    for (const p of schedule.placed) {
+      if (p.scheduledAt && (!last || p.scheduledAt.getTime() > last.getTime())) last = p.scheduledAt;
+    }
+    if (!last) return [];
+    const lastRegularRound = Math.max(...schedule.placed.map((p) => p.round));
+    const dayStartMins = parseTimeToMins(genDayStart, 9 * 60);
+    const dayEndMins = parseTimeToMins(genDayEnd, 16 * 60);
+    // Use a fresh local copy so we don't mutate the memo's pool
+    const pool = new Map<string, OccupiedSlot[]>();
+    occupiedByDate.forEach((v, k) => pool.set(k, [...v]));
+    for (const p of schedule.placed) {
+      if (!p.scheduledAt || !p.pitch) continue;
+      const key = dateKey(p.scheduledAt);
+      const startMins = p.scheduledAt.getHours() * 60 + p.scheduledAt.getMinutes();
+      const list = pool.get(key) ?? [];
+      list.push({ startMins, endMins: startMins + (durationNum || 60), pitch: p.pitch });
+      pool.set(key, list);
+    }
+    return placeFinalsFixtures({
+      round: lastRegularRound + 1,
+      format: genFinalsFormat,
+      afterDate: last,
+      allowedWeekdays: genWeekdays,
+      dayStartMins,
+      dayEndMins,
+      durationMins: durationNum || 60,
+      pitchLabels,
+      occupiedByDate: pool,
+    });
+  }, [genAddFinals, genFinalsFormat, schedule, genDayStart, genDayEnd, genWeekdays, durationNum, pitchLabels, occupiedByDate]);
+
+  const allPlaced = useMemo<PlacedFixture[]>(
+    () => (schedule ? [...schedule.placed, ...finalsPlaced] : []),
+    [schedule, finalsPlaced]
+  );
+
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const t of teamsInScope as any[]) m.set(t.id, t.name);
@@ -242,22 +293,22 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       : null;
     return {
       teamCount: teamsInScope.length,
-      rounds: totalRounds,
-      totalMatches: schedule.placed.length,
+      rounds: totalRounds + (finalsPlaced.length > 0 ? 1 : 0),
+      totalMatches: schedule.placed.length + finalsPlaced.length,
+      finalsCount: finalsPlaced.length,
       firstDate,
       finishDate,
       overflowRounds: schedule.overflowRounds,
       unscheduledCount: schedule.unscheduled.length,
     };
-  }, [schedule, teamsInScope.length]);
+  }, [schedule, teamsInScope.length, finalsPlaced]);
 
   // Map placed fixtures by round → list ordered by scheduled_at.
   // Keep this before any conditional return so hook order is stable while the
   // fixtures query moves from loading to loaded.
   const placedByRound = useMemo(() => {
     const m = new Map<number, PlacedFixture[]>();
-    if (!schedule) return m;
-    for (const p of schedule.placed) {
+    for (const p of allPlaced) {
       if (!m.has(p.round)) m.set(p.round, []);
       m.get(p.round)!.push(p);
     }
@@ -270,7 +321,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       });
     }
     return m;
-  }, [schedule]);
+  }, [allPlaced]);
+
+  const finalsRoundNumber = useMemo(
+    () => (finalsPlaced.length > 0 ? finalsPlaced[0].round : null),
+    [finalsPlaced]
+  );
 
   const toggleWeekday = (d: number) => {
     setWeekdaysDirty(true);
@@ -330,7 +386,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setGenerating(true);
     const arrival = genArrival ? Number(genArrival) : null;
     const startRoundOffset = Math.max(1, Number(genStartRound) || 1) - 1;
-    const rows = schedule.placed.map((p) => ({
+    const rows = allPlaced.map((p) => ({
       competition_id: competitionId,
       division_id: genDivisionId || null,
       round_number: startRoundOffset + p.round,
@@ -343,6 +399,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       pitch_number: p.pitch,
       duration_minutes: durationNum || null,
       arrival_minutes_before: arrival,
+      notes: p.note ?? null,
     }));
     if (rows.length === 0) {
       setGenerating(false);
@@ -373,6 +430,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setGenWeekdays([]); setWeekdaysDirty(false);
     setGenFrequency("weekly"); setGenCustomDays("7"); setGenEndDate(""); setGenStartRound("1");
     setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
+    setGenMaxRounds(""); setGenAddFinals(false); setGenFinalsFormat("gf");
     setAdvancedOpen(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
   };
@@ -535,6 +593,58 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       </div>
                     </div>
 
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rounds & finals</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <Label>Max regular rounds (optional)</Label>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            value={genMaxRounds}
+                            onChange={(e) => setGenMaxRounds(e.target.value)}
+                            placeholder={teamsInScope.length >= 2 ? `Full round-robin = ${teamsInScope.length % 2 === 0 ? teamsInScope.length - 1 : teamsInScope.length} rounds` : "e.g. 7"}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Cap the league phase. Leave blank for a full round-robin.
+                          </p>
+                        </div>
+                        <div className="col-span-2 flex items-start gap-2 rounded-md border bg-muted/30 p-2.5">
+                          <input
+                            id="add-finals"
+                            type="checkbox"
+                            checked={genAddFinals}
+                            onChange={(e) => setGenAddFinals(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 accent-primary"
+                          />
+                          <label htmlFor="add-finals" className="flex-1 text-sm cursor-pointer">
+                            <div className="font-medium">Add a finals round at the end</div>
+                            <div className="text-xs text-muted-foreground">
+                              Schedules a finals week on the next play day after the last regular round. Teams are TBD and locked in by final standings.
+                            </div>
+                          </label>
+                        </div>
+                        {genAddFinals && (
+                          <div className="col-span-2">
+                            <Label>Finals format</Label>
+                            <Select value={genFinalsFormat} onValueChange={(v) => setGenFinalsFormat(v as FinalsFormat)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="gf">Grand Final only (1 v 2)</SelectItem>
+                                <SelectItem value="top4">Top 4 (1v2, 3v4)</SelectItem>
+                                <SelectItem value="top6">Top 6 (1v2, 3v4, 5v6)</SelectItem>
+                                <SelectItem value="top8">Top 8 (1v2, 3v4, 5v6, 7v8)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {buildFinalsSeedPairings(genFinalsFormat).length} finals match{buildFinalsSeedPairings(genFinalsFormat).length === 1 ? "" : "es"} will be added with placeholder teams.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2">
                         <Label>Default venue <span className="text-destructive">*</span></Label>
@@ -675,7 +785,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-semibold text-base">Fixture preview</div>
                       <Badge variant="secondary" className="text-xs font-medium">
-                        {schedule?.placed.length ?? 0} matches
+                        {allPlaced.length} matches
                       </Badge>
                     </div>
                     {summary?.unscheduledCount ? (
@@ -686,39 +796,44 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     ) : null}
                     <div className="space-y-3 max-h-[55vh] overflow-y-auto -mx-1 px-1">
                       {Array.from(placedByRound.entries()).map(([round, list]) => {
+                        const isFinalsRound = finalsRoundNumber === round;
                         const playingIds = new Set<string>();
-                        list.forEach((p) => { playingIds.add(p.home); playingIds.add(p.away); });
-                        const byeTeams = teamsInScope.filter((t: any) => !playingIds.has(t.id));
+                        list.forEach((p) => { if (p.home) playingIds.add(p.home); if (p.away) playingIds.add(p.away); });
+                        const byeTeams = isFinalsRound ? [] : teamsInScope.filter((t: any) => !playingIds.has(t.id));
                         const datesInRound = Array.from(new Set(list.map((p) => p.scheduledAt ? dateKey(p.scheduledAt) : "—")));
                         const overrideValue = roundDateOverrides.get(round) ?? (datesInRound[0] !== "—" ? datesInRound[0] : "");
                         return (
                           <div key={round} className="rounded-lg border bg-card overflow-hidden">
                             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
                               <div className="flex items-baseline gap-2 min-w-0">
-                                <span className="text-sm font-semibold">Round {round}</span>
+                                <span className="text-sm font-semibold">
+                                  {isFinalsRound ? `Finals (Round ${round})` : `Round ${round}`}
+                                </span>
                                 <span className="text-[11px] text-muted-foreground shrink-0">
                                   {list.length} {list.length === 1 ? "match" : "matches"}
                                   {datesInRound.length > 1 ? ` · ${datesInRound.length} days` : ""}
                                 </span>
                               </div>
-                              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <CalendarDays className="h-3 w-3" />
-                                <span>Move to:</span>
-                                <input
-                                  type="date"
-                                  value={overrideValue}
-                                  onChange={(e) => setRoundDate(round, e.target.value)}
-                                  className="h-7 px-1.5 py-0.5 text-xs bg-background border border-input rounded"
-                                />
-                              </label>
+                              {!isFinalsRound && (
+                                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <CalendarDays className="h-3 w-3" />
+                                  <span>Move to:</span>
+                                  <input
+                                    type="date"
+                                    value={overrideValue}
+                                    onChange={(e) => setRoundDate(round, e.target.value)}
+                                    className="h-7 px-1.5 py-0.5 text-xs bg-background border border-input rounded"
+                                  />
+                                </label>
+                              )}
                             </div>
                             <ul className="divide-y">
                               {list.map((p, i) => {
                                 const timeLabel = p.scheduledAt
                                   ? format(p.scheduledAt, "EEE d MMM · HH:mm")
                                   : "(unscheduled)";
-                                const homeName = nameById.get(p.home) ?? "?";
-                                const awayName = nameById.get(p.away) ?? "?";
+                                const homeName = p.homeLabel ?? (p.home ? (nameById.get(p.home) ?? "?") : "TBD");
+                                const awayName = p.awayLabel ?? (p.away ? (nameById.get(p.away) ?? "?") : "TBD");
                                 return (
                                   <li key={i} className="px-3 py-2.5">
                                     <div className="flex items-center gap-2">
@@ -726,6 +841,11 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                                       <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">vs</span>
                                       <span className="flex-1 min-w-0 text-sm font-medium text-left truncate">{awayName}</span>
                                     </div>
+                                    {p.note && (
+                                      <div className="mt-0.5 text-center text-[11px] font-medium text-primary">
+                                        {p.note}
+                                      </div>
+                                    )}
                                     <div className="mt-1 flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
                                       <span>{timeLabel}</span>
                                       {p.pitch && <span>· Pitch {p.pitch}</span>}
@@ -744,7 +864,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       })}
                     </div>
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
-                      <Button onClick={saveFixtures} disabled={generating || (schedule?.placed.length ?? 0) === 0} className="w-full sm:w-auto min-h-11">
+                      <Button onClick={saveFixtures} disabled={generating || allPlaced.length === 0} className="w-full sm:w-auto min-h-11">
                         {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                         Save fixtures
                       </Button>
