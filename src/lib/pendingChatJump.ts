@@ -19,6 +19,7 @@ import { setFromNotificationFlag } from "@/lib/notificationPreload";
 const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
 const JUMP_EVENT = "ignite:pending-chat-jump";
+let lastConsumedJump: StoredJump | null = null;
 
 export type ChatJumpKind = "team" | "club" | "group" | "dm" | "broadcast" | "club_admin";
 
@@ -96,6 +97,11 @@ export function setPendingChatJump(kind: ChatJumpKind, targetId: string | null, 
   } catch {
     /* ignore */
   }
+}
+
+export function getLastConsumedPendingChatJumpTs(messageId: string | null): number | undefined {
+  if (!messageId) return undefined;
+  return lastConsumedJump?.messageId === messageId ? lastConsumedJump.ts : undefined;
 }
 
 function pickMessageId(data: any, parsed?: URL): string | null {
@@ -216,6 +222,7 @@ export function consumePendingChatJump(kind: ChatJumpKind, targetId: string | nu
   } catch {
     /* ignore */
   }
+  lastConsumedJump = stored;
   return stored.messageId;
 }
 
