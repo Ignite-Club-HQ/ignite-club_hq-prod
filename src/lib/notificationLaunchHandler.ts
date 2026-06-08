@@ -211,14 +211,12 @@ export function initNotificationLaunchHandler() {
 
   console.log('[NotificationLaunch] Initializing single notification tap listener');
 
-  import('@capacitor/push-notifications')
-    .then(({ PushNotifications }) => {
-      PushNotifications.addListener('pushNotificationActionPerformed', handleNotificationTap);
-      checkLaunchNotification(PushNotifications);
-    })
-    .catch((err) => {
-      console.warn('[NotificationLaunch] Failed to load PushNotifications:', err);
-    });
+  try {
+    PushNotifications.addListener('pushNotificationActionPerformed', handleNotificationTap);
+    void checkLaunchNotification(PushNotifications);
+  } catch (err) {
+    console.warn('[NotificationLaunch] Failed to register PushNotifications listener:', err);
+  }
 }
 
 async function checkLaunchNotification(PushNotifications: any) {
