@@ -88,6 +88,15 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     settleTimers = [];
   };
 
+  // Counter used to defeat Virtuoso's scrollToIndex deduplication. When the
+  // target row is already in (or near) the rendered window — which is the
+  // common case for the SECOND tap of the same notification — Virtuoso will
+  // treat an identical scrollToIndex payload as a no-op and the viewport
+  // never re-anchors, leaving the highlighted row "higher up" than expected.
+  // By varying the payload (via the index passed to the handle, which the
+  // handle then clamps), each pass is treated as a distinct request.
+  let passCounter = 0;
+
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
     // Notification/search/reply jumps should land the target at the bottom of
@@ -97,7 +106,14 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // source of the observed behaviour: the correct row highlighted, but it
     // was not consistently visible in the expected bottom slot.
     const align: "end" = "end";
+    // Priming nudge: if the row is already in the rendered window from a
+    // previous jump, jiggle the scroll position by one index first so the
+    // subsequent end-aligned call is recognised as a fresh request rather
+    // than a duplicate of the prior one. The nudge target is clamped by the
+    // handle, so passing idx+1 is safe even at the tail of the list.
+    handle.scrollToIndex(Math.max(0, idx - 1), "start");
     handle.scrollToIndex(idx, align);
+    passCounter += 1;
     // Multi-pass settle: row heights shift as deferred sub-content (link
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
     // scrollToIndex. Re-centre across a ~1.8s window with `isChatJumpActive`
@@ -121,6 +137,13 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       const messages3 = getMessages();
       const idx3 = messages3.findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) {
+        // Alternate a 1px upward nudge on every other pass so two
+        // consecutive recenters never present identical payloads to
+        // Virtuoso (which would dedupe the second one to a no-op).
+        passCounter += 1;
+        if (passCounter % 2 === 0) {
+          h3.scrollToIndex(Math.max(0, idx3 - 1), "start");
+        }
         h3.scrollToIndex(idx3, align);
       }
     };
@@ -139,6 +162,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       setHighlightedMessageId(null);
     }, highlightDurationMs);
   };
+
 
 
   const tick = () => {
