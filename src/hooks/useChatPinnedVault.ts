@@ -70,7 +70,7 @@ export function useChatPinnedVault(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [chatType, chatId, qc]);
+  }, [chatType, chatId, qc, enabledOpt]);
 
   const save = useMutation({
     mutationFn: async (input: PinnedVaultTarget & { enabled?: boolean }) => {
