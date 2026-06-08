@@ -864,7 +864,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                       })}
                     </div>
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
-                      <Button onClick={saveFixtures} disabled={generating || (schedule?.placed.length ?? 0) === 0} className="w-full sm:w-auto min-h-11">
+                      <Button onClick={saveFixtures} disabled={generating || allPlaced.length === 0} className="w-full sm:w-auto min-h-11">
                         {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                         Save fixtures
                       </Button>
