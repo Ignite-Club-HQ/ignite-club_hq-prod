@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -217,11 +218,16 @@ export default function ClubChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "club" && liveJump.targetId === clubId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     clubId ? consumePendingChatJump("club", clubId) : null,
   );
-  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
+  const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
+    urlMessageId,
+    urlJumpNonce,
+    liveJumpId,
+    liveJumpTs: liveJump?.ts,
+    fallbackJumpId,
+  });
   const targetParentId = searchParams.get("parent");
 
 
