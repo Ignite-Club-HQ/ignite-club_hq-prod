@@ -303,7 +303,8 @@ export function PhotoLightbox({
   const handleDownload = async () => {
     const url = downloadSignedUrl || photoSrc;
     if (!url) return;
-    if (isDownloadInFlight(url)) return;
+    if (isDownloading || isDownloadInFlight(url)) return;
+    setIsDownloading(true);
     downloadCloseGuardRef.current = true;
     try {
       const kind = isVideoUrl(url) ? "video" : "photo";
@@ -312,6 +313,7 @@ export function PhotoLightbox({
       console.warn("Download failed:", err);
       toast.error("Could not download");
     } finally {
+      setIsDownloading(false);
       setTimeout(() => {
         downloadCloseGuardRef.current = false;
       }, 750);
