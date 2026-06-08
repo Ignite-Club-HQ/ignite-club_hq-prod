@@ -437,13 +437,13 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: "single" | "series"; customMessage?: string; sendPushNotification?: boolean }) => {
       if (cancelType === "series" && event.parent_event_id) {
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", event.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.parent_event_id);
       } else if (cancelType === "series" && event.is_recurring) {
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", event.id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.id);
+        await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.id);
       } else {
-        const { error } = await supabase.from("events").update({ is_cancelled: true }).eq("id", event.id);
+        const { error } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.id);
         if (error) throw error;
       }
 
