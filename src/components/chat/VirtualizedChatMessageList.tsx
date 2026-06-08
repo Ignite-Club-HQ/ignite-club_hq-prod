@@ -812,12 +812,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // a duplicate ever slips in we still want the FIRST occurrence (index 0)
   // to be the anchor, which matches `uniqueMessages[0]`.
   const baseFirstId = anchorRef.current.baseFirstId;
-  const baseOffset =
-    messages.length === 0
-      ? 0
-      : baseFirstId
-      ? messages.findIndex((message) => message.id === baseFirstId)
-      : -1;
+  // Memoise the O(n) anchor lookup. Without this it runs on every parent
+  // render (200+ comparisons on a typical chat) and during a prepend +
+  // Virtuoso measurement burst it can fire 20-40×/s, adding pure main-thread
+  // jank to the fast-scroll budget.
+  const baseOffset = useMemo(() => {
+    if (messages.length === 0) return 0;
+    if (!baseFirstId) return -1;
+    return messages.findIndex((message) => message.id === baseFirstId);
+  }, [messages, baseFirstId]);
   const needsAnchorReset = messages.length > 0 && (!baseFirstId || baseOffset === -1);
   const effectiveBaseIndex = needsAnchorReset
     ? START_INDEX - messages.length
@@ -1305,6 +1308,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Hard guard: if the user is clearly mid-history (>200px from bottom),
+      // never re-pin from a ResizeObserver callback. The 600ms cooldown on
+      // `isViewportUserActive` can let a settled fast-fling slip through and
+      // the synchronous scrollTop write here would race Virtuoso's own
+      // paddingTop patch in the same paint frame, producing the classic
+      // "jitter then snap" symptom users see on fast scroll-up.
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (distanceFromBottom > 200) return;
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.
@@ -1384,6 +1396,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       previousLastMessageId === lastMessageId &&
       !messagesLengthChanged &&
       bottomPinReadyRef.current
+    ) return;
+    // PREPEND GUARD: when lastMessageId is unchanged but length grew, an
+    // older page just landed (Load More / startReached). The user is mid-
+    // history during a fast upward fling — never re-pin to LAST. The
+    // `userHasScrolledAfterPinRef` guard inside `run()` has a 600ms cooldown
+    // that can let a settled fling slip through, and the synchronous +
+    // 200ms/600ms timers would yank the viewport to the bottom mid-scroll.
+    if (
+      messagesLengthChanged &&
+      previousLastMessageId === lastMessageId &&
+      !atBottomRef.current
     ) return;
 
     const run = () => {
