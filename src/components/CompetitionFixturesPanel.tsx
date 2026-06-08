@@ -386,7 +386,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setGenerating(true);
     const arrival = genArrival ? Number(genArrival) : null;
     const startRoundOffset = Math.max(1, Number(genStartRound) || 1) - 1;
-    const rows = schedule.placed.map((p) => ({
+    const rows = allPlaced.map((p) => ({
       competition_id: competitionId,
       division_id: genDivisionId || null,
       round_number: startRoundOffset + p.round,
@@ -399,6 +399,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       pitch_number: p.pitch,
       duration_minutes: durationNum || null,
       arrival_minutes_before: arrival,
+      notes: p.note ?? null,
     }));
     if (rows.length === 0) {
       setGenerating(false);
