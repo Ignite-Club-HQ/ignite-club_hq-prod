@@ -424,19 +424,25 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         {/* Outgoing messages never show the sender avatar — modern messaging
             apps rely on right-alignment + bubble colour for ownership cues. */}
         {!isOwnMessage && (
-          <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
-            <AvatarImage src={avatarUrl} className="object-cover" />
-            <AvatarFallback
-              className="text-[13px] font-semibold tracking-tight"
-              style={getAvatarFallbackStyle(displayName)}
-            >
-              {getAvatarInitial(displayName)}
-            </AvatarFallback>
-          </Avatar>
+          groupedWithPrev ? (
+            // Spacer keeps bubble aligned under the avatar of the first
+            // message in the burst — matches Team/Club grouping behaviour.
+            <div className="h-9 w-9 shrink-0" aria-hidden="true" />
+          ) : (
+            <Avatar className="h-9 w-9 shrink-0 ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-[0_1px_2px_-1px_rgba(0,0,0,0.12)]">
+              <AvatarImage src={avatarUrl} className="object-cover" />
+              <AvatarFallback
+                className="text-[13px] font-semibold tracking-tight"
+                style={getAvatarFallbackStyle(displayName)}
+              >
+                {getAvatarInitial(displayName)}
+              </AvatarFallback>
+            </Avatar>
+          )
         )}
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-          {!isOwnMessage && (
+          {!isOwnMessage && !groupedWithPrev && (
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[12px] font-semibold text-foreground/85 tracking-[-0.005em]">{displayName}</span>
               {msg.id.startsWith("queued-") && (
