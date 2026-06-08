@@ -497,10 +497,14 @@ function TeamsByDivision({
     }
     let cleared = false;
     if (alsoClear && teamId) {
+      // IMPORTANT: never delete completed matches — those carry the team's
+      // points/results which now follow them to the new division via the
+      // competition_ladder view. Only clear scheduled/pending fixtures.
       let dq = supabase
         .from("competition_matches")
         .delete()
         .eq("competition_id", competitionId)
+        .neq("status", "completed")
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
       if (affectedDivisionIds.length > 0) dq = dq.in("division_id", affectedDivisionIds);
       const { error: delErr } = await dq;
