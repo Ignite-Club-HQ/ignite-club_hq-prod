@@ -1311,7 +1311,7 @@ export default function ClubChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   // Live online count for the club — only shown in the header sublabel when > 0.
-  const clubOnlineCount = useChatOnlineCount("club", clubId);
+  const clubOnlineCount = useChatOnlineCount("club", clubId, { enabled: chatReady });
   const clubHeaderSublabel = clubOnlineCount > 0
     ? `Club chat · ${clubOnlineCount} online`
     : "Club chat";
