@@ -1308,6 +1308,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Hard guard: if the user is clearly mid-history (>200px from bottom),
+      // never re-pin from a ResizeObserver callback. The 600ms cooldown on
+      // `isViewportUserActive` can let a settled fast-fling slip through and
+      // the synchronous scrollTop write here would race Virtuoso's own
+      // paddingTop patch in the same paint frame, producing the classic
+      // "jitter then snap" symptom users see on fast scroll-up.
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (distanceFromBottom > 200) return;
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.
