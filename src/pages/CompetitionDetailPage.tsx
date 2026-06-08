@@ -523,6 +523,7 @@ function TeamsByDivision({
     });
     qc.invalidateQueries({ queryKey: ["competition-entries", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No teams yet.</p>;
