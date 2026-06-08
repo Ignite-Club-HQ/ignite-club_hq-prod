@@ -129,6 +129,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       if (!h || currentIdx < 0) return;
       h.scrollToIndex(currentIdx, "center");
       h.scrollToIndex(currentIdx, align);
+      h.scrollToMessageId?.(id, align);
     };
 
     if (shouldPrewarmLatestWindow) {
@@ -169,6 +170,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
         passCounter += 1;
         if (passCounter % 2 === 0) h3.scrollToIndex(idx3, "center");
         h3.scrollToIndex(idx3, align);
+        h3.scrollToMessageId?.(id, align);
       }
     };
     settlePasses.forEach((delay) => {

@@ -13,6 +13,11 @@ import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
+function escapeCssAttributeValue(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
  * app admin disables chat virtualisation via /admin/settings.
@@ -58,6 +63,7 @@ function BasicChatLoadingSkeleton() {
 export interface BasicChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
+  scrollToMessageId: (messageId: string, align?: "start" | "center" | "end") => boolean;
   isAtBottom: () => boolean;
   isNearBottom: (thresholdPx: number) => boolean;
 }
@@ -191,6 +197,21 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
             : child.offsetTop - Math.max(0, (el.clientHeight - child.offsetHeight) / 2);
         el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
       },
+      scrollToMessageId: (messageId, align = "center") => {
+        const el = containerRef.current;
+        if (!el) return false;
+        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapeCssAttributeValue(messageId)}"]`);
+        if (!row) return false;
+        const reservedBottom = getChatBottomPaddingOffset(bottomPadding);
+        const targetTop =
+          align === "end"
+            ? row.offsetTop + row.offsetHeight - el.clientHeight + reservedBottom
+            : align === "start"
+            ? row.offsetTop
+            : row.offsetTop - Math.max(0, (el.clientHeight - row.offsetHeight) / 2);
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+        return true;
+      },
       isAtBottom,
       isNearBottom,
     }),
@@ -296,7 +317,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
         </div>
       )}
       {visible.map((message, index) => (
-        <div key={message.id} data-basic-row-index={index}>
+        <div key={message.id} data-basic-row-index={index} data-row-id={message.id}>
           {renderItem(message, index, visible)}
         </div>
       ))}

@@ -83,6 +83,7 @@ const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
 export interface VirtualizedChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
+  scrollToMessageId: (messageId: string, align?: "start" | "center" | "end") => boolean;
   isAtBottom: () => boolean;
   /**
    * True when the scroller is within `thresholdPx` of the bottom. Used by
@@ -135,6 +136,11 @@ function isAndroidNativeWebView() {
   } catch { /* ignore */ }
   const ua = navigator.userAgent || "";
   return /Android/i.test(ua) && (/(; wv\)|\bwv\b)/i.test(ua) || /IgniteClubHQ-Android/i.test(ua));
+}
+
+function escapeCssAttributeValue(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function getMessageDay(value?: string | null) {
@@ -1528,6 +1534,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           offset,
           behavior: "auto",
         });
+      },
+      scrollToMessageId: (messageId, align = "center") => {
+        const el = scrollerElRef.current;
+        if (!el) return false;
+        const escapedId = escapeCssAttributeValue(messageId);
+        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
+        if (!row) return false;
+        const rowRect = row.getBoundingClientRect();
+        const scrollerRect = el.getBoundingClientRect();
+        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+        const targetTop =
+          align === "end"
+            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
+            : align === "start"
+            ? el.scrollTop + rowRect.top - scrollerRect.top
+            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+        markChatScrollWrite();
+        return true;
       },
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
