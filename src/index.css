@@ -353,3 +353,19 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 [data-chat-scroll-lock="true"] {
   background-color: hsl(var(--chat-surface));
 }
+
+/* Subtle entrance for newly inserted chat messages. Opacity 0.9→1,
+   scale 0.98→1, ~140ms ease-out. No vertical/horizontal movement —
+   designed to soften arrival without drawing attention. */
+@keyframes chat-message-enter {
+  from { opacity: 0.9; transform: scale(0.98); }
+  to   { opacity: 1;   transform: scale(1); }
+}
+.chat-message-enter {
+  animation: chat-message-enter 140ms ease-out both;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-enter { animation: none; }
+}
