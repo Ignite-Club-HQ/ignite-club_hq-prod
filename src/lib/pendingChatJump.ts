@@ -94,15 +94,33 @@ export function setPendingChatJump(kind: ChatJumpKind, targetId: string | null, 
 }
 
 function pickMessageId(data: any, parsed?: URL): string | null {
+  // IMPORTANT: prefer the explicit `data.message_id` (set fresh per push by
+  // process-message-notifications) over the URL `?message=` param. The URL
+  // string can be stale across notifications in narrow edge cases (Android
+  // intent extras re-use, withChatJumpNonce re-encoding, cached deep links),
+  // but the data payload is rebuilt for every push and is the authoritative
+  // source. This prevents the symptom where tapping a newer push from the
+  // same sender opens an older message in the same thread.
   const explicitMessageId =
-    parsed?.searchParams.get("message") ||
     data?.message_id ||
     data?.messageId ||
     data?.messageID ||
     data?.target_message_id ||
     data?.targetMessageId ||
+    parsed?.searchParams.get("message") ||
     null;
-  if (explicitMessageId) return explicitMessageId;
+  if (explicitMessageId) {
+    try {
+      const urlMsg = parsed?.searchParams.get("message");
+      if (urlMsg && urlMsg !== explicitMessageId) {
+        console.warn("[ChatJump] URL ?message= disagrees with data.message_id; using data.message_id", {
+          urlMessageId: urlMsg,
+          dataMessageId: explicitMessageId,
+        });
+      }
+    } catch { /* noop */ }
+    return explicitMessageId;
+  }
 
   // Direct-message notifications historically stored the conversation id in
   // related_id. Never treat that as a message id unless an explicit message id
