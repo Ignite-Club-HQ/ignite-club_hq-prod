@@ -389,8 +389,8 @@ export default function TeamChatPage() {
   });
 
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
-  const pinnedVault = useChatPinnedVault("team", teamId);
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null);
+  const pinnedVault = useChatPinnedVault("team", teamId, { enabled: chatReady });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(team?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !clubProLoading && !clubHasPro;
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
