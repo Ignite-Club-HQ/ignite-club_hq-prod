@@ -52,6 +52,10 @@ describe("jumpToMessageInVirtualizedChat", () => {
     await vi.advanceTimersByTimeAsync(60);
 
     expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "end");
+
+    for (const call of handle.scrollToIndex.mock.calls) {
+      expect(call[0]).toBe(1);
+    }
   });
 
   it("never falls back to document.getElementById even when the target is missing", async () => {
@@ -129,6 +133,29 @@ describe("jumpToMessageInVirtualizedChat", () => {
       expect([null, "a"]).toContain(call[0]);
     }
     expect(document.getElementById).not.toHaveBeenCalled();
+  });
+
+  it("repeat notification taps never prime-scroll to the earlier row", async () => {
+    const messages: Msg[] = [
+      { id: "older-ground-message" },
+      { id: "f3684898-38dd-4e25-8cf7-739bb0d76f16" },
+      { id: "newer-ground-message" },
+    ];
+    const handle = makeHandle();
+
+    jumpToMessageInVirtualizedChat(
+      "f3684898-38dd-4e25-8cf7-739bb0d76f16",
+      () => messages,
+      () => handle as any,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(handle.scrollToIndex).toHaveBeenCalled();
+    for (const call of handle.scrollToIndex.mock.calls) {
+      expect(call[0]).toBe(1);
+    }
   });
 
   it("returns a cancel function that stops further scroll/highlight work", async () => {
