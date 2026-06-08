@@ -1723,7 +1723,7 @@ export default function TeamChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading || !bannersReady ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -1831,7 +1831,7 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

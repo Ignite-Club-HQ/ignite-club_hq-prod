@@ -2023,7 +2023,7 @@ export default function GroupChatPage() {
 
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
