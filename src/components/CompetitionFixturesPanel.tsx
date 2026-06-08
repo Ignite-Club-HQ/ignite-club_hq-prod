@@ -1033,13 +1033,18 @@ function FixturesFilterAndList({
             const maxRound = roundNums.length > 0 ? Math.max(...roundNums) : 0;
             if (totalRounds === 0) return null;
             return (
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
                 <span className="font-medium text-foreground">
                   {totalRounds} round{totalRounds === 1 ? "" : "s"} scheduled
+                  <span className="text-muted-foreground font-normal ml-2 tabular-nums">(max: {maxRound})</span>
                 </span>
-                <span className="text-muted-foreground tabular-nums">
-                  Max round: {maxRound}
-                </span>
+                {isAdmin && (
+                  <SetMaxRoundsButton
+                    competitionId={competitionId}
+                    currentMax={maxRound}
+                    roundNums={roundNums}
+                  />
+                )}
               </div>
             );
           })()}
@@ -1060,6 +1065,107 @@ function FixturesFilterAndList({
   );
 }
 
+
+
+function SetMaxRoundsButton({
+  competitionId,
+  currentMax,
+  roundNums,
+}: {
+  competitionId: string;
+  currentMax: number;
+  roundNums: number[];
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState<string>(String(currentMax));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (open) setValue(String(currentMax)); }, [open, currentMax]);
+
+  const target = Math.max(1, Number(value) || 0);
+  const willDelete = roundNums.filter((n) => n > target).sort((a, b) => a - b);
+  const willAdd = target > currentMax ? target - currentMax : 0;
+
+  const submit = async () => {
+    if (!target) return;
+    setSaving(true);
+    try {
+      if (willDelete.length > 0) {
+        const { error } = await supabase
+          .from("competition_matches")
+          .delete()
+          .eq("competition_id", competitionId)
+          .gt("round_number", target);
+        if (error) throw error;
+        toast({ title: `Trimmed to ${target} round${target === 1 ? "" : "s"}` });
+      } else if (willAdd > 0) {
+        toast({
+          title: "Use Generate or Add match",
+          description: `To add ${willAdd} more round${willAdd === 1 ? "" : "s"}, regenerate the fixture or add matches manually.`,
+        });
+      } else {
+        toast({ title: "No changes" });
+      }
+      qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+      setOpen(false);
+    } catch (e: any) {
+      toast({ title: "Couldn't update", description: e?.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setOpen(true)}>
+        Set max
+      </Button>
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent className="max-w-sm">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Set max number of rounds</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              Current max is round {currentMax}. Lowering this will delete any matches in rounds beyond the new max.
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Max rounds</Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            {willDelete.length > 0 && (
+              <p className="text-xs text-destructive">
+                Will delete round{willDelete.length === 1 ? "" : "s"} {willDelete.join(", ")} and all matches in {willDelete.length === 1 ? "it" : "them"}.
+              </p>
+            )}
+            {willAdd > 0 && (
+              <p className="text-xs text-muted-foreground">
+                To add more rounds, use Generate round-robin or Add match.
+              </p>
+            )}
+          </div>
+          <ResponsiveDialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button
+              onClick={submit}
+              disabled={saving || willDelete.length === 0}
+              variant={willDelete.length > 0 ? "destructive" : "default"}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {willDelete.length > 0 ? `Trim to ${target} rounds` : "Save"}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    </>
+  );
+}
 
 function RoundSection({
   label,
