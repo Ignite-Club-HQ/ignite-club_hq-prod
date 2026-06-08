@@ -283,13 +283,14 @@ export default function DirectMessagePage() {
   }, [targetMessageId, targetParentId, targetJumpNonce]);
 
   // Pinned messages (DM)
+  const chatReady = useChatPageReady();
   const {
     pins: pinnedMessages,
     pinnedMessageIds,
     pin: pinMessage,
     unpin: unpinMessage,
     canPinMore,
-  } = usePinnedMessages("dm", conversationId);
+  } = usePinnedMessages("dm", conversationId, { enabled: chatReady });
   const handleJumpToPinned = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
