@@ -1134,29 +1134,32 @@ function ChatMessageInner({
               </span>
             )}
             {timestamp}
-            {!isPending && !isLastMessage && isOwn && readCount > 0 && (
-              messageType === "dm" ? (
-                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-              ) : (
-                <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
-                  <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-                </span>
-              )
-            )}
-            {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
-              <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+            {!isPending && isOwn && !isClubAnnouncement && (
+              // Unified inline metadata for own messages — keeps the metadata
+              // strip a single line across every chat type (DM, Team, Club,
+              // Committee, Competition, Group). The standalone reader-avatar
+              // block below only renders when there are real avatars to show
+              // for the chat tail, replacing the "Sent" label entirely.
+              isLastMessage
+                ? (readFrontierReaders.length === 0
+                    ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+                    : null)
+                : (readCount > 0
+                    ? (messageType === "dm"
+                        ? <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                        : <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                            <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                          </span>)
+                    : <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />)
             )}
           </p>
         )}
-        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
-          readFrontierReaders.length > 0
-            ? (messageType === "dm"
-                ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
-                    <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-                  </div>
-              )
-            : <p className={`text-[10px] text-muted-foreground/55 mt-1.5 tabular-nums tracking-tight ${isOwn ? "text-right pr-2.5" : "pl-2.5"}`}>Sent</p>
+        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
+          messageType === "dm"
+            ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+            : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+              </div>
         )}
         {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
