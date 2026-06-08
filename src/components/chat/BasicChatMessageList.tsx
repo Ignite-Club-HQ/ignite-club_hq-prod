@@ -13,6 +13,11 @@ import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 
+function escapeCssAttributeValue(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
  * app admin disables chat virtualisation via /admin/settings.
@@ -195,7 +200,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       scrollToMessageId: (messageId, align = "center") => {
         const el = containerRef.current;
         if (!el) return false;
-        const row = el.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(messageId)}"]`);
+        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapeCssAttributeValue(messageId)}"]`);
         if (!row) return false;
         const reservedBottom = getChatBottomPaddingOffset(bottomPadding);
         const targetTop =
