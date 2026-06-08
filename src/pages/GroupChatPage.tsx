@@ -538,7 +538,7 @@ export default function GroupChatPage() {
           : (reactionsResult.data || []) as MessageReaction[],
       };
     },
-    enabled: !!groupId && authReady,
+    enabled: !!groupId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true,
