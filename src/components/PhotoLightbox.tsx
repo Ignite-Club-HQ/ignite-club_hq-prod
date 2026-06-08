@@ -457,11 +457,16 @@ export function PhotoLightbox({
                 data-lightbox-control
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDownload(); }}
+                disabled={isDownloading}
+                className="text-white hover:bg-white/15 bg-white/10 backdrop-blur-md rounded-full h-10 w-10 disabled:opacity-60"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!isDownloading) handleDownload(); }}
                 aria-label="Download photo"
               >
-                <Download className="h-5 w-5" />
+                {isDownloading ? (
+                  <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
               </Button>
               <Button
                 data-lightbox-control
