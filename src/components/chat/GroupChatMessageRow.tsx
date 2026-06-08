@@ -112,6 +112,10 @@ interface GroupChatMessageRowProps {
   allowForwarding?: boolean;
   /** Name of the current group — used as source label on forwarded copies. */
   groupName?: string | null;
+  /** True when the previous message is from the same author within the grouping window. */
+  groupedWithPrev?: boolean;
+  /** True when the next message is from the same author within the grouping window. */
+  groupedWithNext?: boolean;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
