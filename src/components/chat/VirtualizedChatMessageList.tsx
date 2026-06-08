@@ -812,12 +812,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // a duplicate ever slips in we still want the FIRST occurrence (index 0)
   // to be the anchor, which matches `uniqueMessages[0]`.
   const baseFirstId = anchorRef.current.baseFirstId;
-  const baseOffset =
-    messages.length === 0
-      ? 0
-      : baseFirstId
-      ? messages.findIndex((message) => message.id === baseFirstId)
-      : -1;
+  // Memoise the O(n) anchor lookup. Without this it runs on every parent
+  // render (200+ comparisons on a typical chat) and during a prepend +
+  // Virtuoso measurement burst it can fire 20-40×/s, adding pure main-thread
+  // jank to the fast-scroll budget.
+  const baseOffset = useMemo(() => {
+    if (messages.length === 0) return 0;
+    if (!baseFirstId) return -1;
+    return messages.findIndex((message) => message.id === baseFirstId);
+  }, [messages, baseFirstId]);
   const needsAnchorReset = messages.length > 0 && (!baseFirstId || baseOffset === -1);
   const effectiveBaseIndex = needsAnchorReset
     ? START_INDEX - messages.length
