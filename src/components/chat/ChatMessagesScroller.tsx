@@ -163,7 +163,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // to overlap the composer's translucent top edge (it's still readable, and
   // a 36px reserved gap made every sent message look stranded mid-screen
   // — feedback received from users comparing against Messenger).
-  const COMPOSER_GAP = 22;
+  // The latest own-message renders TWO metadata lines below the bubble: an
+  // inline timestamp (e.g. "18:11") and a "Sent / Read by" frontier strip,
+  // each ~10px text + ~6px top margin (≈32px combined). Read-frontier data
+  // loads asynchronously so the row can grow AFTER Virtuoso's initial bottom
+  // pin, which previously pushed the metadata behind the composer. Reserve
+  // enough space (32px gap) to keep the metadata comfortably visible without
+  // creating obvious empty space between messages.
+  const COMPOSER_GAP = 32;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
