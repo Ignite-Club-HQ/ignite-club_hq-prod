@@ -617,11 +617,11 @@ function TeamsByDivision({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => assignDivision(e.id, null)}>
+                              <DropdownMenuItem onClick={() => requestAssignDivision(e, null)}>
                                 Unassigned
                               </DropdownMenuItem>
                               {divisions.map((d: any) => (
-                                <DropdownMenuItem key={d.id} onClick={() => assignDivision(e.id, d.id)}>
+                                <DropdownMenuItem key={d.id} onClick={() => requestAssignDivision(e, d.id)}>
                                   {d.name}
                                 </DropdownMenuItem>
                               ))}
