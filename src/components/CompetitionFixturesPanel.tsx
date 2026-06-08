@@ -116,6 +116,9 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [genAutoPitches, setGenAutoPitches] = useState<string>("");
   const [genPitchLabelsInput, setGenPitchLabelsInput] = useState<string>("");
   const [genMode, setGenMode] = useState<SchedulingMode>("stagger");
+  const [genMaxRounds, setGenMaxRounds] = useState<string>(""); // empty = full round-robin
+  const [genAddFinals, setGenAddFinals] = useState<boolean>(false);
+  const [genFinalsFormat, setGenFinalsFormat] = useState<FinalsFormat>("gf");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
