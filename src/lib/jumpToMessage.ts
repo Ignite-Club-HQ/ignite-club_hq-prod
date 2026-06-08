@@ -109,11 +109,36 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // source of the observed behaviour: the correct row highlighted, but it
     // was not consistently visible in the expected bottom slot.
     const align: "end" = "end";
-    // Priming nudge: use the target row itself with a different alignment so
-    // even if the second call is ignored, the user still lands on the correct
-    // message rather than an older neighbour.
-    handle.scrollToIndex(idx, "center");
-    handle.scrollToIndex(idx, align);
+    const messagesAtFocus = getMessages();
+    const lastIdx = messagesAtFocus.length - 1;
+    // Specific failure mode from Grounds/Dan notification repeat taps:
+    // after the first successful jump, the local cache may contain weeks of
+    // older rows before a recent target (`f368…` was index 63/65, while the
+    // bad landing was index 35/65). A direct scrollToIndex for the recent row
+    // then asks Virtuoso to estimate across many unmeasured, variable-height
+    // rows; the computed scrollTop can visibly land on an older 28 May row.
+    // Pre-warm the latest render window first when the target is already near
+    // the end of a long chat, then scroll to the target after Virtuoso has had
+    // a frame to mount/measure the recent rows.
+    const shouldPrewarmLatestWindow = messagesAtFocus.length > 30 && idx >= Math.max(0, lastIdx - 4) && idx < lastIdx;
+    const scrollTarget = () => {
+      const h = getHandle();
+      const currentMessages = getMessages();
+      const currentIdx = currentMessages.findIndex((m) => m.id === id);
+      if (!h || currentIdx < 0) return;
+      h.scrollToIndex(currentIdx, "center");
+      h.scrollToIndex(currentIdx, align);
+    };
+
+    if (shouldPrewarmLatestWindow) {
+      handle.scrollToIndex(lastIdx, align);
+      settleTimers.push(setTimeout(scrollTarget, 90));
+    } else {
+      // Priming nudge: use the target row itself with a different alignment so
+      // even if the second call is ignored, the user still lands on the correct
+      // message rather than an older neighbour.
+      scrollTarget();
+    }
     passCounter += 1;
     // Multi-pass settle: row heights shift as deferred sub-content (link
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
