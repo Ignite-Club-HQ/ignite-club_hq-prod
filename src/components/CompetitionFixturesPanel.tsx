@@ -1021,6 +1021,28 @@ function FixturesFilterAndList({
         </Card>
       ) : (
         <div className="space-y-3">
+          {(() => {
+            const roundNums = Array.from(
+              new Set(
+                filteredMatches
+                  .map((m) => m.round_number)
+                  .filter((n: any) => n != null)
+              )
+            ) as number[];
+            const totalRounds = roundNums.length;
+            const maxRound = roundNums.length > 0 ? Math.max(...roundNums) : 0;
+            if (totalRounds === 0) return null;
+            return (
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                <span className="font-medium text-foreground">
+                  {totalRounds} round{totalRounds === 1 ? "" : "s"} scheduled
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  Max round: {maxRound}
+                </span>
+              </div>
+            );
+          })()}
           {groups.map((g) => (
             <RoundSection
               key={g.key}
