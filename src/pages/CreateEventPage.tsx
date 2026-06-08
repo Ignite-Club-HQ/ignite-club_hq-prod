@@ -654,6 +654,16 @@ export default function CreateEventPage() {
       return;
     }
 
+    if (!address.trim()) {
+      setOpenSections((s) => ({ ...s, location: true }));
+      toast({
+        title: "Location required",
+        description: "Please add a location for this event.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Require mini league selection for mini league events
     if (type === "mini_league" && !miniLeagueId) {
       toast({
