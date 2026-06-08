@@ -282,7 +282,7 @@ export default function TeamChatPage() {
     unpin: unpinMessage,
     canPinMore,
     isLoading: pinnedMessagesLoading,
-  } = usePinnedMessages("team", teamId);
+  } = usePinnedMessages("team", teamId, { enabled: chatReady });
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInVirtualizedChat(
       mid,
