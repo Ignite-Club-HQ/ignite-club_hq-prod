@@ -103,6 +103,7 @@ interface FullscreenImageViewerProps {
 export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, onForward, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { signedUrl } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
   const {
