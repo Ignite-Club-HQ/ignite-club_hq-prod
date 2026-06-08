@@ -40,6 +40,7 @@ function jumpAndNavigate(
   messageId: string,
   to: string,
 ) {
+  console.log("[InAppNotifTap] jumpAndNavigate", { kind, targetId, messageId, to });
   try { setPendingChatJump(kind, targetId, messageId); } catch { /* ignore */ }
   navigate(withChatJumpNonce(to));
 }
