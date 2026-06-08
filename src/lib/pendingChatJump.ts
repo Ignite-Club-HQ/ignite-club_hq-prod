@@ -43,7 +43,12 @@ export function withChatJumpNonce(to: string, nonce: number = Date.now()): strin
     if (parsed.searchParams.has("message")) {
       parsed.searchParams.set("jump", String(nonce));
     }
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    const out = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    try {
+      const stack = new Error("withChatJumpNonce trace").stack?.split("\n").slice(1, 6).join(" | ");
+      console.log("[ChatJump] withChatJumpNonce", { in: to, out, stack });
+    } catch { /* ignore */ }
+    return out;
   } catch {
     return to;
   }
