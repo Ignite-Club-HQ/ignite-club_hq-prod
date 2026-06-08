@@ -785,7 +785,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-semibold text-base">Fixture preview</div>
                       <Badge variant="secondary" className="text-xs font-medium">
-                        {schedule?.placed.length ?? 0} matches
+                        {allPlaced.length} matches
                       </Badge>
                     </div>
                     {summary?.unscheduledCount ? (
