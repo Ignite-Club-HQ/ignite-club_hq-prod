@@ -520,7 +520,7 @@ export default function DirectMessagePage() {
         hasOlderMessages: hasMore,
       };
     },
-    enabled: !!conversationId && authReady,
+    enabled: !!conversationId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
