@@ -77,12 +77,26 @@ function StartGameCta({ event }: { event: EventItem }) {
 function WatchLiveCta({ event }: { event: EventItem }) {
   const navigate = useNavigate();
   const { canStart } = useCanStartGame(event);
+
+  // Only show within the live match window: 30 min before kickoff → 3 h after.
+  // Prevents stale `active_games` rows from making "Watch Live" appear days
+  // before a fixture.
+  const inLiveWindow = (() => {
+    const kickoffIso = event.start_time || event.event_date;
+    if (!kickoffIso) return false;
+    const kickoff = new Date(kickoffIso).getTime();
+    if (Number.isNaN(kickoff)) return false;
+    const now = Date.now();
+    return now >= kickoff - 30 * 60 * 1000 && now <= kickoff + 3 * 60 * 60 * 1000;
+  })();
+
   const eligible =
     event.type === "game" &&
     !event.is_cancelled &&
     !event.is_bye &&
     !!event.team_id &&
-    !canStart;
+    !canStart &&
+    inLiveWindow;
 
   const { data: hasLive } = useQuery({
     queryKey: ["watch-live-active", event.team_id],
@@ -103,6 +117,7 @@ function WatchLiveCta({ event }: { event: EventItem }) {
   });
 
   if (!eligible || !hasLive) return null;
+
   return (
     <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <Button
