@@ -1997,12 +1997,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // applies to unmeasured rows during a fast upward fling.
       defaultItemHeight={160}
       scrollSeekConfiguration={false}
-      // Asymmetric overscan: slow upward scroll was still reaching rows before
-      // Virtuoso had measured them, so their first real height correction hit
-      // while visible. Keep roughly two screens pre-mounted above the viewport
-      // but still far below the old 1600px/12-row buffer that stacked too much
-      // async hydration after fast flings.
-      increaseViewportBy={{ top: 900, bottom: 240 }}
+      // ROOT-CAUSE FIX (round 13): estimateChatRowHeight / chatRowHeightCache
+      // never feed Virtuoso — the library only knows defaultItemHeight (160)
+      // for unmounted rows and corrects on first mount. On Android touch
+      // scrolling that correction is a scrollTop write mid-fling = the
+      // visible flicker (slow scroll) and post-stop jolt (fast fling). No
+      // estimator tuning can remove it. The only way to eliminate it is to
+      // guarantee rows are mounted + measured BEFORE they can reach the
+      // viewport: keep the top overscan larger than one full message page
+      // (30 rows ≈ 4800px at the 160px default), so the entire loaded window
+      // mounts at reveal and each prepended page mounts in ONE batch at the
+      // scroll-idle commit. After that batch, scrolling through those rows
+      // performs zero corrections. Hydration no longer trickles in mid-fling
+      // because nothing mounts mid-fling.
+      increaseViewportBy={{ top: 6000, bottom: 600 }}
       minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
