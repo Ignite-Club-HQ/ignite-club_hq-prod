@@ -99,7 +99,7 @@ type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
 type DutyStatus = "open" | "completed";
 
-const PRESET_DUTIES = ["Canteen", "Linesperson", "Linemarker", "Referee"];
+const PRESET_DUTIES = ["Canteen/BBQ", "Linesperson", "Linemarker", "Referee"];
 
 const eventTypeColors: Record<EventType, string> = {
   game: "bg-destructive/20 text-destructive",
