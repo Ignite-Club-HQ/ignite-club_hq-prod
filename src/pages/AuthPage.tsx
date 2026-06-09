@@ -249,11 +249,18 @@ export default function AuthPage() {
   // would double-subtract the keyboard. Instead, use innerHeight directly when keyboard
   // is open on Android, or just use --stable-vh (which stays stable on iOS).
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+  // On Android, --stable-vh can be momentarily stale right after logout (e.g.
+  // the previous screen had the soft keyboard open, so innerHeight was small).
+  // Using it here causes the auth shell to render short and then visibly grow
+  // — pulling the centered content upward. Use 100vh on Android so the shell
+  // is always full-screen; the WebView's adjustResize handles keyboard insets.
   const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
       ? '100vh' // Android adjustResize already shrinks the viewport — don't subtract again
       : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
-    : 'var(--stable-vh, 100dvh)';
+    : isAndroid
+      ? '100vh'
+      : 'var(--stable-vh, 100dvh)';
   const authShellStyle = {
     height: authViewportHeight,
     paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',

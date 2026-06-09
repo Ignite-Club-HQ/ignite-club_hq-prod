@@ -41,6 +41,7 @@ import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive"
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -191,7 +192,7 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vault: 64,        // VaultFileCard skeletons h-[64px]
   vaultfolder: 64,
   vaultroot: 64,
-  gallery: 160,     // GalleryLinkCard hero ≈ 240, prompt ≈ 76 — split.
+  gallery: 240,     // GalleryLinkCard hero is fixed to 240px to prevent late growth.
   galleryprompt: 76,
   // Generic URL previews. LinkPreview reserves h-20 (80px) when
   // reserveSpace=true (chat history path), so match that exactly.
@@ -240,10 +241,15 @@ function chatRowSignature(message: unknown): string {
       if (typeof e === "string") rxEmojiLen += e.length;
     }
   }
+  // Include the cached image aspect ratio. A novel image first estimates at
+  // 4:3, then stores its real ratio after decode; without the ratio in this
+  // signature, the row-height cache can keep returning the old 4:3 height on
+  // remount and force Virtuoso to patch paddingTop mid-scroll.
+  const aspect = img ? (getCachedImageAspectRatio([img])?.toFixed(3) ?? "0") : "";
   // Link-preview hydration: just the presence/shape, not the payload.
   const hasPreview =
     (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
-  return `${text.length}:${text.slice(0, 64)}|${img.length}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
 }
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -265,6 +271,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
   let height = 16; // row wrapper top padding (pt-4)
+  const groupedWithPrev = !!prev && shouldGroupWithPrev(msg, prev);
+  // ChatMessage applies `-mt-3` on grouped follow-ups. Mirror that net row
+  // height here so Virtuoso doesn't over-reserve then shrink paddingTop.
+  if (groupedWithPrev) height -= 12;
 
   if (msg.created_at) {
     const currentDay = getMessageDay(msg.created_at);
@@ -289,7 +299,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     // grey system pill. U8 Blue's first page contains one near the top of the
     // initial data set; under-estimating it as a 52px system pill makes
     // Virtuoso correct the bottom anchor after first paint.
-    return height + (kind === "galleryprompt" ? 76 : 220);
+    return height + (kind === "galleryprompt" ? 76 : 240);
   }
 
   if (msg.is_system_message) return Math.max(52, height + 36);
@@ -300,14 +310,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // always-present 24px header was the dominant -34px over-estimate seen
   // in production telemetry.
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
-  const sameAuthorAsPrev =
-    !!prev &&
-    !prev.is_system_message &&
-    !!msg.author_id &&
-    prev.author_id === msg.author_id &&
-    // Same calendar day — date separator above breaks the group.
-    getMessageDay(msg.created_at) === getMessageDay(prev.created_at);
-  const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
+  const showAuthorHeader = !isOwnMessage && !groupedWithPrev;
   if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
     // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
@@ -545,20 +548,24 @@ function CachedMeasureRow({
     let ro: ResizeObserver | null = null;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const writeWhenIdle = () => {
+      const since = performance.now() - getLastChatScrollAt();
+      if (since >= 400) {
+        write();
+        return;
+      }
+      cancelIdle?.();
+      cancelIdle = runWhenChatScrollIdle(write, 400);
+    };
+
     const scheduleLateWrites = () => {
-      raf = requestAnimationFrame(write);
-      t1 = setTimeout(write, 120);
-      t2 = setTimeout(write, 360);
+      raf = requestAnimationFrame(writeWhenIdle);
+      t1 = setTimeout(writeWhenIdle, 120);
+      t2 = setTimeout(writeWhenIdle, 360);
       if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
-          const since = performance.now() - getLastChatScrollAt();
-          if (since < 400) {
-            cancelIdle?.();
-            cancelIdle = runWhenChatScrollIdle(write, 400);
-            return;
-          }
-          write();
+          writeWhenIdle();
         });
         ro.observe(el);
         roTimer = setTimeout(() => {
@@ -783,7 +790,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // visible flicker as Virtuoso prepends a second page on top of an
   // unsettled layout. We enforce a short cooldown so each prepend has time
   // to paint before the next one is allowed.
-  const PREPEND_COOLDOWN_MS = 350;
+  // 600ms (was 350ms): on Android WebView a fast upward fling can land a
+  // prepend page before the previous one's freshly-mounted rows have
+  // rasterised. Stacking two `firstItemIndex` shifts inside that window is
+  // the dominant cause of the "flicker on fast scroll-up" reports — the
+  // second page's estimate→measured paddingTop correction lands on top of
+  // an already-unsettled layout. 600ms gives the previous prepend a full
+  // ~36-frame window to settle before another is allowed. Genuine repeat
+  // upward gestures past the cooldown still trigger `startReached` /
+  // `atTopStateChange` naturally, so this only suppresses the back-to-back
+  // case, not normal pagination.
+  const PREPEND_COOLDOWN_MS = 600;
   const lastPrependLandedAtRef = useRef(0);
   // Once messages.length grows, the prepend has landed — release the guard.
   useEffect(() => {

@@ -322,7 +322,11 @@ interface CarouselSnapshot {
   teamMembers?: Record<string, MemberSummary>;
 }
 
-export function MyTeamsPremiumCarousel() {
+interface MyTeamsPremiumCarouselProps {
+  onReadyChange?: (ready: boolean) => void;
+}
+
+export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarouselProps = {}) {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
@@ -705,7 +709,14 @@ export function MyTeamsPremiumCarousel() {
     });
   }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
-  if ((!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot) {
+  const showSkeleton = (!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot;
+
+  useEffect(() => {
+    onReadyChange?.(!showSkeleton);
+    return () => onReadyChange?.(false);
+  }, [onReadyChange, showSkeleton]);
+
+  if (showSkeleton) {
     return <MyTeamsCarouselSkeleton />;
   }
 
