@@ -93,6 +93,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 
 
 
@@ -419,9 +420,13 @@ export default function GroupChatPage() {
   // Force a fresh fetch whenever we land on this group. Push notifications and
   // inbox taps can land here while react-query still has stale data — invalidating
   // guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is provably fresh + realtime connected + page
+  // wasn't just woken from background. See `shouldSkipChatMountInvalidate`.
   useEffect(() => {
     if (!groupId || !authReady || !group) return;
-    queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+    const key = ["group-messages", groupId];
+    if (shouldSkipChatMountInvalidate(queryClient, key, `group:${groupId}`)) return;
+    queryClient.invalidateQueries({ queryKey: key });
   }, [groupId, authReady, group, queryClient]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load

@@ -79,6 +79,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -465,9 +466,12 @@ export default function TeamChatPage() {
   // Force a fresh fetch whenever we land on this team chat. Push notifications
   // and inbox taps can land here while react-query still has stale data —
   // invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
   useEffect(() => {
     if (!teamId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    const key = ["team-messages", teamId];
+    if (shouldSkipChatMountInvalidate(queryClient, key, `team:${teamId}`)) return;
+    queryClient.invalidateQueries({ queryKey: key });
   }, [teamId, authReady, queryClient]);
 
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({

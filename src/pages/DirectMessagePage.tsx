@@ -66,6 +66,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -440,9 +441,12 @@ export default function DirectMessagePage() {
   // Force a fresh fetch whenever we land on this conversation. Push notifications
   // and inbox taps can land here while react-query still has stale data from a
   // prefetch — invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
   useEffect(() => {
     if (!conversationId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+    const key = ["dm-messages", conversationId];
+    if (shouldSkipChatMountInvalidate(queryClient, key, `dm:${conversationId}`)) return;
+    queryClient.invalidateQueries({ queryKey: key });
   }, [conversationId, authReady, queryClient]);
 
   // Fetch messages with cache support
