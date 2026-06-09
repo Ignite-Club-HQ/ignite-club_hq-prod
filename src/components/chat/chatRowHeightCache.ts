@@ -22,7 +22,9 @@
  */
 
 const MAX_ENTRIES = 2000;
-const STORAGE_KEY = "ignite_chat:rowHeightCache:v5";
+// v6: flush entries poisoned by the reverted off-screen pre-measure portal
+// (heights measured outside the live Virtuoso item container were wrong).
+const STORAGE_KEY = "ignite_chat:rowHeightCache:v6";
 // Throttle persistence — measurement bursts (e.g. initial mount) can call
 // setCachedRowHeight dozens of times per frame; avoid serialising on each.
 const PERSIST_DEBOUNCE_MS = 400;
