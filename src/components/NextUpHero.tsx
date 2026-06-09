@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
@@ -213,24 +213,20 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             })()}
           </div>
 
-          {/* Time block (date+time, then arrival sub-line), then venue */}
+          {/* Time block (date+time with arrival inline), then venue */}
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
-                <span className="font-medium text-foreground">{dateTime}</span>
-              </div>
-              {event.type === "game" && !event.is_bye && (() => {
-                const mins = getMatchArrivalMinutes(event);
-                const arrivalTime = formatMatchArrivalTime(event);
-                if (mins == null || !arrivalTime) return null;
-                return (
-                  <div className="flex items-baseline gap-1.5 pl-6 text-[13px] text-warning">
-                    <span className="font-medium">Arrive {arrivalTime}</span>
-                    <span className="text-muted-foreground">· {mins} min before</span>
-                  </div>
-                );
-              })()}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
+              <span className="font-medium text-foreground">
+                {dateTime}
+                {event.type === "game" && !event.is_bye && (() => {
+                  const arrivalTime = formatMatchArrivalTime(event);
+                  if (!arrivalTime) return null;
+                  return (
+                    <span className="text-warning font-medium"> (Arrive {arrivalTime})</span>
+                  );
+                })()}
+              </span>
             </div>
             {!event.is_bye && (event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">
