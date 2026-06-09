@@ -320,6 +320,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   useEffect(() => observeChatElementHeight(rowRef.current), []);
 
+  // One-time, auto-fading caption beneath the first message bubble the user
+  // sees, to surface the long-press gesture without a global banner.
+  useEffect(() => {
+    if (claimFirstBubbleHint()) {
+      setShowTapHint(true);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
+      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 4000);
+    }
+  }, []);
+
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
@@ -537,6 +547,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 </div>
               </div>
             </div>
+            {showTapHint && (
+              <div
+                className={`mt-1 px-1 text-[10.5px] text-muted-foreground/70 animate-fade-in ${
+                  isOwnMessage ? "text-right" : "text-left"
+                }`}
+                role="status"
+              >
+                Hold for reactions &amp; replies
+              </div>
+            )}
           </div>
           {/* Inline "Add to gallery" chip — only on own image messages */}
           {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && canPublishToGallery && onPublishToGallery && (
