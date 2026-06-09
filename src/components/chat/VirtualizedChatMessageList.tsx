@@ -404,14 +404,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += Math.round(300 / ratio);
   }
 
-  // Strip mention pills and embed tokens before counting visible text length.
-  const visibleText = text
-    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
-    .trim();
+  const visibleText = estimateVisibleText(text);
 
   if (visibleText) {
-    const charsPerLine = getCharsPerLine();
+    const charsPerLine = getCharsPerLine(isOwnMessage);
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
@@ -422,7 +418,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     // showed estimator returning 368 while actual rows measured 595/666/955,
     // forcing 200-600px paddingTop corrections on slow scroll-up (the visible
     // jolt). Honour real line count; the outer max cap still bounds runaway.
-    height += lineCount * 19;
+    height += lineCount * 21;
   } else if (!hasImage) {
     height += 32;
   }
@@ -438,11 +434,15 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 96;
     previewCount += 1;
   }
-  // Generic URL previews (only count once per message — we render at most one).
-  if (previewCount < 3 && /https?:\/\/|www\./i.test(text)) {
-    previewHeight += PREVIEW_HEIGHT_BY_TOKEN.url;
-  }
+  previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
+
+  // Bubble vertical padding plus the metadata/timestamp strip beneath the
+  // bubble. Telemetry now shows repeated +25..+40 misses on short text/reply
+  // rows, and +200..+600 misses on long text rows; both share this missing
+  // chrome. Over-reserving a little is safer than visible positive growth
+  // above the scroll anchor during upward pagination.
+  if (visibleText || hasImage || hasReply || previewHeight > 0) height += groupedWithNext ? 18 : 34;
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
