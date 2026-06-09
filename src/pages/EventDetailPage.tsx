@@ -3444,15 +3444,14 @@ export default function EventDetailPage() {
                           <Circle className="h-5 w-5 text-muted-foreground" />
                         )}
                         <div>
-                          <p className="font-medium">
-                            {duty.name}
-                            {(duty as any).start_time && (
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                {format(new Date((duty as any).start_time), "h:mm a")}
-                                {(duty as any).end_time ? `–${format(new Date((duty as any).end_time), "h:mm a")}` : ""}
-                              </span>
-                            )}
-                          </p>
+                          <p className="font-medium">{duty.name}</p>
+                          {(duty as any).start_time && (
+                            <p className="text-xs text-muted-foreground whitespace-nowrap">
+                              {format(new Date((duty as any).start_time), "h:mm a")}
+                              {(duty as any).end_time ? ` – ${format(new Date((duty as any).end_time), "h:mm a")}` : ""}
+                            </p>
+                          )}
+
                           {duty.profiles ? (
                             <p className="text-sm text-muted-foreground">
                               {duty.profiles.display_name}
