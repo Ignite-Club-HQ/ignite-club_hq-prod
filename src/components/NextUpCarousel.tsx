@@ -1188,7 +1188,23 @@ function CompactCard({ event }: { event: EventItem }) {
     placeholderData: (prev) => prev,
   });
 
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
 
   const rsvpIndicator = currentStatus ? (
     <div className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${
