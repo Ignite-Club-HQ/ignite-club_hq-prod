@@ -229,15 +229,11 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
   }
 
-  /* Stabilise message-bubble compositing on mobile momentum scroll. Android
-     Chrome can briefly repaint rounded HSL backgrounds when rows above commit
-     deferred previews/reactions; isolating the paint layer removes the small
-     bubble flicker without changing layout. */
+  /* Keep chat bubbles on the normal document layer during virtualized scroll.
+     Android WebView flickers when dozens of newly mounted rows each create
+     paint/compositor layers while Virtuoso is correcting measurements. */
   .chat-bubble-stable {
-    contain: paint;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
+    background-clip: padding-box;
   }
 
   .text-gradient-emerald {
@@ -327,14 +323,10 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
   border-radius: 3px;
 }
 
-/* GPU-promote chat scroll viewports to keep mid-tier Android on the compositor
-   thread during fast flicks. Avoids dropped frames from CPU paint passes.
-   Only applied to elements explicitly tagged as chat scroll viewports. */
+/* Chat scroll viewports own their anchoring. Do not GPU-promote them here:
+   Android WebView can flicker when a promoted overflow scroller contains
+   virtualized rows that mount/unmount during upward momentum scroll. */
 [data-chat-scroll-lock="true"] {
-  will-change: transform;
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
   /* Disable browser scroll-anchoring on the entire chat thread. Our
      useChatOlderMessagesAnchor / useInitialChatBottomPin hooks own every
      scrollTop write; the browser picking its own anchor element fights
@@ -344,6 +336,14 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 }
 [data-chat-scroll-lock="true"] * {
   overflow-anchor: none;
+}
+
+/* Virtualized rows mount/unmount while Android WebView is momentum-scrolling.
+   Per-row shimmer/fade animations repaint those newly mounted rows every
+   frame and show up as flicker, so rows inside the scroller stay static. */
+[data-chat-scroll-lock="true"] .animate-pulse,
+[data-chat-scroll-lock="true"] .animate-fade-in {
+  animation: none !important;
 }
 
 /* Subtle tinted backdrop on the chat thread so bubbles (--card, white in
@@ -358,13 +358,11 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
    scale 0.98→1, ~140ms ease-out. No vertical/horizontal movement —
    designed to soften arrival without drawing attention. */
 @keyframes chat-message-enter {
-  from { opacity: 0.9; transform: scale(0.98); }
-  to   { opacity: 1;   transform: scale(1); }
+  from { opacity: 0.9; }
+  to   { opacity: 1; }
 }
 .chat-message-enter {
   animation: chat-message-enter 140ms ease-out both;
-  transform-origin: center;
-  will-change: transform, opacity;
 }
 @media (prefers-reduced-motion: reduce) {
   .chat-message-enter { animation: none; }
