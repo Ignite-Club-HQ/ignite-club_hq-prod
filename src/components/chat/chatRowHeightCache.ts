@@ -22,7 +22,7 @@
  */
 
 const MAX_ENTRIES = 2000;
-const STORAGE_KEY = "ignite_chat:rowHeightCache:v3";
+const STORAGE_KEY = "ignite_chat:rowHeightCache:v4";
 // Throttle persistence — measurement bursts (e.g. initial mount) can call
 // setCachedRowHeight dozens of times per frame; avoid serialising on each.
 const PERSIST_DEBOUNCE_MS = 400;

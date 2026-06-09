@@ -437,11 +437,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-6: text rows came in
-  // -26 to -30 over-estimated with chrome=20/32 → drop by 28 to ~0/4.
-  // Image rows held — telemetry is dominated by aspect-cache misses (±50)
-  // not chrome.
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 0 : 4;
+  // Bubble vertical padding + timestamp strip. Round-7: text rows came in
+  // +26 to +34 under-estimated with chrome=0/4 → bump to 26/30 to land on
+  // a small (≤6px) under-estimate (under is preferable — Virtuoso grows
+  // downward without a visible jolt). Image rows held.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 26 : 30;
   else if (hasImage) height += groupedWithNext ? 18 : 34;
 
 
