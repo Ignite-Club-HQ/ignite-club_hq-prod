@@ -147,6 +147,8 @@ function HomeInitialSkeleton() {
             <div className="h-12 rounded-xl bg-muted/50" />
           </div>
         </div>
+        {/* Reserve dot row so My Teams below stays at a stable Y position. */}
+        <div className="h-[24px]" aria-hidden="true" />
       </section>
       <HomeMyTeamsSkeleton />
     </div>
