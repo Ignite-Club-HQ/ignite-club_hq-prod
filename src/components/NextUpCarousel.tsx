@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play, Eye } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play, Eye, CheckCircle2 } from "lucide-react";
 import { useCanStartGame } from "@/hooks/useCanStartGame";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
@@ -448,7 +448,23 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
     placeholderData: (prev) => prev,
   });
 
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
@@ -740,27 +756,55 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         <div className="space-y-0.5 pt-0.5">
           <div className="flex items-center gap-1.5 text-[13.5px] text-foreground font-semibold">
             <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span className="min-w-0">{compactWhen}</span>
+            <span className="min-w-0">
+              {compactWhen}
+              {event.type === "game" && !event.is_bye && (() => {
+                const arrivalTime = formatMatchArrivalTime(event);
+                if (!arrivalTime) return null;
+                return (
+                  <span className="text-warning"> (Arrive {arrivalTime})</span>
+                );
+              })()}
+            </span>
           </div>
           {locationDisplay && (
-            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90">
+            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90 pt-0.5">
               <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
               <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && !event.is_bye && (() => {
-            const mins = getMatchArrivalMinutes(event);
-            const arrivalTime = formatMatchArrivalTime(event);
-            if (mins == null || !arrivalTime) return null;
-            return (
-              <div className="flex items-center gap-1.5 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="font-medium">Arrive by {arrivalTime}</span>
-                <span className="text-muted-foreground">({mins} min before)</span>
-              </div>
-            );
-          })()}
         </div>
+
+
+        {myDuties && myDuties.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 pt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-0.5">
+              Your duty:
+            </span>
+            {myDuties.map((d: any) => {
+              const isDone = d.status === "completed";
+              const range = d.start_time
+                ? `${new Date(d.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${d.end_time ? `–${new Date(d.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                : null;
+              return (
+                <Badge
+                  key={d.id}
+                  variant="outline"
+                  className={
+                    isDone
+                      ? "text-[10.5px] h-[18px] px-1.5 font-semibold bg-success/15 text-success border-success/30"
+                      : "text-[10.5px] h-[18px] px-1.5 font-semibold bg-warning/15 text-warning border-warning/30"
+                  }
+                >
+                  {isDone && <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+                  {d.name}{range ? ` · ${range}` : ""}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+
+
 
 
         {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
@@ -1142,7 +1186,23 @@ function CompactCard({ event }: { event: EventItem }) {
     placeholderData: (prev) => prev,
   });
 
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
 
   const rsvpIndicator = currentStatus ? (
     <div className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${
@@ -1233,29 +1293,53 @@ function CompactCard({ event }: { event: EventItem }) {
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/45" aria-hidden="true" />
-            <span className="font-normal text-foreground/80">{compactWhen}</span>
+            <span className="font-normal text-foreground/80">
+              {compactWhen}
+              {event.type === "game" && !event.is_bye && (() => {
+                const arrivalTime = formatMatchArrivalTime(event);
+                if (!arrivalTime) return null;
+                return (
+                  <span className="text-warning"> (Arrive {arrivalTime})</span>
+                );
+              })()}
+            </span>
           </div>
           {locationDisplay && (
-            <div className="flex items-start gap-1.5 text-[12.5px]">
+            <div className="flex items-start gap-1.5 text-[12.5px] pt-0.5">
               <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
               <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && !event.is_bye && (() => {
-            const mins = getMatchArrivalMinutes(event);
-            const arrivalTime = formatMatchArrivalTime(event);
-            if (mins == null || !arrivalTime) return null;
-            return (
-              <div className="flex items-center gap-1.5 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="font-medium truncate">Arrive by {arrivalTime} ({mins}m before)</span>
-              </div>
-            );
-          })()}
         </div>
 
+
         {/* RSVP Status */}
+        {myDuties && myDuties.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {myDuties.map((d: any) => {
+              const isDone = d.status === "completed";
+              const range = d.start_time
+                ? `${new Date(d.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${d.end_time ? `–${new Date(d.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                : null;
+              return (
+                <Badge
+                  key={d.id}
+                  variant="outline"
+                  className={
+                    isDone
+                      ? "text-[10px] h-[18px] px-1.5 font-semibold bg-success/15 text-success border-success/30"
+                      : "text-[10px] h-[18px] px-1.5 font-semibold bg-warning/15 text-warning border-warning/30"
+                  }
+                >
+                  {isDone && <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+                  {d.name}{range ? ` · ${range}` : ""}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
         {!event.is_cancelled && !event.is_bye && rsvpIndicator}
+
       </CardContent>
     </Card>
   );

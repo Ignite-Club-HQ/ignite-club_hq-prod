@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
-import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -65,6 +66,8 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -260,11 +263,18 @@ export default function DirectMessagePage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "dm" && liveJump.targetId === conversationId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     conversationId ? consumePendingChatJump("dm", conversationId) : null,
   );
-  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
+  const fallbackJumpTs = getLastConsumedPendingChatJumpTs(fallbackJumpId);
+  const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
+    urlMessageId,
+    urlJumpNonce,
+    liveJumpId,
+    liveJumpTs: liveJump?.ts,
+    fallbackJumpId,
+    fallbackJumpTs,
+  });
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
@@ -432,10 +442,22 @@ export default function DirectMessagePage() {
   // Force a fresh fetch whenever we land on this conversation. Push notifications
   // and inbox taps can land here while react-query still has stale data from a
   // prefetch — invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
+  // Batch 3B: fire on `user?.id` (eager) when per-surface flag enabled.
+  const eagerInvalidateDm = isChatEagerInvalidateEnabled("dm");
+  const invalidateGateDm = eagerInvalidateDm ? !!user?.id : authReady;
   useEffect(() => {
-    if (!conversationId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-  }, [conversationId, authReady, queryClient]);
+    if (!conversationId || !invalidateGateDm) return;
+    const key = ["dm-messages", conversationId];
+    if (shouldSkipChatMountInvalidate(queryClient, key, `dm:${conversationId}`)) return;
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidateDm) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [conversationId, invalidateGateDm, queryClient, eagerInvalidateDm]);
 
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({

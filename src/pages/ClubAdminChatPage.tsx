@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
-import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -344,11 +345,18 @@ export default function ClubAdminChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "club_admin" && liveJump.targetId === conversationId ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() =>
     conversationId ? consumePendingChatJump("club_admin", conversationId) : null,
   );
-  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
+  const fallbackJumpTs = getLastConsumedPendingChatJumpTs(fallbackJumpId);
+  const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
+    urlMessageId,
+    urlJumpNonce,
+    liveJumpId,
+    liveJumpTs: liveJump?.ts,
+    fallbackJumpId,
+    fallbackJumpTs,
+  });
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {

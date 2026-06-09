@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
@@ -83,7 +83,24 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     placeholderData: (prev) => prev,
   });
 
+  // My duties for this event
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -196,11 +213,20 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             })()}
           </div>
 
-          {/* Date + Location */}
+          {/* Time block (date+time with arrival inline), then venue */}
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
-              <span className="font-medium text-foreground">{dateTime}</span>
+              <span className="font-medium text-foreground">
+                {dateTime}
+                {event.type === "game" && !event.is_bye && (() => {
+                  const arrivalTime = formatMatchArrivalTime(event);
+                  if (!arrivalTime) return null;
+                  return (
+                    <span className="text-warning font-medium"> (Arrive {arrivalTime})</span>
+                  );
+                })()}
+              </span>
             </div>
             {!event.is_bye && (event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">
@@ -208,24 +234,42 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
-            {event.type === "game" && !event.is_bye && (() => {
-              const mins = getMatchArrivalMinutes(event);
-              const arrivalTime = formatMatchArrivalTime(event);
-              if (mins == null || !arrivalTime) return null;
-              return (
-                <div className="flex items-center gap-2 text-warning">
-                  <Clock className="h-4 w-4 shrink-0" />
-                  <span className="font-medium">Arrive by {arrivalTime}</span>
-                  <span>({mins} min before)</span>
-                </div>
-              );
-            })()}
             {event.is_bye && (
               <p className="text-sm text-muted-foreground italic">No match this round — enjoy the weekend off!</p>
             )}
           </div>
 
+
+          {myDuties && myDuties.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Your duty:
+              </span>
+              {myDuties.map((d: any) => {
+                const isDone = d.status === "completed";
+                const range = d.start_time
+                  ? `${format(new Date(d.start_time), "h:mm a")}${d.end_time ? `–${format(new Date(d.end_time), "h:mm a")}` : ""}`
+                  : null;
+                return (
+                  <Badge
+                    key={d.id}
+                    variant="outline"
+                    className={
+                      isDone
+                        ? "text-[11px] h-5 px-2 font-semibold bg-success/15 text-success border-success/30"
+                        : "text-[11px] h-5 px-2 font-semibold bg-warning/15 text-warning border-warning/30"
+                    }
+                  >
+                    {isDone && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    {d.name}{range ? ` · ${range}` : ""}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+
           {/* RSVP Buttons */}
+
           {!event.is_cancelled && !event.is_bye && (
             <div
               role="radiogroup"

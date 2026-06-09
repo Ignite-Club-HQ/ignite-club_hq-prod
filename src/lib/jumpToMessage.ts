@@ -1,5 +1,6 @@
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { setChatJumpActive } from "@/lib/chatJumpActive";
+import { getJumpSettleConfig } from "@/lib/jumpSettleConfig";
 
 
 
@@ -50,6 +51,12 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     parentMessageId,
   } = options;
 
+  console.log("[jumpToMessage] starting", {
+    targetMessageId: messageId,
+    parentMessageId,
+    loadedCount: getMessages().length,
+  });
+
   // Auto-cancel any in-flight jump so rapid search-result navigation
   // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
   // or let a stale 2.5s highlight-clear wipe the newest target.
@@ -88,13 +95,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     settleTimers = [];
   };
 
-  // Counter used to defeat Virtuoso's scrollToIndex deduplication. When the
-  // target row is already in (or near) the rendered window — which is the
-  // common case for the SECOND tap of the same notification — Virtuoso will
-  // treat an identical scrollToIndex payload as a no-op and the viewport
-  // never re-anchors, leaving the highlighted row "higher up" than expected.
-  // By varying the payload (via the index passed to the handle, which the
-  // handle then clamps), each pass is treated as a distinct request.
+  // Counter used to defeat Virtuoso's scrollToIndex deduplication. On repeat
+  // notification taps, vary the ALIGNMENT but keep the INDEX fixed on the
+  // target row. Never prime-scroll to idx-1: if the final end-align call is
+  // deduped/dropped, that leaves the viewport on an earlier message.
   let passCounter = 0;
 
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
@@ -106,13 +110,44 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // source of the observed behaviour: the correct row highlighted, but it
     // was not consistently visible in the expected bottom slot.
     const align: "end" = "end";
-    // Priming nudge: if the row is already in the rendered window from a
-    // previous jump, jiggle the scroll position by one index first so the
-    // subsequent end-aligned call is recognised as a fresh request rather
-    // than a duplicate of the prior one. The nudge target is clamped by the
-    // handle, so passing idx+1 is safe even at the tail of the list.
-    handle.scrollToIndex(Math.max(0, idx - 1), "start");
-    handle.scrollToIndex(idx, align);
+    clearSettleTimers();
+    const messagesAtFocus = getMessages();
+    const lastIdx = messagesAtFocus.length - 1;
+    // Specific failure mode from Grounds/Dan notification repeat taps:
+    // after the first successful jump, the local cache may contain weeks of
+    // older rows before a recent target (`f368…` was index 63/65, while the
+    // bad landing was index 35/65). A direct scrollToIndex for the recent row
+    // then asks Virtuoso to estimate across many unmeasured, variable-height
+    // rows; the computed scrollTop can visibly land on an older 28 May row.
+    // Pre-warm the latest render window first when the target is already near
+    // the end of a long chat, then scroll to the target after Virtuoso has had
+    // a frame to mount/measure the recent rows.
+    const shouldPrewarmLatestWindow = messagesAtFocus.length > 30 && idx >= Math.max(0, lastIdx - 4) && idx < lastIdx;
+    const scrollTarget = () => {
+      const h = getHandle();
+      const currentMessages = getMessages();
+      const currentIdx = currentMessages.findIndex((m) => m.id === id);
+      if (!h || currentIdx < 0) return;
+      // If the row is already mounted (especially after the latest-window
+      // prewarm), use exact DOM geometry FIRST. Calling Virtuoso's estimated
+      // `scrollToIndex` first can jump to an older unmeasured window and
+      // unmount the target before the DOM correction gets a chance to run —
+      // the repeat-tap failure seen on Dan's Grounds notification.
+      if (h.scrollToMessageId?.(id, align)) return;
+      h.scrollToIndex(currentIdx, "center");
+      h.scrollToIndex(currentIdx, align);
+      requestAnimationFrame(() => h.scrollToMessageId?.(id, align));
+    };
+
+    if (shouldPrewarmLatestWindow) {
+      handle.scrollToIndex(lastIdx, align);
+      settleTimers.push(setTimeout(scrollTarget, 90));
+    } else {
+      // Priming nudge: use the target row itself with a different alignment so
+      // even if the second call is ignored, the user still lands on the correct
+      // message rather than an older neighbour.
+      scrollTarget();
+    }
     passCounter += 1;
     // Multi-pass settle: row heights shift as deferred sub-content (link
     // previews, reply quotes, reactions, images) hydrates AFTER the initial
@@ -128,23 +163,25 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // jump-active=false and yank the viewport back to the latest message —
     // exactly the symptom reported when tapping a push-notification deep
     // link: the target row is highlighted, but the viewport sits at bottom.
-    clearSettleTimers();
-    const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
-    const TAIL_RELEASE_MS = 6500;
+    // Batch 3D: pull settle passes + tail-release in from 6.5s → 2.2s.
+    // Safe because Batch 3C defers link-preview fetches during the jump
+    // window, so deferred row growth no longer drives re-corrections after
+    // ~1.5s. Kill-switch: localStorage['ignite_disable_short_jump_settle']='1'.
+    const { settlePasses, tailReleaseMs: TAIL_RELEASE_MS } = getJumpSettleConfig();
     const recenter = () => {
       if (cancelled) return;
       const h3 = getHandle();
       const messages3 = getMessages();
       const idx3 = messages3.findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) {
+        if (h3.scrollToMessageId?.(id, align)) return;
         // Alternate a 1px upward nudge on every other pass so two
         // consecutive recenters never present identical payloads to
         // Virtuoso (which would dedupe the second one to a no-op).
         passCounter += 1;
-        if (passCounter % 2 === 0) {
-          h3.scrollToIndex(Math.max(0, idx3 - 1), "start");
-        }
+        if (passCounter % 2 === 0) h3.scrollToIndex(idx3, "center");
         h3.scrollToIndex(idx3, align);
+        requestAnimationFrame(() => h3.scrollToMessageId?.(id, align));
       }
     };
     settlePasses.forEach((delay) => {
@@ -180,14 +217,14 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       return;
     }
 
-    // Not in loaded set yet — page older if we have a loader and we've waited
-    // a bit. Throttle to one tryLoadOlder per ~8 ticks (~1.2s) so we don't
-    // hammer the backend.
+    // Not in loaded set yet — page older if we have a loader. Trigger sooner
+    // (attempt 3 ≈ 450 ms instead of 7 ≈ 1050 ms) so notification-jumps reach
+    // older messages faster, but still throttle to ~600 ms between fetches.
     if (
       idx < 0 &&
       tryLoadOlder &&
-      attempts > 6 &&
-      attempts - lastLoadOlderAttempt >= 8
+      attempts > 2 &&
+      attempts - lastLoadOlderAttempt >= 4
     ) {
       lastLoadOlderAttempt = attempts;
       tryLoadOlder();
@@ -213,7 +250,15 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       nextTickTimer = setTimeout(tick, intervalMs);
     } else {
       // Polling exhausted without landing — drop the skeleton so the user
-      // isn't stuck staring at it.
+      // isn't stuck staring at it. Per spec: NEVER route to an earlier
+      // message from the same sender; log a warning and leave the chat at
+      // its current position (newest) so the user can scroll to context.
+      console.warn("[jumpToMessage] target not found after polling", {
+        targetMessageId: messageId,
+        attempts,
+        loadedCount: getMessages().length,
+        landedOnParent,
+      });
       endHydration();
     }
   };

@@ -612,6 +612,13 @@ export function AppHeader() {
 
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
+      console.log("[AppHeaderNotifTap] click", {
+        notifId: notification.id,
+        type: notification.type,
+        related_id: notification.related_id,
+        created_at: notification.created_at,
+        is_read: notification.is_read,
+      });
       // Mark as read first - use mutateAsync to ensure it completes before navigation
       if (!notification.is_read) {
         await markAsRead.mutateAsync(notification.id);

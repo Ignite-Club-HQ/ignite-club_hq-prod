@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { consumePendingChatJump, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
+import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -60,6 +61,8 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -162,10 +165,18 @@ export default function BroadcastChatPage() {
   useEffect(() => subscribePendingChatJump(setLiveJump), []);
   const liveJumpId = liveJump?.kind === "broadcast" ? liveJump.messageId : null;
   const urlJumpNonce = searchParams.get("jump");
-  const targetJumpNonce = urlMessageId ? (urlJumpNonce ?? liveJump?.ts) : liveJumpId ? liveJump?.ts : undefined;
   const [fallbackJumpId] = useState(() => consumePendingChatJump("broadcast", null));
-  const targetMessageId = urlMessageId ?? liveJumpId ?? fallbackJumpId;
+  const fallbackJumpTs = getLastConsumedPendingChatJumpTs(fallbackJumpId);
+  const { messageId: targetMessageId, nonce: targetJumpNonce } = resolveChatJumpTarget({
+    urlMessageId,
+    urlJumpNonce,
+    liveJumpId,
+    liveJumpTs: liveJump?.ts,
+    fallbackJumpId,
+    fallbackJumpTs,
+  });
   const targetParentId = searchParams.get("parent");
+
 
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
@@ -210,10 +221,22 @@ export default function BroadcastChatPage() {
   // Force a fresh fetch whenever we land on the broadcast chat. Push
   // notifications and inbox taps can land here while react-query still has
   // stale data — invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
+  // Batch 3B: fire on `user?.id` (eager) when per-surface flag enabled.
+  const eagerInvalidateBroadcast = isChatEagerInvalidateEnabled("broadcast");
+  const invalidateGateBroadcast = eagerInvalidateBroadcast ? !!user?.id : authReady;
   useEffect(() => {
-    if (!authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
-  }, [authReady, queryClient]);
+    if (!invalidateGateBroadcast) return;
+    const key = ["broadcast-messages"];
+    if (shouldSkipChatMountInvalidate(queryClient, key, "broadcast")) return;
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidateBroadcast) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [invalidateGateBroadcast, queryClient, eagerInvalidateBroadcast]);
 
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["broadcast-messages"],

@@ -450,7 +450,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   <Clock className="h-3 w-3" />
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground/55 tabular-nums tracking-tight">
+              <span className="text-[11px] text-muted-foreground/75 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
               </span>
             </div>

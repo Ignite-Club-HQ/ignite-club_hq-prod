@@ -15,10 +15,41 @@
  */
 
 import { setFromNotificationFlag } from "@/lib/notificationPreload";
+import { setChatJumpActive, isChatJumpActive } from "@/lib/chatJumpActive";
+
+/**
+ * Safety timeout (ms) for the eagerly-armed chatJumpActive flag set when a
+ * push notification with a message target is captured BEFORE the chat page
+ * has mounted. If `jumpToMessageInVirtualizedChat` never actually fires
+ * (e.g. user navigated away, target page mismatch, network failure during
+ * page-chunk fetch), this auto-clears so future scroll behaviour isn't
+ * permanently broken.
+ *
+ * Generous enough to cover cold-start + auth bootstrap + chat-page mount on
+ * slow Android devices; tight enough to recover before the next user
+ * interaction needs a fresh scroll.
+ */
+const EAGER_JUMP_ARM_TIMEOUT_MS = 12_000;
+let eagerJumpClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+function armEagerChatJump(): void {
+  // Don't clobber an already-active jump (e.g. user is mid-search-result-tap).
+  if (!isChatJumpActive()) setChatJumpActive(true);
+  if (eagerJumpClearTimer) clearTimeout(eagerJumpClearTimer);
+  eagerJumpClearTimer = setTimeout(() => {
+    eagerJumpClearTimer = null;
+    // Only clear if no real jump took ownership — `jumpToMessageInVirtualizedChat`
+    // calls setChatJumpActive(false) itself in its end-hydration path, so if it
+    // ran and finished we'll already be false here; if it's still running we
+    // leave it alone.
+    if (isChatJumpActive()) setChatJumpActive(false);
+  }, EAGER_JUMP_ARM_TIMEOUT_MS);
+}
 
 const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
 const JUMP_EVENT = "ignite:pending-chat-jump";
+let lastConsumedJump: StoredJump | null = null;
 
 export type ChatJumpKind = "team" | "club" | "group" | "dm" | "broadcast" | "club_admin";
 
@@ -43,7 +74,12 @@ export function withChatJumpNonce(to: string, nonce: number = Date.now()): strin
     if (parsed.searchParams.has("message")) {
       parsed.searchParams.set("jump", String(nonce));
     }
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    const out = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    try {
+      const stack = new Error("withChatJumpNonce trace").stack?.split("\n").slice(1, 6).join(" | ");
+      console.log("[ChatJump] withChatJumpNonce", { in: to, out, stack });
+    } catch { /* ignore */ }
+    return out;
   } catch {
     return to;
   }
@@ -93,16 +129,39 @@ export function setPendingChatJump(kind: ChatJumpKind, targetId: string | null, 
   }
 }
 
+export function getLastConsumedPendingChatJumpTs(messageId: string | null): number | undefined {
+  if (!messageId) return undefined;
+  return lastConsumedJump?.messageId === messageId ? lastConsumedJump.ts : undefined;
+}
+
 function pickMessageId(data: any, parsed?: URL): string | null {
+  // IMPORTANT: prefer the explicit `data.message_id` (set fresh per push by
+  // process-message-notifications) over the URL `?message=` param. The URL
+  // string can be stale across notifications in narrow edge cases (Android
+  // intent extras re-use, withChatJumpNonce re-encoding, cached deep links),
+  // but the data payload is rebuilt for every push and is the authoritative
+  // source. This prevents the symptom where tapping a newer push from the
+  // same sender opens an older message in the same thread.
   const explicitMessageId =
-    parsed?.searchParams.get("message") ||
     data?.message_id ||
     data?.messageId ||
     data?.messageID ||
     data?.target_message_id ||
     data?.targetMessageId ||
+    parsed?.searchParams.get("message") ||
     null;
-  if (explicitMessageId) return explicitMessageId;
+  if (explicitMessageId) {
+    try {
+      const urlMsg = parsed?.searchParams.get("message");
+      if (urlMsg && urlMsg !== explicitMessageId) {
+        console.warn("[ChatJump] URL ?message= disagrees with data.message_id; using data.message_id", {
+          urlMessageId: urlMsg,
+          dataMessageId: explicitMessageId,
+        });
+      }
+    } catch { /* noop */ }
+    return explicitMessageId;
+  }
 
   // Direct-message notifications historically stored the conversation id in
   // related_id. Never treat that as a message id unless an explicit message id
@@ -193,6 +252,7 @@ export function consumePendingChatJump(kind: ChatJumpKind, targetId: string | nu
   } catch {
     /* ignore */
   }
+  lastConsumedJump = stored;
   return stored.messageId;
 }
 
@@ -206,4 +266,10 @@ export function captureJumpFromNotification(data: any, url: string | null | unde
   if (!target) return;
   setPendingChatJump(target.kind, target.targetId, target.messageId);
   if (target.targetId) setFromNotificationFlag(target.kind, target.targetId);
+  // Eagerly arm the bottom-pin bail-out flag so on-mount pin compensators on
+  // VirtualizedChatMessageList / useInitialChatBottomPin skip their initial
+  // scrollToBottom — otherwise the cold-start tap races
+  // jumpToMessageInVirtualizedChat and the user momentarily lands at the
+  // newest message before the jump kicks in (~200–500ms of visible jitter).
+  armEagerChatJump();
 }

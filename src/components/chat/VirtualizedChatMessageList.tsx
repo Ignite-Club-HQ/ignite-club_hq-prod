@@ -83,6 +83,7 @@ const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext }) => (
 export interface VirtualizedChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth", options?: { force?: boolean }) => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
+  scrollToMessageId: (messageId: string, align?: "start" | "center" | "end") => boolean;
   isAtBottom: () => boolean;
   /**
    * True when the scroller is within `thresholdPx` of the bottom. Used by
@@ -111,6 +112,8 @@ interface Props<TMessage extends { id: string }> {
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
   initialBottomPinned?: boolean;
+  /** Mount this message in view immediately for exact notification jumps. */
+  initialTargetMessageId?: string | null;
   /** Current user id, used only for row-height estimates (own messages have no author label). */
   currentUserId?: string | null;
 }
@@ -135,6 +138,11 @@ function isAndroidNativeWebView() {
   } catch { /* ignore */ }
   const ua = navigator.userAgent || "";
   return /Android/i.test(ua) && (/(; wv\)|\bwv\b)/i.test(ua) || /IgniteClubHQ-Android/i.test(ua));
+}
+
+function escapeCssAttributeValue(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function getMessageDay(value?: string | null) {
@@ -653,6 +661,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    initialTargetMessageId = null,
     currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
@@ -812,12 +821,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // a duplicate ever slips in we still want the FIRST occurrence (index 0)
   // to be the anchor, which matches `uniqueMessages[0]`.
   const baseFirstId = anchorRef.current.baseFirstId;
-  const baseOffset =
-    messages.length === 0
-      ? 0
-      : baseFirstId
-      ? messages.findIndex((message) => message.id === baseFirstId)
-      : -1;
+  // Memoise the O(n) anchor lookup. Without this it runs on every parent
+  // render (200+ comparisons on a typical chat) and during a prepend +
+  // Virtuoso measurement burst it can fire 20-40×/s, adding pure main-thread
+  // jank to the fast-scroll budget.
+  const baseOffset = useMemo(() => {
+    if (messages.length === 0) return 0;
+    if (!baseFirstId) return -1;
+    return messages.findIndex((message) => message.id === baseFirstId);
+  }, [messages, baseFirstId]);
   const needsAnchorReset = messages.length > 0 && (!baseFirstId || baseOffset === -1);
   const effectiveBaseIndex = needsAnchorReset
     ? START_INDEX - messages.length
@@ -1305,6 +1317,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Hard guard: if the user is clearly mid-history (>200px from bottom),
+      // never re-pin from a ResizeObserver callback. The 600ms cooldown on
+      // `isViewportUserActive` can let a settled fast-fling slip through and
+      // the synchronous scrollTop write here would race Virtuoso's own
+      // paddingTop patch in the same paint frame, producing the classic
+      // "jitter then snap" symptom users see on fast scroll-up.
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (distanceFromBottom > 200) return;
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.
@@ -1384,6 +1405,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       previousLastMessageId === lastMessageId &&
       !messagesLengthChanged &&
       bottomPinReadyRef.current
+    ) return;
+    // PREPEND GUARD: when lastMessageId is unchanged but length grew, an
+    // older page just landed (Load More / startReached). The user is mid-
+    // history during a fast upward fling — never re-pin to LAST. The
+    // `userHasScrolledAfterPinRef` guard inside `run()` has a 600ms cooldown
+    // that can let a settled fling slip through, and the synchronous +
+    // 200ms/600ms timers would yank the viewport to the bottom mid-scroll.
+    if (
+      messagesLengthChanged &&
+      previousLastMessageId === lastMessageId &&
+      !atBottomRef.current
     ) return;
 
     const run = () => {
@@ -1506,6 +1538,36 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           behavior: "auto",
         });
       },
+      scrollToMessageId: (messageId, align = "center") => {
+        const el = scrollerElRef.current;
+        if (!el) return false;
+        const escapedId = escapeCssAttributeValue(messageId);
+        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
+        if (!row) return false;
+        const rowRect = row.getBoundingClientRect();
+        const scrollerRect = el.getBoundingClientRect();
+        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+        const targetTop =
+          align === "end"
+            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
+            : align === "start"
+            ? el.scrollTop + rowRect.top - scrollerRect.top
+            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+        const previousScrollTop = el.scrollTop;
+        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+        markChatScrollWrite();
+        console.log("[jumpToMessage] exact DOM correction", {
+          messageId,
+          align,
+          previousScrollTop,
+          targetTop: Math.max(0, targetTop),
+          rowTop: rowRect.top,
+          rowBottom: rowRect.bottom,
+          scrollerTop: scrollerRect.top,
+          scrollerBottom: scrollerRect.bottom,
+        });
+        return true;
+      },
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
         const el = scrollerElRef.current;
@@ -1575,6 +1637,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
+
+  const initialTargetIndex = initialTargetMessageId
+    ? uniqueMessages.findIndex((message) => message.id === initialTargetMessageId)
+    : -1;
 
 
   // Force integer measurements. React-Virtuoso's default itemSize uses
@@ -1689,7 +1755,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
+      initialTopMostItemIndex={initialTargetIndex >= 0 ? { index: initialTargetIndex, align: "end", behavior: "auto" } : initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
       // pins the BOTTOM of the viewport when content grows above the current
