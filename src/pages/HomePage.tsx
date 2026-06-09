@@ -1945,17 +1945,24 @@ export default function HomePage() {
       {!showContent ? (
         <>
           <HomeInitialSkeleton />
-          {/* Pre-mount My Teams hidden so its query starts during the unified
-              skeleton; this lets Next Up + My Teams paint together once both
-              are ready instead of My Teams trailing behind. */}
-          {initialized && user && !myTeamsReady && (
+          {/* Pre-mount BOTH Next Up and My Teams hidden so their queries start
+              during the unified skeleton and (more importantly) their first
+              mount/layout work happens before reveal. Otherwise My Teams (a
+              simpler tree) paints noticeably faster than the heavier Next Up
+              carousel + hero card sub-queries, creating a visible stagger
+              even though `showContent` flips for both at the same instant. */}
+          {initialized && user && (
             <div style={{ position: "absolute", width: 0, height: 0, overflow: "hidden", visibility: "hidden", pointerEvents: "none" }} aria-hidden>
-              <Suspense fallback={null}>
-                <MyTeamsPremiumCarousel />
-              </Suspense>
+              <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
+              {!myTeamsReady && (
+                <Suspense fallback={null}>
+                  <MyTeamsPremiumCarousel />
+                </Suspense>
+              )}
             </div>
           )}
         </>
+
       ) : (
         <div className="space-y-5">
       {/* Next Up Carousel - unified event section */}
