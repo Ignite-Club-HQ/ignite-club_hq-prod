@@ -288,6 +288,31 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // `scrollToIndex`; after activation, the user's intent has changed to
     // replying, so the latest message should be pinned above the keyboard.
     const composerActivated = (keyboardChanged && isKeyboardOpen) || composerGrew;
+
+    // When the user is scrolled UP reading history and the composer grows
+    // (multi-line typing, reply pill), the fixed composer covers more of the
+    // visible content. The scroll viewport itself doesn't resize (composer is
+    // position: fixed and overlays the scroller), so the bottommost visible
+    // message slides UNDER the composer. Compensate by shifting scrollTop
+    // down by the same delta — the content the user was reading stays put
+    // above the composer's new top edge. Don't do this when at/near bottom:
+    // the pin-to-bottom branch below already handles that case.
+    if (composerGrew && previousComposerHeight > 0) {
+      const delta = composerHeight - previousComposerHeight;
+      const handleNearBottom = handle.isNearBottom(180);
+      if (!handleNearBottom) {
+        const viewport = resolveChatScrollViewport(mountBoxRef.current);
+        if (viewport) {
+          viewport.scrollTop = viewport.scrollTop + delta;
+          markChatScrollWrite();
+        }
+      }
+    }
+
+    if (composerActivated) {
+      if (isChatJumpActive()) setChatJumpActive(false);
+    }
+
     if (!initialBottomPinned && !composerActivated) return;
 
     const wasNearBottom = handle.isNearBottom(180);
@@ -297,6 +322,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       (keyboardChanged && handle.isNearBottom(720)) ||
       composerActivated;
     if (!composerGrew && !shouldPreserveBottom) return;
+    // The scroll compensation above already keeps the visible content stable
+    // for users scrolled up reading history; skip the pin-to-bottom branch in
+    // that case so we don't yank them to the latest message.
+    if (composerGrew && !wasNearBottom && !wasNearBottomBeforeLayoutRef.current && !keyboardChanged) return;
 
     const pin = () => {
       if (isChatJumpActive()) return;
@@ -313,6 +342,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       }, delay),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
+
   }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
 
   // Stable renderer identity — recreating it on every parent re-render
