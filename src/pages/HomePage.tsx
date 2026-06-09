@@ -1942,36 +1942,24 @@ export default function HomePage() {
         </p>
       </div>
 
-      {!showContent ? (
-        <>
-          <HomeInitialSkeleton />
-          {/* Pre-mount BOTH Next Up and My Teams hidden so their queries start
-              during the unified skeleton and (more importantly) their first
-              mount/layout work happens before reveal. Otherwise My Teams (a
-              simpler tree) paints noticeably faster than the heavier Next Up
-              carousel + hero card sub-queries, creating a visible stagger
-              even though `showContent` flips for both at the same instant. */}
-          {initialized && user && (
-            <div style={{ position: "absolute", width: 0, height: 0, overflow: "hidden", visibility: "hidden", pointerEvents: "none" }} aria-hidden>
-              <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
-              {!myTeamsReady && (
-                <Suspense fallback={null}>
-                  <MyTeamsPremiumCarousel />
-                </Suspense>
-              )}
-            </div>
-          )}
-        </>
+      <div className="relative">
+        {!showContent && <HomeInitialSkeleton />}
+        <div
+          className={showContent ? "space-y-5" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
+          aria-hidden={!showContent}
+        >
+          {/* Next Up Carousel - unified event section */}
+          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
 
-      ) : (
+          {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
+          <Suspense fallback={<HomeMyTeamsSkeleton />}>
+            <MyTeamsPremiumCarousel />
+          </Suspense>
+        </div>
+      </div>
+
+      {showContent && (
         <div className="space-y-5">
-      {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
-
-      {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
-      <Suspense fallback={<HomeMyTeamsSkeleton />}>
-        <MyTeamsPremiumCarousel />
-      </Suspense>
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
