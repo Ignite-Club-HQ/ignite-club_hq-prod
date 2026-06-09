@@ -180,23 +180,22 @@ function getCharsPerLine() {
 // previews and 30-40px on text bubbles, which read as a continuous upward
 // drift during fast upward flicks.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 200,
-  poll: 180,
-  board: 160,
-  vault: 96,
-  vaultfolder: 96,
-  vaultroot: 96,
-  gallery: 180,
+  // Aligned with each card's fixed-height loading skeleton so the row
+  // estimate matches the very first paint AND the post-hydration paint
+  // (skeletons now have the same outer dimensions as the loaded cards).
+  // This kills the skeleton→card growth that pushed rows below downward
+  // after the user stopped scrolling.
+  event: 76,        // EventLinkCard skeleton h-[76px]
+  poll: 180,        // PollCard loading still varies; keep conservative.
+  board: 80,        // BoardLinkCard skeleton h-[80px]
+  vault: 64,        // VaultFileCard skeletons h-[64px]
+  vaultfolder: 64,
+  vaultroot: 64,
+  gallery: 160,     // GalleryLinkCard hero ≈ 240, prompt ≈ 76 — split.
   galleryprompt: 76,
-  // Generic URL previews. Previously bumped to 160 after a p95 outlier
-  // (+570px on a single rich article card), but follow-up telemetry showed
-  // typical cards measure ~80-100px, leaving every URL row over-reserved
-  // by 43-86px — the dominant downward jolt source on upward flicks.
-  // 130 over-corrected — round-2 telemetry showed every URL row over by
-  // ~60 (233→174, 214→154, 290→214, 292→174). 75 centers the compact
-  // card (favicon strip + title + 1-2 line description); rich hero cards
-  // remain a rare upward outlier the cache absorbs on revisit.
-  url: 75,
+  // Generic URL previews. LinkPreview reserves h-20 (80px) when
+  // reserveSpace=true (chat history path), so match that exactly.
+  url: 80,
 };
 
 /**
