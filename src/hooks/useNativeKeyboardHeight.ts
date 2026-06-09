@@ -78,7 +78,15 @@ export function useNativeKeyboardHeight(): number {
       }
 
       const viewportShrink = Math.max(0, androidBaselineHeight - viewportHeight);
-      const nextInset = Math.max(0, androidHeight - viewportShrink);
+      // Android WebView can either resize the visible viewport OR pan it upward
+      // when an input is focused (seen most often when opening a reply banner).
+      // A fixed composer is already visually lifted by that pan; applying the
+      // full native keyboard height again moves it one extra keyboard-height up,
+      // leaving the large blank gap shown above Gboard. Treat either shrink or
+      // visualViewport.offsetTop as keyboard space already consumed by WebView.
+      const viewportPan = Math.max(0, visualViewport?.offsetTop ?? 0);
+      const consumedByViewport = Math.min(androidHeight, Math.max(viewportShrink, viewportPan));
+      const nextInset = Math.max(0, androidHeight - consumedByViewport);
       setAndroidInset((current) => (current === nextInset ? current : nextInset));
     };
 
