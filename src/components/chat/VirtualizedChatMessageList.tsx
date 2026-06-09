@@ -376,9 +376,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line — telemetry showed 20 was a touch hot on long
-    // messages (caused -44/-52/-76 over-estimates).
-    height += Math.min(12, lineCount) * 19;
+    // ~19px per visual line. Previously this was clamped to `Math.min(12, …)`
+    // which capped every long message at ~228px of text height — telemetry
+    // showed estimator returning 368 while actual rows measured 595/666/955,
+    // forcing 200-600px paddingTop corrections on slow scroll-up (the visible
+    // jolt). Honour real line count; the outer max cap still bounds runaway.
+    height += lineCount * 19;
   } else if (!hasImage) {
     height += 32;
   }
