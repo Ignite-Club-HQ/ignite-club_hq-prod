@@ -783,7 +783,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // visible flicker as Virtuoso prepends a second page on top of an
   // unsettled layout. We enforce a short cooldown so each prepend has time
   // to paint before the next one is allowed.
-  const PREPEND_COOLDOWN_MS = 350;
+  // 600ms (was 350ms): on Android WebView a fast upward fling can land a
+  // prepend page before the previous one's freshly-mounted rows have
+  // rasterised. Stacking two `firstItemIndex` shifts inside that window is
+  // the dominant cause of the "flicker on fast scroll-up" reports — the
+  // second page's estimate→measured paddingTop correction lands on top of
+  // an already-unsettled layout. 600ms gives the previous prepend a full
+  // ~36-frame window to settle before another is allowed. Genuine repeat
+  // upward gestures past the cooldown still trigger `startReached` /
+  // `atTopStateChange` naturally, so this only suppresses the back-to-back
+  // case, not normal pagination.
+  const PREPEND_COOLDOWN_MS = 600;
   const lastPrependLandedAtRef = useRef(0);
   // Once messages.length grows, the prepend has landed — release the guard.
   useEffect(() => {
