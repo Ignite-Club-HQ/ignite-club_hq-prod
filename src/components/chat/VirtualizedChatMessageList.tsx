@@ -266,6 +266,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
+    author?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null } | null;
     edited_at?: string | null;
     is_edited?: boolean | null;
   } & EstimableChatMessage;
@@ -312,7 +314,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
   const showAuthorHeader = !isOwnMessage && !groupedWithPrev;
   if (showAuthorHeader) {
-    const authorChars = (msg.author_name ?? "").length;
+    const authorChars = (
+      msg.author_name
+      ?? msg.author?.display_name
+      ?? msg.profiles?.display_name
+      ?? "Loading..."
+    ).length;
     // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
     // name wraps). Telemetry showed the previous 22/44 values produced a
     // consistent +16px under-reservation on non-grouped rows.
