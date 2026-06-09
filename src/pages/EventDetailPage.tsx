@@ -3425,7 +3425,7 @@ export default function EventDetailPage() {
             <AddDutySheet
               open={addDutyOpen}
               onOpenChange={setAddDutyOpen}
-              onAddDuty={(dutyName) => addDutyMutation.mutate(dutyName)}
+              onAddDuty={(dutyName, opts) => addDutyMutation.mutate({ dutyName, startTime: opts?.startTime, endTime: opts?.endTime })}
               isPending={addDutyMutation.isPending}
               isMiniLeague={!!event?.mini_league_id}
               context="session"
