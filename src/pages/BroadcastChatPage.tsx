@@ -220,9 +220,12 @@ export default function BroadcastChatPage() {
   // Force a fresh fetch whenever we land on the broadcast chat. Push
   // notifications and inbox taps can land here while react-query still has
   // stale data — invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
   useEffect(() => {
     if (!authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+    const key = ["broadcast-messages"];
+    if (shouldSkipChatMountInvalidate(queryClient, key, "broadcast")) return;
+    queryClient.invalidateQueries({ queryKey: key });
   }, [authReady, queryClient]);
 
   const { data: messagesData, isLoading } = useQuery({
