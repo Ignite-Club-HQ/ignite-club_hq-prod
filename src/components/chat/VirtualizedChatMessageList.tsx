@@ -518,29 +518,62 @@ function CachedMeasureRow({
     const el = ref.current;
     if (!el) return;
     const write = () => {
-      const h = el.offsetHeight;
+      const el2 = ref.current;
+      if (!el2) return;
+      const h = el2.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
+    // Immediate write is safe — it lands in the same layout pass.
     write();
-    const raf = requestAnimationFrame(write);
-    const t1 = setTimeout(write, 120);
-    const t2 = setTimeout(write, 360);
+
+    // Late writes (rAF, 120ms, 360ms, short-RO) update measured heights
+    // *after* the row has already mounted. If the user is actively scrolling
+    // (or just stopped), pushing those updates into Virtuoso's itemSize cache
+    // mid-fling causes visible row shifts: the message the user is reading
+    // jolts down/up as a row above re-measures. Defer all late writes until
+    // the chat scroller has been idle for ~250ms.
+    let cancelIdle: (() => void) | null = null;
+    let raf: number | null = null;
+    let t1: ReturnType<typeof setTimeout> | null = null;
+    let t2: ReturnType<typeof setTimeout> | null = null;
     let ro: ResizeObserver | null = null;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(write);
-      ro.observe(el);
-      // Short-lived: disconnect after the reaction/edit animation settles so
-      // we don't reintroduce the Android per-row observer storm.
-      roTimer = setTimeout(() => {
-        ro?.disconnect();
-        ro = null;
-      }, 600);
+
+    const scheduleLateWrites = () => {
+      raf = requestAnimationFrame(write);
+      t1 = setTimeout(write, 120);
+      t2 = setTimeout(write, 360);
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(() => {
+          // RO can fire during a scroll-driven re-layout. Gate again.
+          const since = performance.now() - getLastChatScrollAt();
+          if (since < 250) {
+            cancelIdle?.();
+            cancelIdle = runWhenChatScrollIdle(write, 250);
+            return;
+          }
+          write();
+        });
+        ro.observe(el);
+        roTimer = setTimeout(() => {
+          ro?.disconnect();
+          ro = null;
+        }, 600);
+      }
+    };
+
+    const since = performance.now() - getLastChatScrollAt();
+    if (since >= 250) {
+      scheduleLateWrites();
+    } else {
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 250);
     }
+
     return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
+      cancelIdle?.();
+      if (raf !== null) cancelAnimationFrame(raf);
+      if (t1) clearTimeout(t1);
+      if (t2) clearTimeout(t2);
       if (roTimer) clearTimeout(roTimer);
       ro?.disconnect();
     };
