@@ -1873,6 +1873,11 @@ export default function HomePage() {
       {/* Next Up Carousel - unified event section */}
       <NextUpCarousel events={events || []} isLoading={isLoading} />
 
+      {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
+      <Suspense fallback={<HomeMyTeamsSkeleton />}>
+        <MyTeamsPremiumCarousel />
+      </Suspense>
+
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
       {/* Only coaches/team_admins of that team can edit, others view read-only */}
@@ -1947,13 +1952,6 @@ export default function HomePage() {
 
       {/* Pending competition invites for team/club admins */}
       <HomePendingCompetitionInvitesCard activeClubFilter={activeClubFilter} />
-
-      {/* My Teams & Leagues - Primary content. Mounted immediately (no viewport gate)
-          so the chunk + first query start in parallel with above-fold render. The
-          carousel itself hydrates from localStorage snapshot for instant warm paint. */}
-      <Suspense fallback={<HomeMyTeamsSkeleton />}>
-        <MyTeamsPremiumCarousel />
-      </Suspense>
 
       {/* My Competitions - entries for the user's teams / admin clubs */}
       <HomeMyCompetitionsCard />
