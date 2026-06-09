@@ -28,6 +28,7 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
+import { getCachedImageAspectRatio } from "@/lib/chatImageAspectCache";
 import {
   installChatScrollIntentTracking,
   isViewportTouching,
@@ -179,23 +180,22 @@ function getCharsPerLine() {
 // previews and 30-40px on text bubbles, which read as a continuous upward
 // drift during fast upward flicks.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 200,
-  poll: 180,
-  board: 160,
-  vault: 96,
-  vaultfolder: 96,
-  vaultroot: 96,
-  gallery: 180,
+  // Aligned with each card's fixed-height loading skeleton so the row
+  // estimate matches the very first paint AND the post-hydration paint
+  // (skeletons now have the same outer dimensions as the loaded cards).
+  // This kills the skeleton→card growth that pushed rows below downward
+  // after the user stopped scrolling.
+  event: 76,        // EventLinkCard skeleton h-[76px]
+  poll: 180,        // PollCard loading still varies; keep conservative.
+  board: 80,        // BoardLinkCard skeleton h-[80px]
+  vault: 64,        // VaultFileCard skeletons h-[64px]
+  vaultfolder: 64,
+  vaultroot: 64,
+  gallery: 160,     // GalleryLinkCard hero ≈ 240, prompt ≈ 76 — split.
   galleryprompt: 76,
-  // Generic URL previews. Previously bumped to 160 after a p95 outlier
-  // (+570px on a single rich article card), but follow-up telemetry showed
-  // typical cards measure ~80-100px, leaving every URL row over-reserved
-  // by 43-86px — the dominant downward jolt source on upward flicks.
-  // 130 over-corrected — round-2 telemetry showed every URL row over by
-  // ~60 (233→174, 214→154, 290→214, 292→174). 75 centers the compact
-  // card (favicon strip + title + 1-2 line description); rich hero cards
-  // remain a rare upward outlier the cache absorbs on revisit.
-  url: 75,
+  // Generic URL previews. LinkPreview reserves h-20 (80px) when
+  // reserveSpace=true (chat history path), so match that exactly.
+  url: 80,
 };
 
 /**
@@ -316,16 +316,22 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator: 36 under-reserved across the board (Δ +34 to +80
-  // dominant on text+reply rows). Quote header + sender label + 1-2 line
-  // quoted text typically measures ~56px. Bump to 56 — outliers with very
-  // long wrapped quotes still take small upward corrections, which is
-  // preferable to systematic downward drift.
-  if (hasReply) height += 56;
-  // Image bubble: 245 still slightly over on the dominant case (Δ -25 to
-  // -48 across captionless image rows). Drop to 225 — captioned/portrait
-  // images remain a +60 to +77 upward outlier the cache absorbs on revisit.
-  if (hasImage) height += 225;
+  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
+  // ~46px. Previous +56 over-reserved by ~10px, which Virtuoso shrunk on
+  // first measurement, lifting rows below.
+  if (hasReply) height += 46;
+  // Image bubble: rendered at fixed width 300px with the natural aspect
+  // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
+  // (chatImageAspectCache, populated on previous decodes) so the estimator
+  // matches the real reserved box instead of the 4:3 default. Fall back to
+  // 4:3 (= 225px) for never-seen images.
+  if (hasImage) {
+    const imgUrl = (msg.image_url || msg.imageUrl) ?? null;
+    const cachedRatio = getCachedImageAspectRatio([imgUrl]);
+    const ratio = cachedRatio ?? (4 / 3);
+    // 300 / ratio = pixel height of the reserved aspect-ratio box.
+    height += Math.round(300 / ratio);
+  }
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -547,9 +553,9 @@ function CachedMeasureRow({
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
           const since = performance.now() - getLastChatScrollAt();
-          if (since < 250) {
+          if (since < 400) {
             cancelIdle?.();
-            cancelIdle = runWhenChatScrollIdle(write, 250);
+            cancelIdle = runWhenChatScrollIdle(write, 400);
             return;
           }
           write();
@@ -563,10 +569,10 @@ function CachedMeasureRow({
     };
 
     const since = performance.now() - getLastChatScrollAt();
-    if (since >= 250) {
+    if (since >= 400) {
       scheduleLateWrites();
     } else {
-      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 250);
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 400);
     }
 
     return () => {
@@ -1758,14 +1764,22 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollSeekConfiguration={false}
       // Asymmetric overscan: jank on this app is overwhelmingly on UPWARD
       // scrolls into older history (rows that have never mounted, with
-      // variable heights). Reserve a wider top viewport so a hard fling
+      // variable heights). Reserve a moderate top viewport so a hard fling
       // (~2000px in <300ms on a phone) lands inside already-measured
       // territory; keep bottom modest because incoming-message growth is
-      // already handled by `followOutput`. Bumping `minOverscanItemCount.top`
-      // alongside ensures very tall rows (image + reactions ≈ 360px) are
-      // pre-mounted by row count, not just by pixel budget.
-      increaseViewportBy={{ top: 1600, bottom: 240 }}
-      minOverscanItemCount={{ top: 12, bottom: 2 }}
+      // already handled by `followOutput`.
+      //
+      // Previously top:1600 / minOverscanItemCount.top:12 — too generous:
+      // after a fast upward flick STOPS, the dozen+ overscan rows above the
+      // viewport were still hydrating their async children (images, link
+      // previews, reactions). Each late growth above the viewport forced
+      // Virtuoso to re-correct paddingTop, which the user perceived as the
+      // chat "moving around after it has stopped". Tightening upward
+      // overscan to ~one screen of history (≈600px / 6 rows) keeps the
+      // post-stop quiescence visually flat while still pre-mounting enough
+      // history for the NEXT flick to land in measured territory.
+      increaseViewportBy={{ top: 400, bottom: 240 }}
+      minOverscanItemCount={{ top: 6, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}

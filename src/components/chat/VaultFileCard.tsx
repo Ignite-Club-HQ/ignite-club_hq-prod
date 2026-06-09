@@ -10,7 +10,7 @@ import {
   Folder,
   ExternalLink,
   Download,
-  Loader2,
+  
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,10 +123,18 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
 
   if (rootScope && rootId) {
     if (rootQuery.isLoading) {
+      // Match loaded card layout (h-10 icon + p-3 + 2 text rows ≈ 64px) so
+      // the row doesn't grow when the vault root query resolves.
       return (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Loading vault…</span>
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs h-[64px]"
+        >
+          <div className="h-10 w-10 rounded-md bg-muted shrink-0 animate-pulse" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-2/3 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-1/2 rounded bg-muted/70 animate-pulse" />
+          </div>
         </div>
       );
     }
@@ -167,9 +175,15 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
   if (folderId) {
     if (folderQuery.isLoading) {
       return (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Loading folder…</span>
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs h-[64px]"
+        >
+          <div className="h-10 w-10 rounded-md bg-muted shrink-0 animate-pulse" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-2/3 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-1/3 rounded bg-muted/70 animate-pulse" />
+          </div>
         </div>
       );
     }
@@ -210,9 +224,15 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
   if (fileId) {
     if (fileQuery.isLoading) {
       return (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Loading file…</span>
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs h-[64px]"
+        >
+          <div className="h-10 w-10 rounded-md bg-muted shrink-0 animate-pulse" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-3/4 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-2/5 rounded bg-muted/70 animate-pulse" />
+          </div>
         </div>
       );
     }

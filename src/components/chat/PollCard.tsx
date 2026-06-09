@@ -173,8 +173,10 @@ export function PollCard({ pollId }: PollCardProps) {
   });
 
   if (isLoading) {
+    // Fixed-height skeleton matches estimator (PREVIEW_HEIGHT_BY_TOKEN.poll = 180)
+    // so the row doesn't grow when the poll resolves.
     return (
-      <div className="rounded-xl border border-border bg-card/50 p-3 max-w-sm">
+      <div className="rounded-2xl border border-border bg-card/50 w-full max-w-[320px] h-[180px] flex items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading poll…
         </div>

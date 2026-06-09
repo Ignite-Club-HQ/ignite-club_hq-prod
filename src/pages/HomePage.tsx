@@ -81,6 +81,7 @@ myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
+import { getCachedCarousel } from "@/lib/myTeamsCarouselCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
@@ -1889,7 +1890,45 @@ export default function HomePage() {
   // high on the page and was pushed down when Next Up arrived. Keep the unified
   // Home skeleton in place while an empty Next Up result is actively refetching.
   const waitingForNextUpResolution = events.length === 0 && isFetching;
-  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution;
+
+  // Coordinate first paint of Next Up + My Teams so both fade in together
+  // instead of Next Up popping in first while the My Teams carousel paints
+  // its own skeleton a moment later. We pre-mount MyTeamsPremiumCarousel
+  // hidden (below) so its query kicks off during the unified skeleton, then
+  // flip `myTeamsReady` when the cache has data (either from localStorage
+  // snapshot, an already-resolved query, or the in-flight fetch completing).
+  const myTeamsSnapshot = useMemo(
+    () => getCachedCarousel<any>(user?.id, activeClubFilter),
+    [user?.id, activeClubFilter],
+  );
+  const myTeamsQueryKey = useMemo(
+    () => ["my-teams-premium", user?.id, activeClubFilter] as const,
+    [user?.id, activeClubFilter],
+  );
+  const [myTeamsReady, setMyTeamsReady] = useState(() => {
+    if (myTeamsSnapshot) return true;
+    const state = queryClient.getQueryState(myTeamsQueryKey as unknown as any[]);
+    return !!state && (state.status === "success" || state.status === "error");
+  });
+  useEffect(() => {
+    if (myTeamsSnapshot) { setMyTeamsReady(true); return; }
+    const state = queryClient.getQueryState(myTeamsQueryKey as unknown as any[]);
+    if (state && (state.status === "success" || state.status === "error")) {
+      setMyTeamsReady(true);
+      return;
+    }
+    setMyTeamsReady(false);
+    const unsub = queryClient.getQueryCache().subscribe((event: any) => {
+      const key = event?.query?.queryKey;
+      if (!Array.isArray(key) || key.length !== myTeamsQueryKey.length) return;
+      if (key[0] !== myTeamsQueryKey[0] || key[1] !== myTeamsQueryKey[1] || key[2] !== myTeamsQueryKey[2]) return;
+      const status = event?.query?.state?.status;
+      if (status === "success" || status === "error") setMyTeamsReady(true);
+    });
+    return () => unsub();
+  }, [queryClient, myTeamsQueryKey, myTeamsSnapshot]);
+
+  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && myTeamsReady;
 
   return (
     <div className="py-6 space-y-5">
@@ -1903,17 +1942,24 @@ export default function HomePage() {
         </p>
       </div>
 
-      {!showContent ? (
-        <HomeInitialSkeleton />
-      ) : (
-        <div className="space-y-5">
-      {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
+      <div className="relative">
+        {!showContent && <HomeInitialSkeleton />}
+        <div
+          className={showContent ? "space-y-5" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
+          aria-hidden={!showContent}
+        >
+          {/* Next Up Carousel - unified event section */}
+          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
 
-      {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
-      <Suspense fallback={<HomeMyTeamsSkeleton />}>
-        <MyTeamsPremiumCarousel />
-      </Suspense>
+          {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
+          <Suspense fallback={<HomeMyTeamsSkeleton />}>
+            <MyTeamsPremiumCarousel />
+          </Suspense>
+        </div>
+      </div>
+
+      {showContent && (
+        <div className="space-y-5">
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
