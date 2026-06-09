@@ -120,11 +120,11 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
               <img
                 src={heroSrc}
                 alt=""
-                loading="lazy"
+                loading="eager"
                 decoding="async"
                 onLoad={() => setImgLoaded(true)}
                 onError={() => setImgError(true)}
-                className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+                className={`h-full w-full object-cover ${imgLoaded ? "opacity-100" : "opacity-0"}`}
               />
             </>
           ) : (
