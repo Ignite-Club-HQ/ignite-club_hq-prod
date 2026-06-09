@@ -758,25 +758,25 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
             <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
             <span className="min-w-0">{compactWhen}</span>
           </div>
-          {locationDisplay && (
-            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90">
-              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
-              <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
-            </div>
-          )}
           {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-1.5 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="font-medium">Arrive by {arrivalTime}</span>
-                <span className="text-muted-foreground">({mins} min before)</span>
+              <div className="flex items-baseline gap-1.5 pl-5 text-[12px] text-warning">
+                <span className="font-medium">Arrive {arrivalTime}</span>
+                <span className="text-muted-foreground">· {mins} min before</span>
               </div>
             );
           })()}
+          {locationDisplay && (
+            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90 pt-0.5">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+              <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
+            </div>
+          )}
         </div>
+
 
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
