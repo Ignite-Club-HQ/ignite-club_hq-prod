@@ -369,3 +369,23 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 @media (prefers-reduced-motion: reduce) {
   .chat-message-enter { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Sonner toaster: bulletproof z-index pin.
+ * Toasts (download success, errors, etc.) must NEVER paint behind the
+ * PhotoLightbox Radix Dialog (z-[1000001]) or any other overlay. The
+ * `<Toaster />` component is also portaled to document.body so its stacking
+ * context lives at the topmost level, but we belt-and-brace it with CSS:
+ *   - max signed int32 z-index
+ *   - isolation: isolate so child toasts can't escape the pin
+ *   - pointer-events: none on the wrapper so it never blocks clicks; the
+ *     individual toasts already opt back in via pointer-events:auto.
+ * ------------------------------------------------------------------------- */
+[data-sonner-toaster] {
+  z-index: 2147483647 !important;
+  isolation: isolate;
+  pointer-events: none;
+}
+[data-sonner-toaster] [data-sonner-toast] {
+  pointer-events: auto;
+}
