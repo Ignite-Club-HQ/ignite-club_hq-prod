@@ -553,9 +553,9 @@ function CachedMeasureRow({
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
           const since = performance.now() - getLastChatScrollAt();
-          if (since < 250) {
+          if (since < 400) {
             cancelIdle?.();
-            cancelIdle = runWhenChatScrollIdle(write, 250);
+            cancelIdle = runWhenChatScrollIdle(write, 400);
             return;
           }
           write();
@@ -569,10 +569,10 @@ function CachedMeasureRow({
     };
 
     const since = performance.now() - getLastChatScrollAt();
-    if (since >= 250) {
+    if (since >= 400) {
       scheduleLateWrites();
     } else {
-      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 250);
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 400);
     }
 
     return () => {
@@ -1778,7 +1778,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // overscan to ~one screen of history (≈600px / 6 rows) keeps the
       // post-stop quiescence visually flat while still pre-mounting enough
       // history for the NEXT flick to land in measured territory.
-      increaseViewportBy={{ top: 600, bottom: 240 }}
+      increaseViewportBy={{ top: 400, bottom: 240 }}
       minOverscanItemCount={{ top: 6, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
