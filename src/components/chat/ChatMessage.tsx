@@ -922,11 +922,11 @@ function ChatMessageInner({
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-card border border-border/40 ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
-              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${
+              } ${tapFlash ? "ring-2 ring-primary/40" : ""} ${
                 isInteracting
-                  ? "ring-1 ring-primary/40 ring-offset-0 shadow-[0_28px_56px_-20px_rgba(0,0,0,0.55),0_8px_18px_-6px_rgba(0,0,0,0.22)] scale-[1.015] brightness-[1.04] dark:brightness-[1.14]"
+                  ? "ring-1 ring-primary/40 ring-offset-0 shadow-[0_28px_56px_-20px_rgba(0,0,0,0.55),0_8px_18px_-6px_rgba(0,0,0,0.22)]"
                   : ""
-              } transition-[transform,box-shadow,filter] duration-150 ease-out will-change-transform`}
+              } ${isInteracting ? "transition-shadow duration-150 ease-out" : ""}`}
 
               onPointerDown={(e) => e.preventDefault()}
               onContextMenu={(e) => e.preventDefault()}
