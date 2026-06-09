@@ -222,12 +222,21 @@ export default function BroadcastChatPage() {
   // notifications and inbox taps can land here while react-query still has
   // stale data — invalidating guarantees the latest message is fetched on entry.
   // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
+  // Batch 3B: fire on `user?.id` (eager) when per-surface flag enabled.
+  const eagerInvalidateBroadcast = isChatEagerInvalidateEnabled("broadcast");
+  const invalidateGateBroadcast = eagerInvalidateBroadcast ? !!user?.id : authReady;
   useEffect(() => {
-    if (!authReady) return;
+    if (!invalidateGateBroadcast) return;
     const key = ["broadcast-messages"];
     if (shouldSkipChatMountInvalidate(queryClient, key, "broadcast")) return;
-    queryClient.invalidateQueries({ queryKey: key });
-  }, [authReady, queryClient]);
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidateBroadcast) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [invalidateGateBroadcast, queryClient, eagerInvalidateBroadcast]);
 
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["broadcast-messages"],
