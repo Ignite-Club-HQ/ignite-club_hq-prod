@@ -39,6 +39,7 @@ import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive"
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
+import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
