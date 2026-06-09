@@ -479,7 +479,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
     placeholderData: (prev) => prev,
   });
 
-  const { data: myDuties } = useQuery({
+  const { data: myDuties, isFetched: myDutiesFetched } = useQuery({
     queryKey: ["hero-my-duties", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -499,14 +499,16 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
-  const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
+  const { data: rsvpSummary, isFetched: rsvpSummaryFetched } = useRsvpSummary(event.id, event.type);
+  const { data: isEventMember = true, isFetched: membershipFetched } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
   // a moment after first paint and visibly push the rest of the home page down.
   // Also gates the "RSVP Required" pill so it never flashes before child
   // RSVPs hydrate (which would briefly show the pill on already-responded events).
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched);
+  const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && rsvpSummaryFetched && membershipFetched && dutiesReady);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -636,7 +638,6 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
 
   // "Needs RSVP" — in guardian mode this means any child still needs a response;
   // otherwise it falls back to the parent's own un-actioned state.
-  const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
   const needsRsvp =
     heroDataReady &&
     !event.is_cancelled &&
