@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 // All duty options with their metadata
 const ALL_DUTY_OPTIONS = [
-  { id: "Canteen", label: "Canteen", icon: Utensils, description: "Food & drinks" },
+  { id: "Canteen/BBQ", label: "Canteen/BBQ", icon: Utensils, description: "Food & drinks" },
   { id: "Linesperson", label: "Linesperson", icon: Flag, description: "Line calls" },
   { id: "Linemarker", label: "Linemarker", icon: PaintBucket, description: "Mark the pitch" },
   { id: "Referee", label: "Referee", icon: Megaphone, description: "Officiate the game" },
@@ -25,8 +25,11 @@ const ALL_DUTY_OPTIONS = [
   { id: "custom", label: "Other", icon: FileText, description: "Custom duty" },
 ];
 
+// Duties that support optional timed shifts (multiple slots throughout the event)
+const SHIFT_CAPABLE_DUTIES = new Set(["Canteen/BBQ"]);
+
 // For mini league session level: all duties available (auto-distributed to matches)
-const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "Referee", "Linesperson", "Subs Manager", "Game Steward", "Oranges", "Snacks", "custom"];
+const MINI_LEAGUE_SESSION_DUTIES = ["Canteen/BBQ", "Linemarker", "Referee", "Linesperson", "Subs Manager", "Game Steward", "Oranges", "Snacks", "custom"];
 
 // For mini league match level: only Referee and Linesperson
 const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee", "Subs Manager", "Oranges", "Snacks"];
