@@ -1140,18 +1140,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // hasn't scrolled through yet.
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
-      debugLogStartReached(false, "trust-window-deferred");
-      if (userInitiatedTopReach && startReachedRetryTimerRef.current === null) {
-        startReachedRetryTimerRef.current = window.setTimeout(() => {
-          startReachedRetryTimerRef.current = null;
-          if (!hasRecentUserUpwardScroll()) return;
-          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
-          if (!isStillNearTop()) return;
-          loadingOlderInFlightRef.current = true;
-          debugLogStartReached(true, "deferred-fetch");
-          onLoadOlderRef.current();
-        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
-      }
+      debugLogStartReached(false, "trust-window-suppressed");
       return;
     }
     if (!userInitiatedTopReach) {
@@ -1175,34 +1164,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       lastPrependLandedAtRef.current > 0 &&
       sinceLastPrepend < PREPEND_COOLDOWN_MS
     ) {
-      // Cooldown: a prepend just landed and the new rows may not yet be
-      // painted. Defer this fetch until the cooldown elapses so we don't
-      // stack a second prepend on top of an unsettled layout (the visible
-      // flicker on fast upward flings). CRITICAL: at retry time, re-verify
-      // the user is still actively scrolling AND still near the top — a
-      // queued fetch that fires after the user has stopped/reversed reads
-      // as "messages keep moving after I stopped".
-      if (startReachedRetryTimerRef.current === null) {
-        startReachedRetryTimerRef.current = window.setTimeout(() => {
-          startReachedRetryTimerRef.current = null;
-          if (!hasRecentUserUpwardScroll()) {
-            debugLogStartReached(false, "cooldown-retry-user-idle");
-            return;
-          }
-          if (!isStillNearTop()) {
-            debugLogStartReached(false, "cooldown-retry-left-top");
-            return;
-          }
-          handleStartReached();
-        }, Math.max(0, PREPEND_COOLDOWN_MS - sinceLastPrepend) + 50);
-      }
-      debugLogStartReached(false, "cooldown-deferred");
+      // Cooldown: a prepend just landed; suppress (do NOT retry). A queued
+      // fetch firing after the user stops reads as "messages keep moving
+      // after I stopped" — the next genuine upward gesture will retrigger
+      // `startReached` naturally.
+      debugLogStartReached(false, "cooldown-suppressed");
       return;
     }
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [hasOlder, isLoadingOlder, onLoadOlder, isStillNearTop, hasRecentUserUpwardScroll]);
+  }, [hasOlder, isLoadingOlder, onLoadOlder, hasRecentUserUpwardScroll]);
 
   // When the scroller is already pinned at scrollTop≈0, iOS/Android often do
   // not emit another scroll event for a repeated upward-history gesture. That
