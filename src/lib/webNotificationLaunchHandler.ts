@@ -35,6 +35,16 @@ export function consumePendingWebPushNav(): string | null {
   return url;
 }
 
+function isExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
+    return !appDomains.some((d) => parsed.hostname.endsWith(d));
+  } catch {
+    return false;
+  }
+}
+
 function handlePayload(payload: any) {
   if (!payload) return;
   const rawUrl: string | undefined = payload.url;
@@ -47,6 +57,29 @@ function handlePayload(payload: any) {
     author_id: data?.author_id || data?.sender_id || null,
     rawUrl,
   });
+
+  // Audit fix: mirror native handler — force-update / store_url notifications
+  // carry no SPA url, only a store link. Open it in a new tab instead of
+  // navigating the SPA to `undefined`.
+  const storeUrl: string | undefined = data?.store_url || payload?.store_url;
+  const forceUpdate = data?.force_update_prompt === true || data?.force_update_prompt === 'true';
+  if (forceUpdate || storeUrl) {
+    if (storeUrl) {
+      try { window.open(storeUrl, '_blank', 'noopener'); } catch {}
+    }
+    try {
+      window.dispatchEvent(new CustomEvent('force-update-prompt', { detail: { storeUrl } }));
+    } catch {}
+    return;
+  }
+
+  // External (non-app-domain) URLs should open in a new tab, not be stashed
+  // as an SPA route.
+  if (rawUrl && isExternalUrl(rawUrl)) {
+    try { window.open(rawUrl, '_blank', 'noopener'); } catch {}
+    return;
+  }
+
   const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
   if (url) {
     pendingUrl = url;
