@@ -437,15 +437,13 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-11: round-10 telemetry
-  // (110+ first-visit measurements across text/text+reply rows) showed a
-  // consistent +26 to +34 underestimate on short rows when chrome was 4/8.
-  // The round-9 "overshoot" dump that triggered the revert turned out to be
-  // a different row mix (mostly cached re-measures + a few long-wrap rows
-  // where the per-line drift dominated). Bump chrome by +24 to land the bulk
-  // of first-visit short rows within ±5 without over-correcting long rows
-  // (which already trend toward over-estimate from generous wrap counting).
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 28 : 32;
+  // Bubble vertical padding + timestamp strip. Round-12: reverted Round-11
+  // chrome bump (28/32). Tuning this constant just moves the post-mount
+  // correction's sign — flicker is unchanged because Virtuoso still patches
+  // paddingTop whenever measured ≠ estimated. The real fix is upstream:
+  // either eliminate the post-mount correction window OR stop prepending
+  // rows during active scroll. Constant is back at 4/8 baseline.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 8;
 
   else if (hasImage) height += groupedWithNext ? 18 : 34;
 
