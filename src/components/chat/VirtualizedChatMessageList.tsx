@@ -1952,6 +1952,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
+      // ROOT-CAUSE FIX for scroll-up flicker/movement: by default Virtuoso
+      // wraps its item ResizeObserver callback in requestAnimationFrame, so a
+      // row mounted during upward scroll reports its real height ONE FRAME
+      // LATE. For that frame the list is positioned with the wrong (default
+      // 160px) height, then snaps — visible as per-row flicker on slow scroll
+      // and compounding viewport movement on fast flings (react-virtuoso
+      // issue #1049). Skipping the rAF makes measurement synchronous within
+      // the same layout pass, eliminating the one-frame misposition window.
+      // Note: estimator tuning could never fix this — estimateChatRowHeight
+      // only feeds debug telemetry; Virtuoso itself only knows
+      // defaultItemHeight until the RO reports.
+      skipAnimationFrameInResizeObserver
       // Tuned to the real median chat row height: most rows fall in the
       // 90–180px band (text bubble + author + timestamp ≈ 90, image rows
       // with the reserved 4/3 frame ≈ 300). 160 is the population median
