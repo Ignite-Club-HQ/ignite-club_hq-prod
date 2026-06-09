@@ -383,9 +383,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       ?? msg.profiles?.display_name
       ?? "Loading..."
     ).length;
-    // Avatar + name + spacing in ChatMessage. Round-3 telemetry showed 40/56
-    // was ~8-12px too tall vs the real header; back off slightly.
-    height += authorChars > 24 ? 46 : 32;
+    // Avatar + name + spacing in ChatMessage. Round-4 telemetry: 32/46 was
+    // still ~10px too tall vs the real header.
+    height += authorChars > 24 ? 36 : 24;
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
