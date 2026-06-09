@@ -6,6 +6,8 @@ import {
 import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
+import { resolveChatScrollViewport } from "@/lib/chatScroll";
+
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
