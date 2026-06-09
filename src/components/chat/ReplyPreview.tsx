@@ -40,6 +40,12 @@ interface ReplyIndicatorProps {
   isOwn: boolean;
 }
 
+/**
+ * Fixed-height reply pill. As soon as `hasReply` is true we reserve a row
+ * (h-[42px]) and commit content immediately when it arrives. No deferred
+ * hydration — content drops into space that's already accounted for, so
+ * Virtuoso never sees a row grow above the user's read anchor during scroll.
+ */
 export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, hasReply = false, isOwn }: ReplyIndicatorProps) {
   const shouldReserve = hasReply || !!replyToMessage;
   if (!shouldReserve) return null;
@@ -47,13 +53,15 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, has
 
   return (
     <div
-      className={`mb-1 flex h-12 max-w-full min-w-0 flex-col justify-center overflow-hidden rounded-lg border-l-2 border-primary/50 bg-background/50 px-2 text-xs ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
+      className={`text-xs p-2 mb-1 h-[42px] rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
       aria-hidden={hidden || undefined}
     >
       <p className="text-muted-foreground font-medium truncate">
         {replyToMessage?.authorName || "\u00A0"}
       </p>
-      <p className="text-muted-foreground/70 truncate">{replyToMessage?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}</p>
+      <p className="text-muted-foreground/70 truncate">
+        {replyToMessage?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}
+      </p>
     </div>
   );
 });

@@ -34,12 +34,12 @@ import {
   isViewportUserActive,
 } from "@/lib/chatScrollIntent";
 import { BasicChatMessageList } from "./BasicChatMessageList";
+import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
-import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -517,44 +517,65 @@ function CachedMeasureRow({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    let cancelIdle: (() => void) | null = null;
     const write = () => {
-      const h = el.offsetHeight;
+      const el2 = ref.current;
+      if (!el2) return;
+      const h = el2.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
-    const scheduleSettleWrites = () => {
-      const raf = requestAnimationFrame(write);
-      const t1 = setTimeout(write, 120);
-      const t2 = setTimeout(write, 360);
-      let ro: ResizeObserver | null = null;
-      let roTimer: ReturnType<typeof setTimeout> | null = null;
+    // Immediate write is safe — it lands in the same layout pass.
+    write();
+
+    // Late writes (rAF, 120ms, 360ms, short-RO) update measured heights
+    // *after* the row has already mounted. If the user is actively scrolling
+    // (or just stopped), pushing those updates into Virtuoso's itemSize cache
+    // mid-fling causes visible row shifts: the message the user is reading
+    // jolts down/up as a row above re-measures. Defer all late writes until
+    // the chat scroller has been idle for ~250ms.
+    let cancelIdle: (() => void) | null = null;
+    let raf: number | null = null;
+    let t1: ReturnType<typeof setTimeout> | null = null;
+    let t2: ReturnType<typeof setTimeout> | null = null;
+    let ro: ResizeObserver | null = null;
+    let roTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleLateWrites = () => {
+      raf = requestAnimationFrame(write);
+      t1 = setTimeout(write, 120);
+      t2 = setTimeout(write, 360);
       if (typeof ResizeObserver !== "undefined") {
-        ro = new ResizeObserver(write);
+        ro = new ResizeObserver(() => {
+          // RO can fire during a scroll-driven re-layout. Gate again.
+          const since = performance.now() - getLastChatScrollAt();
+          if (since < 250) {
+            cancelIdle?.();
+            cancelIdle = runWhenChatScrollIdle(write, 250);
+            return;
+          }
+          write();
+        });
         ro.observe(el);
-        // Short-lived: disconnect after the reaction/edit animation settles so
-        // we don't reintroduce the Android per-row observer storm.
         roTimer = setTimeout(() => {
           ro?.disconnect();
           ro = null;
         }, 600);
       }
-      return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      if (roTimer) clearTimeout(roTimer);
-      ro?.disconnect();
-      };
     };
-    write();
-    const sinceScroll = performance.now() - getLastChatScrollAt();
-    cancelIdle = sinceScroll < 250
-      ? runWhenChatScrollIdle(() => {
-          cancelIdle = scheduleSettleWrites();
-        }, 250)
-      : scheduleSettleWrites();
+
+    const since = performance.now() - getLastChatScrollAt();
+    if (since >= 250) {
+      scheduleLateWrites();
+    } else {
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 250);
+    }
+
     return () => {
       cancelIdle?.();
+      if (raf !== null) cancelAnimationFrame(raf);
+      if (t1) clearTimeout(t1);
+      if (t2) clearTimeout(t2);
+      if (roTimer) clearTimeout(roTimer);
+      ro?.disconnect();
     };
   }, [messageId, signature]);
   return (
@@ -714,6 +735,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // resumes.
   const PREPEND_TRUST_WINDOW_MS = 800;
   const messagesLengthRef = useRef(messages.length);
+  const hasOlderRef = useRef(hasOlder);
+  const isLoadingOlderRef = useRef(isLoadingOlder);
+  const onLoadOlderRef = useRef(onLoadOlder);
+  
+  hasOlderRef.current = hasOlder;
+  isLoadingOlderRef.current = isLoadingOlder;
+  onLoadOlderRef.current = onLoadOlder;
   // Synchronous in-flight guard for `startReached`. The parent's
   // `isLoadingOlder` state flips via setState, so two `startReached` events
   // fired in the same frame on a fast upward flick both see `false` and
@@ -728,11 +756,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // older-page fetch after the user's thumb/inertia has actually settled.
   const lastObservedScrollTopRef = useRef<number | null>(null);
   const lastUserUpwardScrollAtRef = useRef(0);
-  const PREPEND_USER_SCROLL_ACTIVE_MS = 180;
+  const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
   const hasRecentUserUpwardScroll = useCallback(() => {
     if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
       return true;
     }
+    // Edge-pin fallback: once scrollTop hits 0 the browser stops emitting
+    // upward scroll deltas. Only treat this as continuing upward intent if a
+    // finger is STILL on the glass — using the broader `isViewportUserActive`
+    // cooldown (600ms) caused `startReached` to keep firing after release,
+    // which surfaced as "messages keep moving after I stopped".
+    const el = scrollerElRef.current;
+    if (el && el.scrollTop <= 4 && isViewportTouching(el)) return true;
     return false;
   }, []);
 
@@ -771,6 +806,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
     prevIsLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
+
 
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
@@ -1063,6 +1099,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
+
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
@@ -1099,8 +1136,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       lastPrependLandedAtRef.current > 0 &&
       sinceLastPrepend < PREPEND_COOLDOWN_MS
     ) {
-      // Cooldown: suppress instead of queueing a retry; delayed retries can
-      // fire after visible momentum stops and apply another anchor shift.
+      // Cooldown: a prepend just landed; suppress (do NOT retry). A queued
+      // fetch firing after the user stops reads as "messages keep moving
+      // after I stopped" — the next genuine upward gesture will retrigger
+      // `startReached` naturally.
       debugLogStartReached(false, "cooldown-suppressed");
       return;
     }
