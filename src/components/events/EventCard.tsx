@@ -329,6 +329,22 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     enabled: !event.is_cancelled,
   });
 
+  // My duties for this event — render a tag so the user sees what they're rostered for.
+  const { data: myDuties } = useQuery({
+    queryKey: ["card-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
   const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
@@ -747,6 +763,36 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             );
           })()}
         </div>
+
+        {myDuties && myDuties.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 pt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-0.5">
+              Your duty:
+            </span>
+            {myDuties.map((d: any) => {
+              const isDone = d.status === "completed";
+              const range = d.start_time
+                ? `${new Date(d.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${d.end_time ? `–${new Date(d.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                : null;
+              return (
+                <Badge
+                  key={d.id}
+                  variant="outline"
+                  className={
+                    isDone
+                      ? "text-[10.5px] h-[18px] px-1.5 font-semibold bg-success/15 text-success border-success/30"
+                      : "text-[10.5px] h-[18px] px-1.5 font-semibold bg-warning/15 text-warning border-warning/30"
+                  }
+                >
+                  {isDone && <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+                  {d.name}{range ? ` · ${range}` : ""}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+
+
 
         {/* RSVP block — child-anchored when responses are still needed; falls back to summary line once everyone responded. */}
         {!event.is_cancelled && (() => {
