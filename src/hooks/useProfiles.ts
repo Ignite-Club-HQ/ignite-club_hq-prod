@@ -100,9 +100,16 @@ export function useProfiles(ids: string[]) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [fetchProfiles]);
 
+  // Stable identity across `profiles` updates. Reads via ref so we never bust
+  // memoised children (e.g. GroupChatMessageRow) when a background profile
+  // hydration replaces the `profiles` Map. Children that actually need to
+  // re-render on profile changes should subscribe to a profile-specific signal
+  // or read `profiles` directly.
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
   const getProfile = useCallback((id: string) => {
-    return profiles.get(id) || null;
-  }, [profiles]);
+    return profilesRef.current.get(id) || null;
+  }, []);
 
   // Manual refresh function for external use
   const refreshProfiles = useCallback(() => {

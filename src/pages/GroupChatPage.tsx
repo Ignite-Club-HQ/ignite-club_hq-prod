@@ -100,6 +100,10 @@ import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEa
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
 
+// Stable empty array reference so rows with no reactions don't bust
+// GroupChatMessageRow's memo on every parent render.
+const EMPTY_REACTIONS: never[] = [];
+
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
   "🔥": "🔥",
@@ -1817,13 +1821,33 @@ export default function GroupChatPage() {
     user?.id
   );
 
+  // Stable per-message read-state objects. We only spread a NEW object for a
+  // message when its read-state signature actually changed; otherwise reuse the
+  // previous reference. This prevents the ChatRowAdapter `prev.message === next.message`
+  // memo from busting on every realtime read-receipt (which previously caused
+  // every visible row to re-render and produced the upward-scroll flicker on
+  // Android WebView).
+  const prevReadStateMapRef = useRef<Map<string, any>>(new Map());
   const messagesWithReadState = useMemo(() => {
-    return (filteredMessages || []).map((message) => ({
-      ...message,
-      __readStateSignature: `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
+    const prevMap = prevReadStateMapRef.current;
+    const nextMap = new Map<string, any>();
+    const out = (filteredMessages || []).map((message) => {
+      const sig = `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
         .map((reader) => reader.user_id)
-        .join(",")}`,
-    }));
+        .join(",")}`;
+      const prior = prevMap.get(message.id);
+      // Reuse the prior wrapper IFF the underlying message ref AND signature
+      // are unchanged. Either changing means real new content to render.
+      if (prior && prior.__src === message && prior.__readStateSignature === sig) {
+        nextMap.set(message.id, prior);
+        return prior;
+      }
+      const wrapped = { ...message, __readStateSignature: sig, __src: message };
+      nextMap.set(message.id, wrapped);
+      return wrapped;
+    });
+    prevReadStateMapRef.current = nextMap;
+    return out;
   }, [filteredMessages, readCounts, readFrontier]);
 
   // Typing indicator
@@ -2097,7 +2121,7 @@ export default function GroupChatPage() {
             initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
-              const messageReactions = messageReactionsMap.get(msg.id) || [];
+              const messageReactions = messageReactionsMap.get(msg.id) || EMPTY_REACTIONS;
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
