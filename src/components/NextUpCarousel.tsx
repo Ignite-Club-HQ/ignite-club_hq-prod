@@ -1455,7 +1455,9 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
 
   const pendingCount = pendingIds.size;
 
-  // Show skeleton while loading to reserve space and prevent layout shift
+  // Show skeleton while loading to reserve space and prevent layout shift.
+  // Height matches live card (340) + dot row reservation (pt-3 + h-6 = 36)
+  // so My Teams below does not move when the live card mounts.
   if (isLoading) {
     return (
       <section className="space-y-3">
@@ -1463,7 +1465,8 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
           <div className="h-6 w-24 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
         </div>
-        <div className={`rounded-lg bg-muted animate-pulse ${NEXT_UP_CARD_SKELETON_HEIGHT}`} />
+        <div className="rounded-lg bg-muted animate-pulse h-[340px]" />
+        <div className="h-[24px]" aria-hidden="true" />
       </section>
     );
   }
