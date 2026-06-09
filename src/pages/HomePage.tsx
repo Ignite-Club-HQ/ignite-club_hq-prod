@@ -480,6 +480,14 @@ export default function HomePage() {
     enabled: !!user && initialized,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
+    // Seed from the localStorage snapshot so first paint after a long absence
+    // shows real cards instead of a skeleton. `initialDataUpdatedAt` is the
+    // snapshot's capture time, so React Query still considers it stale and
+    // kicks off a background refetch (refetchOnMount: "always" below).
+    initialData: nextUpCachedSnapshot
+      ? { memberships: nextUpCachedSnapshot.memberships, events: nextUpCachedSnapshot.events }
+      : undefined,
+    initialDataUpdatedAt: nextUpCachedSnapshot?.cachedAt,
     // Retry on transient resume-race failures so cards reappear automatically
     // after a brief token-rotation window instead of staying blank.
     retry: 2,
@@ -488,6 +496,17 @@ export default function HomePage() {
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });
+
+  // Persist the latest snapshot whenever the query resolves so the next cold
+  // open / long-absence return can hydrate instantly via `initialData` above.
+  useEffect(() => {
+    if (!user?.id || !membershipAndEvents) return;
+    setCachedNextUp(user.id, {
+      memberships: membershipAndEvents.memberships,
+      events: membershipAndEvents.events,
+      cachedAt: Date.now(),
+    });
+  }, [user?.id, membershipAndEvents]);
 
   // Derive memberships and events from consolidated query
   const userMemberships = membershipAndEvents?.memberships;
