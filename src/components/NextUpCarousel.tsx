@@ -827,7 +827,12 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            {!heroDataReady ? null : (hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
+            {/* Render RSVP buttons immediately — don't wait for per-event queries.
+                Until heroDataReady, hasGuardianChildren is false so we fall into
+                the simple parent-buttons branch with no active selection. When
+                queries land we either swap to the guardian variant or light up
+                the active state, all within the reserved 168px so nothing jolts. */}
+            {(hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
               const teammatesGoing = rsvpSummary?.totalCount || 0;
               const isSingleChild = childrenOnEvent!.length === 1;
               const soleChild = isSingleChild ? childrenOnEvent![0] : null;
