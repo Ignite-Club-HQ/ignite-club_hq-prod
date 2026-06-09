@@ -22,7 +22,7 @@
  */
 
 const MAX_ENTRIES = 2000;
-const STORAGE_KEY = "chat:rowHeightCache:v1";
+const STORAGE_KEY = "ignite_chat:rowHeightCache:v2";
 // Throttle persistence — measurement bursts (e.g. initial mount) can call
 // setCachedRowHeight dozens of times per frame; avoid serialising on each.
 const PERSIST_DEBOUNCE_MS = 400;
@@ -54,13 +54,17 @@ function restoreFromStorage() {
     if (!Array.isArray(parsed)) return;
     for (const entry of parsed) {
       if (!Array.isArray(entry) || entry.length !== 2) continue;
-      const [id, h] = entry as [unknown, unknown];
+      const [id, h, sig] = entry as [unknown, unknown, unknown];
       if (typeof id !== "string" || !id) continue;
       if (typeof h !== "number" || !Number.isFinite(h) || h <= 0) continue;
       cache.set(id, Math.round(h));
+      if (typeof sig === "string") sigs.set(id, sig);
       if (cache.size > MAX_ENTRIES) {
         const firstKey = cache.keys().next().value;
-        if (firstKey !== undefined) cache.delete(firstKey);
+        if (firstKey !== undefined) {
+          cache.delete(firstKey);
+          sigs.delete(firstKey);
+        }
       }
     }
   } catch {
@@ -79,7 +83,7 @@ function schedulePersist() {
     if (!dirty) return;
     dirty = false;
     try {
-      const payload = JSON.stringify(Array.from(cache.entries()));
+      const payload = JSON.stringify(Array.from(cache.entries()).map(([id, height]) => [id, height, sigs.get(id) ?? null]));
       ss.setItem(STORAGE_KEY, payload);
     } catch {
       // Quota / serialisation failure — ignore; in-memory cache is still good.
@@ -98,13 +102,13 @@ export function getCachedRowHeight(
   if (!id) return undefined;
   const v = cache.get(id);
   if (v === undefined) return undefined;
-  // Signature mismatch → message content changed since last measurement
+  // Signature mismatch → message content/context changed since last measurement
   // (edit, reactions changed, link-preview hydrated). Treat as a miss so
   // estimateChatRowHeight falls back to a fresh estimate instead of returning
   // a stale measured height.
   if (signature !== undefined) {
     const prevSig = sigs.get(id);
-    if (prevSig !== undefined && prevSig !== signature) {
+    if (prevSig === undefined || prevSig !== signature) {
       cache.delete(id);
       sigs.delete(id);
       schedulePersist();
@@ -182,7 +186,7 @@ if (typeof window !== "undefined") {
     const ss = safeSessionStorage();
     if (!ss) return;
     try {
-      ss.setItem(STORAGE_KEY, JSON.stringify(Array.from(cache.entries())));
+      ss.setItem(STORAGE_KEY, JSON.stringify(Array.from(cache.entries()).map(([id, height]) => [id, height, sigs.get(id) ?? null])));
       dirty = false;
       if (persistTimer !== null) {
         clearTimeout(persistTimer);
