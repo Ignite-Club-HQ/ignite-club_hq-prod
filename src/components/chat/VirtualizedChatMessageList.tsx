@@ -446,7 +446,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 30 : 34;
   else if (hasImage) height += groupedWithNext ? 18 : 34;
 
+  // Reactions row wraps every ~4 chips on a phone-width bubble.
+  if (reactions) height += Math.ceil(reactions / 4) * 28;
+
   if (msg.edited_at || msg.is_edited) height += 4;
+
 
   // Allow tall rows — long messages of 30+ wrapped lines genuinely measure
   // 900-1100px, and capping at 960 reintroduced late paddingTop corrections.
