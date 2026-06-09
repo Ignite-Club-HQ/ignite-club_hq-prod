@@ -348,9 +348,12 @@ export default function ClubChatPage() {
   // Force a fresh fetch whenever we land on this club chat. Push notifications
   // and inbox taps can land here while react-query still has stale data —
   // invalidating guarantees the latest message is fetched on entry.
+  // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
   useEffect(() => {
     if (!clubId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+    const key = ["club-messages", clubId];
+    if (shouldSkipChatMountInvalidate(queryClient, key, `club:${clubId}`)) return;
+    queryClient.invalidateQueries({ queryKey: key });
   }, [clubId, authReady, queryClient]);
 
   const { data: messagesData, isLoading } = useQuery({
