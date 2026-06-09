@@ -37,7 +37,10 @@ export const EventLinkCard = memo(function EventLinkCard({ eventId }: EventLinkC
   }, [event?.id, navigate]);
 
   if (isLoading) {
-    return <Skeleton className="h-16 w-full max-w-[280px] rounded-lg" />;
+    // Match the loaded card's exact outer height (h-[76px]) so the
+    // skeleton → card transition does not grow the row when the query
+    // resolves (visible as "movement after scrolling stops").
+    return <Skeleton className="h-[76px] w-full max-w-[280px] rounded-lg" />;
   }
 
   if (!event) {
