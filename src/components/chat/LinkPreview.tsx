@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
+import { deferIfJumpActive } from "@/lib/linkPreviewJumpDefer";
 
 interface LinkPreviewData {
   url: string;
@@ -106,23 +107,34 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
     }
 
     let cancelIdle: (() => void) | null = null;
+    let cancelDefer: (() => void) | null = null;
     let cancelled = false;
 
-    fetchPreviewOnce(url).then((value) => {
+    const startFetch = () => {
       if (cancelled || !mountedRef.current) return;
-      // CRITICAL: do NOT setState mid-flick. Inserting/removing a
-      // ~80px-tall preview card while the user is fast-scrolling shifts
-      // every row below by the card height — the user sees the message
-      // they were reading "drop down" by 80px. Wait for scroll-idle.
-      cancelIdle = runWhenChatScrollIdle(() => {
+      fetchPreviewOnce(url).then((value) => {
         if (cancelled || !mountedRef.current) return;
-        setPreview(value);
-      }, 250);
-    });
+        // CRITICAL: do NOT setState mid-flick. Inserting/removing a
+        // ~80px-tall preview card while the user is fast-scrolling shifts
+        // every row below by the card height — the user sees the message
+        // they were reading "drop down" by 80px. Wait for scroll-idle.
+        cancelIdle = runWhenChatScrollIdle(() => {
+          if (cancelled || !mountedRef.current) return;
+          setPreview(value);
+        }, 250);
+      });
+    };
+
+    // Batch 3C: while a jump-to-message is in flight, defer the fetch until
+    // ~800ms after hydration-end so async row-height growth doesn't force
+    // jumpToMessage's settle-pass to re-correct repeatedly.
+    cancelDefer = deferIfJumpActive(startFetch);
+    if (!cancelDefer) startFetch();
 
     return () => {
       cancelled = true;
       cancelIdle?.();
+      cancelDefer?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, skipPreview]);
