@@ -38,7 +38,7 @@ import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
 import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
-import { shouldShowTapHint } from "@/hooks/useChatActionsOnboarding";
+import { claimFirstBubbleHint } from "@/hooks/useChatActionsOnboarding";
 
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
@@ -283,13 +283,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     // Short tap is a no-op on text bubbles — long press is the only path to
     // message actions (WhatsApp / iMessage parity). Inner content keeps its
     // own tap handlers since we no longer preventDefault on the short tap.
-    // For users who haven't long-pressed yet, surface a contextual tooltip
-    // anchored to the bubble so they can discover the gesture.
-    else if (shouldShowTapHint()) {
-      setShowTapHint(true);
-      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
-      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 2500);
-    }
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
@@ -493,16 +486,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               onTouchEnd={handleLongPressEnd}
               onContextMenu={handleContextMenu}
             >
-              {showTapHint && (
-                <div
-                  className={`pointer-events-none absolute -top-7 z-20 whitespace-nowrap rounded-full bg-foreground/90 text-background px-2.5 py-1 text-[10.5px] font-medium shadow-md animate-fade-in ${
-                    isOwnMessage ? "right-2" : "left-2"
-                  }`}
-                  role="status"
-                >
-                  Press and hold for reactions and replies
-                </div>
-              )}
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
