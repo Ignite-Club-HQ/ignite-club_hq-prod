@@ -1,6 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
+import {
+  measureImageDimensions,
+  appendDimensionsToUrl,
+  setCachedImageAspectRatio,
+} from "@/lib/chatImageAspectCache";
+
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
