@@ -1903,10 +1903,11 @@ export default function HomePage() {
     () => events.map((event) => event.id).join("|"),
     [events],
   );
-  const [nextUpReady, setNextUpReady] = useState(false);
-  useEffect(() => {
-    setNextUpReady(false);
-  }, [user?.id, activeClubFilter, nextUpEventSignature]);
+  const [readyNextUpSignature, setReadyNextUpSignature] = useState("");
+  const handleNextUpReadyChange = useMemo(
+    () => (ready: boolean) => setReadyNextUpSignature(ready ? nextUpEventSignature : ""),
+    [nextUpEventSignature],
+  );
 
   const myTeamsQueryKey = useMemo(
     () => ["my-teams-premium", user?.id, activeClubFilter] as const,
@@ -1937,7 +1938,7 @@ export default function HomePage() {
 
   const nextUpSectionReady = events.length === 0
     ? (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution
-    : nextUpReady;
+    : readyNextUpSignature === nextUpEventSignature;
   const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && nextUpSectionReady && myTeamsReady;
 
   return (
@@ -1959,7 +1960,7 @@ export default function HomePage() {
           aria-hidden={!showContent}
         >
           {/* Next Up Carousel - unified event section */}
-          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} onReadyChange={setNextUpReady} />
+          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} onReadyChange={handleNextUpReadyChange} />
 
           {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
           <Suspense fallback={<HomeMyTeamsSkeleton />}>
