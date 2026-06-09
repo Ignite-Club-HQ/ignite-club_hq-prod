@@ -9,6 +9,7 @@
  */
 import { preloadMessageFromNotification } from "./notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
+import { prefetchChatChunkForUrl } from "./chatChunkPrefetch";
 
 let pendingUrl: string | null = null;
 const SS_KEY = "ignite_pending_web_push_nav";
@@ -53,6 +54,9 @@ function handlePayload(payload: any) {
     // Persist the exact message target before React navigation starts, so
     // chat pages can still jump correctly if the search param is dropped.
     try { captureJumpFromNotification(data, url); } catch {}
+    // Warm the chat page chunk in parallel with auth/profile bootstrap so it
+    // is already in the module cache by the time the route mounts.
+    try { prefetchChatChunkForUrl(url); } catch {}
   }
   // Best-effort preload — payload may contain the full push data so the chat
   // page can render the new message instantly. Safe no-op if fields missing.
