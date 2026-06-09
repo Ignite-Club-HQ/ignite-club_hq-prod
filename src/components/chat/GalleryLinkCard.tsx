@@ -110,20 +110,29 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
       onClick={handleClick}
       className={`group block w-full max-w-[320px] overflow-hidden rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-colors hover:border-primary/30 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06)] active:bg-primary/[0.04] touch-manipulation dark:border-border/40 dark:bg-card/80 dark:hover:border-primary/40 ${isPrompt ? "h-[76px]" : "h-[240px]"}`}
     >
-      {/* Hero - only for non-prompt cards with image */}
-      {!isPrompt && heroSrc && !imgError && (
+      {/* Fixed hero slot for all non-prompt cards so image URL/signing/error
+          state never changes the row height after Virtuoso has measured it. */}
+      {!isPrompt && (
         <div className="relative w-full aspect-video bg-muted overflow-hidden">
-          {!imgLoaded && <Skeleton className="absolute inset-0" />}
-          <img
-            src={heroSrc}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-            className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-          />
-          {count > 1 && (
+          {heroSrc && !imgError ? (
+            <>
+              {!imgLoaded && <Skeleton className="absolute inset-0" />}
+              <img
+                src={heroSrc}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgError(true)}
+                className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              />
+            </>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-primary/10">
+              <ImageIcon className="h-7 w-7 text-primary/70" />
+            </div>
+          )}
+          {count > 1 && heroSrc && !imgError && (
             <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
               <ImageIcon className="h-2.5 w-2.5" />
               {count}
