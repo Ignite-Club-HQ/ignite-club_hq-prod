@@ -1,6 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ChatActionsOnboardingBanner } from "./ChatActionsOnboardingBanner";
 
 interface ChatComposerShellProps {
   children: ReactNode;
@@ -37,7 +36,6 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
       )}
       aria-hidden={actionSheetOpen || undefined}
     >
-      <ChatActionsOnboardingBanner />
       <div
         className={cn(
           "flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible",
