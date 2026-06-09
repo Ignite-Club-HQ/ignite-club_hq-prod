@@ -316,16 +316,22 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator: 36 under-reserved across the board (Δ +34 to +80
-  // dominant on text+reply rows). Quote header + sender label + 1-2 line
-  // quoted text typically measures ~56px. Bump to 56 — outliers with very
-  // long wrapped quotes still take small upward corrections, which is
-  // preferable to systematic downward drift.
-  if (hasReply) height += 56;
-  // Image bubble: 245 still slightly over on the dominant case (Δ -25 to
-  // -48 across captionless image rows). Drop to 225 — captioned/portrait
-  // images remain a +60 to +77 upward outlier the cache absorbs on revisit.
-  if (hasImage) height += 225;
+  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
+  // ~46px. Previous +56 over-reserved by ~10px, which Virtuoso shrunk on
+  // first measurement, lifting rows below.
+  if (hasReply) height += 46;
+  // Image bubble: rendered at fixed width 300px with the natural aspect
+  // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
+  // (chatImageAspectCache, populated on previous decodes) so the estimator
+  // matches the real reserved box instead of the 4:3 default. Fall back to
+  // 4:3 (= 225px) for never-seen images.
+  if (hasImage) {
+    const imgUrl = (msg.image_url || msg.imageUrl) ?? null;
+    const cachedRatio = getCachedImageAspectRatio([imgUrl]);
+    const ratio = cachedRatio ?? (4 / 3);
+    // 300 / ratio = pixel height of the reserved aspect-ratio box.
+    height += Math.round(300 / ratio);
+  }
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
