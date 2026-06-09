@@ -435,12 +435,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-2 bumped this to 34/18
-  // which now over-reserves by 30-40px on plain text rows AND ~34px on every
-  // image row (telemetry: 327→293, 502→468, 399→364 — all -34). Image-only
-  // rows have no timestamp strip, so omit chrome entirely for them.
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 10 : 18;
-  else if (hasImage) height += groupedWithNext ? 4 : 8;
+  // Bubble vertical padding + timestamp strip. Round-4: trimmed chrome to
+  // remove the residual ~25-35px over-estimate on plain text rows. Image
+  // rows came in +34 under-estimated in round-3 (chrome was nearly zero) so
+  // restore moderate chrome there.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 10;
+  else if (hasImage) height += groupedWithNext ? 18 : 34;
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
