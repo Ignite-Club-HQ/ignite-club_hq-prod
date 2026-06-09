@@ -500,10 +500,11 @@ export default function AuthPage() {
 
   return (
     <div
-      className="flex flex-col bg-background overflow-hidden"
+      className={`flex flex-col bg-background overflow-hidden ${isNativePlatform ? 'fixed inset-0' : ''}`}
       data-lock-keyboard-scroll="true"
       style={authShellStyle}
     >
+
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
         <InviteFlowProgress 
