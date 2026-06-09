@@ -345,7 +345,7 @@ export default function HomePage() {
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
-  const { data: membershipAndEvents, isLoading, isFetched } = useQuery({
+  const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
       // Step 1: Fetch user roles.
@@ -1852,7 +1852,13 @@ export default function HomePage() {
   // Gate first paint of the widget area on the primary memberships query so
   // every widget mounts together and fades in as a single, cohesive surface
   // instead of popping in piecemeal as each child query resolves.
-  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading;
+  // Deep audit: React Query can hydrate an old/empty cached memberships+events
+  // result with `isLoading=false`, then immediately refetch. In that window the
+  // old empty event list made <NextUpCarousel /> return null, so My Teams painted
+  // high on the page and was pushed down when Next Up arrived. Keep the unified
+  // Home skeleton in place while an empty Next Up result is actively refetching.
+  const waitingForNextUpResolution = events.length === 0 && isFetching;
+  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution;
 
   return (
     <div className="py-6 space-y-5">
@@ -1871,7 +1877,7 @@ export default function HomePage() {
       ) : (
         <div className="space-y-5 animate-home-fade-in">
       {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} isLoading={isLoading} />
+      <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
 
       {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
       <Suspense fallback={<HomeMyTeamsSkeleton />}>
