@@ -380,13 +380,16 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   return (
     <div className={`min-w-0 max-w-full ${imageUrl ? "" : "space-y-2"}`}>
-      {/* Image / video attachment — full-bleed at the top of the bubble.
+            {/* Image / video attachment — full-bleed at the top of the bubble.
           The parent bubble switches to p-0 when imageUrl is present, so
           the image visually owns the top of the bubble (WhatsApp / iMessage
           pattern) and the caption text below sits in its own padded area.
           Width is set on this wrapper so the bubble has an intrinsic size
           to grow into; aspect-[4/3] reserves height before decode so the
-          virtualised scroller doesn't shift. */}
+            virtualised scroller doesn't shift.
+            Avoid per-image paint containment / compositor promotion here:
+            Android WebView can flash newly mounted paint-contained image layers
+            during fast upward virtualized scrolls before the layer rasterises. */}
       {imageUrl && !imageError && (
         <div
           className="w-full"
@@ -396,7 +399,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         >
           <div
             className="relative w-full bg-muted/40 overflow-hidden rounded-md"
-            style={{ aspectRatio: String(aspectRatio ?? DEFAULT_ASPECT_RATIO), contain: 'layout paint', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            style={{ aspectRatio: String(aspectRatio ?? DEFAULT_ASPECT_RATIO), contain: 'layout' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
               <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
@@ -437,7 +440,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   decoding="async"
                   loading="eager"
                   draggable={false}
-                  style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+                  style={{ touchAction: 'pan-y', backfaceVisibility: 'hidden' }}
                   className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
