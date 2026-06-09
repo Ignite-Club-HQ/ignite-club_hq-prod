@@ -145,6 +145,44 @@ export function setCachedImageAspectRatio(
   if (changed) scheduleWrite();
 }
 
+// Off-screen pre-decode for chat image URLs entering Virtuoso's prefetch
+// window. Populates the aspect-ratio cache BEFORE the row mounts so the
+// estimator reserves the correct box on first paint instead of the 4:3
+// default — eliminates the post-decode row-grow / row-shrink jolt that
+// causes visible flicker after upward scroll-pages land.
+//
+// No-ops when the URL is already cached (including the ?w=&h= URL-encoded
+// fast path) or when called in a non-DOM environment.
+const inFlight = new Set<string>();
+export function prefetchChatImageAspectRatio(url: string | null | undefined): void {
+  if (!url) return;
+  if (typeof Image === "undefined") return;
+  loadOnce();
+  const k = normalizeKey(url);
+  if (!k) return;
+  if (memory.has(k)) return;
+  if (extractRatioFromUrl(url)) return; // URL already encodes dims
+  if (inFlight.has(k)) return;
+  inFlight.add(k);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    // @ts-expect-error — fetchpriority is a valid hint on modern browsers
+    img.fetchPriority = "low";
+    img.onload = () => {
+      inFlight.delete(k);
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w > 0 && h > 0) setCachedImageAspectRatio([url], w / h);
+    };
+    img.onerror = () => { inFlight.delete(k); };
+    img.src = url;
+  } catch {
+    inFlight.delete(k);
+  }
+}
+
+
 // Measure intrinsic pixel dimensions of an image Blob. Returns null if the
 // blob can't be decoded as an image (e.g. SVG without dims, corrupt file).
 // Cheap and best-effort — callers should not block uploads on failure.
