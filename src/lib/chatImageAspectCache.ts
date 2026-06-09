@@ -81,6 +81,30 @@ function normalizeKey(url: string | null | undefined): string | null {
   return base || null;
 }
 
+// Parse ?w=W&h=H (or w/h anywhere in the query string) into an aspect ratio.
+// We append these params at upload time so the very first paint — even for
+// receivers who have never seen this image — can reserve the exact box and
+// avoid post-load row-height jolts.
+function extractRatioFromUrl(url: string | null | undefined): number | null {
+  if (!url) return null;
+  const q = url.indexOf("?");
+  if (q < 0) return null;
+  const qs = url.slice(q + 1);
+  let w = 0;
+  let h = 0;
+  for (const pair of qs.split("&")) {
+    const eq = pair.indexOf("=");
+    if (eq <= 0) continue;
+    const k = pair.slice(0, eq);
+    const v = pair.slice(eq + 1);
+    if (k === "w") w = parseInt(v, 10) || 0;
+    else if (k === "h") h = parseInt(v, 10) || 0;
+    if (w && h) break;
+  }
+  if (w > 0 && h > 0) return w / h;
+  return null;
+}
+
 export function getCachedImageAspectRatio(
   urls: (string | null | undefined)[],
 ): number | null {
@@ -89,8 +113,19 @@ export function getCachedImageAspectRatio(
     const k = normalizeKey(u);
     if (k && memory.has(k)) return memory.get(k)!;
   }
+  // Fallback: dimensions encoded in the URL itself (?w=&h=). Populate the
+  // in-memory cache so subsequent lookups are O(1).
+  for (const u of urls) {
+    const r = extractRatioFromUrl(u);
+    if (r) {
+      const k = normalizeKey(u);
+      if (k) memory.set(k, r);
+      return r;
+    }
+  }
   return null;
 }
+
 
 export function setCachedImageAspectRatio(
   urls: (string | null | undefined)[],
