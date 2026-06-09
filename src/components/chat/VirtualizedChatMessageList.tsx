@@ -209,20 +209,40 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
  * Cheap to compute (called per-row on every estimator invocation): no JSON
  * serialisation of large objects, just primitive concatenation.
  */
-function chatRowSignature(message: unknown): string {
+function chatRowSignature<TMessage extends { id?: string }>(
+  message: TMessage | unknown,
+  index?: number,
+  messages?: TMessage[],
+  currentUserId?: string | null,
+): string {
   const m = (message ?? {}) as {
+    id?: string | null;
+    author_id?: string | null;
     text?: string | null;
     image_url?: string | null;
     imageUrl?: string | null;
     edited_at?: string | null;
     is_edited?: boolean | null;
+    author_name?: string | null;
+    author?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null } | null;
     reply_to?: { id?: string } | null;
     reply_to_id?: string | null;
     reactions?: Array<{ emoji?: string; user_id?: string } | unknown> | null;
     link_preview?: unknown;
     link_previews?: unknown;
     preview?: unknown;
+    __readStateSignature?: string;
   };
+  const prev = typeof index === "number" && messages ? messages[index - 1] : undefined;
+  const next = typeof index === "number" && messages ? messages[index + 1] : undefined;
+  const currentDay = getMessageDay((m as { created_at?: string | null }).created_at);
+  const prevDay = getMessageDay((prev as { created_at?: string | null } | undefined)?.created_at);
+  const hasDateSeparator = !!currentDay && (!prevDay || prevDay !== currentDay);
+  const groupedWithPrev = !!prev && shouldGroupWithPrev(m, prev as any);
+  const groupedWithNext = !!next && shouldGroupWithPrev(next as any, m);
+  const isOwnMessage = !!currentUserId && m.author_id === currentUserId;
+  const authorName = m.author_name ?? m.author?.display_name ?? m.profiles?.display_name ?? "";
   const text = (m.text ?? "");
   const img = m.image_url ?? m.imageUrl ?? "";
   const edited = m.edited_at ?? (m.is_edited ? "1" : "");
@@ -249,7 +269,7 @@ function chatRowSignature(message: unknown): string {
   // Link-preview hydration: just the presence/shape, not the payload.
   const hasPreview =
     (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
-  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}|ctx:${hasDateSeparator ? 1 : 0}.${groupedWithPrev ? 1 : 0}.${groupedWithNext ? 1 : 0}.${isOwnMessage ? 1 : 0}.${authorName.length}.${m.__readStateSignature ?? ""}`;
 }
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -262,7 +282,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
   // Pass a content signature so an edit / reaction change / preview hydrate
   // that happened while this row was unmounted invalidates the stale value.
-  const cached = getCachedRowHeight(message.id, chatRowSignature(message));
+  const cached = getCachedRowHeight(message.id, chatRowSignature(message, index, messages, currentUserId));
   if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
