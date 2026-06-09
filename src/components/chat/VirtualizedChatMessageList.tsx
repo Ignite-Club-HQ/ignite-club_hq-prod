@@ -178,6 +178,37 @@ function looksLikeYoutubeUrl(text: string) {
   return /(?:youtube\.com\/(?:watch\?|shorts\/|embed\/)|youtu\.be\/)/i.test(text);
 }
 
+const PLAIN_URL_REGEX = /(?:https?:\/\/|www\.)[^\s\]]+/gi;
+function estimateVisibleText(rawText: string) {
+  return rawText
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
+    .replace(PLAIN_URL_REGEX, (url) => looksLikeYoutubeUrl(url) ? "" : "x".repeat(Math.min(50, url.length)))
+    .trim();
+}
+
+function estimateExternalPreviewHeight(text: string) {
+  const seen = new Set<string>();
+  let youtubeCount = 0;
+  let otherCount = 0;
+  for (const match of text.matchAll(PLAIN_URL_REGEX)) {
+    const url = match[0];
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (looksLikeYoutubeUrl(url)) {
+      if (youtubeCount < 2) youtubeCount += 1;
+    } else if (otherCount < 2) {
+      otherCount += 1;
+    }
+  }
+  const youtubeHeight = youtubeCount * 180 + Math.max(0, youtubeCount - 1) * 8;
+  const linkHeight = otherCount * PREVIEW_HEIGHT_BY_TOKEN.url + Math.max(0, otherCount - 1) * 8;
+  return youtubeHeight + linkHeight;
+}
+
 // Per-token-type reserved heights for inline link/preview cards. Real cards
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
