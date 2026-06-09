@@ -347,6 +347,15 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
+  // Hydrate from localStorage so returning to home after a long absence (or a
+  // cold open after React Query's gcTime evicted the cache) paints the Next Up
+  // cards instantly instead of flashing a skeleton while the consolidated
+  // memberships+events query refetches. Mirrors MyTeamsPremiumCarousel.
+  const nextUpCachedSnapshot = useMemo(
+    () => getCachedNextUp<{ memberships: any; events: Event[]; cachedAt: number }>(user?.id),
+    [user?.id],
+  );
+
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
