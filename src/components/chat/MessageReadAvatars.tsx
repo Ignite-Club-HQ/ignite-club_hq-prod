@@ -57,9 +57,10 @@ export const MessageReadAvatars = memo(function MessageReadAvatars({
           </span>
         )}
       </div>
-      <span className="text-[10px] text-muted-foreground/55 tracking-tight tabular-nums">
+      <span className="text-[11px] text-muted-foreground/80 tracking-tight tabular-nums">
         {label}
       </span>
+
     </div>
   );
 });
