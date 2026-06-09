@@ -1297,24 +1297,25 @@ function CompactCard({ event }: { event: EventItem }) {
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/45" aria-hidden="true" />
             <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
-          {locationDisplay && (
-            <div className="flex items-start gap-1.5 text-[12.5px]">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
-              <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
-            </div>
-          )}
           {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-1.5 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="font-medium truncate">Arrive by {arrivalTime} ({mins}m before)</span>
+              <div className="flex items-baseline gap-1.5 pl-[18px] text-[11.5px] text-warning">
+                <span className="font-medium">Arrive {arrivalTime}</span>
+                <span className="text-muted-foreground">· {mins}m before</span>
               </div>
             );
           })()}
+          {locationDisplay && (
+            <div className="flex items-start gap-1.5 text-[12.5px] pt-0.5">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
+              <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
+            </div>
+          )}
         </div>
+
 
         {/* RSVP Status */}
         {myDuties && myDuties.length > 0 && (
