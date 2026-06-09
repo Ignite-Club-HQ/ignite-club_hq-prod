@@ -84,6 +84,8 @@ function buildPushUrl(messageType: string, contextId: string | null, messageId: 
     case 'team': return contextId ? `/messages/${contextId}${q}` : '/messages';
     case 'club': return contextId ? `/messages/club/${contextId}${q}` : '/messages';
     case 'club_admin': return contextId ? `/messages/club-admin/${contextId}${q}` : '/messages';
+    case 'dm':
+    case 'direct': return contextId ? `/messages/dm/${contextId}${q}` : '/messages';
     case 'group': return contextId ? `/groups/${contextId}${q}` : '/messages';
     case 'broadcast': return `/messages/broadcast${q}`;
     default: return '/messages';

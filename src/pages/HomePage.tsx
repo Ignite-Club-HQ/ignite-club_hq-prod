@@ -80,6 +80,7 @@ const myTeamsCarouselImport = () =>
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
+import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
@@ -91,6 +92,69 @@ type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 type ClubRole = "club_admin";
 type LeagueRole = "league_admin" | "parent";
+
+function HomeMyTeamsSkeleton() {
+  return (
+    <section className="space-y-2.5" aria-hidden="true">
+      <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
+      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-3 pb-2 pr-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="shrink-0 w-[85vw] max-w-[320px] h-[212px] rounded-lg bg-card border border-border/60 p-4 space-y-3 animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-muted shrink-0" />
+                <div className="flex-1 space-y-2 pt-1">
+                  <div className="h-4 w-2/3 rounded bg-muted" />
+                  <div className="h-3 w-1/2 rounded bg-muted/80" />
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 h-[62px] p-3 space-y-2">
+                <div className="h-3 w-4/5 rounded bg-muted" />
+                <div className="h-3 w-3/5 rounded bg-muted/80" />
+              </div>
+              <div className="flex items-center gap-2 pt-3 border-t border-border/40 h-[36px]">
+                <div className="h-7 w-7 rounded-full bg-muted" />
+                <div className="h-3 w-24 rounded bg-muted/80" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HomeInitialSkeleton() {
+  return (
+    <div className="space-y-5" aria-hidden="true">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="h-6 w-24 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="h-[340px] overflow-hidden rounded-lg bg-card border border-border/50 p-4 space-y-3 animate-pulse">
+          <div className="ml-auto h-5 w-16 rounded-full bg-muted" />
+          <div className="h-7 w-2/3 rounded bg-muted" />
+          <div className="h-4 w-4/5 rounded bg-muted/80" />
+          <div className="h-4 w-3/5 rounded bg-muted/80" />
+          <div className="h-4 w-full rounded bg-muted/70" />
+          <div className="pt-28 space-y-2">
+            <div className="h-4 w-1/2 rounded bg-muted/70" />
+            <div className="grid grid-cols-3 gap-2">
+              <div className="h-9 rounded-full bg-muted" />
+              <div className="h-9 rounded-full bg-muted" />
+              <div className="h-9 rounded-full bg-muted" />
+            </div>
+            <div className="h-12 rounded-xl bg-muted/50" />
+          </div>
+        </div>
+        {/* Reserve dot row so My Teams below stays at a stable Y position. */}
+        <div className="h-[24px]" aria-hidden="true" />
+      </section>
+      <HomeMyTeamsSkeleton />
+    </div>
+  );
+}
 
 interface MiniLeague {
   id: string;
@@ -283,8 +347,17 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
+  // Hydrate from localStorage so returning to home after a long absence (or a
+  // cold open after React Query's gcTime evicted the cache) paints the Next Up
+  // cards instantly instead of flashing a skeleton while the consolidated
+  // memberships+events query refetches. Mirrors MyTeamsPremiumCarousel.
+  const nextUpCachedSnapshot = useMemo(
+    () => getCachedNextUp<{ memberships: any; events: Event[]; cachedAt: number }>(user?.id),
+    [user?.id],
+  );
+
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
-  const { data: membershipAndEvents, isLoading } = useQuery({
+  const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
       // Step 1: Fetch user roles.
@@ -407,6 +480,14 @@ export default function HomePage() {
     enabled: !!user && initialized,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
+    // Seed from the localStorage snapshot so first paint after a long absence
+    // shows real cards instead of a skeleton. `initialDataUpdatedAt` is the
+    // snapshot's capture time, so React Query still considers it stale and
+    // kicks off a background refetch (refetchOnMount: "always" below).
+    initialData: nextUpCachedSnapshot
+      ? { memberships: nextUpCachedSnapshot.memberships, events: nextUpCachedSnapshot.events }
+      : undefined,
+    initialDataUpdatedAt: nextUpCachedSnapshot?.cachedAt,
     // Retry on transient resume-race failures so cards reappear automatically
     // after a brief token-rotation window instead of staying blank.
     retry: 2,
@@ -415,6 +496,17 @@ export default function HomePage() {
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });
+
+  // Persist the latest snapshot whenever the query resolves so the next cold
+  // open / long-absence return can hydrate instantly via `initialData` above.
+  useEffect(() => {
+    if (!user?.id || !membershipAndEvents) return;
+    setCachedNextUp(user.id, {
+      memberships: membershipAndEvents.memberships,
+      events: membershipAndEvents.events,
+      cachedAt: Date.now(),
+    });
+  }, [user?.id, membershipAndEvents]);
 
   // Derive memberships and events from consolidated query
   const userMemberships = membershipAndEvents?.memberships;
@@ -1791,7 +1883,13 @@ export default function HomePage() {
   // Gate first paint of the widget area on the primary memberships query so
   // every widget mounts together and fades in as a single, cohesive surface
   // instead of popping in piecemeal as each child query resolves.
-  const showContent = !isLoading;
+  // Deep audit: React Query can hydrate an old/empty cached memberships+events
+  // result with `isLoading=false`, then immediately refetch. In that window the
+  // old empty event list made <NextUpCarousel /> return null, so My Teams painted
+  // high on the page and was pushed down when Next Up arrived. Keep the unified
+  // Home skeleton in place while an empty Next Up result is actively refetching.
+  const waitingForNextUpResolution = events.length === 0 && isFetching;
+  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution;
 
   return (
     <div className="py-6 space-y-5">
@@ -1806,19 +1904,16 @@ export default function HomePage() {
       </div>
 
       {!showContent ? (
-        // Unified initial skeleton — single visual placeholder for the whole
-        // home surface. Prevents the staggered widget pop-in that previously
-        // happened as queries resolved at different times.
-        <div className="space-y-5" aria-hidden="true">
-          <div className="h-32 rounded-xl bg-muted/60 animate-pulse" />
-          <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
-          <div className="h-24 rounded-xl bg-muted/40 animate-pulse" />
-          <div className="h-40 rounded-xl bg-muted/40 animate-pulse" />
-        </div>
+        <HomeInitialSkeleton />
       ) : (
-        <div className="space-y-5 animate-home-fade-in">
+        <div className="space-y-5">
       {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} isLoading={isLoading} />
+      <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
+
+      {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
+      <Suspense fallback={<HomeMyTeamsSkeleton />}>
+        <MyTeamsPremiumCarousel />
+      </Suspense>
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
@@ -1894,27 +1989,6 @@ export default function HomePage() {
 
       {/* Pending competition invites for team/club admins */}
       <HomePendingCompetitionInvitesCard activeClubFilter={activeClubFilter} />
-
-      {/* My Teams & Leagues - Primary content. Mounted immediately (no viewport gate)
-          so the chunk + first query start in parallel with above-fold render. The
-          carousel itself hydrates from localStorage snapshot for instant warm paint. */}
-      <Suspense
-        fallback={
-          <section className="space-y-2.5">
-            <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
-            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="shrink-0 w-[85vw] max-w-[320px] h-[212px] rounded-lg bg-muted/50 animate-pulse"
-                />
-              ))}
-            </div>
-          </section>
-        }
-      >
-        <MyTeamsPremiumCarousel />
-      </Suspense>
 
       {/* My Competitions - entries for the user's teams / admin clubs */}
       <HomeMyCompetitionsCard />

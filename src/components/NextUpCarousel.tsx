@@ -133,18 +133,40 @@ function WatchLiveCta({ event }: { event: EventItem }) {
   );
 }
 
-// Reserve enough vertical space to fit the card with the Children's RSVP
-// accordion in its collapsed state. This stops the home page from jolting
-// downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
-// moment after the initial paint and the accordion appears.
-// Reserve enough vertical space to fit the fully expanded card layout
-// (incl. the Children's RSVP accordion bar and personal RSVP summary line)
-// so the home page never grows / pushes other content downward as the
-// per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
-// moment after first paint.
-// Soft minimum height — reserves the loaded collapsed layout without leaving
-// a large empty tail under normal RSVP controls.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[420px]";
+// Skeleton height matches the normal collapsed Next Up card. The live card is
+// content-sized so it ends at "Your attendance" and only grows when expanded.
+const NEXT_UP_CARD_SKELETON_HEIGHT = "h-[340px]";
+
+function NextUpHeroCardSkeleton() {
+  return (
+    <Card className={`relative overflow-hidden w-full shrink-0 flex flex-col border-border/50 ${NEXT_UP_CARD_SKELETON_HEIGHT}`} aria-hidden="true">
+      <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-muted" />
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-3 h-full flex flex-col">
+        <div className="flex justify-end">
+          <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-7 w-2/3 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-4/5 rounded bg-muted/80 animate-pulse" />
+        </div>
+        <div className="space-y-2 pt-1">
+          <div className="h-4 w-3/5 rounded bg-muted/80 animate-pulse" />
+          <div className="h-4 w-full rounded bg-muted/70 animate-pulse" />
+        </div>
+        <div className="mt-auto space-y-2 pt-2">
+          <div className="h-4 w-1/2 rounded bg-muted/70 animate-pulse" />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+          </div>
+          <div className="h-12 rounded-xl bg-muted/50 animate-pulse" />
+          <div className="h-4 w-36 rounded bg-muted/60 animate-pulse" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
@@ -448,7 +470,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
     placeholderData: (prev) => prev,
   });
 
-  const { data: myDuties } = useQuery({
+  const { data: myDuties, isFetched: myDutiesFetched } = useQuery({
     queryKey: ["hero-my-duties", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -468,14 +490,16 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
-  const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
+  const { data: rsvpSummary, isFetched: rsvpSummaryFetched } = useRsvpSummary(event.id, event.type);
+  const { data: isEventMember = true, isFetched: membershipFetched } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
   // a moment after first paint and visibly push the rest of the home page down.
   // Also gates the "RSVP Required" pill so it never flashes before child
   // RSVPs hydrate (which would briefly show the pill on already-responded events).
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched);
+  const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && rsvpSummaryFetched && membershipFetched && dutiesReady);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -605,7 +629,6 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
 
   // "Needs RSVP" — in guardian mode this means any child still needs a response;
   // otherwise it falls back to the parent's own un-actioned state.
-  const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
   const needsRsvp =
     heroDataReady &&
     !event.is_cancelled &&
@@ -628,9 +651,13 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         : `${guardianUnrespondedCount} players need RSVP`)
     : "RSVP Required";
 
+  if (!heroDataReady) {
+    return <NextUpHeroCardSkeleton />;
+  }
+
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -651,7 +678,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
           aria-hidden="true"
         />
       )}
-      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2">
         {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
         {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
@@ -810,11 +837,27 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
             previous solid-primary "Going" so the team identity reads first, but tap targets
             stay generous (h-9 = 36px, full row width). */}
-        <div className="mt-auto" />
         <StartGameCta event={event} />
         <WatchLiveCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
-          <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div
+            className="space-y-2 pt-1"
+            // Reserve enough vertical room for the tallest realistic RSVP
+            // block (guardian single-child variant: title + buttons + summary
+            // card + "Your attendance" disclosure) so the card never grows
+            // when per-event queries hydrate a moment after first paint and
+            // swap us from the simple-parent branch to the guardian branch.
+            // Non-guardian users see a little extra whitespace below their
+            // buttons — preferable to the whole page jolting downward.
+            
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {/* Render RSVP buttons immediately — don't wait for per-event queries.
+                Until heroDataReady, hasGuardianChildren is false so we fall into
+                the simple parent-buttons branch with no active selection. When
+                queries land we either swap to the guardian variant or light up
+                the active state, all within the reserved 168px so nothing jolts. */}
             {(hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
               const teammatesGoing = rsvpSummary?.totalCount || 0;
               const isSingleChild = childrenOnEvent!.length === 1;
@@ -1412,7 +1455,9 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
 
   const pendingCount = pendingIds.size;
 
-  // Show skeleton while loading to reserve space and prevent layout shift
+  // Show skeleton while loading to reserve space and prevent layout shift.
+  // Height matches live card (340) + dot row reservation (pt-3 + h-6 = 36)
+  // so My Teams below does not move when the live card mounts.
   if (isLoading) {
     return (
       <section className="space-y-3">
@@ -1420,7 +1465,8 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
           <div className="h-6 w-24 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
         </div>
-        <div className={`rounded-lg bg-muted animate-pulse ${NEXT_UP_CARD_MIN_HEIGHT}`} />
+        <div className="rounded-lg bg-muted animate-pulse h-[340px]" />
+        <div className="h-[24px]" aria-hidden="true" />
       </section>
     );
   }
@@ -1451,37 +1497,36 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
       </div>
 
       {showCarousel ? (
-        <div className="relative">
+        <div className="relative min-h-[340px]">
           {/* Carousel */}
           <div ref={emblaRef} className="overflow-hidden">
-            <div className="flex">
+            <div className="flex items-start">
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 flex"
+                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 self-start"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
                     transformOrigin: "center center",
                   }}
                 >
-                  {index === 0 ? (
+                  <div className="min-h-[340px]">
                     <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
-                  ) : (
-                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
-                  )}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {/* Right edge fade gradient */}
+            <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
           </div>
 
-          {/* Right edge fade gradient */}
-          <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
-
-          {/* Pagination dots */}
-          {scrollSnaps.length > 1 && (
-            <div className="flex items-center justify-center gap-1.5 pt-3">
-              {scrollSnaps.map((_, index) => (
+          {/* Pagination dots — always reserve row height so My Teams below
+              does not shift when Embla finishes initialising. */}
+          <div className="flex items-center justify-center gap-1.5 pt-3 h-[24px]">
+            {scrollSnaps.length > 1 &&
+              scrollSnaps.map((_, index) => (
                 <button
                   key={index}
                   className={`rounded-full transition-all duration-300 ${
@@ -1493,11 +1538,12 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
                   aria-label={`Go to event ${index + 1}`}
                 />
               ))}
-            </div>
-          )}
+          </div>
         </div>
       ) : (
-        <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+        <div className="min-h-[340px]">
+          <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+        </div>
       )}
     </section>
   );

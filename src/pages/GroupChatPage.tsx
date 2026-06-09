@@ -905,84 +905,66 @@ export default function GroupChatPage() {
       const replyToIds = reversedOlder.filter((m) => m.reply_to_id).map((m) => m.reply_to_id);
       const authorIds = [...new Set(reversedOlder.map((m) => m.author_id))];
 
-      // PASS 1: Render messages IMMEDIATELY with no enrichment.
-      const initialOlderMessages = reversedOlder.map((msg) => ({
+      // Single-pass enrichment: fetch reactions, reply-to, profiles BEFORE
+      // prepending. Rendering rows first as `reply_to: null` and patching them
+      // a moment later causes reply pills to grow above the user's anchor —
+      // visible as "messages keep moving after I stop scrolling".
+      let reactionsData: any[] = [];
+      let replyToData: any[] = [];
+      const profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+
+      try {
+        const secondaryController = new AbortController();
+        const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
+
+        const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
+          supabase
+            .from("message_reactions")
+            .select("id, user_id, reaction_type, group_message_id")
+            .in("group_message_id", messageIds)
+            .abortSignal(secondaryController.signal),
+          replyToIds.length > 0
+            ? supabase
+                .from("group_messages")
+                .select("id, text, author_id")
+                .in("id", replyToIds)
+                .abortSignal(secondaryController.signal)
+            : Promise.resolve({ data: [] as any[], error: null }),
+          fetchProfilesWithCache(authorIds),
+        ]);
+
+        clearTimeout(secondaryTimeout);
+        reactionsData = reactionsResult.data || [];
+        replyToData = replyToResult.data || [];
+        cachedProfiles.forEach((p, id) => {
+          profilesMap.set(id, { display_name: p.display_name, avatar_url: p.avatar_url });
+        });
+      } catch {
+        // Continue without enrichment if it fails/timeouts.
+      }
+
+      const enrichedOlderMessages = reversedOlder.map((msg) => ({
         ...msg,
-        author: null,
-        reply_to: null,
+        author: profilesMap.get(msg.author_id) || null,
+        reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
       })) as GroupMessage[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-          if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
+          if (!old) return { messages: enrichedOlderMessages, reactions: reactionsData as MessageReaction[], hasOlderMessages: hasMore };
           const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
           return {
             ...old,
             messages: [
-              ...initialOlderMessages.filter((m) => !existingIds.has(m.id)),
+              ...enrichedOlderMessages.filter((m) => !existingIds.has(m.id)),
               ...old.messages,
             ],
+            reactions: [...(reactionsData as MessageReaction[]), ...(old.reactions || [])],
             hasOlderMessages: hasMore,
           };
         });
       });
-
-      // PASS 2: Fire-and-forget enrichment. Allow loader to release immediately
-      // so the next page can start prefetching while enrichment is in flight.
-      setIsLoadingOlder(false);
-
-      (async () => {
-        try {
-          const secondaryController = new AbortController();
-          const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
-
-          const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
-            supabase
-              .from("message_reactions")
-              .select("id, user_id, reaction_type, group_message_id")
-              .in("group_message_id", messageIds)
-              .abortSignal(secondaryController.signal),
-            replyToIds.length > 0
-              ? supabase
-                  .from("group_messages")
-                  .select("id, text, author_id")
-                  .in("id", replyToIds)
-                  .abortSignal(secondaryController.signal)
-              : Promise.resolve({ data: [] as any[], error: null }),
-            fetchProfilesWithCache(authorIds),
-          ]);
-
-          clearTimeout(secondaryTimeout);
-          const reactionsData = reactionsResult.data || [];
-          const replyToData = replyToResult.data || [];
-          const profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-          cachedProfiles.forEach((p, id) => {
-            profilesMap.set(id, { display_name: p.display_name, avatar_url: p.avatar_url });
-          });
-
-          // Patch the cached messages with author + reply_to, append reactions.
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-            if (!old) return old;
-            const idSet = new Set(messageIds);
-            return {
-              ...old,
-              messages: old.messages.map((m: GroupMessage) =>
-                idSet.has(m.id)
-                  ? {
-                      ...m,
-                      author: profilesMap.get(m.author_id) || m.author || null,
-                      reply_to: replyToData.find((r) => r.id === m.reply_to_id) || m.reply_to || null,
-                    }
-                  : m
-              ),
-              reactions: [...(reactionsData as MessageReaction[]), ...old.reactions],
-            };
-          });
-        } catch {
-          // Enrichment failed — messages already visible, ignore.
-        }
-      })();
       return;
     } catch (err) {
       clearTimeout(timeoutId);
