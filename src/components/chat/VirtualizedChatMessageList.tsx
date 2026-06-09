@@ -1697,6 +1697,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     currentUserIdRef.current = currentUserId;
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
+  // Pre-decode aspect ratios for any image messages in the current window
+  // BEFORE Virtuoso mounts those rows. Populates chatImageAspectCache so
+  // estimateChatRowHeight reserves the correct box on first paint instead
+  // of the 4:3 fallback — eliminates the post-decode row-grow/shrink jolt
+  // that telemetry shows as ±50-200px image-row deltas after scroll-up.
+  useEffect(() => {
+    for (const m of uniqueMessages) {
+      const url = (m as any).image_url ?? (m as any).imageUrl ?? null;
+      if (url) prefetchChatImageAspectRatio(url);
+    }
+  }, [uniqueMessages]);
+
+
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
       const idx = indexByIdRef.current.get(message.id) ?? -1;
