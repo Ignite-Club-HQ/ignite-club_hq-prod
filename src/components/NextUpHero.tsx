@@ -83,7 +83,24 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     placeholderData: (prev) => prev,
   });
 
+  // My duties for this event
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -225,7 +242,36 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             )}
           </div>
 
+          {myDuties && myDuties.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Your duty:
+              </span>
+              {myDuties.map((d: any) => {
+                const isDone = d.status === "completed";
+                const range = d.start_time
+                  ? `${format(new Date(d.start_time), "h:mm a")}${d.end_time ? `–${format(new Date(d.end_time), "h:mm a")}` : ""}`
+                  : null;
+                return (
+                  <Badge
+                    key={d.id}
+                    variant="outline"
+                    className={
+                      isDone
+                        ? "text-[11px] h-5 px-2 font-semibold bg-success/15 text-success border-success/30"
+                        : "text-[11px] h-5 px-2 font-semibold bg-warning/15 text-warning border-warning/30"
+                    }
+                  >
+                    {isDone && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    {d.name}{range ? ` · ${range}` : ""}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+
           {/* RSVP Buttons */}
+
           {!event.is_cancelled && !event.is_bye && (
             <div
               role="radiogroup"
