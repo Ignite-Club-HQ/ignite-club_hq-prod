@@ -333,8 +333,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     is_edited?: boolean | null;
   } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
+  const next = messages[index + 1] as (TMessage & EstimableChatMessage) | undefined;
   let height = 16; // row wrapper top padding (pt-4)
   const groupedWithPrev = !!prev && shouldGroupWithPrev(msg, prev);
+  const groupedWithNext = !!next && shouldGroupWithPrev(next, msg);
   // ChatMessage applies `-mt-3` on grouped follow-ups. Mirror that net row
   // height here so Virtuoso doesn't over-reserve then shrink paddingTop.
   if (groupedWithPrev) height -= 12;
