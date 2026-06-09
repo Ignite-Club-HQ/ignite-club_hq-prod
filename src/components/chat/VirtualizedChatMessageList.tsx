@@ -388,10 +388,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 36 : 24;
   }
 
-  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
-  // ~46px. Previous +56 over-reserved by ~10px, which Virtuoso shrunk on
-  // first measurement, lifting rows below.
-  if (hasReply) height += 46;
+  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) +
+  // bubble inner padding around the indicator. Round-5: image+reply rows
+  // came in +84 under-estimate — bumping reply chrome to 60 absorbs ~14 of
+  // that gap; remainder comes from the image chrome restore below.
+  if (hasReply) height += 60;
+
   // Image bubble: rendered at fixed width 300px with the natural aspect
   // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
   // (chatImageAspectCache, populated on previous decodes) so the estimator
