@@ -345,7 +345,7 @@ export default function HomePage() {
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
-  const { data: membershipAndEvents, isLoading } = useQuery({
+  const { data: membershipAndEvents, isLoading, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
       // Step 1: Fetch user roles.
@@ -1852,7 +1852,7 @@ export default function HomePage() {
   // Gate first paint of the widget area on the primary memberships query so
   // every widget mounts together and fades in as a single, cohesive surface
   // instead of popping in piecemeal as each child query resolves.
-  const showContent = !isLoading;
+  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading;
 
   return (
     <div className="py-6 space-y-5">
