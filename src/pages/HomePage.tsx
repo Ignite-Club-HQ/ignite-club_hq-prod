@@ -1891,16 +1891,23 @@ export default function HomePage() {
   // Home skeleton in place while an empty Next Up result is actively refetching.
   const waitingForNextUpResolution = events.length === 0 && isFetching;
 
-  // Coordinate first paint of Next Up + My Teams so both fade in together
-  // instead of Next Up popping in first while the My Teams carousel paints
-  // its own skeleton a moment later. We pre-mount MyTeamsPremiumCarousel
-  // hidden (below) so its query kicks off during the unified skeleton, then
-  // flip `myTeamsReady` when the cache has data (either from localStorage
-  // snapshot, an already-resolved query, or the in-flight fetch completing).
+  // Coordinate first paint of Next Up + My Teams so both fade in together.
+  // Both widgets are mounted behind the unified skeleton and only revealed once
+  // their own first-card data has settled, preventing either section from
+  // visibly loading before the other on cold login.
   const myTeamsSnapshot = useMemo(
     () => getCachedCarousel<any>(user?.id, activeClubFilter),
     [user?.id, activeClubFilter],
   );
+  const nextUpEventSignature = useMemo(
+    () => events.map((event) => event.id).join("|"),
+    [events],
+  );
+  const [nextUpReady, setNextUpReady] = useState(false);
+  useEffect(() => {
+    setNextUpReady(false);
+  }, [user?.id, activeClubFilter, nextUpEventSignature]);
+
   const myTeamsQueryKey = useMemo(
     () => ["my-teams-premium", user?.id, activeClubFilter] as const,
     [user?.id, activeClubFilter],
@@ -1928,7 +1935,10 @@ export default function HomePage() {
     return () => unsub();
   }, [queryClient, myTeamsQueryKey, myTeamsSnapshot]);
 
-  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && myTeamsReady;
+  const nextUpSectionReady = events.length === 0
+    ? (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution
+    : nextUpReady;
+  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && nextUpSectionReady && myTeamsReady;
 
   return (
     <div className="py-6 space-y-5">
@@ -1949,7 +1959,7 @@ export default function HomePage() {
           aria-hidden={!showContent}
         >
           {/* Next Up Carousel - unified event section */}
-          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
+          <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} onReadyChange={setNextUpReady} />
 
           {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
           <Suspense fallback={<HomeMyTeamsSkeleton />}>
