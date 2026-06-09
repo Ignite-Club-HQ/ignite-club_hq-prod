@@ -399,13 +399,10 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       style={{
         ...style,
         overscrollBehaviorY: "contain",
-        // Promote the scroller to its own compositor layer so momentum
-        // scrolling on iOS/Android WebViews doesn't repaint sibling DOM each
-        // frame. Without this, fast upward flicks repaint the chat header
-        // and composer alongside the scroller, which reads as jitter.
-        transform: "translateZ(0)",
-        willChange: "scroll-position",
         // iOS WebKit momentum scrolling. Harmless on Android/Chromium.
+        // Do not add transform/will-change here: promoted overflow scrollers
+        // with virtualized children flicker in Android WebView during upward
+        // momentum when rows mount and Virtuoso updates paddingTop.
         WebkitOverflowScrolling: "touch",
       } as React.CSSProperties}
     />
