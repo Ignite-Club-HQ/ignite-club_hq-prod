@@ -80,6 +80,7 @@ const myTeamsCarouselImport = () =>
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
+import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
@@ -346,6 +347,15 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
+  // Hydrate from localStorage so returning to home after a long absence (or a
+  // cold open after React Query's gcTime evicted the cache) paints the Next Up
+  // cards instantly instead of flashing a skeleton while the consolidated
+  // memberships+events query refetches. Mirrors MyTeamsPremiumCarousel.
+  const nextUpCachedSnapshot = useMemo(
+    () => getCachedNextUp<{ memberships: any; events: Event[]; cachedAt: number }>(user?.id),
+    [user?.id],
+  );
+
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
@@ -470,6 +480,14 @@ export default function HomePage() {
     enabled: !!user && initialized,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
+    // Seed from the localStorage snapshot so first paint after a long absence
+    // shows real cards instead of a skeleton. `initialDataUpdatedAt` is the
+    // snapshot's capture time, so React Query still considers it stale and
+    // kicks off a background refetch (refetchOnMount: "always" below).
+    initialData: nextUpCachedSnapshot
+      ? { memberships: nextUpCachedSnapshot.memberships, events: nextUpCachedSnapshot.events }
+      : undefined,
+    initialDataUpdatedAt: nextUpCachedSnapshot?.cachedAt,
     // Retry on transient resume-race failures so cards reappear automatically
     // after a brief token-rotation window instead of staying blank.
     retry: 2,
@@ -478,6 +496,17 @@ export default function HomePage() {
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });
+
+  // Persist the latest snapshot whenever the query resolves so the next cold
+  // open / long-absence return can hydrate instantly via `initialData` above.
+  useEffect(() => {
+    if (!user?.id || !membershipAndEvents) return;
+    setCachedNextUp(user.id, {
+      memberships: membershipAndEvents.memberships,
+      events: membershipAndEvents.events,
+      cachedAt: Date.now(),
+    });
+  }, [user?.id, membershipAndEvents]);
 
   // Derive memberships and events from consolidated query
   const userMemberships = membershipAndEvents?.memberships;
