@@ -383,10 +383,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       ?? msg.profiles?.display_name
       ?? "Loading..."
     ).length;
-    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
-    // name wraps). Telemetry showed the previous 22/44 values produced a
-    // consistent +16px under-reservation on non-grouped rows.
-    height += authorChars > 24 ? 56 : 40;
+    // Avatar + name + spacing in ChatMessage. Round-3 telemetry showed 40/56
+    // was ~8-12px too tall vs the real header; back off slightly.
+    height += authorChars > 24 ? 46 : 32;
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
