@@ -1758,14 +1758,22 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollSeekConfiguration={false}
       // Asymmetric overscan: jank on this app is overwhelmingly on UPWARD
       // scrolls into older history (rows that have never mounted, with
-      // variable heights). Reserve a wider top viewport so a hard fling
+      // variable heights). Reserve a moderate top viewport so a hard fling
       // (~2000px in <300ms on a phone) lands inside already-measured
       // territory; keep bottom modest because incoming-message growth is
-      // already handled by `followOutput`. Bumping `minOverscanItemCount.top`
-      // alongside ensures very tall rows (image + reactions ≈ 360px) are
-      // pre-mounted by row count, not just by pixel budget.
-      increaseViewportBy={{ top: 1600, bottom: 240 }}
-      minOverscanItemCount={{ top: 12, bottom: 2 }}
+      // already handled by `followOutput`.
+      //
+      // Previously top:1600 / minOverscanItemCount.top:12 — too generous:
+      // after a fast upward flick STOPS, the dozen+ overscan rows above the
+      // viewport were still hydrating their async children (images, link
+      // previews, reactions). Each late growth above the viewport forced
+      // Virtuoso to re-correct paddingTop, which the user perceived as the
+      // chat "moving around after it has stopped". Tightening upward
+      // overscan to ~one screen of history (≈600px / 6 rows) keeps the
+      // post-stop quiescence visually flat while still pre-mounting enough
+      // history for the NEXT flick to land in measured territory.
+      increaseViewportBy={{ top: 600, bottom: 240 }}
+      minOverscanItemCount={{ top: 6, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}
