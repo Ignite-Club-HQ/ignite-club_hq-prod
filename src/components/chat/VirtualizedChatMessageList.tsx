@@ -437,15 +437,18 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-10: round-9 chrome bump
-  // (30/34) over-corrected — every text row in the next telemetry pass was
-  // -26 to -34. Reverted to 4/8 (round-8 values). The under-estimates seen in
-  // round-9 telemetry came from a row-mix with edits/wrapping artifacts, not
-  // from chrome being too low. Per-line wrap counting is where any residual
-  // error lives now, not chrome.
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 8;
+  // Bubble vertical padding + timestamp strip. Round-11: round-10 telemetry
+  // (110+ first-visit measurements across text/text+reply rows) showed a
+  // consistent +26 to +34 underestimate on short rows when chrome was 4/8.
+  // The round-9 "overshoot" dump that triggered the revert turned out to be
+  // a different row mix (mostly cached re-measures + a few long-wrap rows
+  // where the per-line drift dominated). Bump chrome by +24 to land the bulk
+  // of first-visit short rows within ±5 without over-correcting long rows
+  // (which already trend toward over-estimate from generous wrap counting).
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 28 : 32;
 
   else if (hasImage) height += groupedWithNext ? 18 : 34;
+
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
