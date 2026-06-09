@@ -90,7 +90,9 @@ export const BoardLinkCard = memo(function BoardLinkCard({
   );
 
   if (isLoading) {
-    return <Skeleton className="h-16 w-full max-w-[280px] rounded-lg" />;
+    // Match loaded card height (icon column + 3 text rows + p-2.5 ≈ 80px)
+    // so resolving the query doesn't grow the row mid-idle.
+    return <Skeleton className="h-[80px] w-full max-w-[280px] rounded-lg" />;
   }
 
   // RLS denial OR row deleted → friendly fallback (no leaked details)
