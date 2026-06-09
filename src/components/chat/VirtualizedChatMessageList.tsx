@@ -783,23 +783,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     prevIsLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
 
-  useEffect(() => {
-    if (hasOlder) return;
-    if (startReachedRetryTimerRef.current !== null) {
-      window.clearTimeout(startReachedRetryTimerRef.current);
-      startReachedRetryTimerRef.current = null;
-    }
-  }, [hasOlder]);
-
-  useEffect(() => {
-    return () => {
-      if (startReachedRetryTimerRef.current !== null) {
-        window.clearTimeout(startReachedRetryTimerRef.current);
-        startReachedRetryTimerRef.current = null;
-      }
-    };
-  }, []);
-
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
   // is deterministic for a given `messages` array: prepends move the base
