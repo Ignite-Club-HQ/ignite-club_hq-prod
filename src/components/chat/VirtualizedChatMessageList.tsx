@@ -517,32 +517,44 @@ function CachedMeasureRow({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let cancelIdle: (() => void) | null = null;
     const write = () => {
       const h = el.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
-    write();
-    const raf = requestAnimationFrame(write);
-    const t1 = setTimeout(write, 120);
-    const t2 = setTimeout(write, 360);
-    let ro: ResizeObserver | null = null;
-    let roTimer: ReturnType<typeof setTimeout> | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(write);
-      ro.observe(el);
-      // Short-lived: disconnect after the reaction/edit animation settles so
-      // we don't reintroduce the Android per-row observer storm.
-      roTimer = setTimeout(() => {
-        ro?.disconnect();
-        ro = null;
-      }, 600);
-    }
-    return () => {
+    const scheduleSettleWrites = () => {
+      const raf = requestAnimationFrame(write);
+      const t1 = setTimeout(write, 120);
+      const t2 = setTimeout(write, 360);
+      let ro: ResizeObserver | null = null;
+      let roTimer: ReturnType<typeof setTimeout> | null = null;
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(write);
+        ro.observe(el);
+        // Short-lived: disconnect after the reaction/edit animation settles so
+        // we don't reintroduce the Android per-row observer storm.
+        roTimer = setTimeout(() => {
+          ro?.disconnect();
+          ro = null;
+        }, 600);
+      }
+      return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
       if (roTimer) clearTimeout(roTimer);
       ro?.disconnect();
+      };
+    };
+    write();
+    const sinceScroll = performance.now() - getLastChatScrollAt();
+    cancelIdle = sinceScroll < 250
+      ? runWhenChatScrollIdle(() => {
+          cancelIdle = scheduleSettleWrites();
+        }, 250)
+      : scheduleSettleWrites();
+    return () => {
+      cancelIdle?.();
     };
   }, [messageId, signature]);
   return (
