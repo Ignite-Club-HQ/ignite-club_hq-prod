@@ -814,8 +814,20 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         <StartGameCta event={event} />
         <WatchLiveCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
-          <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            {(hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
+          <div
+            className="space-y-2 pt-1"
+            // Reserve enough vertical room for the tallest realistic RSVP
+            // block (guardian single-child variant: title + buttons + summary
+            // card + "Your attendance" disclosure) so the card never grows
+            // when per-event queries hydrate a moment after first paint and
+            // swap us from the simple-parent branch to the guardian branch.
+            // Non-guardian users see a little extra whitespace below their
+            // buttons — preferable to the whole page jolting downward.
+            style={{ minHeight: 168 }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {!heroDataReady ? null : (hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
               const teammatesGoing = rsvpSummary?.totalCount || 0;
               const isSingleChild = childrenOnEvent!.length === 1;
               const soleChild = isSingleChild ? childrenOnEvent![0] : null;
