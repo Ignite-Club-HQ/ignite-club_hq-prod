@@ -1951,21 +1951,7 @@ export default function HomePage() {
       {/* My Teams & Leagues - Primary content. Mounted immediately (no viewport gate)
           so the chunk + first query start in parallel with above-fold render. The
           carousel itself hydrates from localStorage snapshot for instant warm paint. */}
-      <Suspense
-        fallback={
-          <section className="space-y-2.5">
-            <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
-            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="shrink-0 w-[85vw] max-w-[320px] h-[212px] rounded-lg bg-muted/50 animate-pulse"
-                />
-              ))}
-            </div>
-          </section>
-        }
-      >
+      <Suspense fallback={<HomeMyTeamsSkeleton />}>
         <MyTeamsPremiumCarousel />
       </Suspense>
 
