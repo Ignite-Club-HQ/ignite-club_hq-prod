@@ -111,8 +111,14 @@ export function useLongPressBanner() {
 
   const dismiss = useCallback(() => {
     const s = readState();
-    writeState({ ...s, dismissed: true });
+    // Treat an explicit close as "forever": mark both dismissed AND completed
+    // so the banner never reappears, even if storage flags are partially
+    // cleared or the user later long-presses without us recording it.
+    writeState({ ...s, dismissed: true, completed: true });
     setVisible(false);
+    try {
+      window.dispatchEvent(new Event("ignite:chat-onboarding-changed"));
+    } catch {}
   }, []);
 
   return { visible, dismiss };
