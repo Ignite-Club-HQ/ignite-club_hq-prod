@@ -133,24 +133,15 @@ function WatchLiveCta({ event }: { event: EventItem }) {
   );
 }
 
-// Reserve enough vertical space to fit the card with the Children's RSVP
-// accordion in its collapsed state. This stops the home page from jolting
-// downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
-// moment after the initial paint and the accordion appears.
-// Reserve enough vertical space to fit the fully expanded card layout
-// (incl. the Children's RSVP accordion bar and personal RSVP summary line)
-// so the home page never grows / pushes other content downward as the
-// per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
-// moment after first paint.
-// Soft minimum height — reserves the loaded collapsed layout without leaving
-// a large empty tail under normal RSVP controls.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[420px]";
+// Skeleton height matches the normal collapsed Next Up card. The live card is
+// content-sized so it ends at "Your attendance" and only grows when expanded.
+const NEXT_UP_CARD_SKELETON_HEIGHT = "h-[340px]";
 
 function NextUpHeroCardSkeleton() {
   return (
-    <Card className={`relative overflow-hidden w-full shrink-0 h-full flex flex-col border-border/50 ${NEXT_UP_CARD_MIN_HEIGHT}`} aria-hidden="true">
+    <Card className={`relative overflow-hidden w-full shrink-0 flex flex-col border-border/50 ${NEXT_UP_CARD_SKELETON_HEIGHT}`} aria-hidden="true">
       <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-muted" />
-      <CardContent className="p-3.5 pl-4 pr-9 space-y-3 flex-1 flex flex-col">
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-3 h-full flex flex-col">
         <div className="flex justify-end">
           <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
         </div>
@@ -666,7 +657,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -687,7 +678,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
           aria-hidden="true"
         />
       )}
-      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2">
         {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
         {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
@@ -846,7 +837,6 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
             previous solid-primary "Going" so the team identity reads first, but tap targets
             stay generous (h-9 = 36px, full row width). */}
-        <div className="mt-auto" />
         <StartGameCta event={event} />
         <WatchLiveCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
@@ -1473,7 +1463,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
           <div className="h-6 w-24 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
         </div>
-        <div className={`rounded-lg bg-muted animate-pulse ${NEXT_UP_CARD_MIN_HEIGHT}`} />
+        <div className={`rounded-lg bg-muted animate-pulse ${NEXT_UP_CARD_SKELETON_HEIGHT}`} />
       </section>
     );
   }
@@ -1507,11 +1497,11 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
         <div className="relative">
           {/* Carousel */}
           <div ref={emblaRef} className="overflow-hidden">
-            <div className="flex">
+            <div className="flex items-start">
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 flex"
+                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 self-start"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
