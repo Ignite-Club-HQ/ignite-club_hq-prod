@@ -99,7 +99,7 @@ type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
 type DutyStatus = "open" | "completed";
 
-const PRESET_DUTIES = ["Canteen", "Linesperson", "Linemarker", "Referee"];
+const PRESET_DUTIES = ["Canteen/BBQ", "Linesperson", "Linemarker", "Referee"];
 
 const eventTypeColors: Record<EventType, string> = {
   game: "bg-destructive/20 text-destructive",
@@ -1502,10 +1502,23 @@ export default function EventDetailPage() {
 
   // Add duty mutation
   const addDutyMutation = useMutation({
-    mutationFn: async (dutyName: string) => {
+    mutationFn: async (args: { dutyName: string; startTime?: string; endTime?: string }) => {
+      // Combine event date with optional HH:MM times into ISO timestamps
+      const buildTs = (hhmm?: string): string | null => {
+        if (!hhmm || !event) return null;
+        const base = new Date(event.start_time || event.event_date);
+        if (Number.isNaN(base.getTime())) return null;
+        const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        const d = new Date(base);
+        d.setHours(h, m, 0, 0);
+        return d.toISOString();
+      };
+      const start_time = buildTs(args.startTime);
+      const end_time = buildTs(args.endTime);
       const { error } = await supabase
         .from("duties")
-        .insert({ event_id: id!, name: dutyName });
+        .insert({ event_id: id!, name: args.dutyName, start_time, end_time } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -3412,7 +3425,7 @@ export default function EventDetailPage() {
             <AddDutySheet
               open={addDutyOpen}
               onOpenChange={setAddDutyOpen}
-              onAddDuty={(dutyName) => addDutyMutation.mutate(dutyName)}
+              onAddDuty={(dutyName, opts) => addDutyMutation.mutate({ dutyName, startTime: opts?.startTime, endTime: opts?.endTime })}
               isPending={addDutyMutation.isPending}
               isMiniLeague={!!event?.mini_league_id}
               context="session"
@@ -3431,7 +3444,15 @@ export default function EventDetailPage() {
                           <Circle className="h-5 w-5 text-muted-foreground" />
                         )}
                         <div>
-                          <p className="font-medium">{duty.name}</p>
+                          <p className="font-medium">
+                            {duty.name}
+                            {(duty as any).start_time && (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                {format(new Date((duty as any).start_time), "h:mm a")}
+                                {(duty as any).end_time ? `–${format(new Date((duty as any).end_time), "h:mm a")}` : ""}
+                              </span>
+                            )}
+                          </p>
                           {duty.profiles ? (
                             <p className="text-sm text-muted-foreground">
                               {duty.profiles.display_name}

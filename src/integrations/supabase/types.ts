@@ -3048,11 +3048,13 @@ export type Database = {
           assigned_to: string | null
           completed_at: string | null
           created_at: string
+          end_time: string | null
           event_id: string
           id: string
           name: string
           points: number | null
           points_awarded: boolean
+          start_time: string | null
           status: Database["public"]["Enums"]["duty_status"]
           updated_at: string
         }
@@ -3060,11 +3062,13 @@ export type Database = {
           assigned_to?: string | null
           completed_at?: string | null
           created_at?: string
+          end_time?: string | null
           event_id: string
           id?: string
           name: string
           points?: number | null
           points_awarded?: boolean
+          start_time?: string | null
           status?: Database["public"]["Enums"]["duty_status"]
           updated_at?: string
         }
@@ -3072,11 +3076,13 @@ export type Database = {
           assigned_to?: string | null
           completed_at?: string | null
           created_at?: string
+          end_time?: string | null
           event_id?: string
           id?: string
           name?: string
           points?: number | null
           points_awarded?: boolean
+          start_time?: string | null
           status?: Database["public"]["Enums"]["duty_status"]
           updated_at?: string
         }
