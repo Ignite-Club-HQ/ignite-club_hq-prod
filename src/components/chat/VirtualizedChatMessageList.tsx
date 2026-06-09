@@ -155,17 +155,27 @@ function getMessageDay(value?: string | null) {
 // Approx characters that fit on one line of a chat bubble at the current
 // viewport. Bubble max-width ≈ 75% of viewport, ~7.2px per char at 14px body
 // font. Memoised lazily so we don't read window on every estimate call.
-let __cachedCharsPerLine = 0;
+let __cachedOwnCharsPerLine = 0;
+let __cachedIncomingCharsPerLine = 0;
 let __cachedViewportWidth = 0;
-function getCharsPerLine() {
+function getCharsPerLine(isOwnMessage: boolean) {
   const w = typeof window !== "undefined" ? window.innerWidth : 411;
   if (w !== __cachedViewportWidth) {
     __cachedViewportWidth = w;
-    // Bubble inner width ≈ (viewport - 32px outer padding) * 0.75 - 24px bubble padding.
-    const bubbleInner = Math.max(140, (w - 32) * 0.75 - 24);
-    __cachedCharsPerLine = Math.max(16, Math.floor(bubbleInner / 7.2));
+    // Match the real mobile row geometry. Incoming grouped chats lose space to
+    // avatar + gap; own messages do not. Use a deliberately conservative
+    // average glyph width so long messages don't land hundreds of px short.
+    const rowWidth = Math.max(260, w - 32);
+    const ownInner = Math.max(140, rowWidth * 0.82 - 24);
+    const incomingInner = Math.max(130, rowWidth * 0.85 - 44 - 24);
+    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 8.2));
+    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 8.2));
   }
-  return __cachedCharsPerLine;
+  return isOwnMessage ? __cachedOwnCharsPerLine : __cachedIncomingCharsPerLine;
+}
+
+function looksLikeYoutubeUrl(text: string) {
+  return /(?:youtube\.com\/(?:watch\?|shorts\/|embed\/)|youtu\.be\/)/i.test(text);
 }
 
 // Per-token-type reserved heights for inline link/preview cards. Real cards
