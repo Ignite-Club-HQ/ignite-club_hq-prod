@@ -241,10 +241,15 @@ function chatRowSignature(message: unknown): string {
       if (typeof e === "string") rxEmojiLen += e.length;
     }
   }
+  // Include the cached image aspect ratio. A novel image first estimates at
+  // 4:3, then stores its real ratio after decode; without the ratio in this
+  // signature, the row-height cache can keep returning the old 4:3 height on
+  // remount and force Virtuoso to patch paddingTop mid-scroll.
+  const aspect = img ? (getCachedImageAspectRatio([img])?.toFixed(3) ?? "0") : "";
   // Link-preview hydration: just the presence/shape, not the payload.
   const hasPreview =
     (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
-  return `${text.length}:${text.slice(0, 64)}|${img.length}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
 }
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -543,20 +548,24 @@ function CachedMeasureRow({
     let ro: ResizeObserver | null = null;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const writeWhenIdle = () => {
+      const since = performance.now() - getLastChatScrollAt();
+      if (since >= 400) {
+        write();
+        return;
+      }
+      cancelIdle?.();
+      cancelIdle = runWhenChatScrollIdle(write, 400);
+    };
+
     const scheduleLateWrites = () => {
-      raf = requestAnimationFrame(write);
-      t1 = setTimeout(write, 120);
-      t2 = setTimeout(write, 360);
+      raf = requestAnimationFrame(writeWhenIdle);
+      t1 = setTimeout(writeWhenIdle, 120);
+      t2 = setTimeout(writeWhenIdle, 360);
       if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
-          const since = performance.now() - getLastChatScrollAt();
-          if (since < 400) {
-            cancelIdle?.();
-            cancelIdle = runWhenChatScrollIdle(write, 400);
-            return;
-          }
-          write();
+          writeWhenIdle();
         });
         ro.observe(el);
         roTimer = setTimeout(() => {
