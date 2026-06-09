@@ -1906,7 +1906,7 @@ export default function HomePage() {
       {!showContent ? (
         <HomeInitialSkeleton />
       ) : (
-        <div className="space-y-5 animate-home-fade-in">
+        <div className="space-y-5">
       {/* Next Up Carousel - unified event section */}
       <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} />
 
