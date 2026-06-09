@@ -49,18 +49,24 @@ interface ReplyIndicatorProps {
 export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, hasReply = false, isOwn }: ReplyIndicatorProps) {
   const shouldReserve = hasReply || !!replyToMessage;
   if (!shouldReserve) return null;
-  const hidden = !replyToMessage;
+  // When the parent can't be hydrated (soft-deleted, RLS-hidden, or the
+  // realtime async fetch failed) we still know this row IS a reply
+  // (hasReply=true). Render a muted fallback instead of leaving the reserved
+  // row invisible — otherwise the user sees a blank 42px gap above the
+  // bubble and loses the reply context entirely.
+  const missing = !replyToMessage;
 
   return (
     <div
-      className={`text-xs p-2 mb-1 h-[42px] rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
-      aria-hidden={hidden || undefined}
+      className={`text-xs p-2 mb-1 h-[42px] rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${isOwn ? 'ml-auto' : ''}`}
     >
       <p className="text-muted-foreground font-medium truncate">
-        {replyToMessage?.authorName || "\u00A0"}
+        {replyToMessage?.authorName || (missing ? "Reply" : "\u00A0")}
       </p>
-      <p className="text-muted-foreground/70 truncate">
-        {replyToMessage?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}
+      <p className={`truncate ${missing ? 'text-muted-foreground/60 italic' : 'text-muted-foreground/70'}`}>
+        {replyToMessage?.text
+          ? replyToMessage.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')
+          : (missing ? "Original message unavailable" : "\u00A0")}
       </p>
     </div>
   );
