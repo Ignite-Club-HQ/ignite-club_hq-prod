@@ -480,7 +480,7 @@ export default function AuthPage() {
   const signInViewportClassName = isSignInMode
     ? isSignInKeyboardOpen
       ? `justify-start pb-4`
-      : 'justify-center pt-6 pb-10'
+      : 'justify-center py-8'
     : 'overflow-y-auto';
   const signInStackClassName = isSignInMode
     ? isSignInKeyboardOpen
