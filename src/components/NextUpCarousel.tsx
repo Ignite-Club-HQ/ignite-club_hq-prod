@@ -146,6 +146,37 @@ function WatchLiveCta({ event }: { event: EventItem }) {
 // a large empty tail under normal RSVP controls.
 const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[420px]";
 
+function NextUpHeroCardSkeleton() {
+  return (
+    <Card className={`relative overflow-hidden w-full shrink-0 h-full flex flex-col border-border/50 ${NEXT_UP_CARD_MIN_HEIGHT}`} aria-hidden="true">
+      <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-muted" />
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-3 flex-1 flex flex-col">
+        <div className="flex justify-end">
+          <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-7 w-2/3 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-4/5 rounded bg-muted/80 animate-pulse" />
+        </div>
+        <div className="space-y-2 pt-1">
+          <div className="h-4 w-3/5 rounded bg-muted/80 animate-pulse" />
+          <div className="h-4 w-full rounded bg-muted/70 animate-pulse" />
+        </div>
+        <div className="mt-auto space-y-2 pt-2">
+          <div className="h-4 w-1/2 rounded bg-muted/70 animate-pulse" />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+            <div className="h-9 rounded-full bg-muted animate-pulse" />
+          </div>
+          <div className="h-12 rounded-xl bg-muted/50 animate-pulse" />
+          <div className="h-4 w-36 rounded bg-muted/60 animate-pulse" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
 }
@@ -628,9 +659,13 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         : `${guardianUnrespondedCount} players need RSVP`)
     : "RSVP Required";
 
+  if (!heroDataReady) {
+    return <NextUpHeroCardSkeleton />;
+  }
+
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
