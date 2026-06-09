@@ -338,6 +338,14 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
   overflow-anchor: none;
 }
 
+/* Virtualized rows mount/unmount while Android WebView is momentum-scrolling.
+   Per-row shimmer/fade animations repaint those newly mounted rows every
+   frame and show up as flicker, so rows inside the scroller stay static. */
+[data-chat-scroll-lock="true"] .animate-pulse,
+[data-chat-scroll-lock="true"] .animate-fade-in {
+  animation: none !important;
+}
+
 /* Subtle tinted backdrop on the chat thread so bubbles (--card, white in
    light / 10% L in dark) read as elevated above the scroller. Pure color
    only — no gradients/blur — to stay safe on Android WebView per the
