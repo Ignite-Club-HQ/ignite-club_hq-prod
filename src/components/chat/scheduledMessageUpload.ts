@@ -1,6 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
+import {
+  measureImageDimensions,
+  appendDimensionsToUrl,
+  setCachedImageAspectRatio,
+} from "@/lib/chatImageAspectCache";
+
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -55,5 +61,18 @@ export async function uploadScheduledImage(
   if (error) throw new Error(error.message || "Upload failed");
 
   const { data } = supabase.storage.from("chat-attachments").getPublicUrl(path);
-  return data.publicUrl;
+  let publicUrl = data.publicUrl;
+
+  try {
+    const dims = await measureImageDimensions(toUpload);
+    if (dims) {
+      publicUrl = appendDimensionsToUrl(publicUrl, dims.width, dims.height);
+      setCachedImageAspectRatio([publicUrl], dims.width / dims.height);
+    }
+  } catch (e) {
+    console.warn("[scheduledUpload] dimension measurement failed", e);
+  }
+
+  return publicUrl;
 }
+

@@ -233,8 +233,28 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     if (uploadError) throw new Error(uploadError.message || "Failed to upload image");
 
     const { data } = supabase.storage.from("chat-attachments").getPublicUrl(fileName);
-    return data.publicUrl;
+    let publicUrl = data.publicUrl;
+
+    // Measure intrinsic dimensions (best-effort) and encode them into the URL
+    // so the chat row estimator can reserve the correct height on first paint
+    // for every receiver — kills the post-load "image area grew" jolt.
+    if (!isVideo) {
+      try {
+        const { measureImageDimensions, appendDimensionsToUrl, setCachedImageAspectRatio } =
+          await import("@/lib/chatImageAspectCache");
+        const dims = await measureImageDimensions(fileToUpload);
+        if (dims) {
+          publicUrl = appendDimensionsToUrl(publicUrl, dims.width, dims.height);
+          setCachedImageAspectRatio([publicUrl], dims.width / dims.height);
+        }
+      } catch (e) {
+        console.warn("[ChatImageInput] dimension measurement failed", e);
+      }
+    }
+
+    return publicUrl;
   };
+
 
   // Upload a non-image document file to chat-attachments and create a vault_files row,
   // then append a [vault:<id>] token to the message via onAppendToken.
