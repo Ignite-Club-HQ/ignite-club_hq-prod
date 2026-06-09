@@ -168,8 +168,8 @@ function getCharsPerLine(isOwnMessage: boolean) {
     const rowWidth = Math.max(260, w - 32);
     const ownInner = Math.max(140, rowWidth * 0.82 - 24);
     const incomingInner = Math.max(130, rowWidth * 0.85 - 44 - 24);
-    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 8.2));
-    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 8.2));
+    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 7.4));
+    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 7.4));
   }
   return isOwnMessage ? __cachedOwnCharsPerLine : __cachedIncomingCharsPerLine;
 }
@@ -383,10 +383,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       ?? msg.profiles?.display_name
       ?? "Loading..."
     ).length;
-    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
-    // name wraps). Telemetry showed the previous 22/44 values produced a
-    // consistent +16px under-reservation on non-grouped rows.
-    height += authorChars > 24 ? 56 : 40;
+    // Avatar + name + spacing in ChatMessage. Round-3 telemetry showed 40/56
+    // was ~8-12px too tall vs the real header; back off slightly.
+    height += authorChars > 24 ? 46 : 32;
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
@@ -415,12 +414,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line. Previously this was clamped to `Math.min(12, …)`
-    // which capped every long message at ~228px of text height — telemetry
-    // showed estimator returning 368 while actual rows measured 595/666/955,
-    // forcing 200-600px paddingTop corrections on slow scroll-up (the visible
-    // jolt). Honour real line count; the outer max cap still bounds runaway.
-    height += lineCount * 21;
+    // ~19px per visual line (matches real chat bubble line-height). Round-2
+    // bumped this to 21px which produced systematic over-estimates of
+    // 60-150px on long messages (negative-delta jolts on scroll-up).
+    height += lineCount * 19;
   } else if (!hasImage) {
     height += 32;
   }
@@ -439,12 +436,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding plus the metadata/timestamp strip beneath the
-  // bubble. Telemetry now shows repeated +25..+40 misses on short text/reply
-  // rows, and +200..+600 misses on long text rows; both share this missing
-  // chrome. Over-reserving a little is safer than visible positive growth
-  // above the scroll anchor during upward pagination.
-  if (visibleText || hasImage || hasReply || previewHeight > 0) height += groupedWithNext ? 18 : 34;
+  // Bubble vertical padding + timestamp strip. Round-2 bumped this to 34/18
+  // which now over-reserves by 30-40px on plain text rows AND ~34px on every
+  // image row (telemetry: 327→293, 502→468, 399→364 — all -34). Image-only
+  // rows have no timestamp strip, so omit chrome entirely for them.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 10 : 18;
+  else if (hasImage) height += groupedWithNext ? 4 : 8;
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
