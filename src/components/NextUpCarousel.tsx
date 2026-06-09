@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play, Eye } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play, Eye, CheckCircle2 } from "lucide-react";
 import { useCanStartGame } from "@/hooks/useCanStartGame";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
