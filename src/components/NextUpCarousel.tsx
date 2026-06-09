@@ -1489,12 +1489,24 @@ export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarou
     });
   }, [readyTargetIds]);
 
-  // Section is "ready" as soon as the root events query has resolved (isLoading=false).
-  // We intentionally do NOT wait for every HeroCard's per-card queries (RSVP, duties,
-  // children, summary, membership) — those are async pill hydrations that should not
-  // hold back the unified Home reveal. Waiting for them made Next Up consistently
-  // appear well after My Teams, since each hero fires 5-6 secondary queries.
-  const sectionReady = !isLoading;
+  // Section is "ready" once the root events query has resolved AND the first
+  // visible HeroCard's per-card queries (RSVP, children, summary, membership,
+  // duties) have settled. Without this gate, the unified Home reveal would fire
+  // as soon as the events list arrived, but the hero card's body would still
+  // be visibly hydrating (pills appearing, helper text swapping) for a beat
+  // after My Teams had already painted — which read as "Next Up is slower".
+  // Safety: 1500ms fallback so a slow/failed secondary query can never hold
+  // back the whole Home reveal.
+  const firstEventId = allEvents[0]?.id;
+  const firstHeroReady = !firstEventId || readyIds.has(firstEventId);
+  const [firstHeroTimedOut, setFirstHeroTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    if (!firstEventId) return;
+    setFirstHeroTimedOut(false);
+    const t = setTimeout(() => setFirstHeroTimedOut(true), 1500);
+    return () => clearTimeout(t);
+  }, [firstEventId]);
+  const sectionReady = !isLoading && (firstHeroReady || firstHeroTimedOut);
 
   React.useEffect(() => {
     onReadyChange?.(sectionReady);
