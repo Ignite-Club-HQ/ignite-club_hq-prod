@@ -389,10 +389,13 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) +
-  // bubble inner padding. Round-6: text+reply rows consistently over by
-  // ~26-34px with chrome=60 → drop to 32. Image+reply still slightly under
-  // (+48) but driven by aspect-cache miss, not reply chrome.
-  if (hasReply) height += 32;
+  // bubble inner padding + the extra gap above the bubble that the indicator
+  // pushes out. Round-7 telemetry on /messages/:teamId shows text+reply
+  // rows consistently under by +38px with chrome=32 (estimated 224 vs
+  // measured 262 across many rows of the same id). Bumping to 70 closes the
+  // gap — measured≈estimated means Virtuoso doesn't patch paddingTop after
+  // the row mounts, eliminating the post-fling jolt.
+  if (hasReply) height += 70;
 
   // Image bubble: rendered at fixed width 300px with the natural aspect
   // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
