@@ -539,25 +539,20 @@ function CachedMeasureRow({
         }, 600);
       }
       return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        if (roTimer) clearTimeout(roTimer);
-        ro?.disconnect();
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (roTimer) clearTimeout(roTimer);
+      ro?.disconnect();
       };
     };
     write();
-    const scheduleWhenIdle = () => {
-      const sinceScroll = performance.now() - getLastChatScrollAt();
-      if (sinceScroll < 250) {
-        cancelIdle = runWhenChatScrollIdle(() => {
+    const sinceScroll = performance.now() - getLastChatScrollAt();
+    cancelIdle = sinceScroll < 250
+      ? runWhenChatScrollIdle(() => {
           cancelIdle = scheduleSettleWrites();
-        }, 250);
-      } else {
-        cancelIdle = scheduleSettleWrites();
-      }
-    };
-    scheduleWhenIdle();
+        }, 250)
+      : scheduleSettleWrites();
     return () => {
       cancelIdle?.();
     };
@@ -1104,9 +1099,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       lastPrependLandedAtRef.current > 0 &&
       sinceLastPrepend < PREPEND_COOLDOWN_MS
     ) {
-      // Cooldown: a prepend just landed and the new rows may not yet be
-      // painted. Suppress instead of queueing a retry; delayed retries were
-      // firing after momentum visibly stopped and causing another anchor shift.
+      // Cooldown: suppress instead of queueing a retry; delayed retries can
+      // fire after visible momentum stops and apply another anchor shift.
       debugLogStartReached(false, "cooldown-suppressed");
       return;
     }
