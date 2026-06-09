@@ -266,6 +266,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
+    author?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null } | null;
     edited_at?: string | null;
     is_edited?: boolean | null;
   } & EstimableChatMessage;
@@ -312,7 +314,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
   const showAuthorHeader = !isOwnMessage && !groupedWithPrev;
   if (showAuthorHeader) {
-    const authorChars = (msg.author_name ?? "").length;
+    const authorChars = (
+      msg.author_name
+      ?? msg.author?.display_name
+      ?? msg.profiles?.display_name
+      ?? "Loading..."
+    ).length;
     // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
     // name wraps). Telemetry showed the previous 22/44 values produced a
     // consistent +16px under-reservation on non-grouped rows.
@@ -1783,24 +1790,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // applies to unmeasured rows during a fast upward fling.
       defaultItemHeight={160}
       scrollSeekConfiguration={false}
-      // Asymmetric overscan: jank on this app is overwhelmingly on UPWARD
-      // scrolls into older history (rows that have never mounted, with
-      // variable heights). Reserve a moderate top viewport so a hard fling
-      // (~2000px in <300ms on a phone) lands inside already-measured
-      // territory; keep bottom modest because incoming-message growth is
-      // already handled by `followOutput`.
-      //
-      // Previously top:1600 / minOverscanItemCount.top:12 — too generous:
-      // after a fast upward flick STOPS, the dozen+ overscan rows above the
-      // viewport were still hydrating their async children (images, link
-      // previews, reactions). Each late growth above the viewport forced
-      // Virtuoso to re-correct paddingTop, which the user perceived as the
-      // chat "moving around after it has stopped". Tightening upward
-      // overscan to ~one screen of history (≈600px / 6 rows) keeps the
-      // post-stop quiescence visually flat while still pre-mounting enough
-      // history for the NEXT flick to land in measured territory.
-      increaseViewportBy={{ top: 400, bottom: 240 }}
-      minOverscanItemCount={{ top: 6, bottom: 2 }}
+      // Asymmetric overscan: slow upward scroll was still reaching rows before
+      // Virtuoso had measured them, so their first real height correction hit
+      // while visible. Keep roughly two screens pre-mounted above the viewport
+      // but still far below the old 1600px/12-row buffer that stacked too much
+      // async hydration after fast flings.
+      increaseViewportBy={{ top: 900, bottom: 240 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}
