@@ -100,6 +100,10 @@ import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEa
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
 
+// Stable empty array reference so rows with no reactions don't bust
+// GroupChatMessageRow's memo on every parent render.
+const EMPTY_REACTIONS: never[] = [];
+
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
   "🔥": "🔥",
