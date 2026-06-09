@@ -448,7 +448,23 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
     placeholderData: (prev) => prev,
   });
 
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
   const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
