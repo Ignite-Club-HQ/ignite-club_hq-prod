@@ -31,7 +31,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";

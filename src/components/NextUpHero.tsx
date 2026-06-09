@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";

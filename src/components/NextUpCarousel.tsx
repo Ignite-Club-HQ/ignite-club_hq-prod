@@ -14,7 +14,7 @@ import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
