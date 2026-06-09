@@ -8,9 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface GalleryLinkCardProps {
   cardId: string;
+  isPromptHint?: boolean;
 }
 
-export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: GalleryLinkCardProps) {
+export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptHint = false }: GalleryLinkCardProps) {
   const navigate = useNavigate();
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -63,12 +64,12 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
     // Match the final gallery-card slot exactly. The card itself keeps a
     // stable outer height after query/image hydration, so Virtuoso never has
     // to correct paddingTop for gallery rows during fast upward scrolling.
-    return <Skeleton className="h-[240px] w-full max-w-[320px] rounded-2xl" />;
+    return <Skeleton className={`${isPromptHint ? "h-[76px]" : "h-[240px]"} w-full max-w-[320px] rounded-2xl`} />;
   }
 
   if (!card) {
     return (
-      <div className="flex h-[76px] max-w-[320px] items-center rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <div className={`flex ${isPromptHint ? "h-[76px]" : "h-[240px]"} max-w-[320px] items-center rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground`}>
         Gallery update unavailable
       </div>
     );
