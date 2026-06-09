@@ -15,6 +15,36 @@
  */
 
 import { setFromNotificationFlag } from "@/lib/notificationPreload";
+import { setChatJumpActive, isChatJumpActive } from "@/lib/chatJumpActive";
+
+/**
+ * Safety timeout (ms) for the eagerly-armed chatJumpActive flag set when a
+ * push notification with a message target is captured BEFORE the chat page
+ * has mounted. If `jumpToMessageInVirtualizedChat` never actually fires
+ * (e.g. user navigated away, target page mismatch, network failure during
+ * page-chunk fetch), this auto-clears so future scroll behaviour isn't
+ * permanently broken.
+ *
+ * Generous enough to cover cold-start + auth bootstrap + chat-page mount on
+ * slow Android devices; tight enough to recover before the next user
+ * interaction needs a fresh scroll.
+ */
+const EAGER_JUMP_ARM_TIMEOUT_MS = 12_000;
+let eagerJumpClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+function armEagerChatJump(): void {
+  // Don't clobber an already-active jump (e.g. user is mid-search-result-tap).
+  if (!isChatJumpActive()) setChatJumpActive(true);
+  if (eagerJumpClearTimer) clearTimeout(eagerJumpClearTimer);
+  eagerJumpClearTimer = setTimeout(() => {
+    eagerJumpClearTimer = null;
+    // Only clear if no real jump took ownership — `jumpToMessageInVirtualizedChat`
+    // calls setChatJumpActive(false) itself in its end-hydration path, so if it
+    // ran and finished we'll already be false here; if it's still running we
+    // leave it alone.
+    if (isChatJumpActive()) setChatJumpActive(false);
+  }, EAGER_JUMP_ARM_TIMEOUT_MS);
+}
 
 const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
@@ -236,4 +266,10 @@ export function captureJumpFromNotification(data: any, url: string | null | unde
   if (!target) return;
   setPendingChatJump(target.kind, target.targetId, target.messageId);
   if (target.targetId) setFromNotificationFlag(target.kind, target.targetId);
+  // Eagerly arm the bottom-pin bail-out flag so on-mount pin compensators on
+  // VirtualizedChatMessageList / useInitialChatBottomPin skip their initial
+  // scrollToBottom — otherwise the cold-start tap races
+  // jumpToMessageInVirtualizedChat and the user momentarily lands at the
+  // newest message before the jump kicks in (~200–500ms of visible jitter).
+  armEagerChatJump();
 }
