@@ -1,5 +1,6 @@
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { setChatJumpActive } from "@/lib/chatJumpActive";
+import { getJumpSettleConfig } from "@/lib/jumpSettleConfig";
 
 
 
@@ -162,8 +163,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     // jump-active=false and yank the viewport back to the latest message —
     // exactly the symptom reported when tapping a push-notification deep
     // link: the target row is highlighted, but the viewport sits at bottom.
-    const settlePasses: number[] = [250, 600, 1100, 1800, 3000, 4500];
-    const TAIL_RELEASE_MS = 6500;
+    // Batch 3D: pull settle passes + tail-release in from 6.5s → 2.2s.
+    // Safe because Batch 3C defers link-preview fetches during the jump
+    // window, so deferred row growth no longer drives re-corrections after
+    // ~1.5s. Kill-switch: localStorage['ignite_disable_short_jump_settle']='1'.
+    const { settlePasses, tailReleaseMs: TAIL_RELEASE_MS } = getJumpSettleConfig();
     const recenter = () => {
       if (cancelled) return;
       const h3 = getHandle();
