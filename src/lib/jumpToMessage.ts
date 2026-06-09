@@ -213,14 +213,14 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       return;
     }
 
-    // Not in loaded set yet — page older if we have a loader and we've waited
-    // a bit. Throttle to one tryLoadOlder per ~8 ticks (~1.2s) so we don't
-    // hammer the backend.
+    // Not in loaded set yet — page older if we have a loader. Trigger sooner
+    // (attempt 3 ≈ 450 ms instead of 7 ≈ 1050 ms) so notification-jumps reach
+    // older messages faster, but still throttle to ~600 ms between fetches.
     if (
       idx < 0 &&
       tryLoadOlder &&
-      attempts > 6 &&
-      attempts - lastLoadOlderAttempt >= 8
+      attempts > 2 &&
+      attempts - lastLoadOlderAttempt >= 4
     ) {
       lastLoadOlderAttempt = attempts;
       tryLoadOlder();

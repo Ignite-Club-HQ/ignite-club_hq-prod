@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import {
   processPendingNotificationNavigation,
   isNotificationNavigationHandled,
+  peekPendingNotificationNavigation,
   setNotificationNavigator,
   clearNotificationNavigator,
 } from '@/lib/notificationLaunchHandler';
@@ -98,13 +99,14 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
             const wasProcessed = processPendingNotificationNavigation(navigate);
             if (wasProcessed) {
               console.log('[useNativePush] Processed pending notification navigation');
-            } else {
-              // Retry with increasing delays for cold start timing. Bail as soon
-              // as the URL is consumed or another handler has marked it handled.
+            } else if (peekPendingNotificationNavigation()) {
+              // Only schedule retries if a URL is actually still pending —
+              // avoids wasted setTimeouts when there's nothing to drain.
               const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
               retryDelays.forEach(delay => {
                 setTimeout(() => {
                   if (isNotificationNavigationHandled()) return;
+                  if (!peekPendingNotificationNavigation()) return;
                   const wasProcessedRetry = processPendingNotificationNavigation(navigate);
                   if (wasProcessedRetry) {
                     console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
@@ -185,14 +187,23 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   // chain can swallow the navigate() call fired from the early action listener.
   useEffect(() => {
     if (!userId || !isNative) return;
-    // Try immediately and a couple of times after route settles
+    // Try immediately. Only schedule fallback retries if a URL is still
+    // pending — prevents this effect's timers from racing with the cold-start
+    // retry cascade above for already-drained navigations.
     const tryConsume = () => processPendingNotificationNavigation(navigate);
     if (tryConsume()) {
       console.log('[useNativePush] Consumed pending nav after auth ready');
       return;
     }
-    const t1 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (250ms)'); }, 250);
-    const t2 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (1000ms)'); }, 1000);
+    if (!peekPendingNotificationNavigation()) return;
+    const t1 = setTimeout(() => {
+      if (!peekPendingNotificationNavigation()) return;
+      if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (250ms)');
+    }, 250);
+    const t2 = setTimeout(() => {
+      if (!peekPendingNotificationNavigation()) return;
+      if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (1000ms)');
+    }, 1000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [userId, isNative, navigate]);
 

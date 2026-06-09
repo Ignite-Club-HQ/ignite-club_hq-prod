@@ -19,6 +19,7 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
+import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
@@ -162,6 +163,9 @@ function handleNotificationTap(notification: any) {
     // Best-effort preload + jump capture.
     try { preloadMessageFromNotification(data); } catch {}
     try { captureJumpFromNotification(data, url); } catch {}
+    // Warm the chat page chunk in parallel with auth/profile bootstrap so it
+    // is already in the module cache by the time the route mounts.
+    try { prefetchChatChunkForUrl(url); } catch {}
 
     if (url && isExternalUrl(url)) {
       import('@capacitor/browser')
