@@ -666,7 +666,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -859,7 +859,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
             // swap us from the simple-parent branch to the guardian branch.
             // Non-guardian users see a little extra whitespace below their
             // buttons — preferable to the whole page jolting downward.
-            style={{ minHeight: 168 }}
+            
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
