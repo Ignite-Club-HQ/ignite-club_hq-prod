@@ -417,7 +417,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 >
                   <video
                     src={effectiveImageUrl}
-                    className={`w-full h-full object-cover ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className="w-full h-full object-cover"
                     preload="metadata"
                     playsInline
                     muted
@@ -441,7 +441,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
