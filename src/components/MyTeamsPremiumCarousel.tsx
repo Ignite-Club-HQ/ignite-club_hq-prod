@@ -96,7 +96,7 @@ function MyTeamsCarouselSkeleton() {
           {[1, 2].map((i) => (
             <div
               key={i}
-              className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg border border-border/60 bg-card p-4 space-y-3 animate-pulse"
+              className="shrink-0 w-[85vw] max-w-[320px] h-[212px] rounded-lg border border-border/60 bg-card p-4 space-y-3 animate-pulse"
             >
               <div className="flex items-start gap-3">
                 <div className="h-10 w-10 rounded-full bg-muted shrink-0" />
@@ -150,7 +150,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
 
   return (
     <Card
-      className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+      className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
@@ -162,7 +162,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
         }
       }}
     >
-      <CardContent className="p-4 flex flex-col gap-3">
+      <CardContent className="p-4 h-full flex flex-col gap-3">
         {/* Header: logo + name/club + actions */}
         <div className="flex items-start gap-3">
           {(item.logo_url || item.club_logo_url) ? (
