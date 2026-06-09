@@ -172,7 +172,42 @@ export function AddDutySheet({
               />
             </div>
           )}
+
+          {showShiftFields && (
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm">Shift time (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Add multiple Canteen/BBQ duties to split the day into shifts (e.g. 9:00–10:30, 10:30–12:00).
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="shiftStart" className="text-xs text-muted-foreground">Start</Label>
+                  <Input
+                    id="shiftStart"
+                    type="time"
+                    value={shiftStart}
+                    onChange={(e) => setShiftStart(e.target.value)}
+                    className="h-12 text-base"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="shiftEnd" className="text-xs text-muted-foreground">End</Label>
+                  <Input
+                    id="shiftEnd"
+                    type="time"
+                    value={shiftEnd}
+                    onChange={(e) => setShiftEnd(e.target.value)}
+                    className="h-12 text-base"
+                  />
+                </div>
+              </div>
+              {shiftStart && shiftEnd && shiftEnd <= shiftStart && (
+                <p className="text-xs text-destructive">End time must be after start time.</p>
+              )}
+            </div>
+          )}
         </div>
+
 
         <ResponsiveDialogFooter className="gap-2 sm:gap-0 sticky bottom-0 bg-background pt-3 pb-[env(safe-area-inset-bottom,0px)] border-t">
           <Button
