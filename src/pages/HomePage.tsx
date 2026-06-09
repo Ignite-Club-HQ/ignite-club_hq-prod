@@ -131,7 +131,7 @@ function HomeInitialSkeleton() {
           <div className="h-6 w-24 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
         </div>
-        <div className="h-[340px] rounded-lg bg-card border border-border/50 p-4 space-y-3 animate-pulse">
+        <div className="h-[340px] overflow-hidden rounded-lg bg-card border border-border/50 p-4 space-y-3 animate-pulse">
           <div className="ml-auto h-5 w-16 rounded-full bg-muted" />
           <div className="h-7 w-2/3 rounded bg-muted" />
           <div className="h-4 w-4/5 rounded bg-muted/80" />
