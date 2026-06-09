@@ -1494,7 +1494,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
       </div>
 
       {showCarousel ? (
-        <div className="relative">
+        <div className="relative min-h-[340px]">
           {/* Carousel */}
           <div ref={emblaRef} className="overflow-hidden">
             <div className="flex items-start">
@@ -1508,23 +1508,22 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
                     transformOrigin: "center center",
                   }}
                 >
-                  {index === 0 ? (
+                  <div className="min-h-[340px]">
                     <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
-                  ) : (
-                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
-                  )}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {/* Right edge fade gradient */}
+            <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
           </div>
 
-          {/* Right edge fade gradient */}
-          <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
-
-          {/* Pagination dots */}
-          {scrollSnaps.length > 1 && (
-            <div className="flex items-center justify-center gap-1.5 pt-3">
-              {scrollSnaps.map((_, index) => (
+          {/* Pagination dots — always reserve row height so My Teams below
+              does not shift when Embla finishes initialising. */}
+          <div className="flex items-center justify-center gap-1.5 pt-3 h-[24px]">
+            {scrollSnaps.length > 1 &&
+              scrollSnaps.map((_, index) => (
                 <button
                   key={index}
                   className={`rounded-full transition-all duration-300 ${
@@ -1536,11 +1535,12 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
                   aria-label={`Go to event ${index + 1}`}
                 />
               ))}
-            </div>
-          )}
+          </div>
         </div>
       ) : (
-        <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+        <div className="min-h-[340px]">
+          <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+        </div>
       )}
     </section>
   );
