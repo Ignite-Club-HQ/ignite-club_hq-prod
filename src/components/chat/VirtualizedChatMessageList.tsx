@@ -414,8 +414,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // (no chrome added here)
   if (msg.edited_at || msg.is_edited) height += 4;
 
-  // Allow taller rows now that long messages and stacked previews are real.
-  return Math.max(56, Math.min(960, height));
+  // Allow tall rows — long messages of 30+ wrapped lines genuinely measure
+  // 900-1100px, and capping at 960 reintroduced late paddingTop corrections.
+  return Math.max(56, Math.min(1400, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
