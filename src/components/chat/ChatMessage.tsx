@@ -38,7 +38,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
-import { markLongPressOnboardingCompleted, shouldShowTapHint } from "@/hooks/useChatActionsOnboarding";
+import { markLongPressOnboardingCompleted, claimFirstBubbleHint } from "@/hooks/useChatActionsOnboarding";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
 
 
@@ -195,7 +195,18 @@ function ChatMessageInner({
     setOptimisticReactions(reactions);
   }, [reactions]);
 
-  useEffect(() => observeChatElementHeight(rowRef.current), []);
+ useEffect(() => observeChatElementHeight(rowRef.current), []);
+
+  // One-time, auto-fading caption beneath the first message bubble the user
+  // sees, to surface the long-press gesture without a global banner.
+  useEffect(() => {
+    if (isSystemMessage) return;
+    if (claimFirstBubbleHint()) {
+      setShowTapHint(true);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
+      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 4000);
+    }
+  }, [isSystemMessage]);
 
 
   const getMessageIdField = () => {
@@ -625,15 +636,8 @@ function ChatMessageInner({
         longPressTriggeredRef.current = false;
       });
     }
-    // Short tap on a text bubble does not open reply mode — long-press is the
-    // primary interaction. For users who haven't long-pressed yet, surface a
-    // contextual tooltip anchored to the bubble so they can discover the new
-    // gesture without a global toast.
-    else if (!isSystemMessage && shouldShowTapHint()) {
-      setShowTapHint(true);
-      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
-      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 2500);
-    }
+    // Short tap on a text bubble does not open reply mode — long-press is
+    // the primary interaction.
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
@@ -912,16 +916,6 @@ function ChatMessageInner({
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
-            {showTapHint && (
-              <div
-                className={`pointer-events-none absolute -top-7 z-20 whitespace-nowrap rounded-full bg-foreground/90 text-background px-2.5 py-1 text-[10.5px] font-medium shadow-md animate-fade-in ${
-                  isOwn && !isClubAnnouncement ? "right-2" : "left-2"
-                }`}
-                role="status"
-              >
-                Press and hold for reactions and replies
-              </div>
-            )}
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
@@ -984,6 +978,16 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
+            {showTapHint && (
+              <div
+                className={`mt-1 px-1 text-[10.5px] text-muted-foreground/70 animate-fade-in ${
+                  isOwn && !isClubAnnouncement ? "text-right" : "text-left"
+                }`}
+                role="status"
+              >
+                Hold for reactions &amp; replies
+              </div>
+            )}
             {inlineRsvpMatch && (
               <div className="mt-2">
                 <InlineRsvpActions eventId={inlineRsvpMatch[1]} messageId={id} />
