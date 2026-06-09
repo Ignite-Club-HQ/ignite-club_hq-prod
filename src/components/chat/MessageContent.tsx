@@ -336,7 +336,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         {galleryIds.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
             {galleryIds.map((gid) => (
-              <GalleryLinkCard key={gid} cardId={gid} />
+              <GalleryLinkCard key={gid} cardId={gid} isPromptHint={/\[galleryprompt:/i.test(text)} />
             ))}
           </div>
         )}
@@ -623,7 +623,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       {showPreviews && galleryIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {galleryIds.map((gid) => (
-            <GalleryLinkCard key={gid} cardId={gid} />
+            <GalleryLinkCard key={gid} cardId={gid} isPromptHint={/\[galleryprompt:/i.test(text)} />
           ))}
         </div>
       )}
