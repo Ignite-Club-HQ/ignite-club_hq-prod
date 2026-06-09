@@ -383,9 +383,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       ?? msg.profiles?.display_name
       ?? "Loading..."
     ).length;
-    // Avatar + name + spacing in ChatMessage. Round-3 telemetry showed 40/56
-    // was ~8-12px too tall vs the real header; back off slightly.
-    height += authorChars > 24 ? 46 : 32;
+    // Avatar + name + spacing in ChatMessage. Round-4 telemetry: 32/46 was
+    // still ~10px too tall vs the real header.
+    height += authorChars > 24 ? 36 : 24;
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
@@ -414,10 +414,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line (matches real chat bubble line-height). Round-2
-    // bumped this to 21px which produced systematic over-estimates of
-    // 60-150px on long messages (negative-delta jolts on scroll-up).
-    height += lineCount * 19;
+    // ~18px per visual line. Round-3 used 19 which over-estimated long
+    // messages by ~100px (833→719 measured).
+    height += lineCount * 18;
   } else if (!hasImage) {
     height += 32;
   }
@@ -436,12 +435,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-2 bumped this to 34/18
-  // which now over-reserves by 30-40px on plain text rows AND ~34px on every
-  // image row (telemetry: 327→293, 502→468, 399→364 — all -34). Image-only
-  // rows have no timestamp strip, so omit chrome entirely for them.
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 10 : 18;
-  else if (hasImage) height += groupedWithNext ? 4 : 8;
+  // Bubble vertical padding + timestamp strip. Round-4: trimmed chrome to
+  // remove the residual ~25-35px over-estimate on plain text rows. Image
+  // rows came in +34 under-estimated in round-3 (chrome was nearly zero) so
+  // restore moderate chrome there.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 10;
+  else if (hasImage) height += groupedWithNext ? 18 : 34;
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
