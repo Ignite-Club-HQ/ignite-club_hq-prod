@@ -51,7 +51,7 @@ export function getLastChatScrollAt(): number {
  * Invokes `cb` once the chat scroll viewports have been idle for `idleMs`.
  * Returns a cancel function. Safe to call from React effects.
  */
-export function runWhenChatScrollIdle(cb: () => void, idleMs = 250): () => void {
+export function runWhenChatScrollIdle(cb: () => void, idleMs = 400): () => void {
   ensureInstalled();
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;

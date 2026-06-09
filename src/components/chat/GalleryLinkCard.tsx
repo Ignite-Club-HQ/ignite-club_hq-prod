@@ -60,7 +60,9 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
   );
 
   if (isLoading) {
-    return <Skeleton className="h-[120px] w-full max-w-[300px] rounded-2xl" />;
+    // Match estimator's gallery reservation (PREVIEW_HEIGHT_BY_TOKEN.gallery = 160)
+    // so the row doesn't jump when the card resolves to prompt (~76) or hero (~240).
+    return <Skeleton className="h-[160px] w-full max-w-[300px] rounded-2xl" />;
   }
 
   if (!card) {
