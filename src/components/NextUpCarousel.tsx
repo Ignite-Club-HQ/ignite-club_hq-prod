@@ -1317,7 +1317,32 @@ function CompactCard({ event }: { event: EventItem }) {
         </div>
 
         {/* RSVP Status */}
+        {myDuties && myDuties.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {myDuties.map((d: any) => {
+              const isDone = d.status === "completed";
+              const range = d.start_time
+                ? `${new Date(d.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${d.end_time ? `–${new Date(d.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                : null;
+              return (
+                <Badge
+                  key={d.id}
+                  variant="outline"
+                  className={
+                    isDone
+                      ? "text-[10px] h-[18px] px-1.5 font-semibold bg-success/15 text-success border-success/30"
+                      : "text-[10px] h-[18px] px-1.5 font-semibold bg-warning/15 text-warning border-warning/30"
+                  }
+                >
+                  {isDone && <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />}
+                  {d.name}{range ? ` · ${range}` : ""}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
         {!event.is_cancelled && !event.is_bye && rsvpIndicator}
+
       </CardContent>
     </Card>
   );
