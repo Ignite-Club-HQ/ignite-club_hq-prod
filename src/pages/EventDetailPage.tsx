@@ -1502,10 +1502,23 @@ export default function EventDetailPage() {
 
   // Add duty mutation
   const addDutyMutation = useMutation({
-    mutationFn: async (dutyName: string) => {
+    mutationFn: async (args: { dutyName: string; startTime?: string; endTime?: string }) => {
+      // Combine event date with optional HH:MM times into ISO timestamps
+      const buildTs = (hhmm?: string): string | null => {
+        if (!hhmm || !event) return null;
+        const base = new Date(event.start_time || event.event_date);
+        if (Number.isNaN(base.getTime())) return null;
+        const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        const d = new Date(base);
+        d.setHours(h, m, 0, 0);
+        return d.toISOString();
+      };
+      const start_time = buildTs(args.startTime);
+      const end_time = buildTs(args.endTime);
       const { error } = await supabase
         .from("duties")
-        .insert({ event_id: id!, name: dutyName });
+        .insert({ event_id: id!, name: args.dutyName, start_time, end_time } as any);
       if (error) throw error;
     },
     onSuccess: () => {
