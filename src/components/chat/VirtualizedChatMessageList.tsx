@@ -776,9 +776,184 @@ function JumpHydrationSkeleton() {
   );
 }
 
+/**
+ * Off-screen pre-measure for prepended history pages.
+ *
+ * The dominant remaining source of mid-scroll flicker is Virtuoso's post-
+ * mount `paddingTop` correction whenever a row's real measured height
+ * differs from `estimateChatRowHeight()`. Tuning the estimator constants
+ * only ever trades a +N jolt for a -N jolt — the correction itself stays.
+ *
+ * This hook intercepts the moment a prepend page lands in `messagesProp`
+ * but BEFORE we hand it to Virtuoso. We render the freshly-arrived rows
+ * once in a hidden, same-width container, read their `offsetHeight`, and
+ * write the real measurement into `chatRowHeightCache` keyed by the
+ * row's content signature. Virtuoso's first `estimateChatRowHeight()` call
+ * for each new row then returns the exact measured value via the cache —
+ * no correction, no jolt.
+ *
+ * Rules:
+ *  - Pre-measure only PREPENDS (new ids all at the start). Appends and
+ *    interleaves commit immediately so realtime/send paths are never
+ *    delayed.
+ *  - Skip rows whose height is already cached (signature-keyed). After
+ *    the user has scrolled through history once, every revisit is an
+ *    instant commit.
+ *  - Hard 200ms deadline: if the hidden subtree fails to lay out (no
+ *    scroller width, weird ChatMessage edge case), commit anyway so
+ *    pagination never stalls.
+ *  - First-mount: commit immediately with no pre-measure. The initial
+ *    paint is handled by Virtuoso's own bottom-pin and the chrome
+ *    estimator; trying to pre-measure the entire initial page would
+ *    delay first paint by hundreds of ms.
+ */
+function usePremeasurePrependedRows<TMessage extends { id: string }>(
+  messagesProp: TMessage[],
+  renderItem: (message: TMessage, index: number, arr: TMessage[]) => React.ReactNode,
+  scrollerElRef: React.RefObject<HTMLElement | null>,
+  currentUserId: string | null | undefined,
+): { committed: TMessage[]; portal: React.ReactNode } {
+  const [committed, setCommitted] = useState<TMessage[]>(messagesProp);
+  const [pending, setPending] = useState<{
+    rows: TMessage[];
+    fullMessages: TMessage[];
+    width: number;
+  } | null>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
+  // Keep the latest renderItem/currentUserId in refs so the commit effect
+  // below doesn't need them in its dep array (would re-fire and double-
+  // commit on every parent re-render).
+  const renderItemRef = useRef(renderItem);
+  renderItemRef.current = renderItem;
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+
+  // Effect: react to a new messagesProp. Decide commit-now vs pre-measure.
+  useEffect(() => {
+    if (messagesProp === committed) return;
+    // Same reference path — no-op.
+    // Build an id set of currently-committed messages for diff.
+    const committedIds = new Set<string>();
+    for (const m of committed) committedIds.add(m.id);
+    // Find new ids in order.
+    const newRows: TMessage[] = [];
+    for (const m of messagesProp) if (!committedIds.has(m.id)) newRows.push(m);
+    if (newRows.length === 0) {
+      // Pure mutation (edit / reaction / reorder) — commit immediately.
+      setCommitted(messagesProp);
+      return;
+    }
+    // Detect "all new at start" (a prepend). Allow trailing changes too —
+    // realtime appends landing in the same prop swap as a prepend still
+    // commit, just without pre-measure (those rows aren't visible).
+    const expectedPrependCount = newRows.length;
+    let isPurePrepend = true;
+    for (let i = 0; i < expectedPrependCount; i++) {
+      if (committedIds.has(messagesProp[i].id)) { isPurePrepend = false; break; }
+    }
+    if (!isPurePrepend) {
+      setCommitted(messagesProp);
+      return;
+    }
+    // Skip rows whose height is already cached at the current signature
+    // (revisit of a previously-seen page). Filter to genuine first-visits.
+    const toMeasure: TMessage[] = [];
+    for (let i = 0; i < expectedPrependCount; i++) {
+      const m = messagesProp[i];
+      const sig = chatRowSignature(m, i, messagesProp, currentUserIdRef.current);
+      if (getCachedRowHeight(m.id, sig) === undefined) toMeasure.push(m);
+    }
+    if (toMeasure.length === 0) {
+      setCommitted(messagesProp);
+      return;
+    }
+    const width = scrollerElRef.current?.clientWidth ?? 0;
+    if (width <= 0) {
+      // No way to render at real width — fall back to immediate commit.
+      setCommitted(messagesProp);
+      return;
+    }
+    setPending({ rows: toMeasure, fullMessages: messagesProp, width });
+  }, [messagesProp, committed, scrollerElRef]);
+
+  // Commit after the hidden subtree has mounted: read offsetHeights, write
+  // them into chatRowHeightCache, then hand the new array to Virtuoso.
+  // useLayoutEffect runs synchronously after DOM mount → heights are
+  // available before the browser paints the next frame.
+  useLayoutEffect(() => {
+    if (!pending) return;
+    const root = portalRef.current;
+    if (root) {
+      const { rows, fullMessages } = pending;
+      for (let i = 0; i < rows.length; i++) {
+        const m = rows[i];
+        const escaped =
+          typeof CSS !== "undefined" && typeof CSS.escape === "function"
+            ? CSS.escape(m.id)
+            : m.id.replace(/"/g, '\\"');
+        const node = root.querySelector<HTMLElement>(`[data-premeasure-id="${escaped}"]`);
+        if (!node) continue;
+        const h = node.offsetHeight;
+        if (h <= 0) continue;
+        const sig = chatRowSignature(m, i, fullMessages, currentUserIdRef.current);
+        setCachedRowHeight(m.id, h, sig);
+      }
+    }
+    const next = pending.fullMessages;
+    setPending(null);
+    setCommitted(next);
+  }, [pending]);
+
+  // Safety deadline: if the hidden subtree never mounts (Suspense boundary
+  // inside renderItem, etc.) commit anyway so pagination never stalls.
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => {
+      const next = pending.fullMessages;
+      setPending(null);
+      setCommitted(next);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [pending]);
+
+  const portal = pending ? (
+    <div
+      ref={portalRef}
+      aria-hidden="true"
+      // Off-screen but laid out — must NOT use display:none or visibility:
+      // hidden alone because those still need width to be set explicitly,
+      // and visibility:hidden skips layout in some engines. Absolute
+      // positioning far off-screen with the real width keeps the layout
+      // engine honest: row heights reflect the actual rendering at the
+      // scroller's content width.
+      style={{
+        position: "absolute",
+        top: -99999,
+        left: 0,
+        width: pending.width,
+        pointerEvents: "none",
+        opacity: 0,
+        zIndex: -1,
+        contain: "layout style",
+      }}
+    >
+      {pending.rows.map((m) => {
+        const idx = pending.fullMessages.findIndex((x) => x.id === m.id);
+        return (
+          <div key={m.id} data-premeasure-id={m.id}>
+            {renderItemRef.current(m, idx, pending.fullMessages)}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+
+  return { committed, portal };
+}
+
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
-    messages,
+    messages: messagesProp,
     hasOlder,
     isLoadingOlder,
     onLoadOlder,
@@ -797,6 +972,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Off-screen pre-measure for prepended history pages. `messages` below
+  // is the COMMITTED array (post pre-measure) — the rest of the body
+  // continues to operate on it unchanged. `premeasurePortal` is a hidden
+  // subtree rendered inside the wrapper to capture row heights before
+  // Virtuoso sees them.
+  const { committed: messages, portal: premeasurePortal } =
+    usePremeasurePrependedRows(messagesProp, renderItem, scrollerElRef, currentUserId);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
@@ -1893,6 +2075,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       components={components as any}
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    {premeasurePortal}
     </div>
     </div>
   );
