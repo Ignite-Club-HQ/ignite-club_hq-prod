@@ -2586,8 +2586,10 @@ export default function MessagesPage() {
       </div>
 
       {/* Lightweight type filter chips. Only chips for types the user actually
-          has appear, keeping the inbox uncluttered for simple users. */}
-      {(() => {
+          has appear, keeping the inbox uncluttered for simple users. Gated on
+          ALL inbox queries having resolved so chips pop in together instead of
+          Teams → Groups → DMs appearing one-by-one as each query finishes. */}
+      {(teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
           if (c.type === 'team' || c.type === 'league') counts.teams++;
