@@ -664,12 +664,14 @@ const ChatRowAdapter = memo(
   }: ChatRowAdapterProps) {
     const idx = indexByIdRef.current.get(message.id);
     if (idx === undefined) return null;
-    const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-    const signature = chatRowSignature(message);
+    const rows = uniqueMessagesRef.current;
+    const currentUserId = currentUserIdRef.current;
+    const child = renderItemRef.current(message, idx, rows);
+    const signature = chatRowSignature(message, idx, rows, currentUserId);
     const debug = isChatVirtDebugEnabled();
     const estimated =
       debug && idx >= 0
-        ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        ? estimateChatRowHeight(message as any, idx, rows, currentUserId)
         : undefined;
     const measured = (
       <CachedMeasureRow messageId={message.id} signature={signature}>{child}</CachedMeasureRow>
