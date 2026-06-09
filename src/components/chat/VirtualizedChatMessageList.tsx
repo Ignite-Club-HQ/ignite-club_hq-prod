@@ -761,18 +761,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
       return true;
     }
-    // Edge-pin fallback: once scrollTop hits 0 (or near-0), the browser
-    // stops emitting further upward scroll deltas — so `lastUserUpward
-    // ScrollAtRef` ages out within 220ms even while the user's thumb is
-    // still actively dragging up at the top edge. That used to leave the
-    // chat "stuck" at a prepend boundary: every subsequent `startReached`
-    // / `atTopStateChange` bailed with "no-user-scroll" and the next page
-    // never loaded until the user released, scrolled DOWN, then back up.
-    // If the viewport is pinned at the top AND still in an active user
-    // gesture window (touch / momentum) per `isViewportUserActive`, treat
-    // that as a continuing upward intent so pagination keeps flowing.
+    // Edge-pin fallback: once scrollTop hits 0 the browser stops emitting
+    // upward scroll deltas. Only treat this as continuing upward intent if a
+    // finger is STILL on the glass — using the broader `isViewportUserActive`
+    // cooldown (600ms) caused `startReached` to keep firing after release,
+    // which surfaced as "messages keep moving after I stopped".
     const el = scrollerElRef.current;
-    if (el && el.scrollTop <= 4 && isViewportUserActive(el)) return true;
+    if (el && el.scrollTop <= 4 && isViewportTouching(el)) return true;
     return false;
   }, []);
 
