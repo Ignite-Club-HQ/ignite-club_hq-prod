@@ -756,19 +756,17 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
         <div className="space-y-0.5 pt-0.5">
           <div className="flex items-center gap-1.5 text-[13.5px] text-foreground font-semibold">
             <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span className="min-w-0">{compactWhen}</span>
+            <span className="min-w-0">
+              {compactWhen}
+              {event.type === "game" && !event.is_bye && (() => {
+                const arrivalTime = formatMatchArrivalTime(event);
+                if (!arrivalTime) return null;
+                return (
+                  <span className="text-warning"> (Arrive {arrivalTime})</span>
+                );
+              })()}
+            </span>
           </div>
-          {event.type === "game" && !event.is_bye && (() => {
-            const mins = getMatchArrivalMinutes(event);
-            const arrivalTime = formatMatchArrivalTime(event);
-            if (mins == null || !arrivalTime) return null;
-            return (
-              <div className="flex items-baseline gap-1.5 pl-5 text-[12px] text-warning">
-                <span className="font-medium">Arrive {arrivalTime}</span>
-                <span className="text-muted-foreground">· {mins} min before</span>
-              </div>
-            );
-          })()}
           {locationDisplay && (
             <div className="flex items-start gap-1.5 text-[13px] text-foreground/90 pt-0.5">
               <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
@@ -1295,19 +1293,17 @@ function CompactCard({ event }: { event: EventItem }) {
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/45" aria-hidden="true" />
-            <span className="font-normal text-foreground/80">{compactWhen}</span>
+            <span className="font-normal text-foreground/80">
+              {compactWhen}
+              {event.type === "game" && !event.is_bye && (() => {
+                const arrivalTime = formatMatchArrivalTime(event);
+                if (!arrivalTime) return null;
+                return (
+                  <span className="text-warning"> (Arrive {arrivalTime})</span>
+                );
+              })()}
+            </span>
           </div>
-          {event.type === "game" && !event.is_bye && (() => {
-            const mins = getMatchArrivalMinutes(event);
-            const arrivalTime = formatMatchArrivalTime(event);
-            if (mins == null || !arrivalTime) return null;
-            return (
-              <div className="flex items-baseline gap-1.5 pl-[18px] text-[11.5px] text-warning">
-                <span className="font-medium">Arrive {arrivalTime}</span>
-                <span className="text-muted-foreground">· {mins}m before</span>
-              </div>
-            );
-          })()}
           {locationDisplay && (
             <div className="flex items-start gap-1.5 text-[12.5px] pt-0.5">
               <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
