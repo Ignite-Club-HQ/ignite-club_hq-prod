@@ -276,7 +276,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, []);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const reservePreviewSpace = previewsOnly;
+  // Always reserve the final card height for in-chat link previews. The
+  // non-`previewsOnly` (inline) path previously passed false, so a resolved
+  // preview INSERTED an 80px card into an already-mounted row — a real DOM
+  // height change that forced a Virtuoso correction and read as flicker on
+  // slow scroll-up. Composer previews are unaffected (they use LinkPreview
+  // directly, not via MessageContent).
+  const reservePreviewSpace = true;
 
   const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
