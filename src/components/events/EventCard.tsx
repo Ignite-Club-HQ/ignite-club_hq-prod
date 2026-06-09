@@ -329,6 +329,22 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     enabled: !event.is_cancelled,
   });
 
+  // My duties for this event — render a tag so the user sees what they're rostered for.
+  const { data: myDuties } = useQuery({
+    queryKey: ["card-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
   const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
