@@ -437,25 +437,15 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
 
-  // Bubble vertical padding + timestamp strip. Round-8: chrome=26/30 swung
-  // short text rows to +26..+34 OVER-estimate (mirror of round-7 under).
-  // Split the difference at 4/8 — short 1-line rows now land within ±4px
-  // (16+24header+18line+8chrome ≈ 66 vs 62 measured). Long rows trend
-  // slightly under (≤30) which Virtuoso absorbs by growing downward
-  // without a visible jolt. Image rows held.
-  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 8;
+  // Bubble vertical padding + timestamp strip. Round-9 telemetry: every text /
+  // text+reply row in the dump was UNDER-estimated by a consistent +25 to +33
+  // (text) and +26 to +43 (text+reply). Bumping chrome by ~26 brings the
+  // estimator back to ±5 on plain text rows without re-introducing the
+  // round-7 over-estimate on long messages (those were the rows where
+  // per-line wrap counting was the dominant error, not chrome).
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 30 : 34;
   else if (hasImage) height += groupedWithNext ? 18 : 34;
 
-
-  // Reactions row wraps every ~4 chips on a phone-width bubble.
-  if (reactions) height += Math.ceil(reactions / 4) * 28;
-
-  // Timestamp row + bubble vertical padding. Round-2 telemetry showed the
-  // +30 chrome bump was wrong direction — every plain text bubble came in
-  // systematically OVER by ~30 (105→74, 124→94, 143→114, 162→134, 181→154,
-  // 199→170). Revert to 0; per-line height already covers the timestamp row
-  // bottom padding.
-  // (no chrome added here)
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow tall rows — long messages of 30+ wrapped lines genuinely measure
