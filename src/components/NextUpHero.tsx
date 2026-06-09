@@ -83,7 +83,24 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     placeholderData: (prev) => prev,
   });
 
+  // My duties for this event
+  const { data: myDuties } = useQuery({
+    queryKey: ["hero-my-duties", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name, start_time, end_time, status")
+        .eq("event_id", event.id)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !event.is_cancelled,
+    staleTime: 60 * 1000,
+  });
+
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
