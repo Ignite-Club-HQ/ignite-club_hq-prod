@@ -1704,17 +1704,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
-    (_absoluteIndex: number, message: TMessage) => (
-      <ChatRowAdapter
-        message={message}
-        renderItemRef={renderItemRef as React.MutableRefObject<
-          (m: any, i: number, a: any[]) => React.ReactNode
-        >}
-        uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
-        indexByIdRef={indexByIdRef}
-        currentUserIdRef={currentUserIdRef}
-      />
-    ),
+    (_absoluteIndex: number, message: TMessage) => {
+      const idx = indexByIdRef.current.get(message.id) ?? -1;
+      const rows = uniqueMessagesRef.current;
+      const signature = chatRowSignature(message, idx, rows, currentUserIdRef.current);
+      return (
+        <ChatRowAdapter
+          message={message}
+          signature={signature}
+          renderItemRef={renderItemRef as React.MutableRefObject<
+            (m: any, i: number, a: any[]) => React.ReactNode
+          >}
+          uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
+          indexByIdRef={indexByIdRef}
+          currentUserIdRef={currentUserIdRef}
+        />
+      );
+    },
     [],
   );
 
