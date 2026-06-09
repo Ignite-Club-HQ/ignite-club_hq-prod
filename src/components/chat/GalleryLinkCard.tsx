@@ -8,9 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface GalleryLinkCardProps {
   cardId: string;
+  isPromptHint?: boolean;
 }
 
-export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: GalleryLinkCardProps) {
+export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptHint = false }: GalleryLinkCardProps) {
   const navigate = useNavigate();
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -60,14 +61,15 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
   );
 
   if (isLoading) {
-    // Match estimator's gallery reservation (PREVIEW_HEIGHT_BY_TOKEN.gallery = 160)
-    // so the row doesn't jump when the card resolves to prompt (~76) or hero (~240).
-    return <Skeleton className="h-[160px] w-full max-w-[300px] rounded-2xl" />;
+    // Match the final gallery-card slot exactly. The card itself keeps a
+    // stable outer height after query/image hydration, so Virtuoso never has
+    // to correct paddingTop for gallery rows during fast upward scrolling.
+    return <Skeleton className={`${isPromptHint ? "h-[76px]" : "h-[240px]"} w-full max-w-[320px] rounded-2xl`} />;
   }
 
   if (!card) {
     return (
-      <div className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground max-w-[300px]">
+      <div className={`flex ${isPromptHint ? "h-[76px]" : "h-[240px]"} max-w-[320px] items-center rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground`}>
         Gallery update unavailable
       </div>
     );
@@ -106,22 +108,31 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
     <button
       type="button"
       onClick={handleClick}
-      className="group block w-full max-w-[320px] overflow-hidden rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-all hover:border-primary/30 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06)] active:scale-[0.985] active:bg-primary/[0.04] touch-manipulation dark:border-border/40 dark:bg-card/80 dark:hover:border-primary/40"
+      className={`group block w-full max-w-[320px] overflow-hidden rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-colors hover:border-primary/30 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06)] active:bg-primary/[0.04] touch-manipulation dark:border-border/40 dark:bg-card/80 dark:hover:border-primary/40 ${isPrompt ? "h-[76px]" : "h-[240px]"}`}
     >
-      {/* Hero - only for non-prompt cards with image */}
-      {!isPrompt && heroSrc && !imgError && (
+      {/* Fixed hero slot for all non-prompt cards so image URL/signing/error
+          state never changes the row height after Virtuoso has measured it. */}
+      {!isPrompt && (
         <div className="relative w-full aspect-video bg-muted overflow-hidden">
-          {!imgLoaded && <Skeleton className="absolute inset-0" />}
-          <img
-            src={heroSrc}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-            className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-          />
-          {count > 1 && (
+          {heroSrc && !imgError ? (
+            <>
+              {!imgLoaded && <Skeleton className="absolute inset-0" />}
+              <img
+                src={heroSrc}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgError(true)}
+                className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              />
+            </>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-primary/10">
+              <ImageIcon className="h-7 w-7 text-primary/70" />
+            </div>
+          )}
+          {count > 1 && heroSrc && !imgError && (
             <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
               <ImageIcon className="h-2.5 w-2.5" />
               {count}
