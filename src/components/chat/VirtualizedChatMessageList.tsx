@@ -972,6 +972,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Off-screen pre-measure for prepended history pages. `messages` below
+  // is the COMMITTED array (post pre-measure) — the rest of the body
+  // continues to operate on it unchanged. `premeasurePortal` is a hidden
+  // subtree rendered inside the wrapper to capture row heights before
+  // Virtuoso sees them.
+  const { committed: messages, portal: premeasurePortal } =
+    usePremeasurePrependedRows(messagesProp, renderItem, scrollerElRef, currentUserId);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
