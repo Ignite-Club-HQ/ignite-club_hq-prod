@@ -414,10 +414,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line (matches real chat bubble line-height). Round-2
-    // bumped this to 21px which produced systematic over-estimates of
-    // 60-150px on long messages (negative-delta jolts on scroll-up).
-    height += lineCount * 19;
+    // ~18px per visual line. Round-3 used 19 which over-estimated long
+    // messages by ~100px (833→719 measured).
+    height += lineCount * 18;
   } else if (!hasImage) {
     height += 32;
   }
