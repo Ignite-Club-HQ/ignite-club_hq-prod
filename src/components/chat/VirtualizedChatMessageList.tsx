@@ -694,6 +694,7 @@ function CachedMeasureRow({
  */
 type ChatRowAdapterProps = {
   message: { id: string };
+  signature: string;
   renderItemRef: React.MutableRefObject<
     (message: any, index: number, arr: any[]) => React.ReactNode
   >;
@@ -705,6 +706,7 @@ type ChatRowAdapterProps = {
 const ChatRowAdapter = memo(
   function ChatRowAdapter({
     message,
+    signature,
     renderItemRef,
     uniqueMessagesRef,
     indexByIdRef,
@@ -715,7 +717,6 @@ const ChatRowAdapter = memo(
     const rows = uniqueMessagesRef.current;
     const currentUserId = currentUserIdRef.current;
     const child = renderItemRef.current(message, idx, rows);
-    const signature = chatRowSignature(message, idx, rows, currentUserId);
     const debug = isChatVirtDebugEnabled();
     const estimated =
       debug && idx >= 0
@@ -732,10 +733,14 @@ const ChatRowAdapter = memo(
       </DebugRowProbe>
     );
   },
-  // Skip re-render unless THIS row's message reference changed. The ref props
-  // are stable for the lifetime of the parent component, so they're never the
-  // cause of a re-render.
-  (prev, next) => prev.message === next.message,
+  // Skip re-render unless THIS row's layout-affecting signature changed.
+  // Using signature equality (not message reference) means upstream churn —
+  // read-receipt merges, profile-cache refreshes, prepend-page object
+  // re-spreading — no longer re-renders every visible row. Only edits,
+  // reactions, link-preview hydration, neighbour-grouping changes etc.
+  // (anything chatRowSignature captures) trigger a real re-render.
+  // Ref props are stable for the lifetime of the parent component.
+  (prev, next) => prev.signature === next.signature && prev.message.id === next.message.id,
 );
 
 /**
@@ -1699,17 +1704,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
-    (_absoluteIndex: number, message: TMessage) => (
-      <ChatRowAdapter
-        message={message}
-        renderItemRef={renderItemRef as React.MutableRefObject<
-          (m: any, i: number, a: any[]) => React.ReactNode
-        >}
-        uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
-        indexByIdRef={indexByIdRef}
-        currentUserIdRef={currentUserIdRef}
-      />
-    ),
+    (_absoluteIndex: number, message: TMessage) => {
+      const idx = indexByIdRef.current.get(message.id) ?? -1;
+      const rows = uniqueMessagesRef.current;
+      const signature = chatRowSignature(message, idx, rows, currentUserIdRef.current);
+      return (
+        <ChatRowAdapter
+          message={message}
+          signature={signature}
+          renderItemRef={renderItemRef as React.MutableRefObject<
+            (m: any, i: number, a: any[]) => React.ReactNode
+          >}
+          uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
+          indexByIdRef={indexByIdRef}
+          currentUserIdRef={currentUserIdRef}
+        />
+      );
+    },
     [],
   );
 
