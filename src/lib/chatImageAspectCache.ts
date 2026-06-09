@@ -167,8 +167,8 @@ export function prefetchChatImageAspectRatio(url: string | null | undefined): vo
   try {
     const img = new Image();
     img.decoding = "async";
-    // @ts-expect-error — fetchpriority is a valid hint on modern browsers
-    img.fetchPriority = "low";
+    (img as unknown as { fetchPriority?: string }).fetchPriority = "low";
+
     img.onload = () => {
       inFlight.delete(k);
       const w = img.naturalWidth;
