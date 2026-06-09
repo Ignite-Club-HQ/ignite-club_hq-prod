@@ -1914,7 +1914,16 @@ export default function HomePage() {
     ? (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution
     : readyNextUpSignature === nextUpEventSignature;
   const myTeamsReady = readyMyTeamsTarget === myTeamsReadyTarget;
-  const showContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && nextUpSectionReady && myTeamsReady;
+  const computedShowContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && nextUpSectionReady && myTeamsReady;
+  // Latch so we never re-hide the page back to the unified skeleton after the
+  // first synchronized reveal — otherwise a later refetch on one section
+  // (events array reference changes → NextUp re-checks first hero) would yank
+  // both widgets behind the skeleton again and reveal them out of sync.
+  const [hasRevealed, setHasRevealed] = useState(false);
+  useEffect(() => {
+    if (computedShowContent && !hasRevealed) setHasRevealed(true);
+  }, [computedShowContent, hasRevealed]);
+  const showContent = computedShowContent || hasRevealed;
 
   return (
     <div className="py-6 space-y-5">
