@@ -1,7 +1,6 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 interface ReplyPreviewProps {
   replyingTo: {
@@ -42,56 +41,19 @@ interface ReplyIndicatorProps {
 }
 
 export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, hasReply = false, isOwn }: ReplyIndicatorProps) {
-  // Track the LAST committed value separately from the prop. If the prop
-  // changes from null → object (or vice versa) while the chat is being
-  // scrolled, defer the visible commit until scroll has been idle for
-  // 250ms. Without this, late `reply_to` hydration during a fast upward
-  // flick adds a ~32px pill above the user's bubble and visibly drops the
-  // message they're reading.
-  const [committed, setCommitted] = useState(replyToMessage ?? null);
-  const committedRef = useRef(committed);
-  const firstRenderRef = useRef(true);
-
-  const commit = (next: typeof committed) => {
-    committedRef.current = next;
-    setCommitted(next);
-  };
-
-  useEffect(() => {
-    if (firstRenderRef.current) {
-      firstRenderRef.current = false;
-      return;
-    }
-    const next = replyToMessage ?? null;
-    // Cheap structural compare — only height-affecting changes need to
-    // wait for idle. Same identity ⇒ no commit.
-    const prev = committedRef.current;
-    const same =
-      (prev === null && next === null) ||
-      (prev !== null &&
-        next !== null &&
-        prev.text === next.text &&
-        prev.authorName === next.authorName);
-    if (same) return;
-
-    const cancel = runWhenChatScrollIdle(() => commit(next), 250);
-    return cancel;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replyToMessage?.text, replyToMessage?.authorName, hasReply]);
-
-  const shouldReserve = hasReply || !!committed;
+  const shouldReserve = hasReply || !!replyToMessage;
   if (!shouldReserve) return null;
-  const hidden = !committed;
+  const hidden = !replyToMessage;
 
   return (
     <div
-      className={`text-xs p-2 mb-1 min-h-[42px] rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
+      className={`mb-1 flex h-12 max-w-full min-w-0 flex-col justify-center overflow-hidden rounded-lg border-l-2 border-primary/50 bg-background/50 px-2 text-xs ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
       aria-hidden={hidden || undefined}
     >
       <p className="text-muted-foreground font-medium truncate">
-        {committed?.authorName || "\u00A0"}
+        {replyToMessage?.authorName || "\u00A0"}
       </p>
-      <p className="text-muted-foreground/70 truncate">{committed?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}</p>
+      <p className="text-muted-foreground/70 truncate">{replyToMessage?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}</p>
     </div>
   );
 });
