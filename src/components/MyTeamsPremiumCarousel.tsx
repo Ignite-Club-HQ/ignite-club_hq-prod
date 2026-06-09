@@ -711,10 +711,20 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   const showSkeleton = (!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot;
 
+  // Section is "ready" only once the primary teams query has actually settled
+  // (i.e. not its first load and not a background refetch with no items yet).
+  // Snapshot keeps the skeleton hidden for instant paint, but we must NOT
+  // signal ready off the snapshot alone — otherwise My Teams reports ready
+  // immediately while Next Up is still waiting on its first hero, and they
+  // visibly desync on native cold opens.
+  const dataSettled = initialized && !isLoading && !(isFetching && items.length === 0);
+  const sectionReady = dataSettled || (!!snapshot && !isLoading);
+
   useEffect(() => {
-    onReadyChange?.(!showSkeleton);
-    return () => onReadyChange?.(false);
-  }, [onReadyChange, showSkeleton]);
+    onReadyChange?.(sectionReady);
+    // No false-reset on cleanup: it caused needless ready toggles when the
+    // effect re-ran, which delayed the unified Home reveal.
+  }, [onReadyChange, sectionReady]);
 
   if (showSkeleton) {
     return <MyTeamsCarouselSkeleton />;
