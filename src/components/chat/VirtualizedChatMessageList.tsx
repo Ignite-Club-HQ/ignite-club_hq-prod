@@ -481,6 +481,29 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
 
+// `skipAnimationFrameInResizeObserver` (set on <Virtuoso/> below) makes item
+// measurement synchronous inside the ResizeObserver callback. The browser
+// then legitimately reports the benign "ResizeObserver loop completed with
+// undelivered notifications" error (per react-virtuoso docs / issue #1049).
+// Swallow ONLY that specific message so it doesn't pollute error overlays
+// or monitoring. Installed once at module load.
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "error",
+    (event) => {
+      const msg = typeof event.message === "string" ? event.message : "";
+      if (msg.includes("ResizeObserver loop")) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    // Capture so we run before dev overlays / error reporters.
+    true,
+  );
+}
+
+
+
 // Custom Item wrapper that applies CSS containment to each virtualised row.
 // This is the single biggest win for fast upward scrolls on native: when a
 // row mounts it can no longer invalidate ancestor layout/paint, so the
@@ -1952,6 +1975,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
+      // ROOT-CAUSE FIX for scroll-up flicker/movement: by default Virtuoso
+      // wraps its item ResizeObserver callback in requestAnimationFrame, so a
+      // row mounted during upward scroll reports its real height ONE FRAME
+      // LATE. For that frame the list is positioned with the wrong (default
+      // 160px) height, then snaps — visible as per-row flicker on slow scroll
+      // and compounding viewport movement on fast flings (react-virtuoso
+      // issue #1049). Skipping the rAF makes measurement synchronous within
+      // the same layout pass, eliminating the one-frame misposition window.
+      // Note: estimator tuning could never fix this — estimateChatRowHeight
+      // only feeds debug telemetry; Virtuoso itself only knows
+      // defaultItemHeight until the RO reports.
+      skipAnimationFrameInResizeObserver
       // Tuned to the real median chat row height: most rows fall in the
       // 90–180px band (text bubble + author + timestamp ≈ 90, image rows
       // with the reserved 4/3 frame ≈ 300). 160 is the population median
