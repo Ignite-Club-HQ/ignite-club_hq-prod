@@ -978,6 +978,16 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
+            {showTapHint && (
+              <div
+                className={`mt-1 px-1 text-[10.5px] text-muted-foreground/70 animate-fade-in ${
+                  isOwn && !isClubAnnouncement ? "text-right" : "text-left"
+                }`}
+                role="status"
+              >
+                Hold for reactions &amp; replies
+              </div>
+            )}
             {inlineRsvpMatch && (
               <div className="mt-2">
                 <InlineRsvpActions eventId={inlineRsvpMatch[1]} messageId={id} />
