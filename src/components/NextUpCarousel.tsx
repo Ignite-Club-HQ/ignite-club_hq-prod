@@ -48,6 +48,7 @@ interface EventItem {
 interface NextUpCarouselProps {
   events: EventItem[];
   isLoading?: boolean;
+  onReadyChange?: (ready: boolean) => void;
 }
 
 function StartGameCta({ event }: { event: EventItem }) {
@@ -424,7 +425,7 @@ function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: 
   );
 }
 
-function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; fullWidth?: boolean; onNeedsRsvpChange?: (eventId: string, needs: boolean) => void }) {
+function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { event: EventItem; fullWidth?: boolean; onNeedsRsvpChange?: (eventId: string, needs: boolean) => void; onReadyChange?: (eventId: string, ready: boolean) => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -500,6 +501,11 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange }: { event: EventItem; f
   // RSVPs hydrate (which would briefly show the pill on already-responded events).
   const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
   const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && rsvpSummaryFetched && membershipFetched && dutiesReady);
+
+  React.useEffect(() => {
+    onReadyChange?.(event.id, heroDataReady);
+    return () => onReadyChange?.(event.id, false);
+  }, [event.id, heroDataReady, onReadyChange]);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -1388,7 +1394,7 @@ function CompactCard({ event }: { event: EventItem }) {
   );
 }
 
-export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
+export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarouselProps) {
   const { user } = useAuth();
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
@@ -1397,6 +1403,9 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
   });
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [scrollSnaps, setScrollSnaps] = React.useState<number[]>([]);
+  const allEvents = React.useMemo(() => (events || []).slice(0, 6), [events]);
+  const readyTargetIds = React.useMemo(() => allEvents.map((event) => event.id), [allEvents]);
+  const [readyIds, setReadyIds] = React.useState<Set<string>>(new Set());
 
   const onSelect = React.useCallback(() => {
     if (!emblaApi) return;
@@ -1419,11 +1428,28 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
   // so this badge can never disagree with what's actually shown on the cards
   // (membership, BYE, guardian-children, parent-first events all factor in).
   const carouselEventIds = React.useMemo(
-    () => (events || []).slice(0, 6).filter(e => !e.is_cancelled && !e.is_bye).map(e => e.id),
-    [events],
+    () => allEvents.filter(e => !e.is_cancelled && !e.is_bye).map(e => e.id),
+    [allEvents],
   );
 
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+
+  const handleHeroReadyChange = React.useCallback((eventId: string, ready: boolean) => {
+    setReadyIds(prev => {
+      const has = prev.has(eventId);
+      if (ready && !has) {
+        const next = new Set(prev);
+        next.add(eventId);
+        return next;
+      }
+      if (!ready && has) {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      }
+      return prev;
+    });
+  }, []);
 
   const handleNeedsRsvpChange = React.useCallback((eventId: string, needs: boolean) => {
     setPendingIds(prev => {
@@ -1453,6 +1479,22 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
     });
   }, [carouselEventIds]);
 
+  React.useEffect(() => {
+    const allowed = new Set(readyTargetIds);
+    setReadyIds(prev => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach(id => { if (allowed.has(id)) next.add(id); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [readyTargetIds]);
+
+  const sectionReady = !isLoading && (readyTargetIds.length === 0 || readyTargetIds.every(id => readyIds.has(id)));
+
+  React.useEffect(() => {
+    onReadyChange?.(sectionReady);
+  }, [onReadyChange, sectionReady]);
+
   const pendingCount = pendingIds.size;
 
   // Show skeleton while loading to reserve space and prevent layout shift.
@@ -1473,7 +1515,6 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
 
   if (!events || events.length === 0) return null;
 
-  const allEvents = events.slice(0, 6);
   const showCarousel = allEvents.length > 1;
 
   return (
@@ -1512,7 +1553,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
                   }}
                 >
                   <div className="min-h-[340px]">
-                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+                    <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} onReadyChange={handleHeroReadyChange} />
                   </div>
                 </div>
               ))}
@@ -1542,7 +1583,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
         </div>
       ) : (
         <div className="min-h-[340px]">
-          <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} />
+          <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} onReadyChange={handleHeroReadyChange} />
         </div>
       )}
     </section>
