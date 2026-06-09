@@ -309,9 +309,8 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       }
     }
 
-    if (composerActivated) {
-      if (isChatJumpActive()) setChatJumpActive(false);
-    }
+
+
 
     if (!initialBottomPinned && !composerActivated) return;
 
