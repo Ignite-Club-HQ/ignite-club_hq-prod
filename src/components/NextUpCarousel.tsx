@@ -1489,7 +1489,12 @@ export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarou
     });
   }, [readyTargetIds]);
 
-  const sectionReady = !isLoading && (readyTargetIds.length === 0 || readyTargetIds.every(id => readyIds.has(id)));
+  // Section is "ready" as soon as the root events query has resolved (isLoading=false).
+  // We intentionally do NOT wait for every HeroCard's per-card queries (RSVP, duties,
+  // children, summary, membership) — those are async pill hydrations that should not
+  // hold back the unified Home reveal. Waiting for them made Next Up consistently
+  // appear well after My Teams, since each hero fires 5-6 secondary queries.
+  const sectionReady = !isLoading;
 
   React.useEffect(() => {
     onReadyChange?.(sectionReady);
