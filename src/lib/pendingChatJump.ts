@@ -266,4 +266,10 @@ export function captureJumpFromNotification(data: any, url: string | null | unde
   if (!target) return;
   setPendingChatJump(target.kind, target.targetId, target.messageId);
   if (target.targetId) setFromNotificationFlag(target.kind, target.targetId);
+  // Eagerly arm the bottom-pin bail-out flag so on-mount pin compensators on
+  // VirtualizedChatMessageList / useInitialChatBottomPin skip their initial
+  // scrollToBottom — otherwise the cold-start tap races
+  // jumpToMessageInVirtualizedChat and the user momentarily lands at the
+  // newest message before the jump kicks in (~200–500ms of visible jitter).
+  armEagerChatJump();
 }
