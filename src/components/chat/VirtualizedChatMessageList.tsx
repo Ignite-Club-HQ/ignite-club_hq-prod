@@ -155,17 +155,58 @@ function getMessageDay(value?: string | null) {
 // Approx characters that fit on one line of a chat bubble at the current
 // viewport. Bubble max-width ≈ 75% of viewport, ~7.2px per char at 14px body
 // font. Memoised lazily so we don't read window on every estimate call.
-let __cachedCharsPerLine = 0;
+let __cachedOwnCharsPerLine = 0;
+let __cachedIncomingCharsPerLine = 0;
 let __cachedViewportWidth = 0;
-function getCharsPerLine() {
+function getCharsPerLine(isOwnMessage: boolean) {
   const w = typeof window !== "undefined" ? window.innerWidth : 411;
   if (w !== __cachedViewportWidth) {
     __cachedViewportWidth = w;
-    // Bubble inner width ≈ (viewport - 32px outer padding) * 0.75 - 24px bubble padding.
-    const bubbleInner = Math.max(140, (w - 32) * 0.75 - 24);
-    __cachedCharsPerLine = Math.max(16, Math.floor(bubbleInner / 7.2));
+    // Match the real mobile row geometry. Incoming grouped chats lose space to
+    // avatar + gap; own messages do not. Use a deliberately conservative
+    // average glyph width so long messages don't land hundreds of px short.
+    const rowWidth = Math.max(260, w - 32);
+    const ownInner = Math.max(140, rowWidth * 0.82 - 24);
+    const incomingInner = Math.max(130, rowWidth * 0.85 - 44 - 24);
+    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 8.2));
+    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 8.2));
   }
-  return __cachedCharsPerLine;
+  return isOwnMessage ? __cachedOwnCharsPerLine : __cachedIncomingCharsPerLine;
+}
+
+function looksLikeYoutubeUrl(text: string) {
+  return /(?:youtube\.com\/(?:watch\?|shorts\/|embed\/)|youtu\.be\/)/i.test(text);
+}
+
+const PLAIN_URL_REGEX = /(?:https?:\/\/|www\.)[^\s\]]+/gi;
+function estimateVisibleText(rawText: string) {
+  return rawText
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
+    .replace(PLAIN_URL_REGEX, (url) => looksLikeYoutubeUrl(url) ? "" : "x".repeat(Math.min(50, url.length)))
+    .trim();
+}
+
+function estimateExternalPreviewHeight(text: string) {
+  const seen = new Set<string>();
+  let youtubeCount = 0;
+  let otherCount = 0;
+  for (const match of text.matchAll(PLAIN_URL_REGEX)) {
+    const url = match[0];
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (looksLikeYoutubeUrl(url)) {
+      if (youtubeCount < 2) youtubeCount += 1;
+    } else if (otherCount < 2) {
+      otherCount += 1;
+    }
+  }
+  const youtubeHeight = youtubeCount * 180 + Math.max(0, youtubeCount - 1) * 8;
+  const linkHeight = otherCount * PREVIEW_HEIGHT_BY_TOKEN.url + Math.max(0, otherCount - 1) * 8;
+  return youtubeHeight + linkHeight;
 }
 
 // Per-token-type reserved heights for inline link/preview cards. Real cards
@@ -292,8 +333,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     is_edited?: boolean | null;
   } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
+  const next = messages[index + 1] as (TMessage & EstimableChatMessage) | undefined;
   let height = 16; // row wrapper top padding (pt-4)
   const groupedWithPrev = !!prev && shouldGroupWithPrev(msg, prev);
+  const groupedWithNext = !!next && shouldGroupWithPrev(next, msg);
   // ChatMessage applies `-mt-3` on grouped follow-ups. Mirror that net row
   // height here so Virtuoso doesn't over-reserve then shrink paddingTop.
   if (groupedWithPrev) height -= 12;
@@ -363,14 +406,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += Math.round(300 / ratio);
   }
 
-  // Strip mention pills and embed tokens before counting visible text length.
-  const visibleText = text
-    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
-    .trim();
+  const visibleText = estimateVisibleText(text);
 
   if (visibleText) {
-    const charsPerLine = getCharsPerLine();
+    const charsPerLine = getCharsPerLine(isOwnMessage);
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
@@ -381,7 +420,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     // showed estimator returning 368 while actual rows measured 595/666/955,
     // forcing 200-600px paddingTop corrections on slow scroll-up (the visible
     // jolt). Honour real line count; the outer max cap still bounds runaway.
-    height += lineCount * 19;
+    height += lineCount * 21;
   } else if (!hasImage) {
     height += 32;
   }
@@ -397,11 +436,15 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 96;
     previewCount += 1;
   }
-  // Generic URL previews (only count once per message — we render at most one).
-  if (previewCount < 3 && /https?:\/\/|www\./i.test(text)) {
-    previewHeight += PREVIEW_HEIGHT_BY_TOKEN.url;
-  }
+  previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
+
+  // Bubble vertical padding plus the metadata/timestamp strip beneath the
+  // bubble. Telemetry now shows repeated +25..+40 misses on short text/reply
+  // rows, and +200..+600 misses on long text rows; both share this missing
+  // chrome. Over-reserving a little is safer than visible positive growth
+  // above the scroll anchor during upward pagination.
+  if (visibleText || hasImage || hasReply || previewHeight > 0) height += groupedWithNext ? 18 : 34;
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
