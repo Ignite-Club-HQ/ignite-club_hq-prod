@@ -28,6 +28,7 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
+import { getCachedImageAspectRatio } from "@/lib/chatImageAspectCache";
 import {
   installChatScrollIntentTracking,
   isViewportTouching,
