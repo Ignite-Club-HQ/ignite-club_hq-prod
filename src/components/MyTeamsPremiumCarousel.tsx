@@ -87,6 +87,40 @@ interface MemberSummary {
   avatars: string[];
 }
 
+function MyTeamsCarouselSkeleton() {
+  return (
+    <section className="space-y-2.5" aria-hidden="true">
+      <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
+      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg border border-border/60 bg-card p-4 space-y-3 animate-pulse"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-muted shrink-0" />
+                <div className="min-w-0 flex-1 space-y-2 pt-1">
+                  <div className="h-4 w-2/3 rounded bg-muted" />
+                  <div className="h-3 w-1/2 rounded bg-muted/80" />
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2.5 min-h-[62px] space-y-2">
+                <div className="h-3 w-4/5 rounded bg-muted" />
+                <div className="h-3 w-3/5 rounded bg-muted/80" />
+              </div>
+              <div className="flex items-center gap-2 pt-3 border-t border-border/40 min-h-[36px]">
+                <div className="h-7 w-7 rounded-full bg-muted" />
+                <div className="h-3 w-24 rounded bg-muted/80" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members }: {
   item: TeamOrLeague;
   nextEvent?: NextEventInfo;
@@ -315,7 +349,7 @@ export function MyTeamsPremiumCarousel() {
   }, []);
 
   // Fetch teams & leagues
-  const { data: items = snapshot?.items ?? [], isLoading } = useQuery({
+  const { data: items = snapshot?.items ?? [], isLoading, isFetching } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
     retry: 3,
     queryFn: async () => {
@@ -671,17 +705,8 @@ export function MyTeamsPremiumCarousel() {
     });
   }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
-  if (isLoading && !snapshot) {
-    return (
-      <section className="space-y-2.5">
-        <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
-        <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-          {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg bg-muted animate-pulse" />
-          ))}
-        </div>
-      </section>
-    );
+  if ((!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot) {
+    return <MyTeamsCarouselSkeleton />;
   }
 
 
