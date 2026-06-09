@@ -213,11 +213,24 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             })()}
           </div>
 
-          {/* Date + Location */}
+          {/* Time block (date+time, then arrival sub-line), then venue */}
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
-              <span className="font-medium text-foreground">{dateTime}</span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
+                <span className="font-medium text-foreground">{dateTime}</span>
+              </div>
+              {event.type === "game" && !event.is_bye && (() => {
+                const mins = getMatchArrivalMinutes(event);
+                const arrivalTime = formatMatchArrivalTime(event);
+                if (mins == null || !arrivalTime) return null;
+                return (
+                  <div className="flex items-baseline gap-1.5 pl-6 text-[13px] text-warning">
+                    <span className="font-medium">Arrive {arrivalTime}</span>
+                    <span className="text-muted-foreground">· {mins} min before</span>
+                  </div>
+                );
+              })()}
             </div>
             {!event.is_bye && (event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">
@@ -225,22 +238,11 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
-            {event.type === "game" && !event.is_bye && (() => {
-              const mins = getMatchArrivalMinutes(event);
-              const arrivalTime = formatMatchArrivalTime(event);
-              if (mins == null || !arrivalTime) return null;
-              return (
-                <div className="flex items-center gap-2 text-warning">
-                  <Clock className="h-4 w-4 shrink-0" />
-                  <span className="font-medium">Arrive by {arrivalTime}</span>
-                  <span>({mins} min before)</span>
-                </div>
-              );
-            })()}
             {event.is_bye && (
               <p className="text-sm text-muted-foreground italic">No match this round — enjoy the weekend off!</p>
             )}
           </div>
+
 
           {myDuties && myDuties.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
