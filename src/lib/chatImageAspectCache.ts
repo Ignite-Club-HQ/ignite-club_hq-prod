@@ -144,3 +144,56 @@ export function setCachedImageAspectRatio(
   }
   if (changed) scheduleWrite();
 }
+
+// Measure intrinsic pixel dimensions of an image Blob. Returns null if the
+// blob can't be decoded as an image (e.g. SVG without dims, corrupt file).
+// Cheap and best-effort — callers should not block uploads on failure.
+export async function measureImageDimensions(
+  blob: Blob,
+): Promise<{ width: number; height: number } | null> {
+  // Prefer createImageBitmap (off-main-thread on most engines, no DOM dep).
+  try {
+    if (typeof createImageBitmap === "function") {
+      const bmp = await createImageBitmap(blob);
+      const w = bmp.width;
+      const h = bmp.height;
+      try { bmp.close?.(); } catch { /* ignore */ }
+      if (w > 0 && h > 0) return { width: w, height: h };
+    }
+  } catch {
+    /* fall through to <img> fallback */
+  }
+  // Fallback: HTMLImageElement decode.
+  try {
+    if (typeof URL === "undefined" || typeof Image === "undefined") return null;
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      const dims = await new Promise<{ width: number; height: number } | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => resolve(null);
+        img.src = objUrl;
+      });
+      return dims && dims.width > 0 && dims.height > 0 ? dims : null;
+    } finally {
+      try { URL.revokeObjectURL(objUrl); } catch { /* ignore */ }
+    }
+  } catch {
+    return null;
+  }
+}
+
+// Append ?w=&h= (or merge into existing query) so the dimensions survive in
+// the persisted message row and are available to every receiver on first
+// paint — no extra DB columns needed.
+export function appendDimensionsToUrl(
+  url: string,
+  width: number,
+  height: number,
+): string {
+  if (!url || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return url;
+  }
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}w=${Math.round(width)}&h=${Math.round(height)}`;
+}
