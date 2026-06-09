@@ -168,8 +168,8 @@ function getCharsPerLine(isOwnMessage: boolean) {
     const rowWidth = Math.max(260, w - 32);
     const ownInner = Math.max(140, rowWidth * 0.82 - 24);
     const incomingInner = Math.max(130, rowWidth * 0.85 - 44 - 24);
-    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 8.2));
-    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 8.2));
+    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 7.4));
+    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 7.4));
   }
   return isOwnMessage ? __cachedOwnCharsPerLine : __cachedIncomingCharsPerLine;
 }
