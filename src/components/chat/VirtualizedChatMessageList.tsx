@@ -2075,6 +2075,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       components={components as any}
     />
     {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    {premeasurePortal}
     </div>
     </div>
   );
