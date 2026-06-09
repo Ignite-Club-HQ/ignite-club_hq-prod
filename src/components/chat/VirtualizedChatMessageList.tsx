@@ -559,6 +559,13 @@ function CachedMeasureRow({
       raf = requestAnimationFrame(writeWhenIdle);
       t1 = setTimeout(writeWhenIdle, 120);
       t2 = setTimeout(writeWhenIdle, 360);
+      // Android WebView: skip the short-lived ResizeObserver. On slow upward
+      // scroll with realtime read receipts firing, dozens of 600ms ROs stack
+      // up and land deferred itemSize writes the moment the user pauses,
+      // producing visible paddingTop jolts that read as flicker. The rAF +
+      // 120ms + 360ms timeouts above (all scroll-idle gated) are sufficient
+      // to capture late content like link previews / reaction chips.
+      if (isAndroidNativeWebView()) return;
       if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
