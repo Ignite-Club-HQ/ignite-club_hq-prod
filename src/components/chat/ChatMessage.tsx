@@ -195,7 +195,18 @@ function ChatMessageInner({
     setOptimisticReactions(reactions);
   }, [reactions]);
 
-  useEffect(() => observeChatElementHeight(rowRef.current), []);
+ useEffect(() => observeChatElementHeight(rowRef.current), []);
+
+  // One-time, auto-fading caption beneath the first message bubble the user
+  // sees, to surface the long-press gesture without a global banner.
+  useEffect(() => {
+    if (isSystemMessage) return;
+    if (claimFirstBubbleHint()) {
+      setShowTapHint(true);
+      if (tapHintTimer.current) clearTimeout(tapHintTimer.current);
+      tapHintTimer.current = setTimeout(() => setShowTapHint(false), 4000);
+    }
+  }, [isSystemMessage]);
 
 
   const getMessageIdField = () => {
