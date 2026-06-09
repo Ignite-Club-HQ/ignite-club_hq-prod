@@ -21,7 +21,7 @@ export const MessageReadIndicator = memo(function MessageReadIndicator({
   if (!isOwn) return null;
 
   if (readCount <= 0) {
-    return <span className="text-[10px] leading-none text-muted-foreground/55 tracking-tight">Sent</span>;
+    return <span className="text-[11px] leading-none text-muted-foreground/70 tracking-tight">Sent</span>;
   }
 
   const label = readerName
@@ -29,9 +29,10 @@ export const MessageReadIndicator = memo(function MessageReadIndicator({
     : `Seen by ${readCount}`;
 
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] leading-none text-muted-foreground/65 tracking-tight">
-      <Eye className="h-2.5 w-2.5 opacity-70" strokeWidth={2.25} />
+    <span className="inline-flex items-center gap-0.5 text-[11px] leading-none text-muted-foreground/80 tracking-tight">
+      <Eye className="h-3 w-3 opacity-80" strokeWidth={2.25} />
       {label}
     </span>
+
   );
 });
