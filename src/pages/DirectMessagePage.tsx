@@ -67,6 +67,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -442,12 +443,21 @@ export default function DirectMessagePage() {
   // and inbox taps can land here while react-query still has stale data from a
   // prefetch — invalidating guarantees the latest message is fetched on entry.
   // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
+  // Batch 3B: fire on `user?.id` (eager) when per-surface flag enabled.
+  const eagerInvalidateDm = isChatEagerInvalidateEnabled("dm");
+  const invalidateGateDm = eagerInvalidateDm ? !!user?.id : authReady;
   useEffect(() => {
-    if (!conversationId || !authReady) return;
+    if (!conversationId || !invalidateGateDm) return;
     const key = ["dm-messages", conversationId];
     if (shouldSkipChatMountInvalidate(queryClient, key, `dm:${conversationId}`)) return;
-    queryClient.invalidateQueries({ queryKey: key });
-  }, [conversationId, authReady, queryClient]);
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidateDm) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [conversationId, invalidateGateDm, queryClient, eagerInvalidateDm]);
 
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({

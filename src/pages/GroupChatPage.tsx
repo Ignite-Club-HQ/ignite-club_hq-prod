@@ -94,6 +94,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
 
@@ -422,12 +423,24 @@ export default function GroupChatPage() {
   // guarantees the latest message is fetched on entry.
   // Batch 3A: skip when cache is provably fresh + realtime connected + page
   // wasn't just woken from background. See `shouldSkipChatMountInvalidate`.
+  // Batch 3B: fire on `user?.id` (eager) when the per-surface flag is on, so
+  // the invalidate lands during the same render pass as the first message
+  // fetch instead of triggering a second fetch ~700ms later. The session-
+  // applied check guards against firing before the JWT is on the client.
+  const eagerInvalidate = isChatEagerInvalidateEnabled("group");
+  const invalidateGate = eagerInvalidate ? !!user?.id : authReady;
   useEffect(() => {
-    if (!groupId || !authReady || !group) return;
+    if (!groupId || !invalidateGate || !group) return;
     const key = ["group-messages", groupId];
     if (shouldSkipChatMountInvalidate(queryClient, key, `group:${groupId}`)) return;
-    queryClient.invalidateQueries({ queryKey: key });
-  }, [groupId, authReady, group, queryClient]);
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidate) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [groupId, invalidateGate, group, queryClient, eagerInvalidate]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
   const { data: messagesData, isLoading: messagesLoading } = useQuery({

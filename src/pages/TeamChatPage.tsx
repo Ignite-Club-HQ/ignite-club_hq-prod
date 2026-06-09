@@ -80,6 +80,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -467,12 +468,21 @@ export default function TeamChatPage() {
   // and inbox taps can land here while react-query still has stale data —
   // invalidating guarantees the latest message is fetched on entry.
   // Batch 3A: skip when cache is fresh + realtime up + not waking from background.
+  // Batch 3B: fire on `user?.id` (eager) when per-surface flag enabled.
+  const eagerInvalidateTeam = isChatEagerInvalidateEnabled("team");
+  const invalidateGateTeam = eagerInvalidateTeam ? !!user?.id : authReady;
   useEffect(() => {
-    if (!teamId || !authReady) return;
+    if (!teamId || !invalidateGateTeam) return;
     const key = ["team-messages", teamId];
     if (shouldSkipChatMountInvalidate(queryClient, key, `team:${teamId}`)) return;
-    queryClient.invalidateQueries({ queryKey: key });
-  }, [teamId, authReady, queryClient]);
+    let cancelled = false;
+    (async () => {
+      if (eagerInvalidateTeam) await ensureSessionApplied();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: key });
+    })();
+    return () => { cancelled = true; };
+  }, [teamId, invalidateGateTeam, queryClient, eagerInvalidateTeam]);
 
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
