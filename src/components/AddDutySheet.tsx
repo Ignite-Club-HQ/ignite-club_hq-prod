@@ -36,10 +36,15 @@ const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee", "Subs Manager", "Ora
 
 export type DutyContext = "session" | "match";
 
+export interface AddDutyOptions {
+  startTime?: string; // HH:MM (local)
+  endTime?: string;   // HH:MM (local)
+}
+
 interface AddDutySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddDuty: (dutyName: string) => void;
+  onAddDuty: (dutyName: string, opts?: AddDutyOptions) => void;
   isPending: boolean;
   /** Whether this is for a mini league event */
   isMiniLeague?: boolean;
@@ -57,6 +62,8 @@ export function AddDutySheet({
 }: AddDutySheetProps) {
   const [selectedDuty, setSelectedDuty] = useState<string>("");
   const [customDutyName, setCustomDutyName] = useState("");
+  const [shiftStart, setShiftStart] = useState("");
+  const [shiftEnd, setShiftEnd] = useState("");
 
   // Determine which duties to show based on context
   const dutyOptions = useMemo(() => {
@@ -73,13 +80,18 @@ export function AddDutySheet({
     return ALL_DUTY_OPTIONS.filter(duty => allowedIds.includes(duty.id));
   }, [isMiniLeague, context]);
 
+  const showShiftFields = SHIFT_CAPABLE_DUTIES.has(selectedDuty);
+
   const handleSubmit = () => {
+    const opts: AddDutyOptions | undefined = showShiftFields && (shiftStart || shiftEnd)
+      ? { startTime: shiftStart || undefined, endTime: shiftEnd || undefined }
+      : undefined;
     if (selectedDuty === "custom") {
       if (customDutyName.trim()) {
         onAddDuty(customDutyName.trim());
       }
     } else if (selectedDuty) {
-      onAddDuty(selectedDuty);
+      onAddDuty(selectedDuty, opts);
     }
   };
 
@@ -88,11 +100,17 @@ export function AddDutySheet({
       // Reset state when closing
       setSelectedDuty("");
       setCustomDutyName("");
+      setShiftStart("");
+      setShiftEnd("");
     }
     onOpenChange(isOpen);
   };
 
-  const isSubmitDisabled = !selectedDuty || (selectedDuty === "custom" && !customDutyName.trim()) || isPending;
+  const isSubmitDisabled =
+    !selectedDuty ||
+    (selectedDuty === "custom" && !customDutyName.trim()) ||
+    (showShiftFields && shiftStart && shiftEnd && shiftEnd <= shiftStart) ||
+    isPending;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
