@@ -1821,20 +1821,21 @@ export default function GroupChatPage() {
     user?.id
   );
 
-  // Stable per-message read-state objects. We only spread a NEW object for a
-  // message when its read-state signature actually changed; otherwise reuse the
-  // previous reference. This prevents the ChatRowAdapter `prev.message === next.message`
-  // memo from busting on every realtime read-receipt (which previously caused
-  // every visible row to re-render and produced the upward-scroll flicker on
-  // Android WebView).
+  // Stable per-message read-state objects. Group rows only render read receipts
+  // on OWN messages; marking older non-own rows as read during upward scroll
+  // changes readCounts/readFrontier but does not change their visible row. Keep
+  // those message references stable so slow scroll does not repaint every row
+  // the user has just read.
   const prevReadStateMapRef = useRef<Map<string, any>>(new Map());
   const messagesWithReadState = useMemo(() => {
     const prevMap = prevReadStateMapRef.current;
     const nextMap = new Map<string, any>();
     const out = (filteredMessages || []).map((message) => {
-      const sig = `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
-        .map((reader) => reader.user_id)
-        .join(",")}`;
+      const sig = message.author_id === user?.id
+        ? `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
+            .map((reader) => reader.user_id)
+            .join(",")}`
+        : "";
       const prior = prevMap.get(message.id);
       // Reuse the prior wrapper IFF the underlying message ref AND signature
       // are unchanged. Either changing means real new content to render.
@@ -1848,7 +1849,7 @@ export default function GroupChatPage() {
     });
     prevReadStateMapRef.current = nextMap;
     return out;
-  }, [filteredMessages, readCounts, readFrontier]);
+  }, [filteredMessages, readCounts, readFrontier, user?.id]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
