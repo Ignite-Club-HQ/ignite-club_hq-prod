@@ -1923,6 +1923,10 @@ export default function HomePage() {
   useEffect(() => {
     if (computedShowContent && !hasRevealed) setHasRevealed(true);
   }, [computedShowContent, hasRevealed]);
+  // Reset latch on user/club switch so the new context re-synchronizes.
+  useEffect(() => {
+    setHasRevealed(false);
+  }, [user?.id, activeClubFilter]);
   const showContent = computedShowContent || hasRevealed;
 
   return (
