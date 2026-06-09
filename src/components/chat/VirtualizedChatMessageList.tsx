@@ -738,7 +738,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const hasOlderRef = useRef(hasOlder);
   const isLoadingOlderRef = useRef(isLoadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
-  const startReachedRetryTimerRef = useRef<number | null>(null);
+  
   hasOlderRef.current = hasOlder;
   isLoadingOlderRef.current = isLoadingOlder;
   onLoadOlderRef.current = onLoadOlder;
