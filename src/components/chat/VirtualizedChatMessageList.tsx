@@ -39,6 +39,7 @@ import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive"
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
+import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 /**
  * Hoisted Header/Footer components. Inline declarations inside `useMemo`
@@ -516,32 +517,49 @@ function CachedMeasureRow({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let cancelIdle: (() => void) | null = null;
     const write = () => {
       const h = el.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
-    write();
-    const raf = requestAnimationFrame(write);
-    const t1 = setTimeout(write, 120);
-    const t2 = setTimeout(write, 360);
-    let ro: ResizeObserver | null = null;
-    let roTimer: ReturnType<typeof setTimeout> | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(write);
-      ro.observe(el);
-      // Short-lived: disconnect after the reaction/edit animation settles so
-      // we don't reintroduce the Android per-row observer storm.
-      roTimer = setTimeout(() => {
+    const scheduleSettleWrites = () => {
+      const raf = requestAnimationFrame(write);
+      const t1 = setTimeout(write, 120);
+      const t2 = setTimeout(write, 360);
+      let ro: ResizeObserver | null = null;
+      let roTimer: ReturnType<typeof setTimeout> | null = null;
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(write);
+        ro.observe(el);
+        // Short-lived: disconnect after the reaction/edit animation settles so
+        // we don't reintroduce the Android per-row observer storm.
+        roTimer = setTimeout(() => {
+          ro?.disconnect();
+          ro = null;
+        }, 600);
+      }
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        if (roTimer) clearTimeout(roTimer);
         ro?.disconnect();
-        ro = null;
-      }, 600);
-    }
+      };
+    };
+    write();
+    const scheduleWhenIdle = () => {
+      const sinceScroll = performance.now() - getLastChatScrollAt();
+      if (sinceScroll < 250) {
+        cancelIdle = runWhenChatScrollIdle(() => {
+          cancelIdle = scheduleSettleWrites();
+        }, 250);
+      } else {
+        cancelIdle = scheduleSettleWrites();
+      }
+    };
+    scheduleWhenIdle();
     return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      if (roTimer) clearTimeout(roTimer);
-      ro?.disconnect();
+      cancelIdle?.();
     };
   }, [messageId, signature]);
   return (
