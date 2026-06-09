@@ -1099,18 +1099,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
-  // Helper: is the scroller still visually close enough to the top that a
-  // deferred prepend is still warranted? After a cooldown delay the user
-  // may have stopped or reversed direction — in that case we MUST NOT fire
-  // a queued prepend, because the resulting `firstItemIndex` shift +
-  // paddingTop adjustment reads as "messages keep moving after I stopped".
-  const isStillNearTop = useCallback(() => {
-    const el = scrollerElRef.current;
-    if (!el) return false;
-    // 600px keeps the upward overscan window covered without re-triggering
-    // once the user has visibly settled mid-thread.
-    return el.scrollTop < 600;
-  }, []);
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
