@@ -389,10 +389,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   }
 
   // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) +
-  // bubble inner padding around the indicator. Round-5: image+reply rows
-  // came in +84 under-estimate — bumping reply chrome to 60 absorbs ~14 of
-  // that gap; remainder comes from the image chrome restore below.
-  if (hasReply) height += 60;
+  // bubble inner padding. Round-6: text+reply rows consistently over by
+  // ~26-34px with chrome=60 → drop to 32. Image+reply still slightly under
+  // (+48) but driven by aspect-cache miss, not reply chrome.
+  if (hasReply) height += 32;
 
   // Image bubble: rendered at fixed width 300px with the natural aspect
   // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
