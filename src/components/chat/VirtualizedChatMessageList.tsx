@@ -521,28 +521,67 @@ function CachedMeasureRow({
       const h = el.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
+
+    // If the chat scroller is currently active (fast upward fling, momentum
+    // still settling, or a touch/wheel within the last 250ms), deferring our
+    // eager rAF / 120ms / 360ms writes is essential. Each write updates
+    // `chatRowHeightCache` -> Virtuoso re-evaluates `itemSize` -> applies a
+    // positional correction. When dozens of overscan rows mount during a fast
+    // upward fling, those corrections continue firing AFTER the user has
+    // visibly stopped, producing the "messages keep moving after I stop"
+    // symptom most noticeable in busy threads like Team Admins & Coaches.
+    //
+    // While scrolling: write the mount-time height ONCE and wait for the
+    // scroller to go idle before scheduling the late-settle writes.
+    const SCROLL_ACTIVE_MS = 250;
+    const isScrollerActive = () =>
+      performance.now() - getLastChatScrollAt() < SCROLL_ACTIVE_MS;
+
     write();
-    const raf = requestAnimationFrame(write);
-    const t1 = setTimeout(write, 120);
-    const t2 = setTimeout(write, 360);
+
+    let raf: number | null = null;
+    let t1: ReturnType<typeof setTimeout> | null = null;
+    let t2: ReturnType<typeof setTimeout> | null = null;
     let ro: ResizeObserver | null = null;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(write);
-      ro.observe(el);
-      // Short-lived: disconnect after the reaction/edit animation settles so
-      // we don't reintroduce the Android per-row observer storm.
-      roTimer = setTimeout(() => {
-        ro?.disconnect();
-        ro = null;
-      }, 600);
+    let cancelIdle: (() => void) | null = null;
+    let disposed = false;
+
+    const scheduleSettleWrites = () => {
+      if (disposed) return;
+      raf = requestAnimationFrame(write);
+      t1 = setTimeout(write, 120);
+      t2 = setTimeout(write, 360);
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(write);
+        ro.observe(el);
+        // Short-lived: disconnect after the reaction/edit animation settles so
+        // we don't reintroduce the Android per-row observer storm.
+        roTimer = setTimeout(() => {
+          ro?.disconnect();
+          ro = null;
+        }, 600);
+      }
+    };
+
+    if (isScrollerActive()) {
+      // Wait until the scroller has been idle for SCROLL_ACTIVE_MS before
+      // running the late-settle writes. This is the single biggest lever for
+      // "rows nudge after I stop scrolling": no cache mutation happens during
+      // the fling itself, so Virtuoso doesn't reposition mid-momentum.
+      cancelIdle = runWhenChatScrollIdle(scheduleSettleWrites, SCROLL_ACTIVE_MS);
+    } else {
+      scheduleSettleWrites();
     }
+
     return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
+      disposed = true;
+      if (raf !== null) cancelAnimationFrame(raf);
+      if (t1) clearTimeout(t1);
+      if (t2) clearTimeout(t2);
       if (roTimer) clearTimeout(roTimer);
       ro?.disconnect();
+      cancelIdle?.();
     };
   }, [messageId, signature]);
   return (
