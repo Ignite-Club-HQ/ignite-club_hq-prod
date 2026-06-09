@@ -85,12 +85,18 @@ export function isNotificationNavigationHandled(): boolean {
 }
 
 // BUG-3 fix: include `game_kickoff` so kickoff push opens the pitch board.
+// BUG-4 fix (audit): `check-pending-subs` sends the umbrella push type
+// `pitch_board` for pending_sub / half_time / full_time, so include it here
+// otherwise warm-tap routing to "/" (the pitch-board open fallback) breaks.
+// `full_time` is also added because the underlying sender uses that string.
 const PITCH_BOARD_TYPES = new Set([
   'pending_sub',
   'half_time',
+  'full_time',
   'game_finished',
   'formation_change',
   'game_kickoff',
+  'pitch_board',
 ]);
 
 function normalizeToPath(url: string): string {
