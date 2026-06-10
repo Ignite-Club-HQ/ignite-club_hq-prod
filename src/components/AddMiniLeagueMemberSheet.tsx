@@ -757,7 +757,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                     <Button
                       className="w-full"
                       onClick={() => addPlayersMutation.mutate(undefined)}
-                      disabled={!players.some((player) => player.name.trim()) || isPending}
+                      disabled={!players.some((player) => player.name.trim()) || players.some((p) => p.name.trim() && (!p.parentName.trim() || (!p.existingParentUserId && !p.parentEmail.trim()))) || isPending}
                     >
                       {isPending ? (
                         <>
