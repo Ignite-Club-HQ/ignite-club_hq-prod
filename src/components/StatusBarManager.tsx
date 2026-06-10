@@ -114,7 +114,7 @@ export function StatusBarManager() {
       lockedIOSStableVh = stableHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
-    const setVisualVh = () => {
+    const setVisualVh = (options?: { resetLock?: boolean }) => {
       // On native Android, Capacitor's Keyboard.resize='none' keeps the
       // WebView at full screen size when the keyboard opens. The visualViewport
       // API still reports the smaller visible area, but using that here would
@@ -123,20 +123,33 @@ export function StatusBarManager() {
       // collapses the chat shell and pushes AppHeader / ChatHeaderShell off
       // the top of the screen. Always use innerHeight on native Android so
       // useChatViewportHeight remains the single source of truth.
-      const visualHeight = isNativeAndroid
-        ? (window.innerHeight ?? window.visualViewport?.height ?? 0)
-        : (window.visualViewport?.height ?? window.innerHeight ?? 0);
+      //
+      // Edge case: some Android WebView/OEM builds DO shrink innerHeight when
+      // the IME opens despite resize='none' (Samsung One UI, Xiaomi MIUI,
+      // post-configuration-change, split-screen). Lock --visual-vh to the
+      // monotonic max so a transient shrink can't leak into AppLayout.
+      if (isNativeAndroid) {
+        const innerHeight = window.innerHeight ?? window.visualViewport?.height ?? 0;
+        if (!innerHeight) return;
+        const next = options?.resetLock
+          ? innerHeight
+          : Math.max(lockedAndroidVisualVh, innerHeight);
+        lockedAndroidVisualVh = next;
+        document.documentElement.style.setProperty('--visual-vh', `${next}px`);
+        return;
+      }
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight ?? 0;
       if (!visualHeight) return;
       document.documentElement.style.setProperty('--visual-vh', `${visualHeight}px`);
     };
     setStableVh({ resetLock: true });
-    setVisualVh();
+    setVisualVh({ resetLock: true });
     setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
         setStableVh({ resetLock: true });
-        setVisualVh();
+        setVisualVh({ resetLock: true });
         setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };
