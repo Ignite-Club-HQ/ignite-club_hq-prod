@@ -392,7 +392,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     setPlayers(recipients.map((recipient) => ({
       id: crypto.randomUUID(),
       name: recipient.name,
-      abilityRating: "3",
+      abilityRating: "",
       parentName: "",
       parentEmail: recipient.email,
     })));
