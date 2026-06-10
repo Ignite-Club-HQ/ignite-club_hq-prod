@@ -1364,6 +1364,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
+        if (userHasScrolledAfterPinRef.current && !atBottomRef.current) {
+          requestAnimationFrame(() => setInitialRevealReady(true));
+          return;
+        }
         virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
         requestAnimationFrame(() => {
           virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
@@ -1583,7 +1587,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // and would otherwise permanently disable the post-reveal stay-pinned
     // guard — leaving the last message hidden behind the composer after
     // late avatar/image hydration on first cold-cache open.
-    if (!isViewportUserActive(el)) return;
+    const userDrivenScroll = isViewportUserActive(el) || (prependVirtuosoIsScrolling && prependScrollSessionIsUserDriven);
+    if (!userDrivenScroll) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
       markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
