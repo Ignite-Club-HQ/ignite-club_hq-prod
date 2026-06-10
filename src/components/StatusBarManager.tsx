@@ -36,6 +36,14 @@ export function StatusBarManager() {
     let cancelIOSRecovery: (() => void) | null = null;
     let lockedIOSSafeAreaTop = 0;
     let lockedIOSStableVh = 0;
+    // Android: monotonic max of innerHeight. Some Android WebView builds /
+    // OEMs shrink window.innerHeight when the soft keyboard opens even though
+    // Capacitor's Keyboard.resize='none' is set. If we let that shrink leak
+    // into --visual-vh, AppLayout's height drops AND useChatViewportHeight
+    // still subtracts the full keyboard height — producing a large blank gap
+    // between the composer and the keyboard mid-session. Locking to the max
+    // ensures useChatViewportHeight remains the single source of truth.
+    let lockedAndroidVisualVh = 0;
 
     const getNativeSafeAreaTopFloor = () => {
       if (!isIOSLike || typeof window === 'undefined') return 0;
