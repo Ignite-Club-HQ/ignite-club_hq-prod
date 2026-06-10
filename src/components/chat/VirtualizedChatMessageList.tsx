@@ -891,12 +891,11 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
     // rows, paddingTop correction reflows — also reproduces on Lovable
     // preview / desktop wheel scroll. Treating wheel/pointer the same as
     // touch keeps the commit out of the moment the user is reading the top.
-    const android = isAndroidNativeWebView();
-    const idleMs = android ? PREPEND_IDLE_MS_ANDROID : PREPEND_IDLE_MS;
+    const idleMs = PREPEND_IDLE_MS;
 
-    // Android: combined gate — finger lifted AND scroll idle for `idleMs`.
-    // Bail out after PREPEND_MAX_HOLD_MS_ANDROID so a parked finger at the
-    // top edge can still load older history (just no longer instantly).
+    // Combined gate — finger lifted AND scroll idle for `idleMs`. Bail out
+    // after PREPEND_MAX_HOLD_MS so a parked finger at the top edge can still
+    // load older history (just not instantly).
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const startedAt = performance.now();
@@ -909,7 +908,7 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       if (cancelled) return;
       timer = null;
       const now = performance.now();
-      if (now - startedAt >= PREPEND_MAX_HOLD_MS_ANDROID) {
+      if (now - startedAt >= PREPEND_MAX_HOLD_MS) {
         commit();
         return;
       }
