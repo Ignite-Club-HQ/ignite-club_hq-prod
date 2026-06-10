@@ -60,7 +60,7 @@ const abilityOptions = [
 const createEmptyPlayer = (): BulkPlayer => ({
   id: crypto.randomUUID(),
   name: "",
-  abilityRating: "3",
+  abilityRating: "",
   parentName: "",
   parentEmail: "",
 });
