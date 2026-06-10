@@ -1744,15 +1744,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current
     ) return;
     // PREPEND GUARD: when lastMessageId is unchanged but length grew, an
-    // older page just landed (Load More / startReached). The user is mid-
-    // history during a fast upward fling — never re-pin to LAST. The
-    // `userHasScrolledAfterPinRef` guard inside `run()` has a 600ms cooldown
-    // that can let a settled fling slip through, and the synchronous +
-    // 200ms/600ms timers would yank the viewport to the bottom mid-scroll.
+    // older page just landed (Load More / startReached). This is ALWAYS a
+    // prepend — never re-pin to LAST regardless of atBottomRef, because the
+    // 120px atBottomThreshold keeps atBottomRef=true for the first ~120px
+    // of an upward fling. Without this, a fast scroll-up from the bottom
+    // that triggers startReached snaps the viewport back to LAST mid-fling
+    // (the reported "I scroll up fast and it pins me back to bottom" bug,
+    // especially visible in DMs where new realtime messages keep the
+    // OPEN_PIN_WINDOW alive).
     if (
       messagesLengthChanged &&
-      previousLastMessageId === lastMessageId &&
-      !atBottomRef.current
+      previousLastMessageId === lastMessageId
     ) return;
 
     const run = () => {
