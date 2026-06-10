@@ -53,6 +53,7 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsChecked, setBiometricsChecked] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
@@ -150,12 +151,28 @@ export default function AuthPage() {
   
   // Check if biometrics are available (for showing the passkey button)
   useEffect(() => {
+    let cancelled = false;
     const checkBiometrics = async () => {
-      const available = await isPlatformAuthenticatorAvailable();
-      setBiometricsAvailable(available);
+      try {
+        const available = await isPlatformAuthenticatorAvailable();
+        if (cancelled) return;
+        setBiometricsAvailable(available);
+      } finally {
+        if (!cancelled) setBiometricsChecked(true);
+      }
     };
     checkBiometrics();
+    return () => { cancelled = true; };
   }, []);
+
+  // On native, usePasskey resolves `nativeBiometricInfo` asynchronously; treat
+  // null as "still checking" so the button slot doesn't pop in late.
+  const passkeyResolved = isNativePlatform ? nativeBiometricInfo !== null : true;
+  const biometricSlotReady = biometricsChecked && passkeyResolved;
+  const showBiometricButton = biometricSlotReady && biometricsAvailable && isRegistered;
+  // Reserve the button slot on native until checks resolve so the layout
+  // doesn't shift up/down when the biometric button finally renders.
+  const reserveBiometricSlot = isNativePlatform && !biometricSlotReady;
 
   useEffect(() => {
     if (!isNativePlatform) return;
@@ -680,7 +697,7 @@ export default function AuthPage() {
                         </Button>
                       )}
                       
-                      {biometricsAvailable && isRegistered && (
+                      {showBiometricButton ? (
                         <Button 
                           variant="outline" 
                           className="w-full gap-2" 
@@ -696,7 +713,12 @@ export default function AuthPage() {
                             </>
                           )}
                         </Button>
-                      )}
+                      ) : reserveBiometricSlot ? (
+                        // Placeholder reserves the biometric button's height on
+                        // native so the layout doesn't shift when the async
+                        // availability checks resolve. Matches Button h-10.
+                        <div className="w-full h-10" aria-hidden="true" />
+                      ) : null}
                     </>
                   )}
 
