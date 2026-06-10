@@ -781,6 +781,7 @@ export default function MiniLeagueDetailPage() {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         league={league}
+        canDelete={!!canDeleteLeague}
       />
 
       {canManageLeague && (
