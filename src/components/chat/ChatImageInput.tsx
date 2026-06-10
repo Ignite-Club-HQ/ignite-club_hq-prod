@@ -546,6 +546,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
 
+  // When the parent clears imageUrl (e.g. after a successful send), drop the
+  // locally-held preview too so the composer returns to its empty state.
+  const prevImageUrlRef = useRef(imageUrl);
+  useEffect(() => {
+    if (prevImageUrlRef.current && !imageUrl && localPreview) {
+      if (localPreview.startsWith("blob:")) URL.revokeObjectURL(localPreview);
+      setLocalPreview(null);
+    }
+    prevImageUrlRef.current = imageUrl;
+  }, [imageUrl, localPreview]);
+
   useEffect(() => {
     return () => {
       recoveryCleanupRef.current?.();
