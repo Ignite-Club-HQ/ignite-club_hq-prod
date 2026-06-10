@@ -164,19 +164,19 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // composer grows to ~100-140px with the reply pill) render off-screen
   // behind the input. Add a small breathing gap so the newest bubble
   // doesn't kiss the composer border.
-  // Matches WhatsApp / Messenger: the latest bubble sits ~16px above the
-  // composer. The reaction pill that hangs ~20px below the bubble is allowed
-  // to overlap the composer's translucent top edge (it's still readable, and
-  // a 36px reserved gap made every sent message look stranded mid-screen
-  // — feedback received from users comparing against Messenger).
-  // The latest own-message renders TWO metadata lines below the bubble: an
-  // inline timestamp (e.g. "18:11") and a "Sent / Read by" frontier strip,
-  // each ~10px text + ~6px top margin (≈32px combined). Read-frontier data
-  // loads asynchronously so the row can grow AFTER Virtuoso's initial bottom
-  // pin, which previously pushed the metadata behind the composer. Reserve
-  // enough space (32px gap) to keep the metadata comfortably visible without
-  // creating obvious empty space between messages.
-  const COMPOSER_GAP = 32;
+  // Matches WhatsApp / Messenger: the latest bubble sits comfortably above the
+  // composer. The latest own-message can render up to THREE stacked elements
+  // below the bubble baseline:
+  //   1. Reactions pill row (~30px when present: h-22 + mt-1 + mb-1)
+  //   2. Inline timestamp (~16px)
+  //   3. "Sent / Read by" frontier strip (~16px)
+  // Read-frontier and reactions both hydrate AFTER Virtuoso's initial bottom
+  // pin, so the row grows after pinning. We must reserve enough space below
+  // the bubble that the late-arriving rows (especially reactions added by the
+  // user on the latest message) stay clear of the fixed composer instead of
+  // disappearing behind it. 56px keeps metadata + a single-row reaction pill
+  // fully visible while still feeling tight (à la Messenger).
+  const COMPOSER_GAP = 56;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
