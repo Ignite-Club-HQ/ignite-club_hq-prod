@@ -14,6 +14,8 @@ interface Options {
   teamId?: string | null;
   /** For "group" chats only. */
   clubId?: string | null;
+  /** For "group" chats only — mini-league scoped chats. */
+  miniLeagueId?: string | null;
   /** For "group" chats only. */
   groupAllowedRoles?: AppRole[] | null;
   enabled?: boolean;
