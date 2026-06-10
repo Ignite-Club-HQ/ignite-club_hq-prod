@@ -62,9 +62,11 @@ interface MiniLeagueSettingsDialogProps {
     minutes_per_half: number | null;
     bib_colors: string[] | null;
   };
+  /** Only club admins, league admins (club-wide or scoped) and app admins may delete. */
+  canDelete?: boolean;
 }
 
-export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLeagueSettingsDialogProps) {
+export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete = false }: MiniLeagueSettingsDialogProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
