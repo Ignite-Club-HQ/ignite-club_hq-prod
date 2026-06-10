@@ -765,6 +765,14 @@ export default function GroupChatPage() {
       const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
         (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
+      if (prev && mergedMessages.length < prev.length - 5) {
+        debugLogEvent("local-replace", {
+          cause: "merge-shrink",
+          prevLen: prev.length,
+          nextLen: mergedMessages.length,
+          incomingLen: messages.length,
+        });
+      }
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
