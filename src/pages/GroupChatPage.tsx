@@ -211,7 +211,11 @@ export default function GroupChatPage() {
   // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
     const k = noteChatMount("GroupChat", null);
-    return () => noteChatUnmount("GroupChat", k, null);
+    debugLogEvent("page-mount", {});
+    return () => {
+      debugLogEvent("page-unmount", {});
+      noteChatUnmount("GroupChat", k, null);
+    };
   }, []);
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
@@ -309,6 +313,18 @@ export default function GroupChatPage() {
     fallbackJumpTs,
   });
   const targetParentId = searchParams.get("parent");
+
+  // Diagnostics: the ChatMessagesScroller key — any change fully remounts the list.
+  const scrollerKey = targetMessageId
+    ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}`
+    : `group:${groupId}`;
+  const scrollerKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (scrollerKeyRef.current !== null && scrollerKeyRef.current !== scrollerKey) {
+      debugLogEvent("scroller-key-change", { from: scrollerKeyRef.current, to: scrollerKey });
+    }
+    scrollerKeyRef.current = scrollerKey;
+  }, [scrollerKey]);
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
@@ -2125,7 +2141,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
-            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}` : `group:${groupId}`}
+            key={scrollerKey}
             messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
