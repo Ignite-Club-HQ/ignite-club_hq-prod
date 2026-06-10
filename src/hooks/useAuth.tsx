@@ -369,10 +369,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Small delay to ensure session is fully propagated to Supabase
-      // This helps with RLS policies that check auth.uid()
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const stableSession = await waitForSessionUser(userId, applyTheme ? 10 : 6);
+      // This helps with RLS policies that check auth.uid().
+      // On non-fresh-login paths (page refresh / INITIAL_SESSION) we already
+      // have a valid `currentSession` from getSession()/onAuthStateChange, so
+      // skip the deliberate sleep + redundant getSession() polling that was
+      // adding up to ~1.8s to cold-start before `initialized` could flip.
+      const sessionAlreadyValid = !!currentSession?.access_token && currentSession.user?.id === userId;
+      let stableSession: Session | null = null;
+      if (applyTheme) {
+        // Fresh login: JWT may not yet be propagated — keep the original poll.
+        await new Promise(resolve => setTimeout(resolve, 100));
+        stableSession = await waitForSessionUser(userId, 10);
+      } else if (sessionAlreadyValid) {
+        stableSession = currentSession;
+      } else {
+        // Defensive: short poll only when the session passed in is missing/stale.
+        stableSession = await waitForSessionUser(userId, 3);
+      }
       const sessionForBackgroundTasks = stableSession ?? currentSession;
 
       if (stableSession && mounted) {
