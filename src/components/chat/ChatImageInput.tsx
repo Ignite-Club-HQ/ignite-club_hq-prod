@@ -426,11 +426,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         console.error("[ChatImageInput] Image upload failed:", errMsg, error);
         toast.error(errMsg || "Failed to upload image");
       }
-      setLocalPreview(null);
-    } finally {
       if (stablePreviewUrl && stablePreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
+      setLocalPreview(null);
+    } finally {
       restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
