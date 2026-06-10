@@ -250,15 +250,34 @@ function getEventLocalDateKey(dateStr: string) {
 }
 
 function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
+  // Prefer event_date when it already carries a time component — for recurring
+  // occurrences this is the canonical per-instance kickoff. `start_time` on a
+  // recurring child often retains the *series template's* original date
+  // (e.g. "2026-04-29 06:15:00+00" for a June 10 training), which would make
+  // the event look like it kicked off months ago and get filtered out of
+  // Next Up before its real kickoff arrives.
+  const eventDateHasTime =
+    !!event.event_date && /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(event.event_date);
+
   if (event.start_time) {
-    // start_time may be a full timestamp ("2026-06-06T23:30:00+00" or
-    // "2026-06-06 23:30:00+00") or a time-only string ("19:30"). For full
-    // timestamps, parse directly. For time-only, combine with the event's
-    // local date.
     const isFullTimestamp = /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(event.start_time);
-    const start = isFullTimestamp
-      ? new Date(event.start_time)
-      : new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
+    if (isFullTimestamp) {
+      // If start_time's local date disagrees with event_date's local date,
+      // trust event_date (the per-instance kickoff) and ignore the stale
+      // series-template date carried on start_time.
+      if (eventDateHasTime) {
+        const eventLocal = getEventLocalDateKey(event.event_date);
+        const startLocal = getEventLocalDateKey(event.start_time);
+        if (eventLocal !== startLocal) {
+          const ed = new Date(event.event_date);
+          return Number.isNaN(ed.getTime()) ? Number.NaN : ed.getTime();
+        }
+      }
+      const start = new Date(event.start_time);
+      return start.getTime();
+    }
+    // Time-only string ("19:30") — combine with the event's local date.
+    const start = new Date(`${getEventLocalDateKey(event.event_date)}T${event.start_time}`);
     return start.getTime();
   }
 
