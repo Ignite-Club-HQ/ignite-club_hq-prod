@@ -838,19 +838,17 @@ function JumpHydrationSkeleton() {
  * Appends / edits / interleaves always commit immediately — realtime and
  * send paths are never delayed.
  */
-const PREPEND_IDLE_MS = 220;
-// Android WebView: when the user scroll-flings up to the very top and lifts
-// their finger, `scrollTop` parks at 0 and stops emitting scroll events.
-// runWhenChatScrollIdle then resolves almost immediately (~220ms after the
-// last scroll event during the fling) and Virtuoso commits the held prepend
-// page WHILE the user is still staring at the freshly-stopped top edge —
-// visible as "messages jolt around after I stop". We extend the gate on
-// Android to also wait for finger-off-glass and add extra quiet time before
-// committing so the row mount + measure batch lands during a moment the user
-// is no longer actively reading the top of the list. Web keeps 220ms — it
-// has no compositor-side measure cost and the jolt was never reported there.
-const PREPEND_IDLE_MS_ANDROID = 450;
-const PREPEND_MAX_HOLD_MS_ANDROID = 1500;
+// Prepend commit gate. When the user scroll-flings up to the very top and
+// releases (or stops the wheel), `scrollTop` parks at 0 and stops emitting
+// scroll events. If we commit the held prepend page immediately, Virtuoso
+// shifts `firstItemIndex` + mounts ~30 rows + corrects paddingTop in one
+// frame WHILE the user is still staring at the freshly-stopped top edge —
+// visible as "messages jolt around after I stop". The unified waiter below
+// requires both scroll-idle for `PREPEND_IDLE_MS` AND finger-off-glass
+// (no-op on desktop/web where there's no touch). Reproduces on Android
+// WebView, iOS WKWebView, and Lovable preview — so we gate everywhere.
+const PREPEND_IDLE_MS = 400;
+const PREPEND_MAX_HOLD_MS = 1500;
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
