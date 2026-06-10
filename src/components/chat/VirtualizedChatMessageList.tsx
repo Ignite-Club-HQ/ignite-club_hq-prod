@@ -843,40 +843,66 @@ function JumpHydrationSkeleton() {
  * Appends / edits / interleaves always commit immediately — realtime and
  * send paths are never delayed.
  */
-// Prepend commit gate — INVERTED from the previous "wait for idle" strategy.
+// Prepend commit gate.
 //
-// Previous strategy held the prepend page until the scroll viewport had been
-// idle for 400ms. That moved the flicker out of mid-fling but introduced a
-// worse failure mode: the user flicks up, scroll stops, ~400ms later the
-// held page commits, Virtuoso shifts `firstItemIndex` + mounts ~30 rows +
-// rewrites paddingTop in one frame, and the user — now staring at a
-// stationary screen — sees the rows visibly jolt.
-//
-// New strategy: commit immediately while the user is still in motion
-// (touching the glass OR scrolled in the last `PREPEND_MOTION_WINDOW_MS`).
-// The `firstItemIndex` shift + paddingTop correction land inside the active
-// fling, where they're masked by motion blur. If the prepend arrives AFTER
-// the user has already stopped, hold it until the next upward gesture instead
-// of moving a stationary viewport.
-//
-// Net effect: zero observable jolt on slow scroll, slow flick, fast flick,
-// or wheel scroll. Reproduces clean on Android WebView, iOS WKWebView, and
-// Lovable preview.
+// Commit older pages only inside the same user-driven scroll session that
+// requested them. Once Virtuoso reports `isScrolling=false`, every unresolved
+// prepend is frozen until the next explicit upward gesture. This closes the
+// fast-scroll failure mode where a fetch resolves 50–250ms after inertia ends:
+// `firstItemIndex` shifts, Virtuoso measures the new page, and a stationary
+// viewport visibly moves down.
 const PREPEND_MOTION_WINDOW_MS = 250;
+const PREPEND_INPUT_SESSION_MS = 300;
 
 let flushPendingPrependOnMotion: (() => void) | null = null;
 let lastPrependUpwardMotionAt = 0;
+let lastPrependInputAt = 0;
+let lastPrependScrollStoppedAt = 0;
+let prependVirtuosoIsScrolling = false;
+let prependScrollSessionIsUserDriven = false;
+
+function markPrependUserInput() {
+  if (typeof performance !== "undefined") lastPrependInputAt = performance.now();
+}
+
+function setPrependVirtuosoScrolling(scrolling: boolean) {
+  if (typeof performance === "undefined") return;
+  const now = performance.now();
+  const scroller = scrollerElRefForPrepend?.();
+  if (scrolling) {
+    prependVirtuosoIsScrolling = true;
+    prependScrollSessionIsUserDriven =
+      (!!scroller && isViewportTouching(scroller)) ||
+      now - lastPrependInputAt <= PREPEND_INPUT_SESSION_MS;
+    return;
+  }
+
+  prependVirtuosoIsScrolling = false;
+  prependScrollSessionIsUserDriven = false;
+  lastPrependScrollStoppedAt = now;
+}
+
+function canRecordPrependUpwardMotion(explicitGesture = false) {
+  if (explicitGesture) return true;
+  const scroller = scrollerElRefForPrepend?.();
+  if (scroller && isViewportTouching(scroller)) return true;
+  return prependVirtuosoIsScrolling && prependScrollSessionIsUserDriven;
+}
 
 function isPrependMotionActive() {
   if (typeof performance === "undefined") return false;
-  if (performance.now() - lastPrependUpwardMotionAt <= PREPEND_MOTION_WINDOW_MS) return true;
   const scroller = scrollerElRefForPrepend?.();
-  return !!scroller && isViewportTouching(scroller);
+  if (scroller && isViewportTouching(scroller)) return true;
+  if (!prependVirtuosoIsScrolling || !prependScrollSessionIsUserDriven) return false;
+  if (lastPrependScrollStoppedAt >= lastPrependUpwardMotionAt) return false;
+  return performance.now() - lastPrependUpwardMotionAt <= PREPEND_MOTION_WINDOW_MS;
 }
 
-function markPrependUpwardMotion() {
+function markPrependUpwardMotion(options: { explicitGesture?: boolean } = {}) {
+  if (!canRecordPrependUpwardMotion(options.explicitGesture)) return false;
   if (typeof performance !== "undefined") lastPrependUpwardMotionAt = performance.now();
   flushPendingPrependOnMotion?.();
+  return true;
 }
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
@@ -1338,6 +1364,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
+        if (userHasScrolledAfterPinRef.current && !atBottomRef.current) {
+          requestAnimationFrame(() => setInitialRevealReady(true));
+          return;
+        }
         virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
         requestAnimationFrame(() => {
           virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
@@ -1477,7 +1507,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let lastTouchY: number | null = null;
     let frame: number | null = null;
     const requestEdgeLoad = () => {
-      markPrependUpwardMotion();
+      markPrependUpwardMotion({ explicitGesture: true });
       lastUserUpwardScrollAtRef.current = performance.now();
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
@@ -1486,9 +1516,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     const onTouchStart = (event: TouchEvent) => {
+      markPrependUserInput();
       lastTouchY = event.touches[0]?.clientY ?? null;
     };
     const onTouchMove = (event: TouchEvent) => {
+      markPrependUserInput();
       const y = event.touches[0]?.clientY ?? null;
       if (y === null || lastTouchY === null) {
         lastTouchY = y;
@@ -1499,6 +1531,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (deltaY > 3 && el.scrollTop <= 8) requestEdgeLoad();
     };
     const onWheel = (event: WheelEvent) => {
+      markPrependUserInput();
       if (event.deltaY < -3 && el.scrollTop <= 8) requestEdgeLoad();
     };
 
@@ -1554,12 +1587,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // and would otherwise permanently disable the post-reveal stay-pinned
     // guard — leaving the last message hidden behind the composer after
     // late avatar/image hydration on first cold-cache open.
-    if (!isViewportUserActive(el)) return;
+    const userDrivenScroll = isViewportUserActive(el) || (prependVirtuosoIsScrolling && prependScrollSessionIsUserDriven);
+    if (!userDrivenScroll) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
       markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
     }
     userHasScrolledAfterPinRef.current = true;
+  }, []);
+
+  const handleIsScrollingChange = useCallback((scrolling: boolean) => {
+    setPrependVirtuosoScrolling(scrolling);
   }, []);
 
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
@@ -1616,6 +1654,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (!atBottomRef.current && distanceFromBottom > 4) return;
       // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
       // (which is true for up to 120px from bottom via atBottomThreshold).
       // If the user stopped within that zone after a fast fling, writing
@@ -1721,6 +1760,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!viewport) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
+      if (!atBottomRef.current) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
@@ -2089,6 +2129,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
+      isScrolling={handleIsScrollingChange}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
