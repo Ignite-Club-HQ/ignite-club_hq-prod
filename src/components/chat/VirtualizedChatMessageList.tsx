@@ -839,6 +839,18 @@ function JumpHydrationSkeleton() {
  * send paths are never delayed.
  */
 const PREPEND_IDLE_MS = 220;
+// Android WebView: when the user scroll-flings up to the very top and lifts
+// their finger, `scrollTop` parks at 0 and stops emitting scroll events.
+// runWhenChatScrollIdle then resolves almost immediately (~220ms after the
+// last scroll event during the fling) and Virtuoso commits the held prepend
+// page WHILE the user is still staring at the freshly-stopped top edge —
+// visible as "messages jolt around after I stop". We extend the gate on
+// Android to also wait for finger-off-glass and add extra quiet time before
+// committing so the row mount + measure batch lands during a moment the user
+// is no longer actively reading the top of the list. Web keeps 220ms — it
+// has no compositor-side measure cost and the jolt was never reported there.
+const PREPEND_IDLE_MS_ANDROID = 450;
+const PREPEND_MAX_HOLD_MS_ANDROID = 1500;
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
@@ -874,23 +886,69 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       return;
     }
 
-    const sinceScroll = performance.now() - getLastChatScrollAt();
-    if (sinceScroll >= PREPEND_IDLE_MS) {
-      setCommitted(messagesProp);
-      return;
+    const android = isAndroidNativeWebView();
+    const idleMs = android ? PREPEND_IDLE_MS_ANDROID : PREPEND_IDLE_MS;
+
+    // Web fast-path: if the viewport has been idle long enough, commit now.
+    // On Android we also need finger-off-glass, so always route through the
+    // waiter so we don't commit a prepend mid-touch.
+    if (!android) {
+      const sinceScroll = performance.now() - getLastChatScrollAt();
+      if (sinceScroll >= idleMs) {
+        setCommitted(messagesProp);
+        return;
+      }
+      const cancel = runWhenChatScrollIdle(() => {
+        setCommitted(messagesProp);
+      }, idleMs);
+      return cancel;
     }
 
-    // Actively scrolling: hold the page until the viewport goes idle. The
-    // cleanup cancels the wait if a newer prop arrives first (that newer
-    // prop re-runs this effect and supersedes the held page).
-    const cancel = runWhenChatScrollIdle(() => {
+    // Android: combined gate — finger lifted AND scroll idle for `idleMs`.
+    // Bail out after PREPEND_MAX_HOLD_MS_ANDROID so a parked finger at the
+    // top edge can still load older history (just no longer instantly).
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = performance.now();
+    const commit = () => {
+      if (cancelled) return;
+      cancelled = true;
       setCommitted(messagesProp);
-    }, PREPEND_IDLE_MS);
-    return cancel;
+    };
+    const tick = () => {
+      if (cancelled) return;
+      timer = null;
+      const now = performance.now();
+      if (now - startedAt >= PREPEND_MAX_HOLD_MS_ANDROID) {
+        commit();
+        return;
+      }
+      const sinceScroll = now - getLastChatScrollAt();
+      const touching =
+        scrollerElRefForPrepend && scrollerElRefForPrepend()
+          ? isViewportTouching(scrollerElRefForPrepend()!)
+          : false;
+      if (!touching && sinceScroll >= idleMs) {
+        commit();
+        return;
+      }
+      const wait = touching ? 80 : Math.max(60, idleMs - sinceScroll);
+      timer = setTimeout(tick, wait);
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [messagesProp]);
 
   return committed;
 }
+
+// Module-level pointer so the prepend deferral effect (defined outside the
+// component) can ask the live Virtuoso scroller whether a finger is currently
+// on the glass. Set/cleared by the component on mount/unmount.
+let scrollerElRefForPrepend: (() => HTMLElement | null) | null = null;
 
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
@@ -913,6 +971,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Expose this scroller to the module-level prepend gate so it can check
+  // whether a finger is currently on the glass before committing a held page.
+  useEffect(() => {
+    scrollerElRefForPrepend = () => scrollerElRef.current;
+    return () => {
+      scrollerElRefForPrepend = null;
+    };
+  }, []);
   // Prepended history pages are held until the scroll gesture goes idle so
   // Virtuoso's paddingTop correction never fires mid-flick. `messages` below
   // is the committed array — the rest of the body operates on it unchanged.
