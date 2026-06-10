@@ -195,11 +195,11 @@ export function ClubDaySummary({
       >
         <ToggleGroupItem
           value="my"
-          aria-label="Show events for my teams"
+          aria-label="Show events for me"
           className="h-10 min-h-[40px] px-4 rounded-lg text-sm font-medium gap-1.5 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:font-semibold data-[state=on]:shadow-sm transition-colors"
         >
           <Users className="h-4 w-4" />
-          My teams
+          For me
         </ToggleGroupItem>
         <ToggleGroupItem
           value="club"
@@ -221,8 +221,8 @@ export function ClubDaySummary({
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground text-sm">
               {scope === "my"
-                ? "None of your teams have games or training on this day."
-                : "No games or training scheduled across the club on this day."}
+                ? "Nothing scheduled for you on this day."
+                : "Nothing scheduled across the club on this day."}
             </p>
             {scope === "my" && events && events.length > 0 && (
               <button
