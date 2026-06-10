@@ -627,9 +627,6 @@ function CachedMeasureRow({
       const h = el2.offsetHeight;
       if (h > 0) setCachedRowHeight(messageId, h, signature);
     };
-    // Immediate write is safe — it lands in the same layout pass.
-    write();
-
     // Late writes (rAF, 120ms, 360ms, short-RO) update measured heights
     // *after* the row has already mounted. If the user is actively scrolling
     // (or just stopped), pushing those updates into Virtuoso's itemSize cache
@@ -642,6 +639,23 @@ function CachedMeasureRow({
     let t2: ReturnType<typeof setTimeout> | null = null;
     let ro: ResizeObserver | null = null;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Immediate write is safe on web — it lands in the same layout pass.
+    // Android WebView: if the user is actively scrolling, even a same-pass
+    // setCachedRowHeight feeds Virtuoso's itemSize cache mid-touch and the
+    // compositor re-rasterises the visible band for one frame = the slow
+    // scroll-up flicker. Defer to scroll-idle on Android only; web keeps
+    // the synchronous write so reactions/edits commit without delay.
+    if (isAndroidNativeWebView()) {
+      const sinceScrollEager = performance.now() - getLastChatScrollAt();
+      if (sinceScrollEager >= 400) {
+        write();
+      } else {
+        cancelIdle = runWhenChatScrollIdle(write, 400);
+      }
+    } else {
+      write();
+    }
 
     const writeWhenIdle = () => {
       const since = performance.now() - getLastChatScrollAt();
