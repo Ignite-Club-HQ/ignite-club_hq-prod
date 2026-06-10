@@ -53,6 +53,7 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsChecked, setBiometricsChecked] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
