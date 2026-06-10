@@ -855,22 +855,51 @@ function JumpHydrationSkeleton() {
 // New strategy: commit immediately while the user is still in motion
 // (touching the glass OR scrolled in the last `PREPEND_MOTION_WINDOW_MS`).
 // The `firstItemIndex` shift + paddingTop correction land inside the active
-// fling, where they're masked by motion blur and the rows above the anchor
-// are already off-screen (top overscan is 6000px). If the prepend arrives
-// AFTER the user has already stopped (idle > window), commit immediately
-// anyway — waiting doesn't hide the correction, it just delays it.
+// fling, where they're masked by motion blur. If the prepend arrives AFTER
+// the user has already stopped, hold it until the next upward gesture instead
+// of moving a stationary viewport.
 //
 // Net effect: zero observable jolt on slow scroll, slow flick, fast flick,
 // or wheel scroll. Reproduces clean on Android WebView, iOS WKWebView, and
 // Lovable preview.
 const PREPEND_MOTION_WINDOW_MS = 250;
 
+let flushPendingPrependOnMotion: (() => void) | null = null;
+let lastPrependUpwardMotionAt = 0;
+
+function isPrependMotionActive() {
+  if (typeof performance === "undefined") return false;
+  if (performance.now() - lastPrependUpwardMotionAt <= PREPEND_MOTION_WINDOW_MS) return true;
+  const scroller = scrollerElRefForPrepend?.();
+  return !!scroller && isViewportTouching(scroller);
+}
+
+function markPrependUpwardMotion() {
+  if (typeof performance !== "undefined") lastPrependUpwardMotionAt = performance.now();
+  flushPendingPrependOnMotion?.();
+}
+
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
 ): TMessage[] {
   const [committed, setCommitted] = useState<TMessage[]>(messagesProp);
   const committedRef = useRef(committed);
+  const pendingPrependRef = useRef<TMessage[] | null>(null);
   committedRef.current = committed;
+
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingPrependRef.current;
+      if (!pending || !isPrependMotionActive()) return;
+      pendingPrependRef.current = null;
+      setCommitted(pending);
+      debugLogEvent("prepend-flush-on-motion", { len: pending.length });
+    };
+    flushPendingPrependOnMotion = flush;
+    return () => {
+      if (flushPendingPrependOnMotion === flush) flushPendingPrependOnMotion = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (messagesProp === committedRef.current) return;
@@ -882,6 +911,7 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
     const newRows: TMessage[] = [];
     for (const m of messagesProp) if (!committedIds.has(m.id)) newRows.push(m);
     if (newRows.length === 0 || current.length === 0) {
+      pendingPrependRef.current = null;
       setCommitted(messagesProp);
       return;
     }
@@ -891,14 +921,24 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       if (messagesProp[i]?.id !== newRows[i].id) isPurePrepend = false;
     }
     if (!isPurePrepend) {
+      pendingPrependRef.current = null;
       setCommitted(messagesProp);
       return;
     }
 
-    // Pure prepend. Commit immediately — either the user is still in motion
-    // (correction hides in the fling) or they've already stopped (waiting
-    // wouldn't hide the correction anyway, just delay the visible jolt).
-    setCommitted(messagesProp);
+    // Pure prepend. If the fetch resolves while the viewport is still moving,
+    // commit immediately so Virtuoso's firstItemIndex/paddingTop correction is
+    // hidden inside the gesture. If it resolves AFTER motion stops, do not
+    // commit on a stationary screen — hold the page until the next upward
+    // gesture, so rows stay frozen exactly where the user stopped.
+    if (isPrependMotionActive()) {
+      pendingPrependRef.current = null;
+      setCommitted(messagesProp);
+      return;
+    }
+
+    pendingPrependRef.current = messagesProp;
+    debugLogEvent("prepend-held-until-motion", { len: messagesProp.length, added: newRows.length });
   }, [messagesProp]);
 
   return committed;
@@ -1437,6 +1477,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let lastTouchY: number | null = null;
     let frame: number | null = null;
     const requestEdgeLoad = () => {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
@@ -1515,6 +1556,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // late avatar/image hydration on first cold-cache open.
     if (!isViewportUserActive(el)) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
     }
     userHasScrolledAfterPinRef.current = true;
