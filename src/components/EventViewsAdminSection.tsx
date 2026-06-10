@@ -119,12 +119,35 @@ export function EventViewsAdminSection({
 
   // Fetch all team/club members who should see this event
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["event-members-for-views", eventId, teamId, clubId],
+    queryKey: ["event-members-for-views", eventId, teamId, clubId, miniLeagueId],
     queryFn: async () => {
-      // For team events, get all team members; for club events, get all club members
+      // For mini-league events, scope to league admins + parents of assigned children
       let userIds: string[] = [];
 
-      if (teamId) {
+      if (miniLeagueId) {
+        const [adminsRes, assignmentsRes, playersRes] = await Promise.all([
+          supabase.from("mini_league_admins").select("user_id").eq("mini_league_id", miniLeagueId),
+          supabase.from("child_mini_league_assignments").select("child_id").eq("mini_league_id", miniLeagueId),
+          supabase.from("mini_league_players").select("parent_user_id").eq("mini_league_id", miniLeagueId),
+        ]);
+        const adminIds = (adminsRes.data || []).map((r: any) => r.user_id).filter(Boolean);
+        const playerParentIds = (playersRes.data || []).map((r: any) => r.parent_user_id).filter(Boolean);
+
+        const childIds = (assignmentsRes.data || []).map((r: any) => r.child_id).filter(Boolean);
+        let childParentIds: string[] = [];
+        if (childIds.length) {
+          const [childrenRes, guardiansRes] = await Promise.all([
+            supabase.from("children").select("parent_id").in("id", childIds),
+            supabase.from("child_guardians").select("guardian_id").in("child_id", childIds),
+          ]);
+          childParentIds = [
+            ...(childrenRes.data || []).map((c: any) => c.parent_id),
+            ...(guardiansRes.data || []).map((g: any) => g.guardian_id),
+          ].filter(Boolean);
+        }
+
+        userIds = [...adminIds, ...playerParentIds, ...childParentIds];
+      } else if (teamId) {
         // Get all users with a role on this team
         const { data: roles, error } = await supabase
           .from("user_roles")
