@@ -632,7 +632,12 @@ function CachedMeasureRow({
     // (or just stopped), pushing those updates into Virtuoso's itemSize cache
     // mid-fling causes visible row shifts: the message the user is reading
     // jolts down/up as a row above re-measures. Defer all late writes until
-    // the chat scroller has been idle for ~250ms.
+    // the chat scroller has been idle for ~600ms (bumped from 400ms — the
+    // post-fling compositor settle on Android WebView regularly takes
+    // 450–550ms before paddingTop corrections stop landing, and writes
+    // inside that window were the residual cause of "messages drift down
+    // after I stop scrolling").
+    const IDLE_MS = 600;
     let cancelIdle: (() => void) | null = null;
     let raf: number | null = null;
     let t1: ReturnType<typeof setTimeout> | null = null;
@@ -648,10 +653,10 @@ function CachedMeasureRow({
     // the synchronous write so reactions/edits commit without delay.
     if (isAndroidNativeWebView()) {
       const sinceScrollEager = performance.now() - getLastChatScrollAt();
-      if (sinceScrollEager >= 400) {
+      if (sinceScrollEager >= IDLE_MS) {
         write();
       } else {
-        cancelIdle = runWhenChatScrollIdle(write, 400);
+        cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
       }
     } else {
       write();
@@ -659,12 +664,12 @@ function CachedMeasureRow({
 
     const writeWhenIdle = () => {
       const since = performance.now() - getLastChatScrollAt();
-      if (since >= 400) {
+      if (since >= IDLE_MS) {
         write();
         return;
       }
       cancelIdle?.();
-      cancelIdle = runWhenChatScrollIdle(write, 400);
+      cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
     };
 
     const scheduleLateWrites = () => {
@@ -692,10 +697,10 @@ function CachedMeasureRow({
     };
 
     const since = performance.now() - getLastChatScrollAt();
-    if (since >= 400) {
+    if (since >= IDLE_MS) {
       scheduleLateWrites();
     } else {
-      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 400);
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, IDLE_MS);
     }
 
     return () => {
