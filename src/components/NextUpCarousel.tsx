@@ -1329,9 +1329,17 @@ function CompactCard({ event }: { event: EventItem }) {
           }
 
           const isTrainingType = event.type === "training";
+          const isMiniLeagueOnly = !event.team_id && !!(event as any).mini_league_id;
           return (
             <div className="space-y-1 min-w-0">
-              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+              {isMiniLeagueOnly ? (
+                <h3 className={`text-[14px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+              ) : (
+                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+              )}
+
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className={`flex items-center gap-1 text-[13px] min-w-0 ${isTrainingType ? "font-medium text-foreground/75" : "font-semibold text-foreground"}`}>
                   <TypeIcon className={`h-3 w-3 shrink-0 ${isTrainingType ? "opacity-55" : "opacity-80"}`} aria-hidden="true" />
