@@ -838,19 +838,17 @@ function JumpHydrationSkeleton() {
  * Appends / edits / interleaves always commit immediately — realtime and
  * send paths are never delayed.
  */
-const PREPEND_IDLE_MS = 220;
-// Android WebView: when the user scroll-flings up to the very top and lifts
-// their finger, `scrollTop` parks at 0 and stops emitting scroll events.
-// runWhenChatScrollIdle then resolves almost immediately (~220ms after the
-// last scroll event during the fling) and Virtuoso commits the held prepend
-// page WHILE the user is still staring at the freshly-stopped top edge —
-// visible as "messages jolt around after I stop". We extend the gate on
-// Android to also wait for finger-off-glass and add extra quiet time before
-// committing so the row mount + measure batch lands during a moment the user
-// is no longer actively reading the top of the list. Web keeps 220ms — it
-// has no compositor-side measure cost and the jolt was never reported there.
-const PREPEND_IDLE_MS_ANDROID = 450;
-const PREPEND_MAX_HOLD_MS_ANDROID = 1500;
+// Prepend commit gate. When the user scroll-flings up to the very top and
+// releases (or stops the wheel), `scrollTop` parks at 0 and stops emitting
+// scroll events. If we commit the held prepend page immediately, Virtuoso
+// shifts `firstItemIndex` + mounts ~30 rows + corrects paddingTop in one
+// frame WHILE the user is still staring at the freshly-stopped top edge —
+// visible as "messages jolt around after I stop". The unified waiter below
+// requires both scroll-idle for `PREPEND_IDLE_MS` AND finger-off-glass
+// (no-op on desktop/web where there's no touch). Reproduces on Android
+// WebView, iOS WKWebView, and Lovable preview — so we gate everywhere.
+const PREPEND_IDLE_MS = 400;
+const PREPEND_MAX_HOLD_MS = 1500;
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
@@ -886,27 +884,18 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       return;
     }
 
-    const android = isAndroidNativeWebView();
-    const idleMs = android ? PREPEND_IDLE_MS_ANDROID : PREPEND_IDLE_MS;
+    // Unified gate (web + Android): wait for scroll idle AND no active
+    // pointer/touch on the scroller. Previously web fast-pathed at 220ms
+    // idle, but the same jolt — held prepend page commits the instant the
+    // user stops scrolling, Virtuoso shifts firstItemIndex + mounts ~30
+    // rows, paddingTop correction reflows — also reproduces on Lovable
+    // preview / desktop wheel scroll. Treating wheel/pointer the same as
+    // touch keeps the commit out of the moment the user is reading the top.
+    const idleMs = PREPEND_IDLE_MS;
 
-    // Web fast-path: if the viewport has been idle long enough, commit now.
-    // On Android we also need finger-off-glass, so always route through the
-    // waiter so we don't commit a prepend mid-touch.
-    if (!android) {
-      const sinceScroll = performance.now() - getLastChatScrollAt();
-      if (sinceScroll >= idleMs) {
-        setCommitted(messagesProp);
-        return;
-      }
-      const cancel = runWhenChatScrollIdle(() => {
-        setCommitted(messagesProp);
-      }, idleMs);
-      return cancel;
-    }
-
-    // Android: combined gate — finger lifted AND scroll idle for `idleMs`.
-    // Bail out after PREPEND_MAX_HOLD_MS_ANDROID so a parked finger at the
-    // top edge can still load older history (just no longer instantly).
+    // Combined gate — finger lifted AND scroll idle for `idleMs`. Bail out
+    // after PREPEND_MAX_HOLD_MS so a parked finger at the top edge can still
+    // load older history (just not instantly).
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const startedAt = performance.now();
@@ -919,7 +908,7 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       if (cancelled) return;
       timer = null;
       const now = performance.now();
-      if (now - startedAt >= PREPEND_MAX_HOLD_MS_ANDROID) {
+      if (now - startedAt >= PREPEND_MAX_HOLD_MS) {
         commit();
         return;
       }
