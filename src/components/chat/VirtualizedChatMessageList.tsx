@@ -1654,14 +1654,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-      if (!atBottomRef.current && distanceFromBottom > 4) return;
-      // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
-      // (which is true for up to 120px from bottom via atBottomThreshold).
-      // If the user stopped within that zone after a fast fling, writing
-      // scrollTop=maxTop snaps them visibly downward. Only force-snap when
-      // within sub-pixel rounding tolerance of the true bottom.
+      // Pure pixel-distance check. atBottomRef is unreliable here because
+      // Virtuoso's 120px atBottomThreshold keeps it `true` for the first
+      // ~120px of an upward fling — using it as the gate let a fast scroll-up
+      // from LAST trigger a synchronous scrollTop=maxTop write inside this
+      // RO, visibly snapping the user back to the bottom (DM symptom).
+      if (distanceFromBottom > 4) return;
       if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
-      if (distanceFromBottom > 200) return;
 
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
@@ -1744,15 +1743,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current
     ) return;
     // PREPEND GUARD: when lastMessageId is unchanged but length grew, an
-    // older page just landed (Load More / startReached). The user is mid-
-    // history during a fast upward fling — never re-pin to LAST. The
-    // `userHasScrolledAfterPinRef` guard inside `run()` has a 600ms cooldown
-    // that can let a settled fling slip through, and the synchronous +
-    // 200ms/600ms timers would yank the viewport to the bottom mid-scroll.
+    // older page just landed (Load More / startReached). This is ALWAYS a
+    // prepend — never re-pin to LAST regardless of atBottomRef, because the
+    // 120px atBottomThreshold keeps atBottomRef=true for the first ~120px
+    // of an upward fling. Without this, a fast scroll-up from the bottom
+    // that triggers startReached snaps the viewport back to LAST mid-fling
+    // (the reported "I scroll up fast and it pins me back to bottom" bug,
+    // especially visible in DMs where new realtime messages keep the
+    // OPEN_PIN_WINDOW alive).
     if (
       messagesLengthChanged &&
-      previousLastMessageId === lastMessageId &&
-      !atBottomRef.current
+      previousLastMessageId === lastMessageId
     ) return;
 
     const run = () => {
@@ -1760,8 +1761,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!viewport) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      if (!atBottomRef.current) return;
-      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Pure pixel-distance gate (atBottomRef has a 120px threshold and is
+      // unreliable mid-fling — see RO guard above).
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (distanceFromBottom > 4) return;
+      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
       if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
       // triggers a visible Virtuoso recompute/jump every time it fires,
