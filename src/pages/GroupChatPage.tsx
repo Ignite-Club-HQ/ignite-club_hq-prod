@@ -1087,6 +1087,7 @@ export default function GroupChatPage() {
         } as GroupMessage;
       });
 
+      debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
       setLocalMessages(anchoredWindow);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
       setJumpRenderNonce(targetJumpNonce ?? Date.now());
