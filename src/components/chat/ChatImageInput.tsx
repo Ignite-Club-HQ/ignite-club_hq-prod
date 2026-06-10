@@ -416,7 +416,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         }
       }
       console.log("[ChatImageInput] upload complete:", storageUrl.substring(0, 80));
-      setLocalPreview(null);
+      // Keep localPreview (data URL) visible — remote private URL may not load.
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
       if (isCancelledSelectionError(error)) {
@@ -426,11 +426,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         console.error("[ChatImageInput] Image upload failed:", errMsg, error);
         toast.error(errMsg || "Failed to upload image");
       }
-      setLocalPreview(null);
-    } finally {
       if (stablePreviewUrl && stablePreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
+      setLocalPreview(null);
+    } finally {
       restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
@@ -471,19 +471,34 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       });
     }
 
-    const localUrl = URL.createObjectURL(file);
+    // Prefer a data URL for the preview — blob: URLs are unreliable in iOS
+    // WKWebView and Android WebView. Fall back to blob: for videos / read
+    // failures.
+    let localUrl: string;
+    try {
+      if (isVideo) throw new Error("skip-data-url-for-video");
+      localUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error || new Error("Preview read failed"));
+        reader.readAsDataURL(file);
+      });
+    } catch {
+      localUrl = URL.createObjectURL(file);
+    }
     setLocalPreview(localUrl);
     setUploading(true);
 
     try {
       const storageUrl = await uploadBlob(file, { isVideo });
-      URL.revokeObjectURL(localUrl);
-      setLocalPreview(null);
+      // Keep localPreview as-is: the remote (private) storage URL can't always
+      // be rendered directly by <img> and would flip to the placeholder. The
+      // preview is cleared when imageUrl resets (after send) or via remove.
       onImageUploaded(storageUrl);
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(isVideo ? "Failed to upload video" : "Failed to upload image");
-      URL.revokeObjectURL(localUrl);
+      if (localUrl.startsWith("blob:")) URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
     } finally {
       setUploading(false);
@@ -530,6 +545,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
+
+  // When the parent clears imageUrl (e.g. after a successful send), drop the
+  // locally-held preview too so the composer returns to its empty state.
+  const prevImageUrlRef = useRef(imageUrl);
+  useEffect(() => {
+    if (prevImageUrlRef.current && !imageUrl && localPreview) {
+      if (localPreview.startsWith("blob:")) URL.revokeObjectURL(localPreview);
+      setLocalPreview(null);
+    }
+    prevImageUrlRef.current = imageUrl;
+  }, [imageUrl, localPreview]);
 
   useEffect(() => {
     return () => {
