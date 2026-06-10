@@ -92,7 +92,7 @@ export function ResponsiveDialogContent({
 
   if (isMobile) {
     return (
-      <DrawerContent className={fullScreen ? "h-[100dvh] max-h-[100dvh]" : className}>
+      <DrawerContent className={fullScreen ? "h-[calc(100dvh-env(safe-area-inset-top,0px))] max-h-[calc(100dvh-env(safe-area-inset-top,0px))] top-[env(safe-area-inset-top,0px)]" : className}>
         <div className={fullScreen 
           ? "flex flex-col h-full w-full overflow-hidden pt-[env(safe-area-inset-top,0px)]" 
           : "mx-auto w-full max-w-lg px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] max-h-[85vh] overflow-y-auto"
