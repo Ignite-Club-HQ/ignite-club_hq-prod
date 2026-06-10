@@ -3398,8 +3398,8 @@ export default function EventDetailPage() {
               notRespondedContent={notRespondedNode}
               notRespondedUserIds={allNotRespondedForReminders.map((m: any) => m.id)}
               canSendReminders={canSendReminders}
-              trackableMembersCount={trackableMembers}
-              addressableMembers={members}
+              trackableMembersCount={isMiniLeagueEvent ? (miniLeagueAdults?.length ?? 0) : trackableMembers}
+              addressableMembers={isMiniLeagueEvent ? (miniLeagueAdults ?? []) : members}
               onShareLink={handleShareReminderLink}
               onProRequired={gateReminders}
               eventType={event.type}
