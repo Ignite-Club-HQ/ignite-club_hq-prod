@@ -1654,14 +1654,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-      if (!atBottomRef.current && distanceFromBottom > 4) return;
-      // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
-      // (which is true for up to 120px from bottom via atBottomThreshold).
-      // If the user stopped within that zone after a fast fling, writing
-      // scrollTop=maxTop snaps them visibly downward. Only force-snap when
-      // within sub-pixel rounding tolerance of the true bottom.
+      // Pure pixel-distance check. atBottomRef is unreliable here because
+      // Virtuoso's 120px atBottomThreshold keeps it `true` for the first
+      // ~120px of an upward fling — using it as the gate let a fast scroll-up
+      // from LAST trigger a synchronous scrollTop=maxTop write inside this
+      // RO, visibly snapping the user back to the bottom (DM symptom).
+      if (distanceFromBottom > 4) return;
       if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
-      if (distanceFromBottom > 200) return;
 
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
