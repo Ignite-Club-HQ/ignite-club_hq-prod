@@ -680,7 +680,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
