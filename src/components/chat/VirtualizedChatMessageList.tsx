@@ -1503,7 +1503,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let lastTouchY: number | null = null;
     let frame: number | null = null;
     const requestEdgeLoad = () => {
-      markPrependUpwardMotion();
+      markPrependUpwardMotion({ explicitGesture: true });
       lastUserUpwardScrollAtRef.current = performance.now();
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
@@ -1512,9 +1512,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     const onTouchStart = (event: TouchEvent) => {
+      markPrependUserInput();
       lastTouchY = event.touches[0]?.clientY ?? null;
     };
     const onTouchMove = (event: TouchEvent) => {
+      markPrependUserInput();
       const y = event.touches[0]?.clientY ?? null;
       if (y === null || lastTouchY === null) {
         lastTouchY = y;
@@ -1525,6 +1527,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (deltaY > 3 && el.scrollTop <= 8) requestEdgeLoad();
     };
     const onWheel = (event: WheelEvent) => {
+      markPrependUserInput();
       if (event.deltaY < -3 && el.scrollTop <= 8) requestEdgeLoad();
     };
 
