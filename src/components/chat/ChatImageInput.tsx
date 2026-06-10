@@ -598,12 +598,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           )}
           <button
             type="button"
-            className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+            className="absolute -top-2 -left-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm touch-manipulation"
             onClick={handleRemoveImage}
             disabled={disabled}
             aria-label="Remove attachment"
           >
-            <X className="h-2 w-2" strokeWidth={3} />
+            <X className="h-3 w-3" strokeWidth={3} />
           </button>
         </div>
       </div>
