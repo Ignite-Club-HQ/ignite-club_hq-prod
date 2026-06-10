@@ -1478,6 +1478,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let lastTouchY: number | null = null;
     let frame: number | null = null;
     const requestEdgeLoad = () => {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
@@ -1556,6 +1557,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // late avatar/image hydration on first cold-cache open.
     if (!isViewportUserActive(el)) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
     }
     userHasScrolledAfterPinRef.current = true;
