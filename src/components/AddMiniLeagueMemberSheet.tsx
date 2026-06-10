@@ -233,20 +233,23 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
         let childId = player.existingChildId;
 
         if (!childId) {
-          const { data: child, error: childError } = await supabase
+          // Pre-generate the id so we don't need to read the row back
+          // (reading back requires SELECT visibility on the new child,
+          // which an admin may not have until the league assignment exists)
+          const newChildId = crypto.randomUUID();
+          const { error: childError } = await supabase
             .from("children")
             .insert({
+              id: newChildId,
               parent_id: player.existingParentUserId || user!.id,
               name: player.name.trim(),
-            })
-            .select()
-            .single();
+            });
 
           if (childError) {
             console.error("Failed to create child:", player.name, childError);
             throw new Error(`Couldn't add ${player.name}: ${childError.message}`);
           }
-          childId = child.id;
+          childId = newChildId;
         }
 
         const abilityRatingValue = player.abilityRating ? parseInt(player.abilityRating) : null;
