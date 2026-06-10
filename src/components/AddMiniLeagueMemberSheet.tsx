@@ -227,6 +227,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       const validPlayers = playersSource.filter((player) => player.name.trim());
       if (validPlayers.length === 0) throw new Error("Please enter at least one player");
 
+      const missingParent = validPlayers.find((p) => !p.parentName.trim());
+      if (missingParent) throw new Error(`Enter a parent name for ${missingParent.name.trim()}`);
+      const missingEmail = validPlayers.find((p) => !p.existingParentUserId && !p.parentEmail.trim());
+      if (missingEmail) throw new Error(`Enter a parent email for ${missingEmail.name.trim()} so they can be invited`);
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmail = validPlayers.find((p) => !p.existingParentUserId && !emailRe.test(p.parentEmail.trim()));
+      if (invalidEmail) throw new Error(`Enter a valid parent email for ${invalidEmail.name.trim()}`);
+
       const addedResults: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
