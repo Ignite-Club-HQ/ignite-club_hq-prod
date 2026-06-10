@@ -681,11 +681,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onPickMany={handleVaultPickMany}
           />
           <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
-            <SheetContent side="bottom" className="p-0">
-              <SheetHeader className="px-4 py-3 border-b border-border">
-                <SheetTitle className="text-left text-base">Attach File or Folder</SheetTitle>
+            <SheetContent side="bottom" className="p-0 rounded-t-3xl border-t border-border">
+              <div className="flex justify-center pt-2 pb-1">
+                <div className="w-10 h-1.5 bg-muted rounded-full" />
+              </div>
+              <SheetHeader className="px-5 pt-2 pb-3">
+                <SheetTitle className="text-left text-[17px] font-semibold tracking-tight">
+                  Attach File or Folder
+                </SheetTitle>
               </SheetHeader>
-              <div className="grid grid-cols-2 gap-3 p-4">
+              <div className="grid grid-cols-2 gap-3 px-5 pb-6">
                 <button
                   type="button"
                   disabled={disabled || uploading}
@@ -693,15 +698,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     setAttachChooserOpen(false);
                     docInputRef.current?.click();
                   }}
-                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  className="group flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
                   aria-label="Upload from device"
                 >
-                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Upload className="h-5 w-5 text-primary" />
+                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center group-active:bg-primary/15 transition-colors">
+                    <Upload className="h-6 w-6 text-primary" />
                   </div>
-                  <div className="flex flex-col items-center leading-tight">
-                    <span className="text-sm font-medium text-foreground">From Device</span>
-                    <span className="text-[11px] text-muted-foreground">PDF, doc, sheet</span>
+                  <div className="flex flex-col items-center leading-tight gap-0.5">
+                    <span className="text-[15px] font-medium text-foreground">From Device</span>
+                    <span className="text-[12px] text-muted-foreground">PDF, doc, sheet</span>
                   </div>
                 </button>
                 <button
@@ -711,15 +716,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     setAttachChooserOpen(false);
                     setVaultPickerOpen(true);
                   }}
-                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  className="group flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
                   aria-label="Choose from vault"
                 >
-                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
-                    <FolderOpen className="h-5 w-5 text-primary" />
+                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center group-active:bg-primary/15 transition-colors">
+                    <FolderOpen className="h-6 w-6 text-primary" />
                   </div>
-                  <div className="flex flex-col items-center leading-tight">
-                    <span className="text-sm font-medium text-foreground">From Vault</span>
-                    <span className="text-[11px] text-muted-foreground">Existing file or folder</span>
+                  <div className="flex flex-col items-center leading-tight gap-0.5">
+                    <span className="text-[15px] font-medium text-foreground">From Vault</span>
+                    <span className="text-[12px] text-muted-foreground">Existing file or folder</span>
                   </div>
                 </button>
               </div>
