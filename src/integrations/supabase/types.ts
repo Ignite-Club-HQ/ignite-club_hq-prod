@@ -9238,6 +9238,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      can_admin_view_child_of_parent: {
+        Args: { _parent: string; _viewer: string }
+        Returns: boolean
+      }
       can_control_pitch_board: {
         Args: { _event_id: string; _team_id: string }
         Returns: boolean
