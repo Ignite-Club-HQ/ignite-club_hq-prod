@@ -16,6 +16,7 @@ import {
   debugLogAnchor,
   debugLogBottomPin,
   debugLogDuplicate,
+  debugLogEvent,
   debugLogFirstItemIndex,
   debugLogMeasure,
   debugLogStartReached,
@@ -995,8 +996,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       loadingOlderInFlightRef.current = false;
       lastPrependLandedAtRef.current = performance.now();
     }
+    // Diagnostic: a wholesale window collapse (e.g. 270 → 100 rows) means a
+    // parent replaced the rendered array — the precursor to the post-scroll
+    // "teleport to bottom" jolt seen in field telemetry.
+    if (messages.length < messagesLengthRef.current - 5) {
+      debugLogEvent("window-shrink", {
+        prevLen: messagesLengthRef.current,
+        nextLen: messages.length,
+      });
+    }
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
+
+  // Diagnostic: full remounts re-run the initial bottom pin at revision 0 and
+  // teleport a history-reading user back to LAST. Log mount/unmount so a
+  // field dump can distinguish remount from in-place anchor reset.
+  useEffect(() => {
+    debugLogEvent("list-mount", { messagesLen: messagesLengthRef.current });
+    return () => {
+      debugLogEvent("list-unmount", { messagesLen: messagesLengthRef.current });
+    };
+  }, []);
 
   // Also release the guard whenever the parent's `isLoadingOlder` flag
   // transitions back to `false`. The length-grew effect above ONLY fires on
