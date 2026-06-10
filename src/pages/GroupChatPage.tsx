@@ -2141,7 +2141,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
-            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}` : `group:${groupId}`}
+            key={scrollerKey}
             messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
