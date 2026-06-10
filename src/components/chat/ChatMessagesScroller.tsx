@@ -226,13 +226,28 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   useEffect(() => {
     if (messages.length === 0) {
-      setInitialViewportReleased(false);
+      // Do NOT reset `initialViewportReleased` here — once the list has been
+      // mounted, transient messages.length===0 frames (cache reseed, refetch
+      // window collapse) would otherwise flip the inner-render gate to false,
+      // unmount VirtualizedChatMessageList, and visibly jolt the chat back to
+      // bottom a few seconds after the user finishes scrolling.
       return;
     }
     if (messages.length > 0 && initialMountReady) {
       setInitialViewportReleased(true);
     }
   }, [initialMountReady, messages.length]);
+
+  // Latch the inner gate: once the list has been mounted for real, we must
+  // never unmount it for transient ready-state changes (ResizeObserver-driven
+  // mountBoxSettled flips, viewportSettled debounces after scroll, briefly
+  // empty `messages` during cache reseed). Unmounting drops Virtuoso's scroll
+  // position and forces a re-pin to bottom — the visible "jolt after stop"
+  // bug. Once true, it stays true for the lifetime of this scroller instance.
+  const hasMountedListRef = useRef(false);
+  if (!hasMountedListRef.current && (messages.length === 0 || virtualReady)) {
+    hasMountedListRef.current = true;
+  }
 
   // Diagnostics: scroller component lifecycle
   useEffect(() => {
@@ -417,7 +432,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
     >
-      {messages.length === 0 || virtualReady ? (
+      {messages.length === 0 || virtualReady || hasMountedListRef.current ? (
         <VirtualizedChatMessageList
           ref={virtualHandleRef}
           messages={messages}
