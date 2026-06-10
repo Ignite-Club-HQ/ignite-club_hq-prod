@@ -554,7 +554,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // If there's an image attached, always show the preview regardless of hasText
   if (displayUrl) {
     return (
-      <div className="flex shrink-0 items-center gap-1 self-end pl-0.5">
+      <div className="flex shrink-0 items-center gap-1 self-center pl-0.5">
         <input
           ref={fileInputRef}
           type="file"
