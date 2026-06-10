@@ -971,6 +971,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Expose this scroller to the module-level prepend gate so it can check
+  // whether a finger is currently on the glass before committing a held page.
+  useEffect(() => {
+    scrollerElRefForPrepend = () => scrollerElRef.current;
+    return () => {
+      scrollerElRefForPrepend = null;
+    };
+  }, []);
   // Prepended history pages are held until the scroll gesture goes idle so
   // Virtuoso's paddingTop correction never fires mid-flick. `messages` below
   // is the committed array — the rest of the body operates on it unchanged.
