@@ -977,14 +977,22 @@ export default function BroadcastChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  const firstMatchId = searchQuery.trim() ? filteredMessages?.[0]?.id ?? null : null;
+  const lastCenteredKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (isSearchFetching) return;
-    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
-    if (!firstMatch) return;
-    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatch.id);
+    if (!firstMatchId) {
+      lastCenteredKeyRef.current = null;
+      return;
+    }
+    const key = `${searchQuery}|${firstMatchId}`;
+    if (lastCenteredKeyRef.current === key) return;
+    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatchId);
     if (idx < 0) return;
+    lastCenteredKeyRef.current = key;
     requestAnimationFrame(() => virtualHandleRef.current?.scrollToIndex(idx, "center"));
-  }, [filteredMessages, isSearchFetching, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstMatchId, isSearchFetching, searchQuery]);
 
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
