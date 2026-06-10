@@ -132,6 +132,33 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!user,
   });
 
+  // Delete is restricted to club admins, league admins (club-wide or
+  // scoped to this league via mini_league_admins) and app admins.
+  // Mirrors the is_league_admin() RLS function on mini_leagues.
+  const { data: canDeleteLeague } = useQuery({
+    queryKey: ["can-delete-league", id, league?.club_id, user?.id],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
+      const adminRole = roles?.some(r =>
+        ['club_admin', 'league_admin', 'app_admin'].includes(r.role)
+      ) ?? false;
+      if (adminRole) return true;
+
+      const { data: scoped } = await supabase
+        .from("mini_league_admins")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!scoped;
+    },
+    enabled: !!league?.club_id && !!user && !!id,
+  });
+
   const { data: players } = useQuery({
     queryKey: ["mini-league-players", id],
     queryFn: async () => {
