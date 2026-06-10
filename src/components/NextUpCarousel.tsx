@@ -1592,22 +1592,23 @@ export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarou
         <div className="relative min-h-[340px]">
           {/* Carousel */}
           <div ref={emblaRef} className="overflow-hidden">
-            <div className="flex items-start">
+            <div className="flex items-stretch">
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 self-start"
+                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 flex"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
                     transformOrigin: "center center",
                   }}
                 >
-                  <div className="min-h-[340px]">
+                  <div className="min-h-[340px] w-full flex">
                     <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} onReadyChange={handleHeroReadyChange} />
                   </div>
                 </div>
               ))}
+
             </div>
 
             {/* Right edge fade gradient */}
