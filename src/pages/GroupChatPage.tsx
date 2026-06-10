@@ -1964,6 +1964,7 @@ export default function GroupChatPage() {
   const groupOnlineCount = useChatOnlineCount("group", groupId, {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
+    miniLeagueId: group?.mini_league_id ?? null,
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
     enabled: !!group && chatReady,
   });

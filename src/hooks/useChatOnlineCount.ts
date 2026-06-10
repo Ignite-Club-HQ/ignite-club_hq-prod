@@ -14,6 +14,8 @@ interface Options {
   teamId?: string | null;
   /** For "group" chats only. */
   clubId?: string | null;
+  /** For "group" chats only — mini-league scoped chats. */
+  miniLeagueId?: string | null;
   /** For "group" chats only. */
   groupAllowedRoles?: AppRole[] | null;
   enabled?: boolean;
@@ -37,7 +39,7 @@ export function useChatOnlineCount(
   opts: Options = {},
 ): number {
   const { user } = useAuth();
-  const { teamId, clubId, groupAllowedRoles, enabled = true } = opts;
+  const { teamId, clubId, miniLeagueId, groupAllowedRoles, enabled = true } = opts;
 
   const { data: memberIds } = useQuery({
     queryKey: [
@@ -46,10 +48,41 @@ export function useChatOnlineCount(
       chatId,
       teamId ?? null,
       clubId ?? null,
+      miniLeagueId ?? null,
       groupAllowedRoles ?? null,
     ],
     queryFn: async (): Promise<string[]> => {
       if (!chatId) return [];
+
+      // Mini-league group: mirror notification recipient scoping in
+      // process-message-notifications so the online count matches who
+      // actually has access (NOT all club members with allowed_roles).
+      if (chatType === "group" && miniLeagueId) {
+        const [parents, leagueAdmins, roleAdmins] = await Promise.all([
+          supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", miniLeagueId)
+            .not("parent_user_id", "is", null),
+          supabase
+            .from("mini_league_admins")
+            .select("user_id")
+            .eq("mini_league_id", miniLeagueId),
+          clubId
+            ? supabase
+                .from("user_roles")
+                .select("user_id")
+                .eq("club_id", clubId)
+                .eq("role", "league_admin")
+            : Promise.resolve({ data: [] as Array<{ user_id: string }> }),
+        ]);
+        const ids = [
+          ...((parents.data || []).map((r: any) => r.parent_user_id).filter(Boolean) as string[]),
+          ...((leagueAdmins.data || []).map((r: any) => r.user_id) as string[]),
+          ...((roleAdmins.data || []).map((r: any) => r.user_id) as string[]),
+        ];
+        return [...new Set(ids)];
+      }
 
       // Personal group (not tied to a team or club): use group_members table.
       if (chatType === "group" && !teamId && !clubId) {
