@@ -475,7 +475,6 @@ export default function JoinTeamPage() {
           console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
           throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
         }
-      }
       } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
         console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
         
