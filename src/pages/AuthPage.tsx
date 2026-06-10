@@ -697,7 +697,7 @@ export default function AuthPage() {
                         </Button>
                       )}
                       
-                      {biometricsAvailable && isRegistered && (
+                      {showBiometricButton ? (
                         <Button 
                           variant="outline" 
                           className="w-full gap-2" 
@@ -713,7 +713,12 @@ export default function AuthPage() {
                             </>
                           )}
                         </Button>
-                      )}
+                      ) : reserveBiometricSlot ? (
+                        // Placeholder reserves the biometric button's height on
+                        // native so the layout doesn't shift when the async
+                        // availability checks resolve. Matches Button h-10.
+                        <div className="w-full h-10" aria-hidden="true" />
+                      ) : null}
                     </>
                   )}
 
