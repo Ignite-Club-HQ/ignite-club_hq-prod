@@ -432,7 +432,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
     >
-      {messages.length === 0 || virtualReady ? (
+      {messages.length === 0 || virtualReady || hasMountedListRef.current ? (
         <VirtualizedChatMessageList
           ref={virtualHandleRef}
           messages={messages}
