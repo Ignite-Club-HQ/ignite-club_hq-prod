@@ -1554,7 +1554,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelled) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       // Hard guard: if the user is clearly mid-history (>200px from bottom),
       // never re-pin from a ResizeObserver callback. The 600ms cooldown on
       // `isViewportUserActive` can let a settled fast-fling slip through and
@@ -1563,7 +1562,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
+      // (which is true for up to 120px from bottom via atBottomThreshold).
+      // If the user stopped within that zone after a fast fling, writing
+      // scrollTop=maxTop snaps them visibly downward. Only force-snap when
+      // within sub-pixel rounding tolerance of the true bottom.
+      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
       if (distanceFromBottom > 200) return;
+
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.
