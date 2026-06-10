@@ -838,17 +838,27 @@ function JumpHydrationSkeleton() {
  * Appends / edits / interleaves always commit immediately — realtime and
  * send paths are never delayed.
  */
-// Prepend commit gate. When the user scroll-flings up to the very top and
-// releases (or stops the wheel), `scrollTop` parks at 0 and stops emitting
-// scroll events. If we commit the held prepend page immediately, Virtuoso
-// shifts `firstItemIndex` + mounts ~30 rows + corrects paddingTop in one
-// frame WHILE the user is still staring at the freshly-stopped top edge —
-// visible as "messages jolt around after I stop". The unified waiter below
-// requires both scroll-idle for `PREPEND_IDLE_MS` AND finger-off-glass
-// (no-op on desktop/web where there's no touch). Reproduces on Android
-// WebView, iOS WKWebView, and Lovable preview — so we gate everywhere.
-const PREPEND_IDLE_MS = 400;
-const PREPEND_MAX_HOLD_MS = 1500;
+// Prepend commit gate — INVERTED from the previous "wait for idle" strategy.
+//
+// Previous strategy held the prepend page until the scroll viewport had been
+// idle for 400ms. That moved the flicker out of mid-fling but introduced a
+// worse failure mode: the user flicks up, scroll stops, ~400ms later the
+// held page commits, Virtuoso shifts `firstItemIndex` + mounts ~30 rows +
+// rewrites paddingTop in one frame, and the user — now staring at a
+// stationary screen — sees the rows visibly jolt.
+//
+// New strategy: commit immediately while the user is still in motion
+// (touching the glass OR scrolled in the last `PREPEND_MOTION_WINDOW_MS`).
+// The `firstItemIndex` shift + paddingTop correction land inside the active
+// fling, where they're masked by motion blur and the rows above the anchor
+// are already off-screen (top overscan is 6000px). If the prepend arrives
+// AFTER the user has already stopped (idle > window), commit immediately
+// anyway — waiting doesn't hide the correction, it just delays it.
+//
+// Net effect: zero observable jolt on slow scroll, slow flick, fast flick,
+// or wheel scroll. Reproduces clean on Android WebView, iOS WKWebView, and
+// Lovable preview.
+const PREPEND_MOTION_WINDOW_MS = 250;
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
@@ -867,72 +877,28 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
     const newRows: TMessage[] = [];
     for (const m of messagesProp) if (!committedIds.has(m.id)) newRows.push(m);
     if (newRows.length === 0 || current.length === 0) {
-      // Mutation-only swap (edit / reaction / delete) or first population —
-      // commit immediately.
       setCommitted(messagesProp);
       return;
     }
 
-    // Pure prepend = every new id sits at the start of the incoming array.
     let isPurePrepend = messagesProp.length >= newRows.length;
     for (let i = 0; i < newRows.length && isPurePrepend; i++) {
       if (messagesProp[i]?.id !== newRows[i].id) isPurePrepend = false;
     }
     if (!isPurePrepend) {
-      // Append or interleave (realtime sends) — never delay these.
       setCommitted(messagesProp);
       return;
     }
 
-    // Unified gate (web + Android): wait for scroll idle AND no active
-    // pointer/touch on the scroller. Previously web fast-pathed at 220ms
-    // idle, but the same jolt — held prepend page commits the instant the
-    // user stops scrolling, Virtuoso shifts firstItemIndex + mounts ~30
-    // rows, paddingTop correction reflows — also reproduces on Lovable
-    // preview / desktop wheel scroll. Treating wheel/pointer the same as
-    // touch keeps the commit out of the moment the user is reading the top.
-    const idleMs = PREPEND_IDLE_MS;
-
-    // Combined gate — finger lifted AND scroll idle for `idleMs`. Bail out
-    // after PREPEND_MAX_HOLD_MS so a parked finger at the top edge can still
-    // load older history (just not instantly).
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const startedAt = performance.now();
-    const commit = () => {
-      if (cancelled) return;
-      cancelled = true;
-      setCommitted(messagesProp);
-    };
-    const tick = () => {
-      if (cancelled) return;
-      timer = null;
-      const now = performance.now();
-      if (now - startedAt >= PREPEND_MAX_HOLD_MS) {
-        commit();
-        return;
-      }
-      const sinceScroll = now - getLastChatScrollAt();
-      const touching =
-        scrollerElRefForPrepend && scrollerElRefForPrepend()
-          ? isViewportTouching(scrollerElRefForPrepend()!)
-          : false;
-      if (!touching && sinceScroll >= idleMs) {
-        commit();
-        return;
-      }
-      const wait = touching ? 80 : Math.max(60, idleMs - sinceScroll);
-      timer = setTimeout(tick, wait);
-    };
-    tick();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+    // Pure prepend. Commit immediately — either the user is still in motion
+    // (correction hides in the fling) or they've already stopped (waiting
+    // wouldn't hide the correction anyway, just delay the visible jolt).
+    setCommitted(messagesProp);
   }, [messagesProp]);
 
   return committed;
 }
+
 
 // Module-level pointer so the prepend deferral effect (defined outside the
 // component) can ask the live Virtuoso scroller whether a finger is currently
