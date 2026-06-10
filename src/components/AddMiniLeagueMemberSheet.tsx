@@ -249,12 +249,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
           childId = child.id;
         }
 
+        const abilityRatingValue = player.abilityRating ? parseInt(player.abilityRating) : null;
+
         const { error: assignmentError } = await supabase
           .from("child_mini_league_assignments")
           .insert({
             child_id: childId!,
             mini_league_id: miniLeagueId,
-            ability_rating: parseInt(player.abilityRating),
+            ability_rating: abilityRatingValue,
           });
 
         if (assignmentError) {
@@ -266,7 +268,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
           .insert({
             mini_league_id: miniLeagueId,
             name: player.name.trim(),
-            ability_rating: parseInt(player.abilityRating),
+            ability_rating: abilityRatingValue,
             child_id: childId!,
             parent_user_id: player.existingParentUserId || null,
           })
