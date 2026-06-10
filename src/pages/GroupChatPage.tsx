@@ -6,6 +6,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -663,7 +664,15 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
-    setLocalMessages(getInitialLocalMessages());
+    setLocalMessages((prev) => {
+      const next = getInitialLocalMessages();
+      debugLogEvent("local-replace", {
+        cause: "reset-effect",
+        prevLen: prev?.length ?? 0,
+        nextLen: next?.length ?? 0,
+      });
+      return next;
+    });
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
   }, [groupId, queryClient]);
@@ -756,6 +765,14 @@ export default function GroupChatPage() {
       const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
         (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
+      if (prev && mergedMessages.length < prev.length - 5) {
+        debugLogEvent("local-replace", {
+          cause: "merge-shrink",
+          prevLen: prev.length,
+          nextLen: mergedMessages.length,
+          incomingLen: messages.length,
+        });
+      }
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
@@ -1078,6 +1095,7 @@ export default function GroupChatPage() {
         } as GroupMessage;
       });
 
+      debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
       setLocalMessages(anchoredWindow);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
       setJumpRenderNonce(targetJumpNonce ?? Date.now());
