@@ -1591,6 +1591,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     userHasScrolledAfterPinRef.current = true;
   }, []);
 
+  const handleIsScrollingChange = useCallback((scrolling: boolean) => {
+    setPrependVirtuosoScrolling(scrolling);
+  }, []);
+
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
   // shift (see anchorRef math above). We deliberately do NOT run a manual
   // scrollTop-restore loop here: writing scrollTop frame-after-frame while
@@ -2118,6 +2122,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
+      isScrolling={handleIsScrollingChange}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
