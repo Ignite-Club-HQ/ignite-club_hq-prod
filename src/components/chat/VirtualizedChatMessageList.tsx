@@ -855,10 +855,9 @@ function JumpHydrationSkeleton() {
 // New strategy: commit immediately while the user is still in motion
 // (touching the glass OR scrolled in the last `PREPEND_MOTION_WINDOW_MS`).
 // The `firstItemIndex` shift + paddingTop correction land inside the active
-// fling, where they're masked by motion blur and the rows above the anchor
-// are already off-screen (top overscan is 6000px). If the prepend arrives
-// AFTER the user has already stopped (idle > window), commit immediately
-// anyway — waiting doesn't hide the correction, it just delays it.
+// fling, where they're masked by motion blur. If the prepend arrives AFTER
+// the user has already stopped, hold it until the next upward gesture instead
+// of moving a stationary viewport.
 //
 // Net effect: zero observable jolt on slow scroll, slow flick, fast flick,
 // or wheel scroll. Reproduces clean on Android WebView, iOS WKWebView, and
