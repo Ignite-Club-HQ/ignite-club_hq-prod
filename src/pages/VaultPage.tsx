@@ -3235,28 +3235,28 @@ export default function VaultPage() {
             const current = nodes[nodes.length - 1];
             const parents = nodes.slice(0, -1);
             return (
-              <div className="flex items-start gap-2 min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="shrink-0 -ml-2 h-11 w-11 mt-0.5"
+                  className="shrink-0 -ml-2 h-10 w-10"
                   onClick={goBack}
                   aria-label="Go back"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-xl font-bold leading-tight break-words">
+                  <h1 className="text-lg font-semibold leading-tight truncate">
                     {current?.label ?? "Vault"}
                   </h1>
                   {parents.length > 0 && (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-muted-foreground">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
                       {parents.map((node, i) => (
                         <span key={node.key} className="flex items-center gap-1 min-w-0">
                           <button
                             type="button"
                             onClick={node.onClick}
-                            className="min-h-[32px] px-2 py-1 -mx-1 rounded-md hover:bg-muted active:bg-muted/70 transition-colors max-w-[160px] truncate text-foreground/70 hover:text-foreground touch-manipulation"
+                            className="px-1.5 py-0.5 -mx-1 rounded-md hover:bg-muted active:bg-muted/70 transition-colors max-w-[160px] truncate text-foreground/70 hover:text-foreground touch-manipulation"
                           >
                             {node.label}
                           </button>

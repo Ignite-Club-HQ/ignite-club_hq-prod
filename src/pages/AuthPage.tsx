@@ -163,7 +163,27 @@ export default function AuthPage() {
     let keyboardShowListener: { remove: () => void } | undefined;
     let keyboardHideListener: { remove: () => void } | undefined;
 
+    // Proactively dismiss any keyboard that may have been open on the
+    // previous screen (e.g. user tapped Sign Out from a focused input on
+    // Account). Without this, Android can fire a stale `keyboardDidShow`
+    // shortly after AuthPage mounts, which would otherwise yank the auth
+    // shell upward (justify-start, no translate-y, compact logo).
+    Keyboard.hide().catch(() => {});
+
+    // Only treat the keyboard as "open for this page" when one of the
+    // AuthPage inputs is actually focused. Spurious system events that
+    // fire while focus is elsewhere (or on no element) must not shift
+    // the layout.
+    const isAuthInputFocused = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag !== "INPUT" && tag !== "TEXTAREA") return false;
+      return signInScrollRef.current?.contains(el) ?? false;
+    };
+
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
+      if (!isAuthInputFocused()) return;
       setNativeKeyboardHeight(keyboardHeight || 0);
       setNativeKeyboardVisible(true);
     }).then(handle => {

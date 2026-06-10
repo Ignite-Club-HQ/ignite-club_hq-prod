@@ -172,44 +172,44 @@ export function ClubDaySummary({
     : `${primaryCount} event${primaryCount === 1 ? "" : "s"} today`;
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-foreground leading-tight truncate">
-            {format(selectedDate, "EEEE, MMMM d")}
-          </h2>
-          {visible.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {primaryLabel}
-              {extraAcrossClub > 0 && (
-                <> <span aria-hidden="true">•</span> {extraAcrossClub} more across club</>
-              )}
-            </p>
-          )}
-        </div>
-        <ToggleGroup
-          type="single"
-          size="sm"
-          value={scope}
-          onValueChange={(v) => v && setScope(v as "my" | "club")}
-          className="shrink-0 self-start opacity-80"
-        >
-          <ToggleGroupItem
-            value="my"
-            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
-          >
-            <Users className="h-2.5 w-2.5" />
-            My teams
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="club"
-            className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground data-[state=on]:text-foreground data-[state=on]:bg-muted/60"
-          >
-            <Building2 className="h-2.5 w-2.5" />
-            Whole club
-          </ToggleGroupItem>
-        </ToggleGroup>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <h2 className="text-xl font-bold tracking-tight text-foreground leading-tight truncate">
+          {format(selectedDate, "EEEE, MMMM d")}
+        </h2>
+        {visible.length > 0 && (
+          <p className="text-xs text-muted-foreground truncate">
+            {primaryLabel}
+            {extraAcrossClub > 0 && (
+              <> <span aria-hidden="true">•</span> {extraAcrossClub} more across club</>
+            )}
+          </p>
+        )}
       </div>
+
+      <ToggleGroup
+        type="single"
+        value={scope}
+        onValueChange={(v) => v && setScope(v as "my" | "club")}
+        className="w-full grid grid-cols-2 gap-1 rounded-xl bg-muted p-1"
+      >
+        <ToggleGroupItem
+          value="my"
+          aria-label="Show events for my teams"
+          className="h-10 min-h-[40px] px-4 rounded-lg text-sm font-medium gap-1.5 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:font-semibold data-[state=on]:shadow-sm transition-colors"
+        >
+          <Users className="h-4 w-4" />
+          My teams
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="club"
+          aria-label="Show events across the whole club"
+          className="h-10 min-h-[40px] px-4 rounded-lg text-sm font-medium gap-1.5 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:font-semibold data-[state=on]:shadow-sm transition-colors"
+        >
+          <Building2 className="h-4 w-4" />
+          Whole club
+        </ToggleGroupItem>
+      </ToggleGroup>
 
       {isLoading ? (
         <div className="space-y-2">

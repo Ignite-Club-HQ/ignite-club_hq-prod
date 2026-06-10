@@ -2608,13 +2608,13 @@ export default function MessagesPage() {
         if (unifiedConversations.length <= 6) return null;
         if (shown.length <= 2) return null;
         return (
-          <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
-            <div className="flex items-center gap-2 pb-1">
+          <div className="-mx-4 px-4 mt-1 mb-1 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-2 py-1">
               {shown.map((chip) => {
                 const active = typeFilter === chip.id;
                 const accent = chip.type ? TYPE_ACCENT_HSL[chip.type] : undefined;
                 const activeStyle: React.CSSProperties | undefined = active && accent
-                  ? { backgroundColor: `hsl(${accent} / 0.12)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.4)` }
+                  ? { backgroundColor: `hsl(${accent} / 0.14)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.45)` }
                   : undefined;
                 return (
                   <button
@@ -2622,10 +2622,11 @@ export default function MessagesPage() {
                     type="button"
                     onClick={() => setTypeFilter(chip.id)}
                     style={activeStyle}
-                    className={`shrink-0 px-3 h-7 rounded-full text-xs font-medium border transition-colors ${
+                    aria-pressed={active}
+                    className={`shrink-0 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
                       active
-                        ? (accent ? '' : 'bg-foreground text-background border-foreground')
-                        : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                        ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
+                        : 'font-medium bg-background text-muted-foreground border-border hover:text-foreground'
                     }`}
                   >
                     {chip.label}

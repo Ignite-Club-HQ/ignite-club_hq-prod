@@ -496,7 +496,7 @@ export default function HomePage() {
 
       return { memberships, events: limited as Event[] };
     },
-    enabled: !!user && initialized,
+    enabled: !!user,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
     // Seed from the localStorage snapshot so first paint after a long absence

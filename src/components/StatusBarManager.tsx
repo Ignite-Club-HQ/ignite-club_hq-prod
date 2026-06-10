@@ -36,6 +36,14 @@ export function StatusBarManager() {
     let cancelIOSRecovery: (() => void) | null = null;
     let lockedIOSSafeAreaTop = 0;
     let lockedIOSStableVh = 0;
+    // Android: monotonic max of innerHeight. Some Android WebView builds /
+    // OEMs shrink window.innerHeight when the soft keyboard opens even though
+    // Capacitor's Keyboard.resize='none' is set. If we let that shrink leak
+    // into --visual-vh, AppLayout's height drops AND useChatViewportHeight
+    // still subtracts the full keyboard height — producing a large blank gap
+    // between the composer and the keyboard mid-session. Locking to the max
+    // ensures useChatViewportHeight remains the single source of truth.
+    let lockedAndroidVisualVh = 0;
 
     const getNativeSafeAreaTopFloor = () => {
       if (!isIOSLike || typeof window === 'undefined') return 0;
@@ -106,7 +114,7 @@ export function StatusBarManager() {
       lockedIOSStableVh = stableHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
-    const setVisualVh = () => {
+    const setVisualVh = (options?: { resetLock?: boolean }) => {
       // On native Android, Capacitor's Keyboard.resize='none' keeps the
       // WebView at full screen size when the keyboard opens. The visualViewport
       // API still reports the smaller visible area, but using that here would
@@ -115,20 +123,33 @@ export function StatusBarManager() {
       // collapses the chat shell and pushes AppHeader / ChatHeaderShell off
       // the top of the screen. Always use innerHeight on native Android so
       // useChatViewportHeight remains the single source of truth.
-      const visualHeight = isNativeAndroid
-        ? (window.innerHeight ?? window.visualViewport?.height ?? 0)
-        : (window.visualViewport?.height ?? window.innerHeight ?? 0);
+      //
+      // Edge case: some Android WebView/OEM builds DO shrink innerHeight when
+      // the IME opens despite resize='none' (Samsung One UI, Xiaomi MIUI,
+      // post-configuration-change, split-screen). Lock --visual-vh to the
+      // monotonic max so a transient shrink can't leak into AppLayout.
+      if (isNativeAndroid) {
+        const innerHeight = window.innerHeight ?? window.visualViewport?.height ?? 0;
+        if (!innerHeight) return;
+        const next = options?.resetLock
+          ? innerHeight
+          : Math.max(lockedAndroidVisualVh, innerHeight);
+        lockedAndroidVisualVh = next;
+        document.documentElement.style.setProperty('--visual-vh', `${next}px`);
+        return;
+      }
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight ?? 0;
       if (!visualHeight) return;
       document.documentElement.style.setProperty('--visual-vh', `${visualHeight}px`);
     };
     setStableVh({ resetLock: true });
-    setVisualVh();
+    setVisualVh({ resetLock: true });
     setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
         setStableVh({ resetLock: true });
-        setVisualVh();
+        setVisualVh({ resetLock: true });
         setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };
