@@ -638,21 +638,18 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
                             <div className="space-y-2">
                               <Label htmlFor={`mini-league-ability-${player.id}`}>Ability rating</Label>
-                              <Select
+                              <select
+                                id={`mini-league-ability-${player.id}`}
                                 value={player.abilityRating}
-                                onValueChange={(value) => updatePlayer(player.id, { abilityRating: value })}
+                                onChange={(e) => updatePlayer(player.id, { abilityRating: e.target.value })}
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                <SelectTrigger id={`mini-league-ability-${player.id}`}>
-                                  <SelectValue placeholder="Ability" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {abilityOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                {abilityOptions.map((option) => (
+                                  <option key={option.value || "none"} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
