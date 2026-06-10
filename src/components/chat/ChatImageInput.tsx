@@ -416,7 +416,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         }
       }
       console.log("[ChatImageInput] upload complete:", storageUrl.substring(0, 80));
-      setLocalPreview(null);
+      // Keep localPreview (data URL) visible — remote private URL may not load.
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
       if (isCancelledSelectionError(error)) {
