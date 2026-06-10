@@ -678,6 +678,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             );
           }
 
+          const isMiniLeagueOnly = !event.team_id && !!event.mini_league_id;
           return (
             <div className="space-y-1.5">
               {/* Match Day eyebrow — only competitive events earn extra vertical space */}
@@ -686,13 +687,20 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                   Match Day
                 </span>
               )}
-              {/* PRIMARY: team identity as title */}
-              <TeamChip
-                teamName={event.teams?.name}
-                fallbackLabel={event.team_id ? "" : "Club event"}
-                size="md"
-                asTitle
-              />
+              {/* PRIMARY: team identity as title — or actual event title for mini-league events with no team */}
+              {isMiniLeagueOnly ? (
+                <h3 className={`text-[15px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+              ) : (
+                <TeamChip
+                  teamName={event.teams?.name}
+                  fallbackLabel={event.team_id ? "" : "Club event"}
+                  size="md"
+                  asTitle
+                />
+              )}
+
               {/* SECONDARY: event context */}
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className={`flex items-center gap-1.5 text-[13px] font-medium`}>
