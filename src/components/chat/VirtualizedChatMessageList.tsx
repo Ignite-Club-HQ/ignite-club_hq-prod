@@ -886,23 +886,15 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
       return;
     }
 
+    // Unified gate (web + Android): wait for scroll idle AND no active
+    // pointer/touch on the scroller. Previously web fast-pathed at 220ms
+    // idle, but the same jolt — held prepend page commits the instant the
+    // user stops scrolling, Virtuoso shifts firstItemIndex + mounts ~30
+    // rows, paddingTop correction reflows — also reproduces on Lovable
+    // preview / desktop wheel scroll. Treating wheel/pointer the same as
+    // touch keeps the commit out of the moment the user is reading the top.
     const android = isAndroidNativeWebView();
     const idleMs = android ? PREPEND_IDLE_MS_ANDROID : PREPEND_IDLE_MS;
-
-    // Web fast-path: if the viewport has been idle long enough, commit now.
-    // On Android we also need finger-off-glass, so always route through the
-    // waiter so we don't commit a prepend mid-touch.
-    if (!android) {
-      const sinceScroll = performance.now() - getLastChatScrollAt();
-      if (sinceScroll >= idleMs) {
-        setCommitted(messagesProp);
-        return;
-      }
-      const cancel = runWhenChatScrollIdle(() => {
-        setCommitted(messagesProp);
-      }, idleMs);
-      return cancel;
-    }
 
     // Android: combined gate — finger lifted AND scroll idle for `idleMs`.
     // Bail out after PREPEND_MAX_HOLD_MS_ANDROID so a parked finger at the
