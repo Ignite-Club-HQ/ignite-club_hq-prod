@@ -500,18 +500,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
-                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent" : "border border-transparent"}`}
-                style={isInteracting ? (() => {
-                  const isDark = document.documentElement.classList.contains('dark');
-                  return {
-                    boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
-                    transform: 'scale(1.015)',
-                    filter: isDark
-                      ? (isOwnMessage ? 'brightness(1.14) saturate(1.04)' : 'brightness(1.14)')
-                      : (isOwnMessage ? 'brightness(1.07)' : 'brightness(1.03)'),
-                    transition: 'transform 150ms ease-out, box-shadow 150ms ease-out, filter 150ms ease-out',
-                  };
-                })() : undefined}
+                } ${tapFlash ? "ring-2 ring-primary/40" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent transition-shadow duration-150 ease-out" : "border border-transparent"}`}
+                style={isInteracting ? {
+                  boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
+                } : undefined}
 
                 onPointerDown={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}

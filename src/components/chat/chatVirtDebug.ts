@@ -43,7 +43,8 @@ type DebugEvent = {
     | "pin"
     | "scrolltop-write"
     | "start-reached"
-    | "duplicate-id";
+    | "duplicate-id"
+    | (string & {});
   data: Record<string, unknown>;
 };
 
@@ -367,6 +368,16 @@ export function debugLogDuplicate(messageId: string, count: number) {
   if (!isChatVirtDebugEnabled()) return;
   push({ t: Date.now(), kind: "duplicate-id", data: { messageId, count } });
   log("warn", "duplicate message id filtered before virtualiser", { messageId, count });
+}
+
+/**
+ * Generic escape hatch for page-level diagnostics (e.g. "who replaced the
+ * rendered message window?"). Cheap when the flag is off.
+ */
+export function debugLogEvent(kind: string, data: Record<string, unknown>) {
+  if (!isChatVirtDebugEnabled()) return;
+  push({ t: Date.now(), kind, data });
+  log("log", kind, data);
 }
 
 // ─── scrollTop ownership conflicts ────────────────────────────────────────

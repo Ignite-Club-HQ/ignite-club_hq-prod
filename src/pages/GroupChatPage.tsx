@@ -6,6 +6,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -99,6 +100,10 @@ import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEa
 
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
+
+// Stable empty array reference so rows with no reactions don't bust
+// GroupChatMessageRow's memo on every parent render.
+const EMPTY_REACTIONS: never[] = [];
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -206,7 +211,11 @@ export default function GroupChatPage() {
   // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
     const k = noteChatMount("GroupChat", null);
-    return () => noteChatUnmount("GroupChat", k, null);
+    debugLogEvent("page-mount", {});
+    return () => {
+      debugLogEvent("page-unmount", {});
+      noteChatUnmount("GroupChat", k, null);
+    };
   }, []);
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
@@ -304,6 +313,18 @@ export default function GroupChatPage() {
     fallbackJumpTs,
   });
   const targetParentId = searchParams.get("parent");
+
+  // Diagnostics: the ChatMessagesScroller key — any change fully remounts the list.
+  const scrollerKey = targetMessageId
+    ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}`
+    : `group:${groupId}`;
+  const scrollerKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (scrollerKeyRef.current !== null && scrollerKeyRef.current !== scrollerKey) {
+      debugLogEvent("scroller-key-change", { from: scrollerKeyRef.current, to: scrollerKey });
+    }
+    scrollerKeyRef.current = scrollerKey;
+  }, [scrollerKey]);
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
@@ -659,7 +680,15 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
-    setLocalMessages(getInitialLocalMessages());
+    setLocalMessages((prev) => {
+      const next = getInitialLocalMessages();
+      debugLogEvent("local-replace", {
+        cause: "reset-effect",
+        prevLen: prev?.length ?? 0,
+        nextLen: next?.length ?? 0,
+      });
+      return next;
+    });
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
   }, [groupId, queryClient]);
@@ -752,6 +781,14 @@ export default function GroupChatPage() {
       const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
         (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
+      if (prev && mergedMessages.length < prev.length - 5) {
+        debugLogEvent("local-replace", {
+          cause: "merge-shrink",
+          prevLen: prev.length,
+          nextLen: mergedMessages.length,
+          incomingLen: messages.length,
+        });
+      }
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
@@ -1074,6 +1111,7 @@ export default function GroupChatPage() {
         } as GroupMessage;
       });
 
+      debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
       setLocalMessages(anchoredWindow);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
       setJumpRenderNonce(targetJumpNonce ?? Date.now());
@@ -1817,14 +1855,35 @@ export default function GroupChatPage() {
     user?.id
   );
 
+  // Stable per-message read-state objects. Group rows only render read receipts
+  // on OWN messages; marking older non-own rows as read during upward scroll
+  // changes readCounts/readFrontier but does not change their visible row. Keep
+  // those message references stable so slow scroll does not repaint every row
+  // the user has just read.
+  const prevReadStateMapRef = useRef<Map<string, any>>(new Map());
   const messagesWithReadState = useMemo(() => {
-    return (filteredMessages || []).map((message) => ({
-      ...message,
-      __readStateSignature: `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
-        .map((reader) => reader.user_id)
-        .join(",")}`,
-    }));
-  }, [filteredMessages, readCounts, readFrontier]);
+    const prevMap = prevReadStateMapRef.current;
+    const nextMap = new Map<string, any>();
+    const out = (filteredMessages || []).map((message) => {
+      const sig = message.author_id === user?.id
+        ? `${readCounts[message.id] || 0}:${(readFrontier[message.id] || [])
+            .map((reader) => reader.user_id)
+            .join(",")}`
+        : "";
+      const prior = prevMap.get(message.id);
+      // Reuse the prior wrapper IFF the underlying message ref AND signature
+      // are unchanged. Either changing means real new content to render.
+      if (prior && prior.__src === message && prior.__readStateSignature === sig) {
+        nextMap.set(message.id, prior);
+        return prior;
+      }
+      const wrapped = { ...message, __readStateSignature: sig, __src: message };
+      nextMap.set(message.id, wrapped);
+      return wrapped;
+    });
+    prevReadStateMapRef.current = nextMap;
+    return out;
+  }, [filteredMessages, readCounts, readFrontier, user?.id]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
@@ -2082,7 +2141,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <ChatMessagesScroller
-            key={targetMessageId ? `group-jump:${groupId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}` : `group:${groupId}`}
+            key={scrollerKey}
             messages={messagesWithReadState}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
@@ -2097,7 +2156,7 @@ export default function GroupChatPage() {
             initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
-              const messageReactions = messageReactionsMap.get(msg.id) || [];
+              const messageReactions = messageReactionsMap.get(msg.id) || EMPTY_REACTIONS;
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;

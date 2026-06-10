@@ -16,6 +16,7 @@ import {
   debugLogAnchor,
   debugLogBottomPin,
   debugLogDuplicate,
+  debugLogEvent,
   debugLogFirstItemIndex,
   debugLogMeasure,
   debugLogStartReached,
@@ -28,7 +29,7 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
-import { getCachedImageAspectRatio } from "@/lib/chatImageAspectCache";
+import { getCachedImageAspectRatio, prefetchChatImageAspectRatio } from "@/lib/chatImageAspectCache";
 import {
   installChatScrollIntentTracking,
   isViewportTouching,
@@ -155,17 +156,58 @@ function getMessageDay(value?: string | null) {
 // Approx characters that fit on one line of a chat bubble at the current
 // viewport. Bubble max-width ≈ 75% of viewport, ~7.2px per char at 14px body
 // font. Memoised lazily so we don't read window on every estimate call.
-let __cachedCharsPerLine = 0;
+let __cachedOwnCharsPerLine = 0;
+let __cachedIncomingCharsPerLine = 0;
 let __cachedViewportWidth = 0;
-function getCharsPerLine() {
+function getCharsPerLine(isOwnMessage: boolean) {
   const w = typeof window !== "undefined" ? window.innerWidth : 411;
   if (w !== __cachedViewportWidth) {
     __cachedViewportWidth = w;
-    // Bubble inner width ≈ (viewport - 32px outer padding) * 0.75 - 24px bubble padding.
-    const bubbleInner = Math.max(140, (w - 32) * 0.75 - 24);
-    __cachedCharsPerLine = Math.max(16, Math.floor(bubbleInner / 7.2));
+    // Match the real mobile row geometry. Incoming grouped chats lose space to
+    // avatar + gap; own messages do not. Use a deliberately conservative
+    // average glyph width so long messages don't land hundreds of px short.
+    const rowWidth = Math.max(260, w - 32);
+    const ownInner = Math.max(140, rowWidth * 0.82 - 24);
+    const incomingInner = Math.max(130, rowWidth * 0.85 - 44 - 24);
+    __cachedOwnCharsPerLine = Math.max(14, Math.floor(ownInner / 7.4));
+    __cachedIncomingCharsPerLine = Math.max(14, Math.floor(incomingInner / 7.4));
   }
-  return __cachedCharsPerLine;
+  return isOwnMessage ? __cachedOwnCharsPerLine : __cachedIncomingCharsPerLine;
+}
+
+function looksLikeYoutubeUrl(text: string) {
+  return /(?:youtube\.com\/(?:watch\?|shorts\/|embed\/)|youtu\.be\/)/i.test(text);
+}
+
+const PLAIN_URL_REGEX = /(?:https?:\/\/|www\.)[^\s\]]+/gi;
+function estimateVisibleText(rawText: string) {
+  return rawText
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
+    .replace(PLAIN_URL_REGEX, (url) => looksLikeYoutubeUrl(url) ? "" : "x".repeat(Math.min(50, url.length)))
+    .trim();
+}
+
+function estimateExternalPreviewHeight(text: string) {
+  const seen = new Set<string>();
+  let youtubeCount = 0;
+  let otherCount = 0;
+  for (const match of text.matchAll(PLAIN_URL_REGEX)) {
+    const url = match[0];
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (looksLikeYoutubeUrl(url)) {
+      if (youtubeCount < 2) youtubeCount += 1;
+    } else if (otherCount < 2) {
+      otherCount += 1;
+    }
+  }
+  const youtubeHeight = youtubeCount * 180 + Math.max(0, youtubeCount - 1) * 8;
+  const linkHeight = otherCount * PREVIEW_HEIGHT_BY_TOKEN.url + Math.max(0, otherCount - 1) * 8;
+  return youtubeHeight + linkHeight;
 }
 
 // Per-token-type reserved heights for inline link/preview cards. Real cards
@@ -209,20 +251,40 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
  * Cheap to compute (called per-row on every estimator invocation): no JSON
  * serialisation of large objects, just primitive concatenation.
  */
-function chatRowSignature(message: unknown): string {
+function chatRowSignature<TMessage extends { id?: string }>(
+  message: TMessage | unknown,
+  index?: number,
+  messages?: TMessage[],
+  currentUserId?: string | null,
+): string {
   const m = (message ?? {}) as {
+    id?: string | null;
+    author_id?: string | null;
     text?: string | null;
     image_url?: string | null;
     imageUrl?: string | null;
     edited_at?: string | null;
     is_edited?: boolean | null;
+    author_name?: string | null;
+    author?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null } | null;
     reply_to?: { id?: string } | null;
     reply_to_id?: string | null;
     reactions?: Array<{ emoji?: string; user_id?: string } | unknown> | null;
     link_preview?: unknown;
     link_previews?: unknown;
     preview?: unknown;
+    __readStateSignature?: string;
   };
+  const prev = typeof index === "number" && messages ? messages[index - 1] : undefined;
+  const next = typeof index === "number" && messages ? messages[index + 1] : undefined;
+  const currentDay = getMessageDay((m as { created_at?: string | null }).created_at);
+  const prevDay = getMessageDay((prev as { created_at?: string | null } | undefined)?.created_at);
+  const hasDateSeparator = !!currentDay && (!prevDay || prevDay !== currentDay);
+  const groupedWithPrev = !!prev && shouldGroupWithPrev(m, prev as any);
+  const groupedWithNext = !!next && shouldGroupWithPrev(next as any, m);
+  const isOwnMessage = !!currentUserId && m.author_id === currentUserId;
+  const authorName = m.author_name ?? m.author?.display_name ?? m.profiles?.display_name ?? "";
   const text = (m.text ?? "");
   const img = m.image_url ?? m.imageUrl ?? "";
   const edited = m.edited_at ?? (m.is_edited ? "1" : "");
@@ -249,7 +311,7 @@ function chatRowSignature(message: unknown): string {
   // Link-preview hydration: just the presence/shape, not the payload.
   const hasPreview =
     (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
-  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+  return `${text.length}:${text.slice(0, 64)}|${img.length}:${aspect}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}|ctx:${hasDateSeparator ? 1 : 0}.${groupedWithPrev ? 1 : 0}.${groupedWithNext ? 1 : 0}.${isOwnMessage ? 1 : 0}.${authorName.length}.${m.__readStateSignature ?? ""}`;
 }
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -262,16 +324,20 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
   // Pass a content signature so an edit / reaction change / preview hydrate
   // that happened while this row was unmounted invalidates the stale value.
-  const cached = getCachedRowHeight(message.id, chatRowSignature(message));
+  const cached = getCachedRowHeight(message.id, chatRowSignature(message, index, messages, currentUserId));
   if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
+    author?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null } | null;
     edited_at?: string | null;
     is_edited?: boolean | null;
   } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
+  const next = messages[index + 1] as (TMessage & EstimableChatMessage) | undefined;
   let height = 16; // row wrapper top padding (pt-4)
   const groupedWithPrev = !!prev && shouldGroupWithPrev(msg, prev);
+  const groupedWithNext = !!next && shouldGroupWithPrev(next, msg);
   // ChatMessage applies `-mt-3` on grouped follow-ups. Mirror that net row
   // height here so Virtuoso doesn't over-reserve then shrink paddingTop.
   if (groupedWithPrev) height -= 12;
@@ -312,17 +378,26 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
   const showAuthorHeader = !isOwnMessage && !groupedWithPrev;
   if (showAuthorHeader) {
-    const authorChars = (msg.author_name ?? "").length;
-    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
-    // name wraps). Telemetry showed the previous 22/44 values produced a
-    // consistent +16px under-reservation on non-grouped rows.
-    height += authorChars > 24 ? 56 : 40;
+    const authorChars = (
+      msg.author_name
+      ?? msg.author?.display_name
+      ?? msg.profiles?.display_name
+      ?? "Loading..."
+    ).length;
+    // Avatar + name + spacing in ChatMessage. Round-4 telemetry: 32/46 was
+    // still ~10px too tall vs the real header.
+    height += authorChars > 24 ? 36 : 24;
   }
 
-  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) =
-  // ~46px. Previous +56 over-reserved by ~10px, which Virtuoso shrunk on
-  // first measurement, lifting rows below.
-  if (hasReply) height += 46;
+  // ReplyIndicator: locked to h-[42px] in ReplyPreview.tsx + mb-1 (4px) +
+  // bubble inner padding + the extra gap above the bubble that the indicator
+  // pushes out. Round-7 telemetry on /messages/:teamId shows text+reply
+  // rows consistently under by +38px with chrome=32 (estimated 224 vs
+  // measured 262 across many rows of the same id). Bumping to 70 closes the
+  // gap — measured≈estimated means Virtuoso doesn't patch paddingTop after
+  // the row mounts, eliminating the post-fling jolt.
+  if (hasReply) height += 70;
+
   // Image bubble: rendered at fixed width 300px with the natural aspect
   // ratio (clamped 3/4..16/9) once decoded. Use the persisted aspect cache
   // (chatImageAspectCache, populated on previous decodes) so the estimator
@@ -336,22 +411,18 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += Math.round(300 / ratio);
   }
 
-  // Strip mention pills and embed tokens before counting visible text length.
-  const visibleText = text
-    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt):[^\]]+\]/gi, "")
-    .trim();
+  const visibleText = estimateVisibleText(text);
 
   if (visibleText) {
-    const charsPerLine = getCharsPerLine();
+    const charsPerLine = getCharsPerLine(isOwnMessage);
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line — telemetry showed 20 was a touch hot on long
-    // messages (caused -44/-52/-76 over-estimates).
-    height += Math.min(12, lineCount) * 19;
+    // ~18px per visual line. Round-3 used 19 which over-estimated long
+    // messages by ~100px (833→719 measured).
+    height += lineCount * 18;
   } else if (!hasImage) {
     height += 32;
   }
@@ -367,25 +438,29 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 96;
     previewCount += 1;
   }
-  // Generic URL previews (only count once per message — we render at most one).
-  if (previewCount < 3 && /https?:\/\/|www\./i.test(text)) {
-    previewHeight += PREVIEW_HEIGHT_BY_TOKEN.url;
-  }
+  previewHeight += estimateExternalPreviewHeight(text);
   height += previewHeight;
+
+  // Bubble vertical padding + timestamp strip. Round-12: reverted Round-11
+  // chrome bump (28/32). Tuning this constant just moves the post-mount
+  // correction's sign — flicker is unchanged because Virtuoso still patches
+  // paddingTop whenever measured ≠ estimated. The real fix is upstream:
+  // either eliminate the post-mount correction window OR stop prepending
+  // rows during active scroll. Constant is back at 4/8 baseline.
+  if (visibleText || hasReply || previewHeight > 0) height += groupedWithNext ? 4 : 8;
+
+  else if (hasImage) height += groupedWithNext ? 18 : 34;
+
 
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding. Round-2 telemetry showed the
-  // +30 chrome bump was wrong direction — every plain text bubble came in
-  // systematically OVER by ~30 (105→74, 124→94, 143→114, 162→134, 181→154,
-  // 199→170). Revert to 0; per-line height already covers the timestamp row
-  // bottom padding.
-  // (no chrome added here)
   if (msg.edited_at || msg.is_edited) height += 4;
 
-  // Allow taller rows now that long messages and stacked previews are real.
-  return Math.max(56, Math.min(960, height));
+
+  // Allow tall rows — long messages of 30+ wrapped lines genuinely measure
+  // 900-1100px, and capping at 960 reintroduced late paddingTop corrections.
+  return Math.max(56, Math.min(1400, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -399,19 +474,39 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       style={{
         ...style,
         overscrollBehaviorY: "contain",
-        // Promote the scroller to its own compositor layer so momentum
-        // scrolling on iOS/Android WebViews doesn't repaint sibling DOM each
-        // frame. Without this, fast upward flicks repaint the chat header
-        // and composer alongside the scroller, which reads as jitter.
-        transform: "translateZ(0)",
-        willChange: "scroll-position",
         // iOS WebKit momentum scrolling. Harmless on Android/Chromium.
+        // Do not add transform/will-change here: promoted overflow scrollers
+        // with virtualized children flicker in Android WebView during upward
+        // momentum when rows mount and Virtuoso updates paddingTop.
         WebkitOverflowScrolling: "touch",
       } as React.CSSProperties}
     />
   ),
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
+
+// `skipAnimationFrameInResizeObserver` (set on <Virtuoso/> below) makes item
+// measurement synchronous inside the ResizeObserver callback. The browser
+// then legitimately reports the benign "ResizeObserver loop completed with
+// undelivered notifications" error (per react-virtuoso docs / issue #1049).
+// Swallow ONLY that specific message so it doesn't pollute error overlays
+// or monitoring. Installed once at module load.
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "error",
+    (event) => {
+      const msg = typeof event.message === "string" ? event.message : "";
+      if (msg.includes("ResizeObserver loop")) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    // Capture so we run before dev overlays / error reporters.
+    true,
+  );
+}
+
+
 
 // Custom Item wrapper that applies CSS containment to each virtualised row.
 // This is the single biggest win for fast upward scrolls on native: when a
@@ -562,6 +657,13 @@ function CachedMeasureRow({
       raf = requestAnimationFrame(writeWhenIdle);
       t1 = setTimeout(writeWhenIdle, 120);
       t2 = setTimeout(writeWhenIdle, 360);
+      // Android WebView: skip the short-lived ResizeObserver. On slow upward
+      // scroll with realtime read receipts firing, dozens of 600ms ROs stack
+      // up and land deferred itemSize writes the moment the user pauses,
+      // producing visible paddingTop jolts that read as flicker. The rAF +
+      // 120ms + 360ms timeouts above (all scroll-idle gated) are sufficient
+      // to capture late content like link previews / reaction chips.
+      if (isAndroidNativeWebView()) return;
       if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(() => {
           // RO can fire during a scroll-driven re-layout. Gate again.
@@ -615,6 +717,7 @@ function CachedMeasureRow({
  */
 type ChatRowAdapterProps = {
   message: { id: string };
+  signature: string;
   renderItemRef: React.MutableRefObject<
     (message: any, index: number, arr: any[]) => React.ReactNode
   >;
@@ -626,6 +729,7 @@ type ChatRowAdapterProps = {
 const ChatRowAdapter = memo(
   function ChatRowAdapter({
     message,
+    signature,
     renderItemRef,
     uniqueMessagesRef,
     indexByIdRef,
@@ -633,12 +737,13 @@ const ChatRowAdapter = memo(
   }: ChatRowAdapterProps) {
     const idx = indexByIdRef.current.get(message.id);
     if (idx === undefined) return null;
-    const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-    const signature = chatRowSignature(message);
+    const rows = uniqueMessagesRef.current;
+    const currentUserId = currentUserIdRef.current;
+    const child = renderItemRef.current(message, idx, rows);
     const debug = isChatVirtDebugEnabled();
     const estimated =
       debug && idx >= 0
-        ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        ? estimateChatRowHeight(message as any, idx, rows, currentUserId)
         : undefined;
     const measured = (
       <CachedMeasureRow messageId={message.id} signature={signature}>{child}</CachedMeasureRow>
@@ -651,10 +756,14 @@ const ChatRowAdapter = memo(
       </DebugRowProbe>
     );
   },
-  // Skip re-render unless THIS row's message reference changed. The ref props
-  // are stable for the lifetime of the parent component, so they're never the
-  // cause of a re-render.
-  (prev, next) => prev.message === next.message,
+  // Skip re-render unless THIS row's layout-affecting signature changed.
+  // Using signature equality (not message reference) means upstream churn —
+  // read-receipt merges, profile-cache refreshes, prepend-page object
+  // re-spreading — no longer re-renders every visible row. Only edits,
+  // reactions, link-preview hydration, neighbour-grouping changes etc.
+  // (anything chatRowSignature captures) trigger a real re-render.
+  // Ref props are stable for the lifetime of the parent component.
+  (prev, next) => prev.signature === next.signature && prev.message.id === next.message.id,
 );
 
 /**
@@ -694,9 +803,84 @@ function JumpHydrationSkeleton() {
   );
 }
 
+/**
+ * Defers prepended history pages until the user's scroll gesture has gone
+ * idle.
+ *
+ * Virtuoso applies a `paddingTop` correction whenever a freshly prepended
+ * row's measured height differs from its estimate. When that correction
+ * fires DURING an active flick it fights the browser's momentum scrolling
+ * and shows up as flicker / re-anchoring. (Off-screen pre-measure was
+ * attempted and reverted: heights measured outside the live Virtuoso item
+ * container were systematically wrong, poisoning the row-height cache and
+ * causing post-stop jolts.)
+ *
+ * Instead: when a prepend page arrives while the user is still actively
+ * scrolling, hold it. Commit the merge only once the chat viewport has been
+ * idle for `PREPEND_IDLE_MS`. Stationary commits let Virtuoso adjust
+ * scrollTop + paddingTop atomically with no momentum to fight, so the
+ * visible rows stay put.
+ *
+ * Appends / edits / interleaves always commit immediately — realtime and
+ * send paths are never delayed.
+ */
+const PREPEND_IDLE_MS = 220;
+
+function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
+  messagesProp: TMessage[],
+): TMessage[] {
+  const [committed, setCommitted] = useState<TMessage[]>(messagesProp);
+  const committedRef = useRef(committed);
+  committedRef.current = committed;
+
+  useEffect(() => {
+    if (messagesProp === committedRef.current) return;
+
+    const current = committedRef.current;
+    const committedIds = new Set<string>();
+    for (const m of current) committedIds.add(m.id);
+
+    const newRows: TMessage[] = [];
+    for (const m of messagesProp) if (!committedIds.has(m.id)) newRows.push(m);
+    if (newRows.length === 0 || current.length === 0) {
+      // Mutation-only swap (edit / reaction / delete) or first population —
+      // commit immediately.
+      setCommitted(messagesProp);
+      return;
+    }
+
+    // Pure prepend = every new id sits at the start of the incoming array.
+    let isPurePrepend = messagesProp.length >= newRows.length;
+    for (let i = 0; i < newRows.length && isPurePrepend; i++) {
+      if (messagesProp[i]?.id !== newRows[i].id) isPurePrepend = false;
+    }
+    if (!isPurePrepend) {
+      // Append or interleave (realtime sends) — never delay these.
+      setCommitted(messagesProp);
+      return;
+    }
+
+    const sinceScroll = performance.now() - getLastChatScrollAt();
+    if (sinceScroll >= PREPEND_IDLE_MS) {
+      setCommitted(messagesProp);
+      return;
+    }
+
+    // Actively scrolling: hold the page until the viewport goes idle. The
+    // cleanup cancels the wait if a newer prop arrives first (that newer
+    // prop re-runs this effect and supersedes the held page).
+    const cancel = runWhenChatScrollIdle(() => {
+      setCommitted(messagesProp);
+    }, PREPEND_IDLE_MS);
+    return cancel;
+  }, [messagesProp]);
+
+  return committed;
+}
+
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
-    messages,
+    messages: messagesProp,
     hasOlder,
     isLoadingOlder,
     onLoadOlder,
@@ -715,6 +899,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Prepended history pages are held until the scroll gesture goes idle so
+  // Virtuoso's paddingTop correction never fires mid-flick. `messages` below
+  // is the committed array — the rest of the body operates on it unchanged.
+  const messages = useDeferPrependsWhileScrolling(messagesProp);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
@@ -808,8 +996,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       loadingOlderInFlightRef.current = false;
       lastPrependLandedAtRef.current = performance.now();
     }
+    // Diagnostic: a wholesale window collapse (e.g. 270 → 100 rows) means a
+    // parent replaced the rendered array — the precursor to the post-scroll
+    // "teleport to bottom" jolt seen in field telemetry.
+    if (messages.length < messagesLengthRef.current - 5) {
+      debugLogEvent("window-shrink", {
+        prevLen: messagesLengthRef.current,
+        nextLen: messages.length,
+      });
+    }
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
+
+  // Diagnostic: full remounts re-run the initial bottom pin at revision 0 and
+  // teleport a history-reading user back to LAST. Log mount/unmount so a
+  // field dump can distinguish remount from in-place anchor reset.
+  useEffect(() => {
+    debugLogEvent("list-mount", { messagesLen: messagesLengthRef.current });
+    return () => {
+      debugLogEvent("list-unmount", { messagesLen: messagesLengthRef.current });
+    };
+  }, []);
 
   // Also release the guard whenever the parent's `isLoadingOlder` flag
   // transitions back to `false`. The length-grew effect above ONLY fires on
@@ -1617,18 +1824,37 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     currentUserIdRef.current = currentUserId;
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
+  // Pre-decode aspect ratios for any image messages in the current window
+  // BEFORE Virtuoso mounts those rows. Populates chatImageAspectCache so
+  // estimateChatRowHeight reserves the correct box on first paint instead
+  // of the 4:3 fallback — eliminates the post-decode row-grow/shrink jolt
+  // that telemetry shows as ±50-200px image-row deltas after scroll-up.
+  useEffect(() => {
+    for (const m of uniqueMessages) {
+      const url = (m as any).image_url ?? (m as any).imageUrl ?? null;
+      if (url) prefetchChatImageAspectRatio(url);
+    }
+  }, [uniqueMessages]);
+
+
   const itemContent = useCallback(
-    (_absoluteIndex: number, message: TMessage) => (
-      <ChatRowAdapter
-        message={message}
-        renderItemRef={renderItemRef as React.MutableRefObject<
-          (m: any, i: number, a: any[]) => React.ReactNode
-        >}
-        uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
-        indexByIdRef={indexByIdRef}
-        currentUserIdRef={currentUserIdRef}
-      />
-    ),
+    (_absoluteIndex: number, message: TMessage) => {
+      const idx = indexByIdRef.current.get(message.id) ?? -1;
+      const rows = uniqueMessagesRef.current;
+      const signature = chatRowSignature(message, idx, rows, currentUserIdRef.current);
+      return (
+        <ChatRowAdapter
+          message={message}
+          signature={signature}
+          renderItemRef={renderItemRef as React.MutableRefObject<
+            (m: any, i: number, a: any[]) => React.ReactNode
+          >}
+          uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
+          indexByIdRef={indexByIdRef}
+          currentUserIdRef={currentUserIdRef}
+        />
+      );
+    },
     [],
   );
 
@@ -1772,6 +1998,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
+      // ROOT-CAUSE FIX for scroll-up flicker/movement: by default Virtuoso
+      // wraps its item ResizeObserver callback in requestAnimationFrame, so a
+      // row mounted during upward scroll reports its real height ONE FRAME
+      // LATE. For that frame the list is positioned with the wrong (default
+      // 160px) height, then snaps — visible as per-row flicker on slow scroll
+      // and compounding viewport movement on fast flings (react-virtuoso
+      // issue #1049). Skipping the rAF makes measurement synchronous within
+      // the same layout pass, eliminating the one-frame misposition window.
+      // Note: estimator tuning could never fix this — estimateChatRowHeight
+      // only feeds debug telemetry; Virtuoso itself only knows
+      // defaultItemHeight until the RO reports.
+      skipAnimationFrameInResizeObserver
       // Tuned to the real median chat row height: most rows fall in the
       // 90–180px band (text bubble + author + timestamp ≈ 90, image rows
       // with the reserved 4/3 frame ≈ 300). 160 is the population median
@@ -1779,24 +2017,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // applies to unmeasured rows during a fast upward fling.
       defaultItemHeight={160}
       scrollSeekConfiguration={false}
-      // Asymmetric overscan: jank on this app is overwhelmingly on UPWARD
-      // scrolls into older history (rows that have never mounted, with
-      // variable heights). Reserve a moderate top viewport so a hard fling
-      // (~2000px in <300ms on a phone) lands inside already-measured
-      // territory; keep bottom modest because incoming-message growth is
-      // already handled by `followOutput`.
-      //
-      // Previously top:1600 / minOverscanItemCount.top:12 — too generous:
-      // after a fast upward flick STOPS, the dozen+ overscan rows above the
-      // viewport were still hydrating their async children (images, link
-      // previews, reactions). Each late growth above the viewport forced
-      // Virtuoso to re-correct paddingTop, which the user perceived as the
-      // chat "moving around after it has stopped". Tightening upward
-      // overscan to ~one screen of history (≈600px / 6 rows) keeps the
-      // post-stop quiescence visually flat while still pre-mounting enough
-      // history for the NEXT flick to land in measured territory.
-      increaseViewportBy={{ top: 400, bottom: 240 }}
-      minOverscanItemCount={{ top: 6, bottom: 2 }}
+      // ROOT-CAUSE FIX (round 13): estimateChatRowHeight / chatRowHeightCache
+      // never feed Virtuoso — the library only knows defaultItemHeight (160)
+      // for unmounted rows and corrects on first mount. On Android touch
+      // scrolling that correction is a scrollTop write mid-fling = the
+      // visible flicker (slow scroll) and post-stop jolt (fast fling). No
+      // estimator tuning can remove it. The only way to eliminate it is to
+      // guarantee rows are mounted + measured BEFORE they can reach the
+      // viewport: keep the top overscan larger than one full message page
+      // (30 rows ≈ 4800px at the 160px default), so the entire loaded window
+      // mounts at reveal and each prepended page mounts in ONE batch at the
+      // scroll-idle commit. After that batch, scrolling through those rows
+      // performs zero corrections. Hydration no longer trickles in mid-fling
+      // because nothing mounts mid-fling.
+      increaseViewportBy={{ top: 6000, bottom: 600 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}

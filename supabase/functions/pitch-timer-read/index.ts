@@ -34,22 +34,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "unauthenticated" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const emptyOk = () => new Response(
+      JSON.stringify({ found: false, server_now: new Date().toISOString() }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+    if (!authHeader) return emptyOk();
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "unauthenticated" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!user) return emptyOk();
 
     const url = new URL(req.url);
     const teamId = url.searchParams.get("team_id");

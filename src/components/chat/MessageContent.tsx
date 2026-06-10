@@ -276,7 +276,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, []);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const reservePreviewSpace = previewsOnly;
+  // Always reserve the final card height for in-chat link previews. The
+  // non-`previewsOnly` (inline) path previously passed false, so a resolved
+  // preview INSERTED an 80px card into an already-mounted row — a real DOM
+  // height change that forced a Virtuoso correction and read as flicker on
+  // slow scroll-up. Composer previews are unaffected (they use LinkPreview
+  // directly, not via MessageContent).
+  const reservePreviewSpace = true;
 
   const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -417,7 +423,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 >
                   <video
                     src={effectiveImageUrl}
-                    className={`w-full h-full object-cover transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className="w-full h-full object-cover"
                     preload="metadata"
                     playsInline
                     muted
@@ -440,8 +446,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   decoding="async"
                   loading="eager"
                   draggable={false}
-                  style={{ touchAction: 'pan-y', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ touchAction: 'pan-y' }}
+                  className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
