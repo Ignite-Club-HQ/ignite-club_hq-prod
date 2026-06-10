@@ -129,12 +129,12 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onOpenAutoFocus={(event) => event.preventDefault()}
-        className="!left-0 !right-0 !top-auto !bottom-0 !w-full !max-w-none !translate-x-0 !translate-y-0 !rounded-t-[10px] !rounded-b-none !border-x-0 !border-b-0 !p-0 !gap-0 !max-h-[85vh] !overflow-hidden !flex !flex-col"
+        className="!left-0 !right-0 !top-auto !bottom-0 !w-full !max-w-none !translate-x-0 !translate-y-0 !rounded-t-[10px] !rounded-b-none !border-x-0 !border-b-0 !p-0 !gap-0 !h-[85vh] !max-h-[85vh] !overflow-hidden !flex !flex-col"
       >
-        <div className="mx-auto mt-4 mb-2 h-2 w-[100px] rounded-full bg-muted" />
+        <div className="mx-auto mt-2 h-1.5 w-[60px] rounded-full bg-muted shrink-0" />
 
-        <DialogHeader className="px-4 pb-2">
-          <DialogTitle>Share Event</DialogTitle>
+        <DialogHeader className="px-4 pt-2 pb-3 space-y-0 shrink-0">
+          <DialogTitle className="text-center">Share Event</DialogTitle>
         </DialogHeader>
 
         <div className="px-4 pb-2">
