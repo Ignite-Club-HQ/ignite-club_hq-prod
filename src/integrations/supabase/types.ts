@@ -9393,6 +9393,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_mini_league_invite: {
+        Args: { _token: string }
+        Returns: {
+          child_id: string
+          club_id: string
+          mini_league_id: string
+        }[]
+      }
       claim_shell_team: {
         Args: { p_token: string }
         Returns: {
