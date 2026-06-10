@@ -3284,7 +3284,7 @@ export default function EventDetailPage() {
                 />
               );
             })}
-            {!isMiniLeagueEvent && notResponded.map((member: any) => {
+            {notResponded.map((member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
