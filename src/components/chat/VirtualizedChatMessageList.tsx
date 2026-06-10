@@ -1654,6 +1654,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (!atBottomRef.current && distanceFromBottom > 4) return;
       // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
       // (which is true for up to 120px from bottom via atBottomThreshold).
       // If the user stopped within that zone after a fast fling, writing
@@ -1759,6 +1760,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!viewport) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
+      if (!atBottomRef.current) return;
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
