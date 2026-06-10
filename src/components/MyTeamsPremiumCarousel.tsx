@@ -468,7 +468,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return a.name.localeCompare(b.name);
       });
     },
-    enabled: !!user && initialized,
+    enabled: !!user,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
