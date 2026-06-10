@@ -992,7 +992,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // older-page fetch after the user's thumb/inertia has actually settled.
   const lastObservedScrollTopRef = useRef<number | null>(null);
   const lastUserUpwardScrollAtRef = useRef(0);
-  const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
+  // Tightened from 220 → 100ms: the trailing 120ms of the window was firing
+  // `startReached` right as a fast fling decelerated, landing a prepend
+  // page just after the user stopped — visible as "rows keep moving after I
+  // stop". 100ms still covers a genuine continuous upward gesture (Virtuoso
+  // re-fires startReached on every page boundary at ~60fps); it only drops
+  // the tail-end fire that has no live finger or live momentum behind it.
+  // The edge-pin fallback below still requires an active touch.
+  const PREPEND_USER_SCROLL_ACTIVE_MS = 100;
   const hasRecentUserUpwardScroll = useCallback(() => {
     if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
       return true;
