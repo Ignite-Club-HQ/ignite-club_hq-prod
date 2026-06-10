@@ -49,6 +49,7 @@ interface AddMiniLeagueMemberSheetProps {
 }
 
 const abilityOptions = [
+  { value: "", label: "Not specified" },
   { value: "1", label: "1 - Beginner" },
   { value: "2", label: "2 - Developing" },
   { value: "3", label: "3 - Intermediate" },
