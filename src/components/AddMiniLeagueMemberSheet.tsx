@@ -465,7 +465,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
     ? parentResults
     : [];
-  const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
+  // Use ONLY visualViewport inset for layout. On Android the WebView resizes
+  // (so visualKeyboardInset ≈ 0 and 100dvh already excludes the keyboard); on
+  // iOS visualViewport correctly reports the keyboard overlap. Mixing in the
+  // Capacitor nativeKeyboardHeight here caused double-compensation — the sheet
+  // both shrunk and shifted up by ~300px, producing the focus flash/jump.
+  const keyboardInset = visualKeyboardInset;
   const sheetStyle = {
     "--mini-league-keyboard-inset": `${keyboardInset}px`,
     bottom: `${keyboardInset}px`,
