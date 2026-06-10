@@ -1761,8 +1761,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!viewport) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      if (!atBottomRef.current) return;
-      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      // Pure pixel-distance gate (atBottomRef has a 120px threshold and is
+      // unreliable mid-fling — see RO guard above).
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      if (distanceFromBottom > 4) return;
+      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
       if (isRecentChatScrollWrite(80)) return;
       // Silent scrollTop write rather than `scrollToIndex` — the latter
       // triggers a visible Virtuoso recompute/jump every time it fires,
