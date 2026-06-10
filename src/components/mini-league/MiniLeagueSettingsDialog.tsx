@@ -84,6 +84,9 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [mockPlayerCount, setMockPlayerCount] = useState(20);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
   const MOCK_FIRST_NAMES = [
     "Oliver", "Jack", "Sophie", "Charlie", "Emily", "Noah", "Amelia", "George", "Isla", "Harry",
