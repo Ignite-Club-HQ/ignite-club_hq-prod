@@ -7,6 +7,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
 import { VaultFileCard } from "./VaultFileCard";
 import { Capacitor } from "@capacitor/core";
+import { X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface MentionInputProps {
@@ -777,16 +778,17 @@ export function MentionInput({
       {eventIds.length > 0 && (
         <div className="w-full min-w-0 max-w-full space-y-2">
           {eventIds.map((eventId) => (
-            <div key={eventId} className="flex items-start gap-2 min-w-0 max-w-full">
+            <div key={eventId} className="flex items-center gap-2 min-w-0 max-w-full">
               <div className="min-w-0 flex-1">
                 <EventLinkCard eventId={eventId} />
               </div>
               <button
                 type="button"
                 onClick={() => removeEventToken(eventId)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Remove event"
+                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                Remove
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}
@@ -796,44 +798,47 @@ export function MentionInput({
       {(vaultRoots.length > 0 || vaultFolderIds.length > 0 || vaultFileIds.length > 0) && (
         <div className="w-full min-w-0 max-w-full space-y-2">
           {vaultRoots.map((r) => (
-            <div key={`vr-${r.scope}-${r.id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+            <div key={`vr-${r.scope}-${r.id}`} className="flex items-center gap-2 min-w-0 max-w-full">
               <div className="min-w-0 flex-1">
                 <VaultFileCard rootScope={r.scope} rootId={r.id} />
               </div>
               <button
                 type="button"
                 onClick={() => removeVaultRootToken(r.scope, r.id)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Remove attachment"
+                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                Remove
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}
           {vaultFolderIds.map((id) => (
-            <div key={`vf-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+            <div key={`vf-${id}`} className="flex items-center gap-2 min-w-0 max-w-full">
               <div className="min-w-0 flex-1">
                 <VaultFileCard folderId={id} />
               </div>
               <button
                 type="button"
                 onClick={() => removeVaultFolderToken(id)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Remove folder"
+                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                Remove
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}
           {vaultFileIds.map((id) => (
-            <div key={`vfile-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+            <div key={`vfile-${id}`} className="flex items-center gap-2 min-w-0 max-w-full">
               <div className="min-w-0 flex-1">
                 <VaultFileCard fileId={id} />
               </div>
               <button
                 type="button"
                 onClick={() => removeVaultFileToken(id)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Remove file"
+                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
-                Remove
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}
