@@ -211,9 +211,9 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   });
 }
 
-function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id">, userId: string | undefined) {
+function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"> & { mini_league_id?: string | null }, userId: string | undefined) {
   return useQuery({
-    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, userId],
+    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, (event as any).mini_league_id, userId],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
         event.team_id
@@ -252,12 +252,29 @@ function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"
       }
 
       const seen = new Set<string>();
-
-      return [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
+      let merged = [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
         if (seen.has(child.id)) return false;
         seen.add(child.id);
         return true;
       }) as Array<{ id: string; name: string }>;
+
+      // Mini-league event with no team scope: only show children actually rostered to that league.
+      if (!event.team_id && (event as any).mini_league_id && merged.length > 0) {
+        const ids = merged.map((c) => c.id);
+        const { data: players } = await supabase
+          .from("mini_league_players")
+          .select("child_id")
+          .eq("mini_league_id", (event as any).mini_league_id)
+          .in("child_id", ids);
+        const allowed = new Set((players || []).map((p: any) => p.child_id).filter(Boolean));
+        merged = merged.filter((c) => allowed.has(c.id));
+      } else if (!event.team_id && !(event as any).mini_league_id) {
+        // Pure club-wide event — can't verify a roster, don't show child rows.
+        merged = [];
+      }
+
+      return merged;
+
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
