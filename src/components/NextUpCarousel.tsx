@@ -680,7 +680,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 min-h-[340px] h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -701,7 +701,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
           aria-hidden="true"
         />
       )}
-      <CardContent className="p-3.5 pl-4 pr-9 space-y-2">
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 h-full flex flex-col">
         {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
         {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
@@ -1592,22 +1592,23 @@ export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarou
         <div className="relative min-h-[340px]">
           {/* Carousel */}
           <div ref={emblaRef} className="overflow-hidden">
-            <div className="flex items-start">
+            <div className="flex items-stretch">
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 self-start"
+                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 flex"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
                     transformOrigin: "center center",
                   }}
                 >
-                  <div className="min-h-[340px]">
+                  <div className="min-h-[340px] h-full w-full flex">
                     <HeroCard event={event} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} onReadyChange={handleHeroReadyChange} />
                   </div>
                 </div>
               ))}
+
             </div>
 
             {/* Right edge fade gradient */}
@@ -1633,7 +1634,7 @@ export function NextUpCarousel({ events, isLoading, onReadyChange }: NextUpCarou
           </div>
         </div>
       ) : (
-        <div className="min-h-[340px]">
+        <div className="min-h-[340px] flex">
           <HeroCard event={allEvents[0]} fullWidth onNeedsRsvpChange={handleNeedsRsvpChange} onReadyChange={handleHeroReadyChange} />
         </div>
       )}

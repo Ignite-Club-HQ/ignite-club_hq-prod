@@ -416,7 +416,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         }
       }
       console.log("[ChatImageInput] upload complete:", storageUrl.substring(0, 80));
-      setLocalPreview(null);
+      // Keep localPreview (data URL) visible — remote private URL may not load.
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
       if (isCancelledSelectionError(error)) {
@@ -426,11 +426,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         console.error("[ChatImageInput] Image upload failed:", errMsg, error);
         toast.error(errMsg || "Failed to upload image");
       }
-      setLocalPreview(null);
-    } finally {
       if (stablePreviewUrl && stablePreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
+      setLocalPreview(null);
+    } finally {
       restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
@@ -471,19 +471,34 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       });
     }
 
-    const localUrl = URL.createObjectURL(file);
+    // Prefer a data URL for the preview — blob: URLs are unreliable in iOS
+    // WKWebView and Android WebView. Fall back to blob: for videos / read
+    // failures.
+    let localUrl: string;
+    try {
+      if (isVideo) throw new Error("skip-data-url-for-video");
+      localUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error || new Error("Preview read failed"));
+        reader.readAsDataURL(file);
+      });
+    } catch {
+      localUrl = URL.createObjectURL(file);
+    }
     setLocalPreview(localUrl);
     setUploading(true);
 
     try {
       const storageUrl = await uploadBlob(file, { isVideo });
-      URL.revokeObjectURL(localUrl);
-      setLocalPreview(null);
+      // Keep localPreview as-is: the remote (private) storage URL can't always
+      // be rendered directly by <img> and would flip to the placeholder. The
+      // preview is cleared when imageUrl resets (after send) or via remove.
       onImageUploaded(storageUrl);
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(isVideo ? "Failed to upload video" : "Failed to upload image");
-      URL.revokeObjectURL(localUrl);
+      if (localUrl.startsWith("blob:")) URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
     } finally {
       setUploading(false);
@@ -531,6 +546,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
 
+  // When the parent clears imageUrl (e.g. after a successful send), drop the
+  // locally-held preview too so the composer returns to its empty state.
+  const prevImageUrlRef = useRef(imageUrl);
+  useEffect(() => {
+    if (prevImageUrlRef.current && !imageUrl && localPreview) {
+      if (localPreview.startsWith("blob:")) URL.revokeObjectURL(localPreview);
+      setLocalPreview(null);
+    }
+    prevImageUrlRef.current = imageUrl;
+  }, [imageUrl, localPreview]);
+
   useEffect(() => {
     return () => {
       recoveryCleanupRef.current?.();
@@ -554,7 +580,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // If there's an image attached, always show the preview regardless of hasText
   if (displayUrl) {
     return (
-      <div className="flex shrink-0 items-center gap-1 self-end pl-0.5">
+      <div className="flex shrink-0 items-center gap-1 self-center pl-0.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -565,31 +591,32 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         />
         <div className="relative inline-block">
           {previewFailed ? (
-            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
-              <ImagePlus className="h-4 w-4 text-muted-foreground" />
+            <div className="h-11 w-11 rounded-md bg-muted flex items-center justify-center">
+              <ImagePlus className="h-5 w-5 text-muted-foreground" />
             </div>
           ) : isVideoUrl(displayUrl) ? (
-            <div className="relative h-8 w-8 rounded overflow-hidden bg-black">
+            <div className="relative h-11 w-11 rounded-md overflow-hidden bg-black">
               <video
                 src={displayUrl}
-                className="h-8 w-8 object-cover"
+                className="h-11 w-11 object-cover"
                 muted
                 playsInline
                 preload="metadata"
                 onError={() => setPreviewFailed(true)}
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-                <Play className="h-3 w-3 fill-white text-white" />
+                <Play className="h-4 w-4 fill-white text-white" />
               </div>
             </div>
           ) : (
             <img
               src={displayUrl}
               alt="Attachment preview"
-              className="h-8 w-8 object-cover rounded"
+              className="h-11 w-11 object-cover rounded-md"
               onError={() => setPreviewFailed(true)}
             />
           )}
+
           {uploading && (
             <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
@@ -597,12 +624,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           )}
           <button
             type="button"
-            className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+            className="absolute -top-2 -left-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm touch-manipulation"
             onClick={handleRemoveImage}
             disabled={disabled}
             aria-label="Remove attachment"
           >
-            <X className="h-2 w-2" strokeWidth={3} />
+            <X className="h-3 w-3" strokeWidth={3} />
           </button>
         </div>
       </div>

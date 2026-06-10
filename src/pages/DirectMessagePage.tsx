@@ -161,7 +161,21 @@ const mergeDirectMessages = (
 ): DirectMessage[] => {
   if (!previousMessages?.length) return incomingMessages;
 
-  return incomingMessages.map((message) => {
+  const incomingIds = new Set(incomingMessages.map((message) => message.id));
+  const realByAuthorText = new Set(
+    incomingMessages
+      .filter((message) => !message.id.startsWith("temp-") && !message.id.startsWith("queued-"))
+      .map((message) => `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`),
+  );
+  const previousOnly = previousMessages.filter((message) => {
+    if (incomingIds.has(message.id)) return false;
+    if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
+      const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
+      if (realByAuthorText.has(key)) return false;
+    }
+    return true;
+  });
+  const mergedIncoming = incomingMessages.map((message) => {
     const previousMessage = previousMessages.find((item) => item.id === message.id);
     if (!previousMessage) return message;
 
@@ -184,6 +198,10 @@ const mergeDirectMessages = (
       reactions: [...incomingReactions, ...missingFromIncoming],
     };
   });
+
+  return [...previousOnly, ...mergedIncoming].sort((a, b) =>
+    (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+  );
 };
 
 export default function DirectMessagePage() {
@@ -676,13 +694,19 @@ export default function DirectMessagePage() {
       if (messages.length === 0 && messagesLoading) return prev;
 
       const prevLen = prev?.length ?? 0;
+      const previousLastId = prev?.[prevLen - 1]?.id ?? null;
       const mergedMessages = mergeDirectMessages(messages, prev);
+      const nextLastId = mergedMessages[mergedMessages.length - 1]?.id ?? null;
 
       cacheDirectMessages(conversationId, mergedMessages);
 
-      // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
-      if (mergedMessages.length > prevLen) {
-        requestAnimationFrame(() => virtualHandleRef.current?.scrollToBottom("auto"));
+      // Only tail appends should preserve bottom. Older-message prepends also
+      // increase length, but must never yank a user reading history back down.
+      if (mergedMessages.length > prevLen && nextLastId !== previousLastId) {
+        requestAnimationFrame(() => {
+          const handle = virtualHandleRef.current;
+          if (handle?.isNearBottom(240)) handle.scrollToBottom("auto");
+        });
       }
 
       return mergedMessages;
