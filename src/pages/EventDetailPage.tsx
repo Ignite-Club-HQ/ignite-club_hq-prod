@@ -3353,7 +3353,7 @@ export default function EventDetailPage() {
         return (
           <div className="space-y-3">
             {/* "Show all" filter retained for training/game events */}
-            {!isSocialEvent && !isMiniLeagueEvent && (
+            {!isSocialEvent && (
               <div className="flex items-center justify-end gap-2">
                 <Checkbox
                   id="showAllRoles"
