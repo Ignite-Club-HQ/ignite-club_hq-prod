@@ -7,6 +7,7 @@ import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
+import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 
 
 /**
@@ -232,6 +233,43 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       setInitialViewportReleased(true);
     }
   }, [initialMountReady, messages.length]);
+
+  // Diagnostics: scroller component lifecycle
+  useEffect(() => {
+    debugLogEvent("scroller-mount", { messagesLen: messages.length });
+    return () => debugLogEvent("scroller-unmount", { messagesLen: messages.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Diagnostics: track when the inner gate (messages.length===0 || virtualReady) flips
+  const prevGateRef = useRef<boolean | null>(null);
+  const innerGate = messages.length === 0 || virtualReady;
+  useEffect(() => {
+    if (prevGateRef.current !== null && prevGateRef.current !== innerGate) {
+      debugLogEvent("inner-gate-flip", {
+        from: prevGateRef.current,
+        to: innerGate,
+        messagesLen: messages.length,
+        virtualReady,
+        initialMountReady,
+        initialViewportReleased,
+        viewportSettled,
+        mountBoxSettled,
+        initialComposerSettled,
+      });
+    }
+    prevGateRef.current = innerGate;
+  }, [innerGate, messages.length, virtualReady, initialMountReady, initialViewportReleased, viewportSettled, mountBoxSettled, initialComposerSettled]);
+
+  // Diagnostics: track significant messages.length drops at the scroller level
+  const prevMessagesLenRef = useRef(messages.length);
+  useEffect(() => {
+    const prev = prevMessagesLenRef.current;
+    if (messages.length < prev - 5) {
+      debugLogEvent("scroller-messages-shrink", { prev, next: messages.length });
+    }
+    prevMessagesLenRef.current = messages.length;
+  }, [messages.length]);
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
