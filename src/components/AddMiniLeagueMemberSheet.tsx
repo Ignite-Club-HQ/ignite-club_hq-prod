@@ -244,7 +244,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
           if (childError) {
             console.error("Failed to create child:", player.name, childError);
-            continue;
+            throw new Error(`Couldn't add ${player.name}: ${childError.message}`);
           }
           childId = child.id;
         }
@@ -261,6 +261,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
         if (assignmentError) {
           console.error("Failed to create league assignment:", player.name, assignmentError);
+          throw new Error(`Couldn't assign ${player.name}: ${assignmentError.message}`);
         }
 
         const { data: newPlayer, error: playerError } = await supabase
