@@ -632,7 +632,12 @@ function CachedMeasureRow({
     // (or just stopped), pushing those updates into Virtuoso's itemSize cache
     // mid-fling causes visible row shifts: the message the user is reading
     // jolts down/up as a row above re-measures. Defer all late writes until
-    // the chat scroller has been idle for ~250ms.
+    // the chat scroller has been idle for ~600ms (bumped from 400ms — the
+    // post-fling compositor settle on Android WebView regularly takes
+    // 450–550ms before paddingTop corrections stop landing, and writes
+    // inside that window were the residual cause of "messages drift down
+    // after I stop scrolling").
+    const IDLE_MS = 600;
     let cancelIdle: (() => void) | null = null;
     let raf: number | null = null;
     let t1: ReturnType<typeof setTimeout> | null = null;
@@ -648,10 +653,10 @@ function CachedMeasureRow({
     // the synchronous write so reactions/edits commit without delay.
     if (isAndroidNativeWebView()) {
       const sinceScrollEager = performance.now() - getLastChatScrollAt();
-      if (sinceScrollEager >= 400) {
+      if (sinceScrollEager >= IDLE_MS) {
         write();
       } else {
-        cancelIdle = runWhenChatScrollIdle(write, 400);
+        cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
       }
     } else {
       write();
@@ -659,12 +664,12 @@ function CachedMeasureRow({
 
     const writeWhenIdle = () => {
       const since = performance.now() - getLastChatScrollAt();
-      if (since >= 400) {
+      if (since >= IDLE_MS) {
         write();
         return;
       }
       cancelIdle?.();
-      cancelIdle = runWhenChatScrollIdle(write, 400);
+      cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
     };
 
     const scheduleLateWrites = () => {
@@ -692,10 +697,10 @@ function CachedMeasureRow({
     };
 
     const since = performance.now() - getLastChatScrollAt();
-    if (since >= 400) {
+    if (since >= IDLE_MS) {
       scheduleLateWrites();
     } else {
-      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 400);
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, IDLE_MS);
     }
 
     return () => {
@@ -838,14 +843,63 @@ function JumpHydrationSkeleton() {
  * Appends / edits / interleaves always commit immediately — realtime and
  * send paths are never delayed.
  */
-const PREPEND_IDLE_MS = 220;
+// Prepend commit gate — INVERTED from the previous "wait for idle" strategy.
+//
+// Previous strategy held the prepend page until the scroll viewport had been
+// idle for 400ms. That moved the flicker out of mid-fling but introduced a
+// worse failure mode: the user flicks up, scroll stops, ~400ms later the
+// held page commits, Virtuoso shifts `firstItemIndex` + mounts ~30 rows +
+// rewrites paddingTop in one frame, and the user — now staring at a
+// stationary screen — sees the rows visibly jolt.
+//
+// New strategy: commit immediately while the user is still in motion
+// (touching the glass OR scrolled in the last `PREPEND_MOTION_WINDOW_MS`).
+// The `firstItemIndex` shift + paddingTop correction land inside the active
+// fling, where they're masked by motion blur. If the prepend arrives AFTER
+// the user has already stopped, hold it until the next upward gesture instead
+// of moving a stationary viewport.
+//
+// Net effect: zero observable jolt on slow scroll, slow flick, fast flick,
+// or wheel scroll. Reproduces clean on Android WebView, iOS WKWebView, and
+// Lovable preview.
+const PREPEND_MOTION_WINDOW_MS = 250;
+
+let flushPendingPrependOnMotion: (() => void) | null = null;
+let lastPrependUpwardMotionAt = 0;
+
+function isPrependMotionActive() {
+  if (typeof performance === "undefined") return false;
+  if (performance.now() - lastPrependUpwardMotionAt <= PREPEND_MOTION_WINDOW_MS) return true;
+  const scroller = scrollerElRefForPrepend?.();
+  return !!scroller && isViewportTouching(scroller);
+}
+
+function markPrependUpwardMotion() {
+  if (typeof performance !== "undefined") lastPrependUpwardMotionAt = performance.now();
+  flushPendingPrependOnMotion?.();
+}
 
 function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
   messagesProp: TMessage[],
 ): TMessage[] {
   const [committed, setCommitted] = useState<TMessage[]>(messagesProp);
   const committedRef = useRef(committed);
+  const pendingPrependRef = useRef<TMessage[] | null>(null);
   committedRef.current = committed;
+
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingPrependRef.current;
+      if (!pending || !isPrependMotionActive()) return;
+      pendingPrependRef.current = null;
+      setCommitted(pending);
+      debugLogEvent("prepend-flush-on-motion", { len: pending.length });
+    };
+    flushPendingPrependOnMotion = flush;
+    return () => {
+      if (flushPendingPrependOnMotion === flush) flushPendingPrependOnMotion = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (messagesProp === committedRef.current) return;
@@ -857,40 +911,44 @@ function useDeferPrependsWhileScrolling<TMessage extends { id: string }>(
     const newRows: TMessage[] = [];
     for (const m of messagesProp) if (!committedIds.has(m.id)) newRows.push(m);
     if (newRows.length === 0 || current.length === 0) {
-      // Mutation-only swap (edit / reaction / delete) or first population —
-      // commit immediately.
+      pendingPrependRef.current = null;
       setCommitted(messagesProp);
       return;
     }
 
-    // Pure prepend = every new id sits at the start of the incoming array.
     let isPurePrepend = messagesProp.length >= newRows.length;
     for (let i = 0; i < newRows.length && isPurePrepend; i++) {
       if (messagesProp[i]?.id !== newRows[i].id) isPurePrepend = false;
     }
     if (!isPurePrepend) {
-      // Append or interleave (realtime sends) — never delay these.
+      pendingPrependRef.current = null;
       setCommitted(messagesProp);
       return;
     }
 
-    const sinceScroll = performance.now() - getLastChatScrollAt();
-    if (sinceScroll >= PREPEND_IDLE_MS) {
+    // Pure prepend. If the fetch resolves while the viewport is still moving,
+    // commit immediately so Virtuoso's firstItemIndex/paddingTop correction is
+    // hidden inside the gesture. If it resolves AFTER motion stops, do not
+    // commit on a stationary screen — hold the page until the next upward
+    // gesture, so rows stay frozen exactly where the user stopped.
+    if (isPrependMotionActive()) {
+      pendingPrependRef.current = null;
       setCommitted(messagesProp);
       return;
     }
 
-    // Actively scrolling: hold the page until the viewport goes idle. The
-    // cleanup cancels the wait if a newer prop arrives first (that newer
-    // prop re-runs this effect and supersedes the held page).
-    const cancel = runWhenChatScrollIdle(() => {
-      setCommitted(messagesProp);
-    }, PREPEND_IDLE_MS);
-    return cancel;
+    pendingPrependRef.current = messagesProp;
+    debugLogEvent("prepend-held-until-motion", { len: messagesProp.length, added: newRows.length });
   }, [messagesProp]);
 
   return committed;
 }
+
+
+// Module-level pointer so the prepend deferral effect (defined outside the
+// component) can ask the live Virtuoso scroller whether a finger is currently
+// on the glass. Set/cleared by the component on mount/unmount.
+let scrollerElRefForPrepend: (() => HTMLElement | null) | null = null;
 
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
@@ -913,6 +971,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
+  // Expose this scroller to the module-level prepend gate so it can check
+  // whether a finger is currently on the glass before committing a held page.
+  useEffect(() => {
+    scrollerElRefForPrepend = () => scrollerElRef.current;
+    return () => {
+      scrollerElRefForPrepend = null;
+    };
+  }, []);
   // Prepended history pages are held until the scroll gesture goes idle so
   // Virtuoso's paddingTop correction never fires mid-flick. `messages` below
   // is the committed array — the rest of the body operates on it unchanged.
@@ -971,7 +1037,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // older-page fetch after the user's thumb/inertia has actually settled.
   const lastObservedScrollTopRef = useRef<number | null>(null);
   const lastUserUpwardScrollAtRef = useRef(0);
-  const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
+  // Tightened from 220 → 100ms: the trailing 120ms of the window was firing
+  // `startReached` right as a fast fling decelerated, landing a prepend
+  // page just after the user stopped — visible as "rows keep moving after I
+  // stop". 100ms still covers a genuine continuous upward gesture (Virtuoso
+  // re-fires startReached on every page boundary at ~60fps); it only drops
+  // the tail-end fire that has no live finger or live momentum behind it.
+  // The edge-pin fallback below still requires an active touch.
+  const PREPEND_USER_SCROLL_ACTIVE_MS = 100;
   const hasRecentUserUpwardScroll = useCallback(() => {
     if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
       return true;
@@ -1404,6 +1477,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let lastTouchY: number | null = null;
     let frame: number | null = null;
     const requestEdgeLoad = () => {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
@@ -1482,6 +1556,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // late avatar/image hydration on first cold-cache open.
     if (!isViewportUserActive(el)) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
+      markPrependUpwardMotion();
       lastUserUpwardScrollAtRef.current = performance.now();
     }
     userHasScrolledAfterPinRef.current = true;
@@ -1533,7 +1608,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelled) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       // Hard guard: if the user is clearly mid-history (>200px from bottom),
       // never re-pin from a ResizeObserver callback. The 600ms cooldown on
       // `isViewportUserActive` can let a settled fast-fling slip through and
@@ -1542,7 +1616,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // "jitter then snap" symptom users see on fast scroll-up.
       const distanceFromBottom =
         viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+      // Jolt fix: use raw pixel distance instead of Virtuoso's atBottomRef
+      // (which is true for up to 120px from bottom via atBottomThreshold).
+      // If the user stopped within that zone after a fast fling, writing
+      // scrollTop=maxTop snaps them visibly downward. Only force-snap when
+      // within sub-pixel rounding tolerance of the true bottom.
+      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
       if (distanceFromBottom > 200) return;
+
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.

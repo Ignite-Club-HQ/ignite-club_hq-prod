@@ -1046,7 +1046,7 @@ export type Database = {
       }
       child_mini_league_assignments: {
         Row: {
-          ability_rating: number
+          ability_rating: number | null
           child_id: string
           created_at: string
           id: string
@@ -1054,7 +1054,7 @@ export type Database = {
           notes: string | null
         }
         Insert: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id: string
           created_at?: string
           id?: string
@@ -1062,7 +1062,7 @@ export type Database = {
           notes?: string | null
         }
         Update: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string
           created_at?: string
           id?: string
@@ -5427,7 +5427,7 @@ export type Database = {
       }
       mini_league_players: {
         Row: {
-          ability_rating: number
+          ability_rating: number | null
           child_id: string | null
           created_at: string
           id: string
@@ -5438,7 +5438,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string | null
           created_at?: string
           id?: string
@@ -5449,7 +5449,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string | null
           created_at?: string
           id?: string
@@ -9238,6 +9238,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      can_admin_view_child_of_parent: {
+        Args: { _parent: string; _viewer: string }
+        Returns: boolean
+      }
       can_control_pitch_board: {
         Args: { _event_id: string; _team_id: string }
         Returns: boolean
@@ -9392,6 +9396,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      claim_mini_league_invite: {
+        Args: { _token: string }
+        Returns: {
+          child_id: string
+          club_id: string
+          mini_league_id: string
+        }[]
       }
       claim_shell_team: {
         Args: { p_token: string }
@@ -10088,6 +10100,7 @@ export type Database = {
           token: string
         }[]
       }
+      is_any_mini_league_admin: { Args: { _user_id: string }; Returns: boolean }
       is_association_admin: {
         Args: { _association_id: string; _user_id: string }
         Returns: boolean

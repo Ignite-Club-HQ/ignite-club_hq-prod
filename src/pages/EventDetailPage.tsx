@@ -787,6 +787,30 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id,
   });
 
+  // Fetch adult profiles linked to this mini-league (parents of league players).
+  // Used by the Attendance "Show all roles" toggle on mini-league events.
+  const { data: miniLeagueAdults } = useQuery({
+    queryKey: ["mini-league-adults-for-event", event?.mini_league_id],
+    queryFn: async () => {
+      const parentIds = Array.from(
+        new Set(
+          (miniLeaguePlayers || [])
+            .map((p: any) => p.parent_user_id)
+            .filter((id: string | null): id is string => !!id),
+        ),
+      );
+      if (parentIds.length === 0) return [] as Array<{ id: string; display_name: string | null; avatar_url: string | null; roles: string[] }>;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", parentIds);
+      if (error) throw error;
+      return (data || []).map((p: any) => ({ ...p, roles: ["parent"] }));
+    },
+    enabled: !!event?.mini_league_id && !!miniLeaguePlayers,
+  });
+
+
   // Mini-league players owned by current parent (for self-serve per-player RSVP)
   const { data: myMiniLeaguePlayers } = useQuery({
     queryKey: ["my-mini-league-players-for-event", event?.mini_league_id, user?.id],
@@ -3048,9 +3072,13 @@ export default function EventDetailPage() {
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
+
         const filterRsvp = (rsvp: any) => {
           if (effectiveShowAll) return true;
-          if (isMiniLeagueEvent) return true;
+          if (isMiniLeagueEvent) {
+            // Kids-only by default: hide adult/parent self-RSVPs.
+            return !!rsvp.child_id || !!rsvp.mini_league_player_id;
+          }
           if (rsvp.mini_league_player_id) return true;
           if (rsvp.child_id) return true;
           return playerUserIds.has(rsvp.user_id);
@@ -3076,6 +3104,12 @@ export default function EventDetailPage() {
             if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
             return true;
           });
+          // Adults bucket only when "Show all roles" is on.
+          if (effectiveShowAll) {
+            notResponded = (miniLeagueAdults || []).filter(
+              (adult: any) => !respondedUserIds.has(adult.id),
+            );
+          }
         } else {
           const membersToShow = effectiveShowAll ? members : playerMembers;
           const parentIdsWithRespondedChildren = new Set<string>();
@@ -3096,13 +3130,13 @@ export default function EventDetailPage() {
         }
 
         const totalNotResponded = isMiniLeagueEvent
-          ? notRespondedChildren.length
+          ? notRespondedChildren.length + notResponded.length
           : notResponded.length + notRespondedChildren.length;
 
         // Always derive non-responder IDs from ALL members (not filtered by "Show all roles")
         // so admins can always send reminders, regardless of the visible roster filter.
         const allNotRespondedForReminders = isMiniLeagueEvent
-          ? []
+          ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
           : (members?.filter((m: any) =>
               !respondedUserIds.has(m.id) &&
               !(new Set<string>([
@@ -3116,6 +3150,7 @@ export default function EventDetailPage() {
                   .filter(Boolean)),
               ])).has(m.id)
             ) || []);
+
 
         const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => (
           <div className="divide-y divide-border/50">
@@ -3249,7 +3284,7 @@ export default function EventDetailPage() {
                 />
               );
             })}
-            {!isMiniLeagueEvent && notResponded.map((member: any) => {
+            {notResponded.map((member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
@@ -3318,7 +3353,7 @@ export default function EventDetailPage() {
         return (
           <div className="space-y-3">
             {/* "Show all" filter retained for training/game events */}
-            {!isSocialEvent && !isMiniLeagueEvent && (
+            {!isSocialEvent && (
               <div className="flex items-center justify-end gap-2">
                 <Checkbox
                   id="showAllRoles"

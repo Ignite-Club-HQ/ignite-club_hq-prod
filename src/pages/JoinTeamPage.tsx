@@ -467,44 +467,13 @@ export default function JoinTeamPage() {
         return ["parent" as AppRole];
       }
       if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
-        const existingChildId = metadata.child_id;
-        const miniLeagueId = metadata.mini_league_id;
-        console.log("[JoinTeam] Mini-league invite: linking existing child to parent:", existingChildId);
-        
-        // Transfer child ownership to this parent
-        await supabase
-          .from("children")
-          .update({ parent_id: user.id })
-          .eq("id", existingChildId);
-        
-        // Ensure mini league assignment exists
-        const { data: existingLeagueAssignment } = await supabase
-          .from("child_mini_league_assignments")
-          .select("id")
-          .eq("child_id", existingChildId)
-          .eq("mini_league_id", miniLeagueId)
-          .maybeSingle();
-        
-        if (!existingLeagueAssignment) {
-          await supabase.from("child_mini_league_assignments").insert({
-            child_id: existingChildId,
-            mini_league_id: miniLeagueId,
-            ability_rating: 3,
-          });
-        }
-        
-        // Update legacy mini_league_players record
-        if (metadata.player_id) {
-          await supabase
-            .from("mini_league_players")
-            .update({ parent_user_id: user.id })
-            .eq("id", metadata.player_id);
-        } else {
-          await supabase
-            .from("mini_league_players")
-            .update({ parent_user_id: user.id })
-            .eq("child_id", existingChildId)
-            .eq("mini_league_id", miniLeagueId);
+        console.log("[JoinTeam] Mini-league invite: claiming child via RPC:", metadata.child_id);
+        const { error: claimErr } = await supabase.rpc("claim_mini_league_invite", {
+          _token: token!,
+        });
+        if (claimErr) {
+          console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
+          throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
         }
       } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
         console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);

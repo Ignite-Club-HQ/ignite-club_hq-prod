@@ -211,9 +211,9 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   });
 }
 
-function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id">, userId: string | undefined) {
+function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"> & { mini_league_id?: string | null }, userId: string | undefined) {
   return useQuery({
-    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, userId],
+    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, (event as any).mini_league_id, userId],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
         event.team_id
@@ -252,12 +252,29 @@ function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"
       }
 
       const seen = new Set<string>();
-
-      return [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
+      let merged = [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
         if (seen.has(child.id)) return false;
         seen.add(child.id);
         return true;
       }) as Array<{ id: string; name: string }>;
+
+      // Mini-league event with no team scope: only show children actually rostered to that league.
+      if (!event.team_id && (event as any).mini_league_id && merged.length > 0) {
+        const ids = merged.map((c) => c.id);
+        const { data: players } = await supabase
+          .from("mini_league_players")
+          .select("child_id")
+          .eq("mini_league_id", (event as any).mini_league_id)
+          .in("child_id", ids);
+        const allowed = new Set((players || []).map((p: any) => p.child_id).filter(Boolean));
+        merged = merged.filter((c) => allowed.has(c.id));
+      } else if (!event.team_id && !(event as any).mini_league_id) {
+        // Pure club-wide event — can't verify a roster, don't show child rows.
+        merged = [];
+      }
+
+      return merged;
+
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
@@ -749,6 +766,8 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
             !!(event as any).mini_league_id ||
             !!event.opponent;
 
+          const isMiniLeagueOnly = !event.team_id && !!(event as any).mini_league_id;
+
           return (
             <div className="space-y-1.5">
               {isMatchDay && (
@@ -756,13 +775,20 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
                   Match Day
                 </span>
               )}
-              {/* PRIMARY: team identity as title */}
-              <TeamChip
-                teamName={event.teams?.name}
-                fallbackLabel={event.team_id ? "" : "Club event"}
-                size="lg"
-                asTitle
-              />
+              {/* PRIMARY: team identity as title — or actual event title for mini-league events with no team */}
+              {isMiniLeagueOnly ? (
+                <h3 className={`text-[17px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+              ) : (
+                <TeamChip
+                  teamName={event.teams?.name}
+                  fallbackLabel={event.team_id ? "" : "Club event"}
+                  size="lg"
+                  asTitle
+                />
+              )}
+
               {/* SECONDARY: event context */}
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className="flex items-center gap-1.5 text-[14px] font-medium leading-snug">
@@ -1320,9 +1346,17 @@ function CompactCard({ event }: { event: EventItem }) {
           }
 
           const isTrainingType = event.type === "training";
+          const isMiniLeagueOnly = !event.team_id && !!(event as any).mini_league_id;
           return (
             <div className="space-y-1 min-w-0">
-              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+              {isMiniLeagueOnly ? (
+                <h3 className={`text-[14px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+              ) : (
+                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+              )}
+
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className={`flex items-center gap-1 text-[13px] min-w-0 ${isTrainingType ? "font-medium text-foreground/75" : "font-semibold text-foreground"}`}>
                   <TypeIcon className={`h-3 w-3 shrink-0 ${isTrainingType ? "opacity-55" : "opacity-80"}`} aria-hidden="true" />
