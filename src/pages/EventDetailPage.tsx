@@ -787,6 +787,30 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id,
   });
 
+  // Fetch adult profiles linked to this mini-league (parents of league players).
+  // Used by the Attendance "Show all roles" toggle on mini-league events.
+  const { data: miniLeagueAdults } = useQuery({
+    queryKey: ["mini-league-adults-for-event", event?.mini_league_id],
+    queryFn: async () => {
+      const parentIds = Array.from(
+        new Set(
+          (miniLeaguePlayers || [])
+            .map((p: any) => p.parent_user_id)
+            .filter((id: string | null): id is string => !!id),
+        ),
+      );
+      if (parentIds.length === 0) return [] as Array<{ id: string; display_name: string | null; avatar_url: string | null; roles: string[] }>;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", parentIds);
+      if (error) throw error;
+      return (data || []).map((p: any) => ({ ...p, roles: ["parent"] }));
+    },
+    enabled: !!event?.mini_league_id && !!miniLeaguePlayers,
+  });
+
+
   // Mini-league players owned by current parent (for self-serve per-player RSVP)
   const { data: myMiniLeaguePlayers } = useQuery({
     queryKey: ["my-mini-league-players-for-event", event?.mini_league_id, user?.id],
