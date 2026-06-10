@@ -1046,7 +1046,7 @@ export type Database = {
       }
       child_mini_league_assignments: {
         Row: {
-          ability_rating: number
+          ability_rating: number | null
           child_id: string
           created_at: string
           id: string
@@ -1054,7 +1054,7 @@ export type Database = {
           notes: string | null
         }
         Insert: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id: string
           created_at?: string
           id?: string
@@ -1062,7 +1062,7 @@ export type Database = {
           notes?: string | null
         }
         Update: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string
           created_at?: string
           id?: string
@@ -5427,7 +5427,7 @@ export type Database = {
       }
       mini_league_players: {
         Row: {
-          ability_rating: number
+          ability_rating: number | null
           child_id: string | null
           created_at: string
           id: string
@@ -5438,7 +5438,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string | null
           created_at?: string
           id?: string
@@ -5449,7 +5449,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          ability_rating?: number
+          ability_rating?: number | null
           child_id?: string | null
           created_at?: string
           id?: string
