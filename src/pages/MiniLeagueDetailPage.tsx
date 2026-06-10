@@ -422,17 +422,6 @@ export default function MiniLeagueDetailPage() {
           <h1 className="text-lg font-bold leading-tight">{league.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
-        {leagueChatGroup?.id && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 h-10 w-10"
-            onClick={() => navigate(`/groups/${leagueChatGroup.id}`)}
-            aria-label="Open mini-league chat"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </Button>
-        )}
         {canManageLeague && (
           <Button
             variant="ghost"
