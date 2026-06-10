@@ -3093,6 +3093,30 @@ export default function EventDetailPage() {
         let notResponded: any[] = [];
         let notRespondedChildren: any[] = [];
 
+        const filterRsvp = (rsvp: any) => {
+          if (effectiveShowAll) return true;
+          if (isMiniLeagueEvent) {
+            // Kids-only by default: hide adult/parent self-RSVPs.
+            return !!rsvp.child_id || !!rsvp.mini_league_player_id;
+          }
+          if (rsvp.mini_league_player_id) return true;
+          if (rsvp.child_id) return true;
+          return playerUserIds.has(rsvp.user_id);
+        };
+
+        const goingRsvps = rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || [];
+        const maybeRsvps = rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || [];
+        const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
+
+        const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
+        const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
+        const respondedMiniLeaguePlayerIds = new Set(
+          rsvps?.filter(r => r.mini_league_player_id).map(r => r.mini_league_player_id) || []
+        );
+
+        let notResponded: any[] = [];
+        let notRespondedChildren: any[] = [];
+
         if (isMiniLeagueEvent && miniLeaguePlayers) {
           notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
             if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
@@ -3100,6 +3124,12 @@ export default function EventDetailPage() {
             if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
             return true;
           });
+          // Adults bucket only when "Show all roles" is on.
+          if (effectiveShowAll) {
+            notResponded = (miniLeagueAdults || []).filter(
+              (adult: any) => !respondedUserIds.has(adult.id),
+            );
+          }
         } else {
           const membersToShow = effectiveShowAll ? members : playerMembers;
           const parentIdsWithRespondedChildren = new Set<string>();
@@ -3120,13 +3150,13 @@ export default function EventDetailPage() {
         }
 
         const totalNotResponded = isMiniLeagueEvent
-          ? notRespondedChildren.length
+          ? notRespondedChildren.length + notResponded.length
           : notResponded.length + notRespondedChildren.length;
 
         // Always derive non-responder IDs from ALL members (not filtered by "Show all roles")
         // so admins can always send reminders, regardless of the visible roster filter.
         const allNotRespondedForReminders = isMiniLeagueEvent
-          ? []
+          ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
           : (members?.filter((m: any) =>
               !respondedUserIds.has(m.id) &&
               !(new Set<string>([
@@ -3140,6 +3170,7 @@ export default function EventDetailPage() {
                   .filter(Boolean)),
               ])).has(m.id)
             ) || []);
+
 
         const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => (
           <div className="divide-y divide-border/50">
