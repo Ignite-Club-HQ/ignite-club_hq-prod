@@ -477,6 +477,31 @@ export default function MiniLeagueDetailPage() {
         </CardContent>
       </Card>
 
+      {/* League Chat — primary action */}
+      {leagueChatGroup?.id && (
+        <button
+          type="button"
+          onClick={() => navigate(`/groups/${leagueChatGroup.id}`)}
+          aria-label="Open mini-league chat"
+          className="block w-full text-left"
+        >
+          <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors rounded-xl">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <MessageSquare className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold leading-tight">League Chat</p>
+                <p className="text-xs text-muted-foreground truncate">Open the {league.name} chat</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </button>
+      )}
+
+
+
       {/* Players Section */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
