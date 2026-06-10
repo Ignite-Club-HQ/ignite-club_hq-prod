@@ -632,7 +632,12 @@ function CachedMeasureRow({
     // (or just stopped), pushing those updates into Virtuoso's itemSize cache
     // mid-fling causes visible row shifts: the message the user is reading
     // jolts down/up as a row above re-measures. Defer all late writes until
-    // the chat scroller has been idle for ~250ms.
+    // the chat scroller has been idle for ~600ms (bumped from 400ms — the
+    // post-fling compositor settle on Android WebView regularly takes
+    // 450–550ms before paddingTop corrections stop landing, and writes
+    // inside that window were the residual cause of "messages drift down
+    // after I stop scrolling").
+    const IDLE_MS = 600;
     let cancelIdle: (() => void) | null = null;
     let raf: number | null = null;
     let t1: ReturnType<typeof setTimeout> | null = null;
@@ -648,10 +653,10 @@ function CachedMeasureRow({
     // the synchronous write so reactions/edits commit without delay.
     if (isAndroidNativeWebView()) {
       const sinceScrollEager = performance.now() - getLastChatScrollAt();
-      if (sinceScrollEager >= 400) {
+      if (sinceScrollEager >= IDLE_MS) {
         write();
       } else {
-        cancelIdle = runWhenChatScrollIdle(write, 400);
+        cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
       }
     } else {
       write();
@@ -659,12 +664,12 @@ function CachedMeasureRow({
 
     const writeWhenIdle = () => {
       const since = performance.now() - getLastChatScrollAt();
-      if (since >= 400) {
+      if (since >= IDLE_MS) {
         write();
         return;
       }
       cancelIdle?.();
-      cancelIdle = runWhenChatScrollIdle(write, 400);
+      cancelIdle = runWhenChatScrollIdle(write, IDLE_MS);
     };
 
     const scheduleLateWrites = () => {
@@ -692,10 +697,10 @@ function CachedMeasureRow({
     };
 
     const since = performance.now() - getLastChatScrollAt();
-    if (since >= 400) {
+    if (since >= IDLE_MS) {
       scheduleLateWrites();
     } else {
-      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, 400);
+      cancelIdle = runWhenChatScrollIdle(scheduleLateWrites, IDLE_MS);
     }
 
     return () => {
@@ -992,7 +997,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // older-page fetch after the user's thumb/inertia has actually settled.
   const lastObservedScrollTopRef = useRef<number | null>(null);
   const lastUserUpwardScrollAtRef = useRef(0);
-  const PREPEND_USER_SCROLL_ACTIVE_MS = 220;
+  // Tightened from 220 → 100ms: the trailing 120ms of the window was firing
+  // `startReached` right as a fast fling decelerated, landing a prepend
+  // page just after the user stopped — visible as "rows keep moving after I
+  // stop". 100ms still covers a genuine continuous upward gesture (Virtuoso
+  // re-fires startReached on every page boundary at ~60fps); it only drops
+  // the tail-end fire that has no live finger or live momentum behind it.
+  // The edge-pin fallback below still requires an active touch.
+  const PREPEND_USER_SCROLL_ACTIVE_MS = 100;
   const hasRecentUserUpwardScroll = useCallback(() => {
     if (performance.now() - lastUserUpwardScrollAtRef.current <= PREPEND_USER_SCROLL_ACTIVE_MS) {
       return true;
