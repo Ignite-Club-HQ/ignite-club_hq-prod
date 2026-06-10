@@ -554,7 +554,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // If there's an image attached, always show the preview regardless of hasText
   if (displayUrl) {
     return (
-      <div className="flex shrink-0 items-center gap-1 self-end pl-0.5">
+      <div className="flex shrink-0 items-center gap-1 self-center pl-0.5">
         <input
           ref={fileInputRef}
           type="file"
@@ -565,31 +565,32 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         />
         <div className="relative inline-block">
           {previewFailed ? (
-            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
-              <ImagePlus className="h-4 w-4 text-muted-foreground" />
+            <div className="h-11 w-11 rounded-md bg-muted flex items-center justify-center">
+              <ImagePlus className="h-5 w-5 text-muted-foreground" />
             </div>
           ) : isVideoUrl(displayUrl) ? (
-            <div className="relative h-8 w-8 rounded overflow-hidden bg-black">
+            <div className="relative h-11 w-11 rounded-md overflow-hidden bg-black">
               <video
                 src={displayUrl}
-                className="h-8 w-8 object-cover"
+                className="h-11 w-11 object-cover"
                 muted
                 playsInline
                 preload="metadata"
                 onError={() => setPreviewFailed(true)}
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-                <Play className="h-3 w-3 fill-white text-white" />
+                <Play className="h-4 w-4 fill-white text-white" />
               </div>
             </div>
           ) : (
             <img
               src={displayUrl}
               alt="Attachment preview"
-              className="h-8 w-8 object-cover rounded"
+              className="h-11 w-11 object-cover rounded-md"
               onError={() => setPreviewFailed(true)}
             />
           )}
+
           {uploading && (
             <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
