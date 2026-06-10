@@ -6,6 +6,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -663,7 +664,15 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
-    setLocalMessages(getInitialLocalMessages());
+    setLocalMessages((prev) => {
+      const next = getInitialLocalMessages();
+      debugLogEvent("local-replace", {
+        cause: "reset-effect",
+        prevLen: prev?.length ?? 0,
+        nextLen: next?.length ?? 0,
+      });
+      return next;
+    });
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
   }, [groupId, queryClient]);
