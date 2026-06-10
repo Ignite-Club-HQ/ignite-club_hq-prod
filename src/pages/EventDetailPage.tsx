@@ -3072,26 +3072,6 @@ export default function EventDetailPage() {
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
-        const filterRsvp = (rsvp: any) => {
-          if (effectiveShowAll) return true;
-          if (isMiniLeagueEvent) return true;
-          if (rsvp.mini_league_player_id) return true;
-          if (rsvp.child_id) return true;
-          return playerUserIds.has(rsvp.user_id);
-        };
-
-        const goingRsvps = rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || [];
-        const maybeRsvps = rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || [];
-        const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
-
-        const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
-        const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
-        const respondedMiniLeaguePlayerIds = new Set(
-          rsvps?.filter(r => r.mini_league_player_id).map(r => r.mini_league_player_id) || []
-        );
-
-        let notResponded: any[] = [];
-        let notRespondedChildren: any[] = [];
 
         const filterRsvp = (rsvp: any) => {
           if (effectiveShowAll) return true;
