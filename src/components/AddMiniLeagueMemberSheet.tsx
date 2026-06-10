@@ -49,6 +49,7 @@ interface AddMiniLeagueMemberSheetProps {
 }
 
 const abilityOptions = [
+  { value: "", label: "Not specified" },
   { value: "1", label: "1 - Beginner" },
   { value: "2", label: "2 - Developing" },
   { value: "3", label: "3 - Intermediate" },
@@ -59,7 +60,7 @@ const abilityOptions = [
 const createEmptyPlayer = (): BulkPlayer => ({
   id: crypto.randomUUID(),
   name: "",
-  abilityRating: "3",
+  abilityRating: "",
   parentName: "",
   parentEmail: "",
 });
@@ -248,12 +249,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
           childId = child.id;
         }
 
+        const abilityRatingValue = player.abilityRating ? parseInt(player.abilityRating) : null;
+
         const { error: assignmentError } = await supabase
           .from("child_mini_league_assignments")
           .insert({
             child_id: childId!,
             mini_league_id: miniLeagueId,
-            ability_rating: parseInt(player.abilityRating),
+            ability_rating: abilityRatingValue,
           });
 
         if (assignmentError) {
@@ -265,7 +268,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
           .insert({
             mini_league_id: miniLeagueId,
             name: player.name.trim(),
-            ability_rating: parseInt(player.abilityRating),
+            ability_rating: abilityRatingValue,
             child_id: childId!,
             parent_user_id: player.existingParentUserId || null,
           })
@@ -391,7 +394,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     setPlayers(recipients.map((recipient) => ({
       id: crypto.randomUUID(),
       name: recipient.name,
-      abilityRating: "3",
+      abilityRating: "",
       parentName: "",
       parentEmail: recipient.email,
     })));
@@ -635,21 +638,18 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
                             <div className="space-y-2">
                               <Label htmlFor={`mini-league-ability-${player.id}`}>Ability rating</Label>
-                              <Select
+                              <select
+                                id={`mini-league-ability-${player.id}`}
                                 value={player.abilityRating}
-                                onValueChange={(value) => updatePlayer(player.id, { abilityRating: value })}
+                                onChange={(e) => updatePlayer(player.id, { abilityRating: e.target.value })}
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                <SelectTrigger id={`mini-league-ability-${player.id}`}>
-                                  <SelectValue placeholder="Ability" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {abilityOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                {abilityOptions.map((option) => (
+                                  <option key={option.value || "none"} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
