@@ -87,6 +87,7 @@ interface TeamInviteTemplateData {
   primaryColor?: string;
   childrenNames?: string[];
   customMessage?: string;
+  isMiniLeague?: boolean;
 }
 
 interface EventReminderTemplateData {
@@ -405,6 +406,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           childrenNames: data.childrenNames || [],
           customMessage: data.customMessage,
           isExistingUser,
+          isMiniLeague: data.isMiniLeague,
         })
       );
     }
