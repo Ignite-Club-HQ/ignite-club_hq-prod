@@ -2691,8 +2691,17 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              const count = goingRsvps.length + guestCount;
-              return <span>{count} attending</span>;
+              // Players-only count for match/training events: children RSVPs
+              // (always players) + adult RSVPs whose team role is "player".
+              // Excludes parents who RSVP'd for themselves alongside a child.
+              const playerAdults = teamPlayerAdultIds;
+              const playerGoing = goingRsvps.filter(r =>
+                r.child_id != null || (r.user_id && playerAdults?.has(r.user_id))
+              ).length;
+              // Fallback to total going if we don't yet know team player roles
+              // (e.g. club-wide event with no team), so we never show 0.
+              const count = (playerAdults ? playerGoing : goingRsvps.length) + guestCount;
+              return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
             })() : <span>Loading...</span>}
           </div>
 
