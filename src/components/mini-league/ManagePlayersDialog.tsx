@@ -197,6 +197,39 @@ export function ManagePlayersDialog({
 
   const parentMap = new Map((parentProfiles || []).map(p => [p.id, p.display_name || "Unknown"]));
 
+  // Fetch additional guardians (second parents) for all children in the list
+  const childIdsForGuardians = [...new Set((players || []).map(p => p.child_id).filter(Boolean) as string[])];
+  const { data: additionalGuardians } = useQuery({
+    queryKey: ["mini-league-additional-guardians", miniLeagueId, childIdsForGuardians],
+    queryFn: async () => {
+      if (childIdsForGuardians.length === 0) return [] as { child_id: string; guardian_id: string; display_name: string | null }[];
+      const { data: gRows } = await supabase
+        .from("child_guardians")
+        .select("child_id, guardian_id")
+        .in("child_id", childIdsForGuardians);
+      const guardianIds = [...new Set((gRows || []).map(g => g.guardian_id))];
+      if (guardianIds.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", guardianIds);
+      const nameMap = new Map((profs || []).map(p => [p.id, p.display_name]));
+      return (gRows || []).map(g => ({
+        child_id: g.child_id,
+        guardian_id: g.guardian_id,
+        display_name: nameMap.get(g.guardian_id) ?? null,
+      }));
+    },
+    enabled: open && childIdsForGuardians.length > 0,
+  });
+
+  const guardiansByChild = new Map<string, { guardian_id: string; display_name: string | null }[]>();
+  (additionalGuardians || []).forEach(g => {
+    const arr = guardiansByChild.get(g.child_id) || [];
+    arr.push({ guardian_id: g.guardian_id, display_name: g.display_name });
+    guardiansByChild.set(g.child_id, arr);
+  });
+
   // Determine which players are "pending" (no parent has accepted the app yet).
   // A player is pending when: no parent_user_id on the player, no parent_id on the
   // linked child, and no entries in child_guardians for that child.
