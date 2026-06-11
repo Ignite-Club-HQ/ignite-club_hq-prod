@@ -1821,7 +1821,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const pin = () => {
       const el = scrollerElRef.current;
       if (!el) return;
-      if (isViewportTouching(el)) return;
+      // NOTE: do NOT bail on `isViewportTouching` here. On Android, sending a
+      // message keeps the soft keyboard open and the composer/viewport keeps
+      // resizing for several hundred ms after send; any of those resize
+      // gestures can leave the touch-tracker hot and silently swallow the
+      // pin, leaving the freshly-sent bubble clipped behind the composer.
+      // Send is an explicit intent change, so always honour it.
       const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
       if (Math.abs(el.scrollTop - maxTop) > 1) {
         el.scrollTop = maxTop;
@@ -1832,13 +1837,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     pin();
     const r = requestAnimationFrame(() => requestAnimationFrame(pin));
     // Trailing passes absorb composer collapse (reply pill clears, textarea
-    // shrinks back to one line) and the optimistic bubble's height settling.
-    const timers = [120, 280, 520].map((delay) => window.setTimeout(pin, delay));
+    // shrinks back to one line), optimistic bubble height settling, and on
+    // Android the soft-keyboard / visualViewport reflow that can land 600ms+
+    // after send commits.
+    const timers = [80, 200, 360, 560, 820, 1200].map((delay) => window.setTimeout(pin, delay));
     return () => {
       cancelAnimationFrame(r);
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, [lastMessageId, messages, currentUserId]);
+
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
