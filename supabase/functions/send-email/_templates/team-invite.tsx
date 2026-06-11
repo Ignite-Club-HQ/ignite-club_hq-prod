@@ -25,6 +25,7 @@ interface TeamInviteEmailProps {
   childrenNames?: string[];
   customMessage?: string;
   isExistingUser?: boolean;
+  isMiniLeague?: boolean;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -63,6 +64,7 @@ export const TeamInviteEmail = ({
   childrenNames = [],
   customMessage,
   isExistingUser = false,
+  isMiniLeague = false,
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
@@ -193,7 +195,9 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 Here's what you can do:</Text>
 
-                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                {!isMiniLeague && (
+                  <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                )}
                 <Text style={bulletItem}>• Get notified about games, training and other events</Text>
                 <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
                 <Text style={bulletItem}>• View photos from games and club events</Text>
@@ -214,11 +218,15 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
 
-                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                {!isMiniLeague && (
+                  <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                )}
                 <Text style={bulletItem}>• Get notified about games, training and other events</Text>
                 <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
                 <Text style={bulletItem}>• View photos from games and club events</Text>
                 <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
+
+
 
               </>
             )}
@@ -236,7 +244,7 @@ export const TeamInviteEmail = ({
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Open in App' : 'View Their Team'}
+                    {isAdminRole ? 'Open in App' : isMiniLeague ? 'Join Now' : 'View Their Team'}
                   </Button>
                 </Section>
 
@@ -271,11 +279,11 @@ export const TeamInviteEmail = ({
                 </Section>
 
                 {/* Step 2: View */}
-                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
+                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : isMiniLeague ? '2. Tap below to join' : '2. Tap below to see their team'}</Text>
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Get Started' : 'View Their Team'}
+                    {isAdminRole ? 'Get Started' : isMiniLeague ? 'Join Now' : 'View Their Team'}
                   </Button>
                 </Section>
 

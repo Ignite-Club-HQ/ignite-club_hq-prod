@@ -1188,7 +1188,7 @@ export type Database = {
           id: string
           ignite_points: number
           name: string
-          parent_id: string
+          parent_id: string | null
           year_of_birth: number | null
         }
         Insert: {
@@ -1196,7 +1196,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           name: string
-          parent_id: string
+          parent_id?: string | null
           year_of_birth?: number | null
         }
         Update: {
@@ -1204,7 +1204,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           name?: string
-          parent_id?: string
+          parent_id?: string | null
           year_of_birth?: number | null
         }
         Relationships: []
@@ -5599,6 +5599,7 @@ export type Database = {
           min_players_per_side: number
           minutes_per_half: number
           name: string
+          show_matches_to_members: boolean
           team_size: number
           updated_at: string
         }
@@ -5613,6 +5614,7 @@ export type Database = {
           min_players_per_side?: number
           minutes_per_half?: number
           name: string
+          show_matches_to_members?: boolean
           team_size?: number
           updated_at?: string
         }
@@ -5627,6 +5629,7 @@ export type Database = {
           min_players_per_side?: number
           minutes_per_half?: number
           name?: string
+          show_matches_to_members?: boolean
           team_size?: number
           updated_at?: string
         }
@@ -10404,6 +10407,7 @@ export type Database = {
         Returns: {
           avatar_url: string
           display_name: string
+          masked_email: string
           source: string
           user_id: string
         }[]

@@ -273,10 +273,12 @@ export default function MiniLeagueDetailPage() {
           role: "parent" as string,
         }));
 
+      const parentIdSet = new Set(parentUserIds);
       const staff = [...allAdminIds].map(uid => ({
         id: uid,
         ...profileMap.get(uid),
         role: "league_admin" as string,
+        isAlsoParent: parentIdSet.has(uid),
       }));
 
       return { parents, staff };
@@ -336,9 +338,10 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
-  const playerCount = players?.length || 0;
+  const acceptedPlayers = (players || []).filter(p => !!p.parent_user_id);
+  const playerCount = acceptedPlayers.length;
   const displayPlayers = players?.slice(0, 12) || [];
-  const remainingPlayers = playerCount - displayPlayers.length;
+  const remainingPlayers = (players?.length || 0) - displayPlayers.length;
 
   const renderMatchDayCard = (event: MiniLeagueEvent, compact = false) => {
     const hasScore = event.final_score_home != null && event.final_score_away != null;
@@ -538,12 +541,11 @@ export default function MiniLeagueDetailPage() {
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 scrollbar-hide">
             {displayPlayers.map((player) => (
-              <button
+              <div
                 key={player.id}
-                onClick={() => canManageLeague ? setPlayersOpen(true) : undefined}
-                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px] group"
+                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px]"
               >
-                <Avatar className="h-11 w-11 border-2 border-background shadow-sm group-hover:border-primary/30 transition-colors">
+                <Avatar className="h-11 w-11 border-2 border-background shadow-sm">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                     {player.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
@@ -551,7 +553,7 @@ export default function MiniLeagueDetailPage() {
                 <span className="text-[10px] text-muted-foreground truncate w-full text-center leading-tight">
                   {player.name.split(' ')[0]}
                 </span>
-              </button>
+              </div>
             ))}
             {remainingPlayers > 0 && (
               <button
@@ -624,9 +626,14 @@ export default function MiniLeagueDetailPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
                         </div>
-                        <Badge variant="secondary" className="text-xs shrink-0">
-                          League Admin
-                        </Badge>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {member.isAlsoParent && (
+                            <Badge variant="outline" className="text-xs">Parent</Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            League Admin
+                          </Badge>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

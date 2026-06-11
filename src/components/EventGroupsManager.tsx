@@ -183,11 +183,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null };
+      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean };
     },
     enabled: !!miniLeagueId,
   });
@@ -918,6 +918,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     );
   }
 
+  // Members only see matches when the league admin has opted in. Default is OFF.
+  if (!isAdmin && !miniLeague?.show_matches_to_members) {
+    return null;
+  }
+
   const hasGroups = groups && groups.length > 0;
 
   // Calculate unallocated players (available but not in any match)
@@ -1183,8 +1188,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           })}
           </div>
         </div>
-      ) : (
-        /* Empty State - Generate Matches */
+      ) : isAdmin ? (
+        /* Empty State - Generate Matches (admins only) */
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-3">
             <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1198,28 +1203,26 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   : "Select players as attending first to generate matches"}
               </p>
             </div>
-            {isAdmin && (
-              <div className="space-y-2 pt-1">
-                <Button 
-                  className="w-full h-12 text-base font-semibold"
-                  onClick={() => setIsQuickSetupOpen(true)}
-                  disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
-                >
-                  {quickSetupMutation.isPending ? (
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-5 w-5 mr-2" />
-                  )}
-                  Generate Matches
-                </Button>
-                <p className="text-[11px] text-muted-foreground/60">
-                  Automatically create balanced games based on who is playing
-                </p>
-              </div>
-            )}
+            <div className="space-y-2 pt-1">
+              <Button 
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => setIsQuickSetupOpen(true)}
+                disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
+              >
+                {quickSetupMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                ) : (
+                  <Wand2 className="h-5 w-5 mr-2" />
+                )}
+                Generate Matches
+              </Button>
+              <p className="text-[11px] text-muted-foreground/60">
+                Automatically create balanced games based on who is playing
+              </p>
+            </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {/* Manual Match Dialog */}
       <ManualMatchDialog
