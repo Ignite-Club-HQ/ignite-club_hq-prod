@@ -111,6 +111,14 @@ export function AttendanceRow({
               {displayRole}
             </span>
           )}
+          {isPending && (
+            <span
+              title="Not yet accepted onto the app"
+              className="shrink-0 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap leading-tight bg-amber-500/15 text-amber-700 dark:text-amber-400"
+            >
+              Pending
+            </span>
+          )}
         </div>
         {secondaryLine && (
           <p className="text-xs text-muted-foreground truncate mt-0.5">
