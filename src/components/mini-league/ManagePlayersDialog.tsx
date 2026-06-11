@@ -734,19 +734,37 @@ export function ManagePlayersDialog({
                     Add Player
                   </Button>
                   {(players?.length || 0) > 0 && (
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" data-vaul-no-drag aria-label="More options">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44 z-[100001]">
-                        <DropdownMenuItem onClick={() => setSelectionMode(true)}>
-                          <CheckSquare className="h-4 w-4 mr-2" />
-                          Select players
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="relative shrink-0" data-vaul-no-drag>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-muted-foreground"
+                        data-vaul-no-drag
+                        aria-label="More options"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen(!headerMenuOpen); }}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                      {headerMenuOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-[100000]"
+                            onPointerDown={(e) => { e.stopPropagation(); setHeaderMenuOpen(false); }}
+                          />
+                          <div className="absolute right-0 top-10 z-[100001] w-44 rounded-md border border-border bg-popover p-1 shadow-md">
+                            <button
+                              type="button"
+                              className="flex w-full items-center rounded-sm px-2 py-2 text-sm text-popover-foreground hover:bg-accent"
+                              onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen(false); setSelectionMode(true); }}
+                            >
+                              <CheckSquare className="h-4 w-4 mr-2" />
+                              Select players
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </>
               )
