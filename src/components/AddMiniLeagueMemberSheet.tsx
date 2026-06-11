@@ -196,18 +196,47 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
   // Search invitable parents
   const { data: parentResults = [] } = useQuery({
-    queryKey: ["mini-league-parent-search", debouncedParentQuery],
+    queryKey: ["mini-league-parent-search", debouncedParentQuery, clubId],
     queryFn: async () => {
       if (debouncedParentQuery.trim().length < 2) return [];
       const { data } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedParentQuery.trim(),
         _limit: 6,
       });
-      return (data || []) as Array<{
+      const profiles = (data || []) as Array<{
         id: string;
         display_name: string | null;
         masked_email: string | null;
       }>;
+      if (!profiles.length || !clubId) {
+        return profiles.map((p) => ({ ...p, roles: [] as string[] }));
+      }
+      // Enrich with roles within this club so admins can disambiguate
+      const ids = profiles.map((p) => p.id);
+      const [directRolesRes, teamRolesRes] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", ids)
+          .eq("club_id", clubId),
+        supabase
+          .from("user_roles")
+          .select("user_id, role, teams!inner(club_id)")
+          .in("user_id", ids)
+          .eq("teams.club_id", clubId),
+      ]);
+      const roleMap = new Map<string, Set<string>>();
+      const pushRole = (uid: string, role: string | null) => {
+        if (!role) return;
+        if (!roleMap.has(uid)) roleMap.set(uid, new Set());
+        roleMap.get(uid)!.add(String(role).replace(/_/g, " "));
+      };
+      (directRolesRes.data || []).forEach((r: any) => pushRole(r.user_id, r.role));
+      (teamRolesRes.data || []).forEach((r: any) => pushRole(r.user_id, r.role));
+      return profiles.map((p) => ({
+        ...p,
+        roles: Array.from(roleMap.get(p.id) || []),
+      }));
     },
     enabled: debouncedParentQuery.trim().length >= 2,
   });
@@ -717,6 +746,9 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                         }}
                                       >
                                         <p className="font-medium">{p.display_name || "Unknown"}</p>
+                                        {p.roles && p.roles.length > 0 && (
+                                          <p className="text-xs text-muted-foreground capitalize">{p.roles.join(" · ")}</p>
+                                        )}
                                         {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
                                       </button>
                                     )) : (
