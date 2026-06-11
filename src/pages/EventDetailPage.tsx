@@ -1977,7 +1977,7 @@ export default function EventDetailPage() {
           allMemberIds = [...new Set([...parentIds, ...adminIds])];
         }
       } else {
-        let memberQuery = supabase.from("user_roles").select("user_id");
+        let memberQuery = supabase.from("user_roles").select("user_id, role");
         if (event?.team_id) {
           memberQuery = memberQuery.eq("team_id", event.team_id);
         } else if (event?.club_id) {
@@ -1985,7 +1985,13 @@ export default function EventDetailPage() {
         }
         
         const { data: allMembers } = await memberQuery;
-        allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
+        const restricted = Array.isArray((event as any)?.restricted_to_roles)
+          ? ((event as any).restricted_to_roles as string[])
+          : [];
+        const rows = restricted.length > 0
+          ? (allMembers || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
+          : (allMembers || []);
+        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
       }
       
       // Find members who haven't RSVPed
@@ -2161,14 +2167,20 @@ export default function EventDetailPage() {
           allMemberIds = [...new Set([...parentIds, ...adminIds])];
         }
       } else {
-        let memberQuery = supabase.from("user_roles").select("user_id");
+        let memberQuery = supabase.from("user_roles").select("user_id, role");
         if (event.team_id) {
           memberQuery = memberQuery.eq("team_id", event.team_id);
         } else if (event.club_id) {
           memberQuery = memberQuery.eq("club_id", event.club_id);
         }
         const { data: members } = await memberQuery;
-        allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+        const restricted = Array.isArray((event as any)?.restricted_to_roles)
+          ? ((event as any).restricted_to_roles as string[])
+          : [];
+        const rows = restricted.length > 0
+          ? (members || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
+          : (members || []);
+        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
       }
 
       // Exclude the creator
