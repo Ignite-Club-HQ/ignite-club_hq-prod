@@ -26,6 +26,7 @@ import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
+import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
