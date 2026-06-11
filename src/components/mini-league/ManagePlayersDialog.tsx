@@ -872,6 +872,29 @@ export function ManagePlayersDialog({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <AlertDialog open={!!deleteConfirmPlayer} onOpenChange={(o) => { if (!o) setDeleteConfirmPlayer(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove {deleteConfirmPlayer?.name} from the player pool.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (deleteConfirmPlayer) deletePlayerMutation.mutate(deleteConfirmPlayer.id);
+                    setDeleteConfirmPlayer(null);
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         <ResponsiveDialogFooter className="px-4 pb-safe">
