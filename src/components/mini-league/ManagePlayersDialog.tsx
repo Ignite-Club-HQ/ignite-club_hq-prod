@@ -537,29 +537,33 @@ export function ManagePlayersDialog({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium truncate">{player.name}</span>
-                  {isPlayerPending(player) && (
-                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px] shrink-0">
-                      Pending
-                    </Badge>
-                  )}
-                  {canManage && !selectionMode && (
-                    <button
-                      type="button"
-                      className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
-                      onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-              {parentName && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  <span className="text-xs text-muted-foreground truncate">{parentName}</span>
-                </div>
+                <>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-sm font-medium truncate">{player.name}</span>
+                    {canManage && !selectionMode && (
+                      <button
+                        type="button"
+                        className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+                        onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                    {parentName && (
+                      <>
+                        <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">{parentName}</span>
+                      </>
+                    )}
+                    {isPlayerPending(player) && (
+                      <span className="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                </>
               )}
             </div>
             {/* Right: admin actions */}
