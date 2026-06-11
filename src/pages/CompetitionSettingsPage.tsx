@@ -546,7 +546,9 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{p.display_name ?? "Unknown"}</div>
-                        <div className="text-xs text-muted-foreground capitalize">{p.source}</div>
+                        <div className="text-xs text-muted-foreground capitalize truncate">
+                          {p.source}{p.masked_email ? ` · ${p.masked_email}` : ""}
+                        </div>
                       </div>
                       {already ? (
                         <span className="text-xs text-muted-foreground">Already added</span>
