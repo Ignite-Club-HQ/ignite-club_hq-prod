@@ -25,6 +25,24 @@ function readDraft(key: string): ChatDraft | null {
   }
 }
 
+let draftChangedTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleDraftChangedEvent() {
+  // Coalesce rapid keystroke-driven dispatches into a single trailing event.
+  // The previous synchronous dispatch on every keystroke caused every
+  // `useAllChatDrafts` subscriber (Messages inbox preview, etc.) to re-render
+  // mid-IME-composition, which in turn could nudge Gboard's composing region
+  // and corrupt autocorrect suggestions in the active composer.
+  if (draftChangedTimer) clearTimeout(draftChangedTimer);
+  draftChangedTimer = setTimeout(() => {
+    draftChangedTimer = null;
+    try {
+      window.dispatchEvent(new CustomEvent(DRAFT_CHANGED_EVENT));
+    } catch {
+      // ignore
+    }
+  }, 250);
+}
+
 function writeDraft(key: string, text: string) {
   try {
     if (text) {
@@ -33,7 +51,7 @@ function writeDraft(key: string, text: string) {
     } else {
       sessionStorage.removeItem(key);
     }
-    window.dispatchEvent(new CustomEvent(DRAFT_CHANGED_EVENT));
+    scheduleDraftChangedEvent();
   } catch {
     // Storage full or unavailable — ignore
   }
