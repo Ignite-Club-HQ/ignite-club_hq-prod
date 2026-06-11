@@ -2673,7 +2673,7 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              const count = goingRsvps.filter(r => r.child_id != null).length + guestCount;
+              const count = goingRsvps.length + guestCount;
               return <span>{count} attending</span>;
             })() : <span>Loading...</span>}
           </div>
