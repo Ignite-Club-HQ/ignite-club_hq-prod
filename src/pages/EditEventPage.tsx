@@ -927,7 +927,6 @@ export default function EditEventPage() {
               )}
 
               {(type === "game" || type === "training" || type === "social") && (
-              {(type === "game" || type === "training" || type === "social") && (
                 <RsvpAudienceSelect
                   value={rsvpAudience}
                   onChange={setRsvpAudience}
