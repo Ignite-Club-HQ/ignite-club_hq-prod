@@ -1363,9 +1363,14 @@ export default function TeamChatPage() {
       return;
     }
     setReplyingTo(m);
-    // Scroll to bottom after reply banner renders so latest message stays visible
-    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
-  }, [scrollToBottom]);
+    const ta = composerRef.current?.querySelector("textarea") as HTMLTextAreaElement | null;
+    ta?.focus();
+    // Re-pin in stages so the latest message stays above the composer as the
+    // reply pill renders AND the Android keyboard finishes opening.
+    [0, 180, 480].forEach((delay) => {
+      setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
+    });
+  }, []);
 
   const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
 
