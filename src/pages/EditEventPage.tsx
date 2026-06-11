@@ -35,6 +35,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,6 +121,7 @@ export default function EditEventPage() {
   const [teamDefaultArrival, setTeamDefaultArrival] = useState<number | null>(null);
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [teamDefaultRsvpAudience, setTeamDefaultRsvpAudience] = useState<RsvpAudience | null>(null);
+  const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -432,6 +434,8 @@ export default function EditEventPage() {
       );
       setAllowGuests(event.allow_guests === true);
       setMaxGuestsPerMember(event.max_guests_per_member || 2);
+      const rr = (event as any).restricted_to_roles;
+      setRestrictedRoles(Array.isArray(rr) ? (rr as ClubEventRole[]) : []);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -533,6 +537,8 @@ export default function EditEventPage() {
         is_bye: type === "game" ? isBye : false,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
+        restricted_to_roles:
+          type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       };
 
       // If converting single event to recurring series
@@ -927,10 +933,18 @@ export default function EditEventPage() {
                   teamDefault={teamDefaultRsvpAudience}
                 />
               )}
+
+              {type === "social" && !selectedTeamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
       </Card>
+
 
       {/* Schedule Section */}
       <Card>

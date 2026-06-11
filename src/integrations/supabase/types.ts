@@ -3853,6 +3853,7 @@ export type Database = {
           reminder_hours_before: number | null
           reminder_sent: boolean | null
           requires_payment: boolean | null
+          restricted_to_roles: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience: string | null
           start_time: string | null
           state: string | null
@@ -3903,6 +3904,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          restricted_to_roles?: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
@@ -3953,6 +3955,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          restricted_to_roles?: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
