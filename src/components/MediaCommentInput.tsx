@@ -112,6 +112,13 @@ export function MediaCommentInput({
           onKeyDown={handleKeyDown}
           placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
           rows={1}
+          // Lean on the OS keyboard's native spellcheck/autocorrect — adds the
+          // familiar red squiggle under misspellings without any JS dictionary
+          // and stays out of the way of mentions/usernames/URLs.
+          spellCheck
+          autoCorrect="on"
+          autoCapitalize="sentences"
+          inputMode="text"
           className="flex-1 resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none min-h-[32px] max-h-[80px] py-1.5"
         />
         {hasText && (
