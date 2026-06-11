@@ -1180,8 +1180,9 @@ export default function ClubChatPage() {
       setReplyingTo(null);
       setPendingPollId(null);
       
-      // Scroll to bottom to show new message
-      scrollToBottom();
+      // Scroll to bottom — force bypasses touch-guard so the post-send
+      // re-pins still fire after composer reflow shrinks bottomPadding.
+      virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
       return { previousData };
     },
