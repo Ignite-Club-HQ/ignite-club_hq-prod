@@ -538,12 +538,11 @@ export default function MiniLeagueDetailPage() {
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 scrollbar-hide">
             {displayPlayers.map((player) => (
-              <button
+              <div
                 key={player.id}
-                onClick={() => canManageLeague ? setPlayersOpen(true) : undefined}
-                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px] group"
+                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px]"
               >
-                <Avatar className="h-11 w-11 border-2 border-background shadow-sm group-hover:border-primary/30 transition-colors">
+                <Avatar className="h-11 w-11 border-2 border-background shadow-sm">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                     {player.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
@@ -551,7 +550,7 @@ export default function MiniLeagueDetailPage() {
                 <span className="text-[10px] text-muted-foreground truncate w-full text-center leading-tight">
                   {player.name.split(' ')[0]}
                 </span>
-              </button>
+              </div>
             ))}
             {remainingPlayers > 0 && (
               <button
