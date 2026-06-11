@@ -5599,6 +5599,7 @@ export type Database = {
           min_players_per_side: number
           minutes_per_half: number
           name: string
+          show_matches_to_members: boolean
           team_size: number
           updated_at: string
         }
@@ -5613,6 +5614,7 @@ export type Database = {
           min_players_per_side?: number
           minutes_per_half?: number
           name: string
+          show_matches_to_members?: boolean
           team_size?: number
           updated_at?: string
         }
@@ -5627,6 +5629,7 @@ export type Database = {
           min_players_per_side?: number
           minutes_per_half?: number
           name?: string
+          show_matches_to_members?: boolean
           team_size?: number
           updated_at?: string
         }

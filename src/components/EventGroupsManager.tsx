@@ -183,11 +183,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null };
+      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean };
     },
     enabled: !!miniLeagueId,
   });
@@ -916,6 +916,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </CardContent>
       </Card>
     );
+  }
+
+  // Members only see matches when the league admin has opted in. Default is OFF.
+  if (!isAdmin && !miniLeague?.show_matches_to_members) {
+    return null;
   }
 
   const hasGroups = groups && groups.length > 0;
