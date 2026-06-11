@@ -311,8 +311,17 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const handle = virtualHandleRef.current;
     if (!handle) return;
     // Initial-mount quiet window: let Virtuoso's own bottom pin own first
-    // paint without ANY parent-driven re-snaps.
-    if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) {
+    // paint without ANY parent-driven re-snaps — UNLESS the user has already
+    // activated the composer (focus → soft keyboard, or reply/edit pill
+    // grew the composer). On Android the keyboard can open within the same
+    // 600ms window (e.g. composer auto-focus on entry), and silently
+    // updating the prev refs here would swallow the false→true transition,
+    // so the latest message would stay clipped behind the composer with no
+    // re-pin ever firing.
+    const withinMountQuiet = performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS;
+    const keyboardJustOpened = !prevKeyboardOpenRef.current && isKeyboardOpen;
+    const composerJustGrew = composerHeight - prevComposerHeightRef.current > 4;
+    if (withinMountQuiet && !keyboardJustOpened && !composerJustGrew) {
       prevKeyboardOpenRef.current = isKeyboardOpen;
       prevComposerHeightRef.current = composerHeight;
       return;
