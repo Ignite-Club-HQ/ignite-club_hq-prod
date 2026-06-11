@@ -3399,7 +3399,19 @@ export default function EventDetailPage() {
               notRespondedUserIds={allNotRespondedForReminders.map((m: any) => m.id)}
               canSendReminders={canSendReminders}
               trackableMembersCount={isMiniLeagueEvent ? (miniLeagueAdults?.length ?? 0) : trackableMembers}
-              addressableMembers={isMiniLeagueEvent ? (miniLeagueAdults ?? []) : members}
+              addressableMembers={(() => {
+                if (isMiniLeagueEvent) return miniLeagueAdults ?? [];
+                const restricted = (event as any)?.restricted_to_roles as string[] | null | undefined;
+                if (restricted && restricted.length > 0) {
+                  const allowed = new Set(restricted);
+                  return (members ?? []).filter((m: any) =>
+                    (m.roles ?? []).some((r: string) =>
+                      allowed.has(r) || r === "club_admin" || r === "app_admin",
+                    ),
+                  );
+                }
+                return members;
+              })()}
               onShareLink={handleShareReminderLink}
               onProRequired={gateReminders}
               eventType={event.type}
