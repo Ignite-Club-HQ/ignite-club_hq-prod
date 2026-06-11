@@ -2780,7 +2780,9 @@ export default function EventDetailPage() {
         );
         const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
         const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
-        const childrenBlock = (!isMiniLeagueEvent && promptPlayer && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
+        const hasRoleRestriction = Array.isArray((event as any)?.restricted_to_roles)
+          && ((event as any).restricted_to_roles as string[]).length > 0;
+        const childrenBlock = (!isMiniLeagueEvent && promptPlayer && !hasRoleRestriction && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
           const unrespondedChildren = childrenOnTeam.filter(
             (c: any) => !childRsvps.find((r) => r.child_id === c.id),
           );
