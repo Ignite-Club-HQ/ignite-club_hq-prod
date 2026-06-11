@@ -195,7 +195,9 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 Here's what you can do:</Text>
 
-                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                {!isMiniLeague && (
+                  <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                )}
                 <Text style={bulletItem}>• Get notified about games, training and other events</Text>
                 <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
                 <Text style={bulletItem}>• View photos from games and club events</Text>
