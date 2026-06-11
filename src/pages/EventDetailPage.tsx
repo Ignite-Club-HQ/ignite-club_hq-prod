@@ -2710,21 +2710,17 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              // Players-only count for match/training events: unique children
-              // RSVPs (always players) + adult RSVPs whose role is "player"
-              // (team-scoped for team events, club-scoped for club-wide events).
-              // Excludes parents who RSVP'd for themselves alongside a child.
-              const playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
-              const uniqueChildIds = new Set(
-                goingRsvps.map(r => r.child_id).filter((id): id is string => !!id)
-              );
-              const adultPlayerCount = playerAdults
-                ? goingRsvps.filter(r => r.child_id == null && r.user_id && playerAdults.has(r.user_id)).length
-                : 0;
-              // If we have player-role info (even an empty set), use the strict
-              // count; otherwise fall back to total going so we never show 0.
-              const strictCount = uniqueChildIds.size + adultPlayerCount + guestCount;
-              const count = playerAdults ? strictCount : goingRsvps.length + guestCount;
+              // Players-only count: mirror the same filter the Going list uses
+              // (child RSVP, mini-league player, or adult RSVP whose membership
+              // includes the "player" role) so the header and "Going (N)" tab
+              // always agree.
+              const playerUserIds = new Set((playerMembers || []).map((m: any) => m.id));
+              const playerGoing = goingRsvps.filter((r: any) => {
+                if (r.child_id) return true;
+                if (r.mini_league_player_id) return true;
+                return r.user_id && playerUserIds.has(r.user_id);
+              }).length;
+              const count = playerGoing + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
 
             })() : <span>Loading...</span>}
@@ -3470,19 +3466,7 @@ export default function EventDetailPage() {
           </div>
         );
 
-        // Dedupe by child_id so co-parents RSVPing for the same child only
-        // count once — keeps this number consistent with the "N players
-        // attending" header. Adult RSVPs (one per user) remain 1:1.
-        const _playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
-        const _uniqueChildIds = new Set(
-          goingRsvps.map((r: any) => r.child_id).filter((id: any): id is string => !!id)
-        );
-        const _adultGoing = isSocialEvent
-          ? goingRsvps.filter((r: any) => r.child_id == null).length
-          : (_playerAdults
-              ? goingRsvps.filter((r: any) => r.child_id == null && r.user_id && _playerAdults.has(r.user_id)).length
-              : goingRsvps.filter((r: any) => r.child_id == null).length);
-        const goingTotal = _uniqueChildIds.size + _adultGoing + (eventGuests?.length || 0);
+        const goingTotal = goingRsvps.length + (eventGuests?.length || 0);
         const trackableMembers = (members?.length || 0);
 
         return (
