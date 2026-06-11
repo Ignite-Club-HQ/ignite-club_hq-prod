@@ -361,6 +361,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                     inviteLink: link,
                     clubLogoUrl: clubBranding?.logo_url || undefined,
                     childrenNames: [player.name.trim()],
+                    isMiniLeague: true,
                   },
                 },
               });
