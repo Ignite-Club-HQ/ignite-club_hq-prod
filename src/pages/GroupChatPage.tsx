@@ -2183,12 +2183,6 @@ export default function GroupChatPage() {
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                  <GroupChatMessageRow
-                    msg={msg}
-                    messagesById={messagesById}
-                    isOwnMessage={isOwnMessage}
-                    isAdmin={isAdmin}
-                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                   <div
                     role={searchQuery ? "button" : undefined}
                     tabIndex={searchQuery ? 0 : undefined}
@@ -2228,6 +2222,12 @@ export default function GroupChatPage() {
                     />
                   </div>
                 </>
+              );
+            }}
+          />
+        )}
+      </div>
+
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
