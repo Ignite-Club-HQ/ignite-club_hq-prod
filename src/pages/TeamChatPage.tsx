@@ -1432,8 +1432,12 @@ export default function TeamChatPage() {
       setReplyingTo(null);
       setPendingPollId(null);
       
-      // Scroll to bottom to show new message
-      scrollToBottom();
+      // Scroll to bottom to show new message — force=true bypasses the
+      // "user is touching viewport" guard, which can spuriously cancel the
+      // post-send re-pin if the send-button tap is still in contact when
+      // the deferred frames run (composer reflow + bottomPadding shrink
+      // would otherwise leave the new bubble below the visible area).
+      virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
       return { previousData };
     },
