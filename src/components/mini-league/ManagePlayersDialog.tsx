@@ -495,6 +495,11 @@ export function ManagePlayersDialog({
 
   const renderPlayerCard = (player: MiniLeaguePlayer, isDragOverlay = false) => {
     const parentName = player.parent_user_id ? parentMap.get(player.parent_user_id) : null;
+    const extraGuardians = (player.child_id ? guardiansByChild.get(player.child_id) : []) || [];
+    const extraGuardianNames = extraGuardians
+      .filter(g => g.guardian_id !== player.parent_user_id)
+      .map(g => g.display_name || "Parent");
+    const allParentNames = [parentName, ...extraGuardianNames].filter(Boolean) as string[];
     const isEditing = editingPlayerId === player.id;
 
     return (
