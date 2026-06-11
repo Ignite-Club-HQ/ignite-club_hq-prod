@@ -269,6 +269,12 @@ export default function ClubChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
+  const handleSearchResultClick = (mid: string) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    requestAnimationFrame(() => handleJumpToMessage(mid));
+  };
+
   // Get club info
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
