@@ -907,6 +907,8 @@ export function MentionInput({
             value={displayValue}
             onChange={handleDisplayChange}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onScroll={() => {
               if (highlightRef.current && inputRef.current) {
                 highlightRef.current.scrollTop = inputRef.current.scrollTop;
