@@ -734,6 +734,8 @@ export default function CreateEventPage() {
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
       end_time: timeToTimestamp(endTime, parsedDateTime),
+      restricted_to_roles:
+        type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
     };
 
     try {
