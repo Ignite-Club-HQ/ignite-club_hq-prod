@@ -717,7 +717,7 @@ export function ManagePlayersDialog({
               onDragEnd={handleDragEnd}
             >
               <div className="space-y-5" data-vaul-no-drag>
-                {[5, 4, 3, 2, 1].map((rating) => {
+                {[0, 5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
                   const showGroup = abilityPlayers?.length || activePlayer;
                   if (!showGroup) return null;
