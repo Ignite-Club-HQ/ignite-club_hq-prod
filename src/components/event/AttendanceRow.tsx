@@ -28,6 +28,8 @@ export interface AttendanceRowProps {
   rightSlot?: ReactNode;
   /** Optional custom avatar fallback content (defaults to first letter of name). */
   avatarFallback?: string;
+  /** Show an amber "Pending" badge — e.g. child not yet accepted onto the app. */
+  isPending?: boolean;
   className?: string;
 }
 
@@ -67,6 +69,7 @@ export function AttendanceRow({
   secondaryLine,
   rightSlot,
   avatarFallback,
+  isPending,
   className,
 }: AttendanceRowProps) {
   const fallback =
@@ -106,6 +109,14 @@ export function AttendanceRow({
               )}
             >
               {displayRole}
+            </span>
+          )}
+          {isPending && (
+            <span
+              title="Not yet accepted onto the app"
+              className="shrink-0 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap leading-tight bg-amber-500/15 text-amber-700 dark:text-amber-400"
+            >
+              Pending
             </span>
           )}
         </div>
