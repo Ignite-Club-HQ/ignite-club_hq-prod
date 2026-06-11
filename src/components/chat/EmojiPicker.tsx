@@ -185,16 +185,30 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           aria-haspopup="dialog"
           aria-expanded={open}
           data-emoji-button
+          onPointerDown={(e) => {
+            // Toggle immediately on pointerdown so fast taps register reliably.
+            // Radix's default click-based trigger can lose fast taps when the
+            // dismissable layer races the pointerup event.
+            if (disabled) return;
+            if (!open) {
+              dismissIOSKeyboardAccessory();
+              dismissNativeKeyboard();
+            }
+            setOpen((prev) => !prev);
+            // Prevent the default focus shift so the popover doesn't
+            // immediately receive then drop focus on touch.
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            // Click is redundant with pointerdown above; swallow it so Radix
+            // doesn't toggle the popover closed right after we opened it.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           className="h-11 w-11 shrink-0 rounded-full text-foreground/60 hover:text-foreground hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation"
           disabled={disabled}
-          onClick={(e) => {
-            // Ensure the popover opens even if some ancestor handler stops propagation
-            e.stopPropagation();
-            setOpen((prev) => !prev);
-          }}
         >
           <Smile className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden="true" />
-
         </Button>
       </PopoverTrigger>
       <PopoverContent
