@@ -918,6 +918,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     );
   }
 
+  // Members only see matches when the league admin has opted in. Default is OFF.
+  if (!isAdmin && !miniLeague?.show_matches_to_members) {
+    return null;
+  }
+
   const hasGroups = groups && groups.length > 0;
 
   // Calculate unallocated players (available but not in any match)
