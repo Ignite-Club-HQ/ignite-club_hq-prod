@@ -269,6 +269,8 @@ serve(async (req) => {
       `)
       .eq("points_reminder_sent", false)
       .eq("is_cancelled", false)
+      .is("mini_league_id", null) // points reminders are team-event only
+      .not("team_id", "is", null)
       .gte("event_date", threeDaysThreeHoursFromNow.toISOString())
       .lte("event_date", fourDaysFromNow.toISOString());
 

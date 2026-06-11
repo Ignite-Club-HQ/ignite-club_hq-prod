@@ -264,10 +264,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         const hasChildRsvp = eventRsvps.some(r => r.child_id === player.child_id);
         if (hasChildRsvp) rsvpPlayerIds.add(player.id);
       }
-      if (player.parent_user_id) {
-        const hasParentRsvp = eventRsvps.some(r => r.user_id === player.parent_user_id && !r.child_id);
-        if (hasParentRsvp) rsvpPlayerIds.add(player.id);
-      }
+      // NOTE: do NOT treat an adult parent_user_id RSVP (no child_id) as
+      // covering this child. A parent saying "I'm going" only confirms the
+      // parent, not the child — counting it here inflated "players ready"
+      // (e.g. Maisy showing as ready because Claire RSVP'd at adult level).
     });
   }
 

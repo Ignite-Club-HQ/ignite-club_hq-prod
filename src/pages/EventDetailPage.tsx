@@ -773,7 +773,9 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
-  // Fetch mini-league players for mini-league events (for not responded list)
+  // Fetch mini-league players for mini-league events (for not responded list).
+  // We enrich each player with `is_pending` = no parent has accepted the app yet
+  // (no parent_user_id, linked child has no parent_id, and no guardians).
   const { data: miniLeaguePlayers } = useQuery({
     queryKey: ["mini-league-players-for-event", event?.mini_league_id],
     queryFn: async () => {
@@ -782,7 +784,31 @@ export default function EventDetailPage() {
         .select("id, name, parent_user_id, child_id")
         .eq("mini_league_id", event!.mini_league_id!);
       if (error) throw error;
-      return data || [];
+      const players = data || [];
+
+      const childIds = Array.from(
+        new Set(players.map((p: any) => p.child_id).filter((id: string | null): id is string => !!id)),
+      );
+
+      let childParentMap = new Map<string, string | null>();
+      let guardianCountMap = new Map<string, number>();
+      if (childIds.length > 0) {
+        const [childrenRes, guardiansRes] = await Promise.all([
+          supabase.from("children").select("id, parent_id").in("id", childIds),
+          supabase.from("child_guardians").select("child_id").in("child_id", childIds),
+        ]);
+        (childrenRes.data || []).forEach((c: any) => childParentMap.set(c.id, c.parent_id));
+        (guardiansRes.data || []).forEach((g: any) => {
+          guardianCountMap.set(g.child_id, (guardianCountMap.get(g.child_id) || 0) + 1);
+        });
+      }
+
+      return players.map((p: any) => {
+        const childParent = p.child_id ? childParentMap.get(p.child_id) : null;
+        const guardianCount = p.child_id ? (guardianCountMap.get(p.child_id) || 0) : 0;
+        const is_pending = !p.parent_user_id && !childParent && guardianCount === 0;
+        return { ...p, is_pending };
+      });
     },
     enabled: !!event?.mini_league_id,
   });
@@ -862,9 +888,20 @@ export default function EventDetailPage() {
   const isMiniLeagueEvent = !!event?.mini_league_id;
   const eventTypeLabel = isMiniLeagueEvent ? "Match Day" : getEventTypeLabel(event?.type);
 
-  // Filter members based on showAllRoles toggle
-  const members = membersWithRoles;
-  const playerMembers = membersWithRoles?.filter((m: any) => m.roles?.includes("player")) || [];
+  const restrictedEventRoles = Array.isArray((event as any)?.restricted_to_roles)
+    ? ((event as any).restricted_to_roles as string[])
+    : [];
+  const hasRestrictedEventRoles = restrictedEventRoles.length > 0;
+  const roleRestrictedMembers = membersWithRoles?.filter((m: any) => {
+    if (!hasRestrictedEventRoles) return true;
+    return (m.roles ?? []).some((role: string) =>
+      restrictedEventRoles.includes(role) || role === "club_admin" || role === "app_admin",
+    );
+  }) || [];
+
+  // Filter members based on showAllRoles toggle / event role restrictions
+  const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
+  const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
 
   // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
   const { data: miniLeagueDutyAssignees } = useQuery({
@@ -1966,7 +2003,7 @@ export default function EventDetailPage() {
           allMemberIds = [...new Set([...parentIds, ...adminIds])];
         }
       } else {
-        let memberQuery = supabase.from("user_roles").select("user_id");
+        let memberQuery = supabase.from("user_roles").select("user_id, role");
         if (event?.team_id) {
           memberQuery = memberQuery.eq("team_id", event.team_id);
         } else if (event?.club_id) {
@@ -1974,7 +2011,13 @@ export default function EventDetailPage() {
         }
         
         const { data: allMembers } = await memberQuery;
-        allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
+        const restricted = Array.isArray((event as any)?.restricted_to_roles)
+          ? ((event as any).restricted_to_roles as string[])
+          : [];
+        const rows = restricted.length > 0
+          ? (allMembers || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
+          : (allMembers || []);
+        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
       }
       
       // Find members who haven't RSVPed
@@ -2025,19 +2068,25 @@ export default function EventDetailPage() {
     },
   });
 
-  // Individual remind mutation - sends reminder to a single member or all guardians of a child
+  // Individual remind mutation - sends reminder to a single member or all guardians of a child.
+  // For mini-league players, userId may be empty when mini_league_players.parent_user_id is NULL;
+  // in that case we derive recipients entirely from the linked child (children.parent_id + child_guardians).
   const individualRemindMutation = useMutation({
-    mutationFn: async ({ userId, displayName, childId }: { userId: string; displayName: string; childId?: string }) => {
-      // Resolve recipient list: if childId is provided, include all linked guardians
-      let recipientIds: string[] = [userId];
+    mutationFn: async ({ userId, displayName, childId }: { userId?: string; displayName: string; childId?: string }) => {
+      let recipientIds: string[] = userId ? [userId] : [];
 
       if (childId) {
-        const { data: guardians } = await supabase
-          .from("child_guardians")
-          .select("guardian_id")
-          .eq("child_id", childId);
+        const [{ data: guardians }, { data: childRow }] = await Promise.all([
+          supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
+          supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
+        ]);
         const guardianIds = (guardians?.map((g) => g.guardian_id).filter(Boolean) as string[]) || [];
-        recipientIds = Array.from(new Set([userId, ...guardianIds]));
+        if (childRow?.parent_id) guardianIds.push(childRow.parent_id);
+        recipientIds = Array.from(new Set([...recipientIds, ...guardianIds]));
+      }
+
+      if (recipientIds.length === 0) {
+        throw new Error(`${displayName} has no linked parents to remind`);
       }
 
       // 24h cooldown — skip recipients who were reminded in the last 24 hours
@@ -2066,7 +2115,7 @@ export default function EventDetailPage() {
         }))
       );
       if (error) throw error;
-      return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId };
+      return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId || childId || displayName };
     },
     onSuccess: ({ displayName, count, isChild, recipientKey }) => {
       const now = new Date().toISOString();
@@ -2086,6 +2135,7 @@ export default function EventDetailPage() {
       toast({ title: error.message || "Failed to send reminder", variant: "destructive" });
     },
   });
+
 
   // Share event reminder link via native share
   const handleShareReminderLink = async () => {
@@ -2150,14 +2200,20 @@ export default function EventDetailPage() {
           allMemberIds = [...new Set([...parentIds, ...adminIds])];
         }
       } else {
-        let memberQuery = supabase.from("user_roles").select("user_id");
+        let memberQuery = supabase.from("user_roles").select("user_id, role");
         if (event.team_id) {
           memberQuery = memberQuery.eq("team_id", event.team_id);
         } else if (event.club_id) {
           memberQuery = memberQuery.eq("club_id", event.club_id);
         }
         const { data: members } = await memberQuery;
-        allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+        const restricted = Array.isArray((event as any)?.restricted_to_roles)
+          ? ((event as any).restricted_to_roles as string[])
+          : [];
+        const rows = restricted.length > 0
+          ? (members || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
+          : (members || []);
+        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
       }
 
       // Exclude the creator
@@ -2780,7 +2836,7 @@ export default function EventDetailPage() {
         );
         const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
         const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
-        const childrenBlock = (!isMiniLeagueEvent && promptPlayer && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
+        const childrenBlock = (!isMiniLeagueEvent && promptPlayer && !hasRestrictedEventRoles && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
           const unrespondedChildren = childrenOnTeam.filter(
             (c: any) => !childRsvps.find((r) => r.child_id === c.id),
           );
@@ -3099,9 +3155,13 @@ export default function EventDetailPage() {
 
         if (isMiniLeagueEvent && miniLeaguePlayers) {
           notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
+            // A player only counts as "responded" if an RSVP exists for that specific
+            // player (mini_league_player_id) or for their linked child (child_id).
+            // The parent's own adult RSVP says nothing about whether the player is
+            // attending, so do NOT hide the player just because their parent_user_id
+            // has any RSVP on the event.
             if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
             if (player.child_id && respondedChildIds.has(player.child_id)) return false;
-            if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
             return true;
           });
           // Adults bucket only when "Show all roles" is on.
@@ -3213,9 +3273,17 @@ export default function EventDetailPage() {
         const notRespondedNode = (
           <div className="divide-y divide-border/50">
             {notRespondedChildren.map((child: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) && !isMiniLeagueEvent && child.parent_id ? (() => {
-                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                const lastRemindedAt = recentlyReminded.get(child.parent_id) || recentReminderMap?.get(child.parent_id) || null;
+              // For mini-league players: parent_user_id may be null; we still allow remind via
+              // the linked child (children.parent_id + child_guardians).
+              const isPendingChild = isMiniLeagueEvent ? !!child.is_pending : false;
+              const remindParentId: string | undefined = isMiniLeagueEvent ? child.parent_user_id : child.parent_id;
+              const remindChildId: string | undefined = isMiniLeagueEvent ? child.child_id : (child.child_id || child.id);
+              const recipientKey = remindParentId || remindChildId || child.id;
+              // No one to remind if the child is pending (no parent has accepted the app yet).
+              const canRemind = !isPendingChild && !!(remindParentId || remindChildId);
+              const remindBtn = (isAdmin || isAppAdmin) && canRemind ? (() => {
+                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === remindParentId && individualRemindMutation.variables?.childId === remindChildId;
+                const lastRemindedAt = recentlyReminded.get(recipientKey) || (remindParentId ? recentReminderMap?.get(remindParentId) : null) || null;
                 const wasReminded = !!lastRemindedAt;
                 const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
                 const isProBlocked = !canSendReminders && !wasReminded;
@@ -3226,7 +3294,7 @@ export default function EventDetailPage() {
                     className={`h-8 px-2.5 shrink-0 gap-1 ${isProBlocked ? "opacity-60 cursor-not-allowed" : ""}`}
                     onClick={() => {
                       if (!gateReminders()) return;
-                      individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id });
+                      individualRemindMutation.mutate({ userId: remindParentId, displayName: child.name || "Unknown", childId: remindChildId });
                     }}
                     disabled={isLoadingThis || wasReminded}
                     title={wasReminded ? remindedLabel : isProBlocked ? "Pro required — upgrade to send reminders" : "Remind all parents"}
@@ -3244,6 +3312,8 @@ export default function EventDetailPage() {
                   </Button>
                 );
               })() : null;
+
+
               const editBtn = (isAdmin || isAppAdmin) ? (
                 <AdminRsvpChanger
                   currentStatus={null}
@@ -3275,6 +3345,7 @@ export default function EventDetailPage() {
                   name={child.name || "Unknown"}
                   roleLabel={!isMiniLeagueEvent ? "Child" : null}
                   roleTone="child"
+                  isPending={isPendingChild}
                   rightSlot={
                     <>
                       {remindBtn}
@@ -3399,7 +3470,19 @@ export default function EventDetailPage() {
               notRespondedUserIds={allNotRespondedForReminders.map((m: any) => m.id)}
               canSendReminders={canSendReminders}
               trackableMembersCount={isMiniLeagueEvent ? (miniLeagueAdults?.length ?? 0) : trackableMembers}
-              addressableMembers={isMiniLeagueEvent ? (miniLeagueAdults ?? []) : members}
+              addressableMembers={(() => {
+                if (isMiniLeagueEvent) return miniLeagueAdults ?? [];
+                const restricted = (event as any)?.restricted_to_roles as string[] | null | undefined;
+                if (restricted && restricted.length > 0) {
+                  const allowed = new Set(restricted);
+                  return (members ?? []).filter((m: any) =>
+                    (m.roles ?? []).some((r: string) =>
+                      allowed.has(r) || r === "club_admin" || r === "app_admin",
+                    ),
+                  );
+                }
+                return members;
+              })()}
               onShareLink={handleShareReminderLink}
               onProRequired={gateReminders}
               eventType={event.type}

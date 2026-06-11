@@ -39,6 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,6 +137,7 @@ export default function CreateEventPage() {
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
   const [isBye, setIsBye] = useState(false);
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
+  const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -732,6 +734,8 @@ export default function CreateEventPage() {
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
       end_time: timeToTimestamp(endTime, parsedDateTime),
+      restricted_to_roles:
+        type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
     };
 
     try {
@@ -1185,6 +1189,15 @@ export default function CreateEventPage() {
                   teamDefault={null}
                 />
               )}
+
+              {/* Role restriction - only for club-wide social events */}
+              {type === "social" && !teamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
+
 
 
 

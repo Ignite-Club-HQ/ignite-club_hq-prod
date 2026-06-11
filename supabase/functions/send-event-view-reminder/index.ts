@@ -130,6 +130,104 @@ serve(async (req) => {
       });
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Server-side scope validation: filter userIds to only those addressable for
+    // this event. Prevents an authorized admin from triggering reminders to
+    // members outside the event's audience (e.g. non-committee members for a
+    // role-restricted club event, or non-Maxiroos members for a mini-league
+    // event).
+    // ──────────────────────────────────────────────────────────────────────────
+    const addressable = new Set<string>();
+
+    // Always allow app_admin + club_admin of this club to receive (matches
+    // process-event-notifications semantics).
+    {
+      const { data: alwaysAllowed } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("user_id", userIds)
+        .or(
+          `role.eq.app_admin${event.club_id ? `,and(club_id.eq.${event.club_id},role.eq.club_admin)` : ""}`,
+        );
+      alwaysAllowed?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
+    }
+
+    if (event.mini_league_id) {
+      // Mini-league scope: parents of assigned children + league admins.
+      const [players, leagueAdmins, leagueAdminRole] = await Promise.all([
+        supabase
+          .from("mini_league_players")
+          .select("parent_user_id")
+          .eq("mini_league_id", event.mini_league_id)
+          .in("parent_user_id", userIds),
+        supabase
+          .from("mini_league_admins")
+          .select("user_id")
+          .eq("mini_league_id", event.mini_league_id)
+          .in("user_id", userIds),
+        event.club_id
+          ? supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("club_id", event.club_id)
+              .eq("role", "league_admin")
+              .in("user_id", userIds)
+          : Promise.resolve({ data: [] as Array<{ user_id: string }> }),
+      ]);
+      players.data?.forEach((r: { parent_user_id: string | null }) => {
+        if (r.parent_user_id) addressable.add(r.parent_user_id);
+      });
+      leagueAdmins.data?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
+      (leagueAdminRole.data as Array<{ user_id: string }> | undefined)?.forEach((r) =>
+        addressable.add(r.user_id),
+      );
+    } else if (event.team_id) {
+      // Team scope: user_roles for this team.
+      const { data: teamMembers } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", event.team_id)
+        .in("user_id", userIds);
+      teamMembers?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
+    } else if (event.club_id) {
+      // Club-wide scope: user_roles for this club, honouring restricted_to_roles.
+      const { data: restrictRow } = await supabase
+        .from("events")
+        .select("restricted_to_roles")
+        .eq("id", eventId)
+        .maybeSingle();
+      const restricted = Array.isArray((restrictRow as any)?.restricted_to_roles)
+        ? ((restrictRow as any).restricted_to_roles as string[])
+        : [];
+      let q = supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("club_id", event.club_id)
+        .in("user_id", userIds);
+      if (restricted.length > 0) {
+        q = q.in("role", [...restricted, "club_admin"]);
+      }
+      const { data: clubMembers } = await q;
+      clubMembers?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
+    }
+
+    const originalCount = userIds.length;
+    const filteredUserIds = userIds.filter((id) => addressable.has(id));
+    if (filteredUserIds.length !== originalCount) {
+      console.warn(
+        `[send-event-view-reminder] Filtered ${originalCount - filteredUserIds.length} out-of-scope userIds for event ${eventId}`,
+      );
+    }
+    if (filteredUserIds.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No eligible recipients", sent: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    // Reassign for the rest of the function.
+    (userIds as string[]).length = 0;
+    (userIds as string[]).push(...filteredUserIds);
+
     // 24h cooldown — only enforced for bulk sends (more than 1 recipient).
     // Per-row "remind this one person" actions bypass the cooldown.
     const isBulkSend = userIds.length > 1;

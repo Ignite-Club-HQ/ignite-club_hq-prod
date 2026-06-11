@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical } from "lucide-react";
+import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus } from "lucide-react";
+import { AddSecondParentDialog } from "@/components/mini-league/AddSecondParentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,12 +68,13 @@ interface ManagePlayersDialogProps {
 }
 
 const getAbilityLabel = (rating: number) => {
-  const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
+  const labels = ["Unrated", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
   return labels[rating] || "";
 };
 
 const getAbilityColor = (rating: number) => {
   const colors: Record<number, string> = {
+    0: "bg-muted text-muted-foreground",
     1: "bg-destructive/20 text-destructive",
     2: "bg-orange-500/20 text-orange-600 dark:text-orange-400",
     3: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
@@ -152,6 +154,7 @@ export function ManagePlayersDialog({
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const [activePlayer, setActivePlayer] = useState<MiniLeaguePlayer | null>(null);
+  const [secondParentForPlayer, setSecondParentForPlayer] = useState<MiniLeaguePlayer | null>(null);
 
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
@@ -193,6 +196,67 @@ export function ManagePlayersDialog({
   });
 
   const parentMap = new Map((parentProfiles || []).map(p => [p.id, p.display_name || "Unknown"]));
+
+  // Fetch additional guardians (second parents) for all children in the list
+  const childIdsForGuardians = [...new Set((players || []).map(p => p.child_id).filter(Boolean) as string[])];
+  const { data: additionalGuardians } = useQuery({
+    queryKey: ["mini-league-additional-guardians", miniLeagueId, childIdsForGuardians],
+    queryFn: async () => {
+      if (childIdsForGuardians.length === 0) return [] as { child_id: string; guardian_id: string; display_name: string | null }[];
+      const { data: gRows } = await supabase
+        .from("child_guardians")
+        .select("child_id, guardian_id")
+        .in("child_id", childIdsForGuardians);
+      const guardianIds = [...new Set((gRows || []).map(g => g.guardian_id))];
+      if (guardianIds.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", guardianIds);
+      const nameMap = new Map((profs || []).map(p => [p.id, p.display_name]));
+      return (gRows || []).map(g => ({
+        child_id: g.child_id,
+        guardian_id: g.guardian_id,
+        display_name: nameMap.get(g.guardian_id) ?? null,
+      }));
+    },
+    enabled: open && childIdsForGuardians.length > 0,
+  });
+
+  const guardiansByChild = new Map<string, { guardian_id: string; display_name: string | null }[]>();
+  (additionalGuardians || []).forEach(g => {
+    const arr = guardiansByChild.get(g.child_id) || [];
+    arr.push({ guardian_id: g.guardian_id, display_name: g.display_name });
+    guardiansByChild.set(g.child_id, arr);
+  });
+
+  // Determine which players are "pending" (no parent has accepted the app yet).
+  // A player is pending when: no parent_user_id on the player, no parent_id on the
+  // linked child, and no entries in child_guardians for that child.
+  const childIdsForPending = [...new Set((players || []).map(p => p.child_id).filter(Boolean) as string[])];
+  const { data: pendingMeta } = useQuery({
+    queryKey: ["mini-league-players-pending-meta", miniLeagueId, childIdsForPending],
+    queryFn: async () => {
+      if (childIdsForPending.length === 0) return { childParent: new Map<string, string | null>(), guardianCount: new Map<string, number>() };
+      const [{ data: childRows }, { data: guardianRows }] = await Promise.all([
+        supabase.from("children").select("id, parent_id").in("id", childIdsForPending),
+        supabase.from("child_guardians").select("child_id").in("child_id", childIdsForPending),
+      ]);
+      const childParent = new Map<string, string | null>((childRows || []).map(c => [c.id, c.parent_id]));
+      const guardianCount = new Map<string, number>();
+      (guardianRows || []).forEach(g => guardianCount.set(g.child_id, (guardianCount.get(g.child_id) || 0) + 1));
+      return { childParent, guardianCount };
+    },
+    enabled: open && childIdsForPending.length > 0,
+  });
+
+  const isPlayerPending = (player: MiniLeaguePlayer) => {
+    if (player.parent_user_id) return false;
+    if (!player.child_id) return true;
+    const childParent = pendingMeta?.childParent.get(player.child_id) ?? null;
+    const guardianCount = pendingMeta?.guardianCount.get(player.child_id) ?? 0;
+    return !childParent && guardianCount === 0;
+  };
 
   // Fetch pending invites
   const { data: pendingInvites = [] } = useQuery({
@@ -418,7 +482,10 @@ export function ManagePlayersDialog({
   ) || [];
 
   const playersByAbility = filteredPlayers.reduce((acc, player) => {
-    const key = player.ability_rating;
+    // Treat null/0 ability as "unrated" (bucket 0) so players without a
+    // rating still appear in the list instead of disappearing.
+    const raw = player.ability_rating;
+    const key = raw && raw >= 1 && raw <= 5 ? raw : 0;
     if (!acc[key]) acc[key] = [];
     acc[key].push(player);
     return acc;
@@ -428,6 +495,11 @@ export function ManagePlayersDialog({
 
   const renderPlayerCard = (player: MiniLeaguePlayer, isDragOverlay = false) => {
     const parentName = player.parent_user_id ? parentMap.get(player.parent_user_id) : null;
+    const extraGuardians = (player.child_id ? guardiansByChild.get(player.child_id) : []) || [];
+    const extraGuardianNames = extraGuardians
+      .filter(g => g.guardian_id !== player.parent_user_id)
+      .map(g => g.display_name || "Parent");
+    const allParentNames = [parentName, ...extraGuardianNames].filter(Boolean) as string[];
     const isEditing = editingPlayerId === player.id;
 
     return (
@@ -436,7 +508,7 @@ export function ManagePlayersDialog({
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
         <CardContent className="py-2.5 px-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Left: checkbox in selection mode */}
             {selectionMode && (
               <Checkbox
@@ -503,27 +575,52 @@ export function ManagePlayersDialog({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium truncate">{player.name}</span>
-                  {canManage && !selectionMode && (
-                    <button
-                      type="button"
-                      className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
-                      onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-              {parentName && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  <span className="text-xs text-muted-foreground truncate">{parentName}</span>
-                </div>
+                <>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-sm font-medium truncate">{player.name}</span>
+                    {canManage && !selectionMode && (
+                      <button
+                        type="button"
+                        className="p-1 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+                        onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                    {allParentNames.length > 0 && (
+                      <>
+                        <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">
+                          {allParentNames.join(", ")}
+                        </span>
+                      </>
+                    )}
+                    {isPlayerPending(player) && (
+                      <span className="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-            {/* Right: delete action */}
+            {/* Right: admin actions */}
+            {!selectionMode && canManage && !isEditing && !isDragOverlay && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                title="Invite second parent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSecondParentForPlayer(player);
+                }}
+              >
+                <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -664,7 +761,7 @@ export function ManagePlayersDialog({
               onDragEnd={handleDragEnd}
             >
               <div className="space-y-5" data-vaul-no-drag>
-                {[5, 4, 3, 2, 1].map((rating) => {
+                {[0, 5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
                   const showGroup = abilityPlayers?.length || activePlayer;
                   if (!showGroup) return null;
@@ -702,12 +799,9 @@ export function ManagePlayersDialog({
             </DndContext>
           )}
 
-          {pendingInvites.length > 0 && (
-            <div className="space-y-2 mt-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
-              <PendingInvitesList invites={pendingInvites} clubId={clubId} />
-            </div>
-          )}
+          {/* Pending invites are surfaced inline on each player row via the
+              "Pending" badge + invite-second-parent (UserPlus) button, so no
+              separate "Pending Parent Invites" section is rendered here. */}
 
           <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
             <AlertDialogContent>
@@ -737,6 +831,19 @@ export function ManagePlayersDialog({
           </Button>
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
+
+      {secondParentForPlayer && (
+        <AddSecondParentDialog
+          open={!!secondParentForPlayer}
+          onOpenChange={(o) => { if (!o) setSecondParentForPlayer(null); }}
+          playerId={secondParentForPlayer.id}
+          playerName={secondParentForPlayer.name}
+          childId={secondParentForPlayer.child_id}
+          miniLeagueId={miniLeagueId}
+          miniLeagueName={miniLeagueName}
+          clubId={clubId}
+        />
+      )}
     </ResponsiveDialog>
   );
 }
