@@ -525,7 +525,21 @@ export function ManagePlayersDialog({
                 </div>
               )}
             </div>
-            {/* Right: delete action */}
+            {/* Right: admin actions */}
+            {!selectionMode && canManage && !isEditing && !isDragOverlay && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                title="Invite second parent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSecondParentForPlayer(player);
+                }}
+              >
+                <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
