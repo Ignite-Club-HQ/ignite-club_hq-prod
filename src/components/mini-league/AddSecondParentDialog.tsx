@@ -74,9 +74,9 @@ export function AddSecondParentDialog({
 
       if (isEmailSearch) {
         // Email lookup via RPC -> profile join
-        const { data: emailRows } = await supabase.rpc("get_user_by_email_for_passkey" as any, {
-          p_email: debouncedSearch.trim().toLowerCase(),
-        } as any);
+        const { data: emailRows } = await supabase.rpc("get_user_by_email_for_passkey", {
+          lookup_email: debouncedSearch.trim().toLowerCase(),
+        });
         const userId = Array.isArray(emailRows) ? emailRows[0]?.id : (emailRows as any)?.id;
         if (!userId) {
           // Fallback: substring match against display_name (handles partial typing)
