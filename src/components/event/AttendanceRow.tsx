@@ -28,6 +28,8 @@ export interface AttendanceRowProps {
   rightSlot?: ReactNode;
   /** Optional custom avatar fallback content (defaults to first letter of name). */
   avatarFallback?: string;
+  /** Show an amber "Pending" badge — e.g. child not yet accepted onto the app. */
+  isPending?: boolean;
   className?: string;
 }
 
