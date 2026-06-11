@@ -135,6 +135,21 @@ export function AddSecondParentDialog({
         is_primary: false,
       } as any);
       if (error && !error.message?.toLowerCase().includes("duplicate")) throw error;
+
+      // Notify the linked parent (in-app notification — push fires via trigger)
+      const { data: actor } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const actorName = actor?.display_name || "An admin";
+      await supabase.from("notifications").insert({
+        user_id: selectedUser.id,
+        type: "guardian_added",
+        message: `${actorName} added you as a parent of ${playerName} in ${miniLeagueName}`,
+        club_id: clubId,
+        related_id: resolvedChildId,
+      } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
