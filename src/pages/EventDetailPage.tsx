@@ -2710,21 +2710,33 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              // Players-only count for match/training events: unique children
-              // RSVPs (always players) + adult RSVPs whose role is "player"
-              // (team-scoped for team events, club-scoped for club-wide events).
-              // Excludes parents who RSVP'd for themselves alongside a child.
+              // Players-only count:
+              //  - Every unique child RSVP = 1 player (children are always players)
+              //  - Every adult RSVP whose user has role='player' = 1 player
+              //  - For adults without a player role, the FIRST self-RSVP is treated
+              //    as the parent attending themselves (not counted). Any additional
+              //    self-RSVPs by the same adult are treated as extra sibling/guest
+              //    players they're bringing on behalf of (counted).
               const playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
               const uniqueChildIds = new Set(
                 goingRsvps.map(r => r.child_id).filter((id): id is string => !!id)
               );
-              const adultPlayerCount = playerAdults
-                ? goingRsvps.filter(r => r.child_id == null && r.user_id && playerAdults.has(r.user_id)).length
-                : 0;
-              // If we have player-role info (even an empty set), use the strict
-              // count; otherwise fall back to total going so we never show 0.
+              const adultSelfRsvps = goingRsvps.filter(r => r.child_id == null && r.user_id);
+              const selfCountByUser = new Map<string, number>();
+              for (const r of adultSelfRsvps) {
+                selfCountByUser.set(r.user_id!, (selfCountByUser.get(r.user_id!) ?? 0) + 1);
+              }
+              let adultPlayerCount = 0;
+              for (const [uid, n] of selfCountByUser) {
+                if (playerAdults?.has(uid)) {
+                  adultPlayerCount += n; // every self-RSVP is a player
+                } else {
+                  adultPlayerCount += Math.max(0, n - 1); // extras = sibling players
+                }
+              }
               const strictCount = uniqueChildIds.size + adultPlayerCount + guestCount;
               const count = playerAdults ? strictCount : goingRsvps.length + guestCount;
+
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
 
             })() : <span>Loading...</span>}
