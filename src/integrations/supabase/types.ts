@@ -10404,6 +10404,7 @@ export type Database = {
         Returns: {
           avatar_url: string
           display_name: string
+          masked_email: string
           source: string
           user_id: string
         }[]

@@ -400,6 +400,7 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
         display_name: string | null;
         avatar_url: string | null;
         source: string;
+        masked_email: string | null;
       }>;
     },
   });
@@ -517,7 +518,7 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
             id="coord-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search club admins, committee or association admins"
+            placeholder="Search by name or email"
           />
           <p className="text-xs text-muted-foreground">
             Only admins from the organising club or its association can be added.
@@ -545,7 +546,9 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{p.display_name ?? "Unknown"}</div>
-                        <div className="text-xs text-muted-foreground capitalize">{p.source}</div>
+                        <div className="text-xs text-muted-foreground capitalize truncate">
+                          {p.source}{p.masked_email ? ` · ${p.masked_email}` : ""}
+                        </div>
                       </div>
                       {already ? (
                         <span className="text-xs text-muted-foreground">Already added</span>

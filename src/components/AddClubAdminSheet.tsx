@@ -418,7 +418,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   <>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Type a name..."
+                      placeholder="Search by name or email..."
                       value={customName}
                       onChange={(e) => {
                         setCustomName(e.target.value);
