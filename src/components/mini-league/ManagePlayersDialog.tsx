@@ -1,6 +1,13 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus } from "lucide-react";
+import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus, MoreVertical, Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AddSecondParentDialog } from "@/components/mini-league/AddSecondParentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -504,25 +511,25 @@ export function ManagePlayersDialog({
 
     return (
       <Card
-        className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
+        className={`overflow-hidden rounded-xl border-border/60 ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
-        <CardContent className="py-3 px-3">
-          <div className="flex items-start gap-2.5">
+        <CardContent className="py-2 px-2.5">
+          <div className="flex items-center gap-2">
             {/* Left: checkbox in selection mode */}
             {selectionMode && (
               <Checkbox
                 checked={selectedPlayerIds.has(player.id)}
                 onCheckedChange={() => togglePlayerSelection(player.id)}
                 onClick={(e) => e.stopPropagation()}
-                className="shrink-0 mt-1"
+                className="shrink-0"
               />
             )}
 
             {/* Main content column */}
             <div className="min-w-0 flex-1">
               {isEditing ? (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 py-1">
                   <Input
                     ref={editInputRef}
                     value={editingName}
@@ -536,142 +543,133 @@ export function ManagePlayersDialog({
                   />
                   <button
                     type="button"
-                    className="p-1 text-primary hover:text-primary/80"
+                    className="p-1 text-primary"
                     onClick={(e) => { e.stopPropagation(); saveEditingName(player); }}
                   >
-                    <Check className="h-3.5 w-3.5" />
+                    <Check className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
-                    className="p-1 text-muted-foreground hover:text-foreground"
+                    className="p-1 text-muted-foreground"
                     onClick={(e) => { e.stopPropagation(); setEditingPlayerId(null); }}
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* Row 1: name + inline edit + pending */}
+                  {/* Row 1: name + pending */}
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-sm font-semibold text-foreground truncate">
+                    <span className="text-[15px] leading-tight font-semibold text-foreground truncate">
                       {player.name}
                     </span>
-                    {canManage && !selectionMode && (
-                      <button
-                        type="button"
-                        className="p-0.5 text-muted-foreground/50 hover:text-foreground shrink-0"
-                        onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
-                        aria-label="Edit name"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                    )}
                     {isPlayerPending(player) && (
-                      <span className="ml-auto inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                      <span className="inline-flex items-center h-4 px-1.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
                         Pending
                       </span>
                     )}
                   </div>
 
-                  {/* Row 2: parent/guardian names */}
-                  {allParentNames.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                      <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                      <span className="text-xs text-muted-foreground truncate">
-                        {allParentNames.join(", ")}
+                  {/* Row 2: parent · stars (compact, inline) */}
+                  <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                    {allParentNames.length > 0 && (
+                      <span className="flex items-center gap-1 min-w-0 text-xs text-muted-foreground">
+                        <UserRound className="h-3 w-3 shrink-0 opacity-60" />
+                        <span className="truncate">{allParentNames.join(", ")}</span>
                       </span>
-                    </div>
-                  )}
-
-                  {/* Row 3: rating stars (compact, below name) */}
-                  <div className="flex items-center -ml-0.5 mt-1.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        disabled={!canManage || selectionMode}
-                        className={`p-0.5 ${canManage && !selectionMode ? "cursor-pointer active:scale-110 transition-transform" : ""}`}
-                        onClick={
-                          canManage && !selectionMode
-                            ? (e) => {
-                                e.stopPropagation();
-                                const newRating = i + 1;
-                                if (newRating !== player.ability_rating) {
-                                  updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                    )}
+                    <div className="flex items-center -mr-0.5 ml-auto shrink-0">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={!canManage || selectionMode}
+                          className={`p-0 ${canManage && !selectionMode ? "cursor-pointer active:scale-110 transition-transform" : ""}`}
+                          onClick={
+                            canManage && !selectionMode
+                              ? (e) => {
+                                  e.stopPropagation();
+                                  const newRating = i + 1;
+                                  if (newRating !== player.ability_rating) {
+                                    updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                  }
                                 }
-                              }
-                            : undefined
-                        }
-                        aria-label={`Rate ${i + 1} star${i === 0 ? "" : "s"}`}
-                      >
-                        <Star
-                          className={`h-3.5 w-3.5 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
-                        />
-                      </button>
-                    ))}
+                              : undefined
+                          }
+                          aria-label={`Rate ${i + 1} star${i === 0 ? "" : "s"}`}
+                        >
+                          <Star
+                            className={`h-3 w-3 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
+                          />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-
-                  {player.notes && (
-                    <p className="text-xs text-muted-foreground mt-1 truncate">
-                      {player.notes}
-                    </p>
-                  )}
                 </>
               )}
             </div>
 
-            {/* Right: admin actions grouped */}
+            {/* Right: overflow menu */}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
-              <div className="flex items-center gap-0.5 shrink-0 -mr-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  title="Invite second parent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSecondParentForPlayer(player);
-                  }}
-                >
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label="Remove player"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove {player.name} from the player pool.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deletePlayerMutation.mutate(player.id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 -mr-1 text-muted-foreground shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Player actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditingName(player); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit name
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSecondParentForPlayer(player); }}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite second parent
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
+                        className="text-destructive focus:text-destructive"
                       >
-                        Remove
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove player
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove {player.name} from the player pool.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deletePlayerMutation.mutate(player.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Remove
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </CardContent>
       </Card>
     );
   };
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={(o) => {
@@ -691,8 +689,8 @@ export function ManagePlayersDialog({
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-3 px-4 py-2">
-          {/* Toolbar row: search + actions on one line */}
+        <div className="flex-1 overflow-y-auto space-y-2 px-3 py-2">
+          {/* Toolbar row: search (full width) + actions */}
           <div className="flex items-center gap-2">
             <Input
               placeholder="Search players..."
@@ -701,35 +699,47 @@ export function ManagePlayersDialog({
               className="h-9 text-sm flex-1"
             />
             {canManage && (
-              <>
-                {selectionMode ? (
-                  <>
-                    <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={exitSelectionMode}>Cancel</Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-9 shrink-0"
-                      disabled={selectedPlayerIds.size === 0}
-                      onClick={() => setBulkDeleteOpen(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      ({selectedPlayerIds.size})
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {(players?.length || 0) > 0 && (
-                      <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => setSelectionMode(true)}>
-                        <CheckSquare className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button size="sm" className="h-9 shrink-0" onClick={handleAddPlayersClick}>
-                      <Users className="h-4 w-4 mr-1" />
-                      Add
-                    </Button>
-                  </>
-                )}
-              </>
+              selectionMode ? (
+                <>
+                  <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={exitSelectionMode}>Cancel</Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-9 shrink-0"
+                    disabled={selectedPlayerIds.size === 0}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    ({selectedPlayerIds.size})
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    className="h-9 shrink-0 px-3 gap-1"
+                    onClick={handleAddPlayersClick}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Player
+                  </Button>
+                  {(players?.length || 0) > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" aria-label="More options">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          Select players
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
+              )
             )}
           </div>
 
@@ -741,11 +751,12 @@ export function ManagePlayersDialog({
           )}
 
           {canDrag && players && players.length > 0 && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <GripVertical className="h-3.5 w-3.5" />
-              Hold and drag players between groups
+            <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
+              <GripVertical className="h-3 w-3" />
+              Hold and drag to move between groups
             </p>
           )}
+
 
           {playersLoading ? (
             <div className="flex justify-center py-6">
