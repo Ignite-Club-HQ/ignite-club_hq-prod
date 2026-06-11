@@ -753,6 +753,19 @@ export function ManagePlayersDialog({
           </Button>
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
+
+      {secondParentForPlayer && (
+        <AddSecondParentDialog
+          open={!!secondParentForPlayer}
+          onOpenChange={(o) => { if (!o) setSecondParentForPlayer(null); }}
+          playerId={secondParentForPlayer.id}
+          playerName={secondParentForPlayer.name}
+          childId={secondParentForPlayer.child_id}
+          miniLeagueId={miniLeagueId}
+          miniLeagueName={miniLeagueName}
+          clubId={clubId}
+        />
+      )}
     </ResponsiveDialog>
   );
 }
