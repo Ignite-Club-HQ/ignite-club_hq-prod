@@ -32,6 +32,7 @@ import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
+import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -360,9 +361,30 @@ export default function GroupChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
-  const handleSearchResultClick = (mid: string) => {
+  const handleSearchResultClick = async (mid: string) => {
+    const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
     setSearchQuery("");
     setSearchOpen(false);
+    if (target?.created_at && groupId) {
+      try {
+        const ctx = await fetchMessagesAround({
+          table: "group_messages",
+          scope: { group_id: groupId },
+          createdAt: target.created_at,
+          selectColumns:
+            "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+        });
+        if (ctx.length) {
+          setLocalMessages((prev) => {
+            const existing = new Set((prev || []).map((m) => m.id));
+            const adds = ctx.filter((m) => !existing.has(m.id));
+            return adds.length ? [...(prev || []), ...adds] : prev;
+          });
+        }
+      } catch {
+        // best-effort
+      }
+    }
     requestAnimationFrame(() => handleJumpToMessage(mid));
   };
 
