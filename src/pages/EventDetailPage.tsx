@@ -380,6 +380,24 @@ export default function EventDetailPage() {
     enabled: !!id,
   });
 
+  // Adult players on this team — used to count "players attending" for
+  // match/training events so the attending number doesn't include parents who
+  // RSVP'd for themselves alongside their child.
+  const { data: teamPlayerAdultIds } = useQuery({
+    queryKey: ["team-player-adult-ids", (event as any)?.team_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", (event as any).team_id)
+        .eq("role", "player");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.user_id as string));
+    },
+    enabled: !!(event as any)?.team_id,
+    staleTime: 60_000,
+  });
+
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
   
@@ -2673,8 +2691,17 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              const count = goingRsvps.length + guestCount;
-              return <span>{count} attending</span>;
+              // Players-only count for match/training events: children RSVPs
+              // (always players) + adult RSVPs whose team role is "player".
+              // Excludes parents who RSVP'd for themselves alongside a child.
+              const playerAdults = teamPlayerAdultIds;
+              const playerGoing = goingRsvps.filter(r =>
+                r.child_id != null || (r.user_id && playerAdults?.has(r.user_id))
+              ).length;
+              // Fallback to total going if we don't yet know team player roles
+              // (e.g. club-wide event with no team), so we never show 0.
+              const count = (playerAdults ? playerGoing : goingRsvps.length) + guestCount;
+              return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
             })() : <span>Loading...</span>}
           </div>
 
