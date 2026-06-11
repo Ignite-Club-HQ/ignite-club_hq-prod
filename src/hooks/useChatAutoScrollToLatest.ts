@@ -94,7 +94,11 @@ export function useChatAutoScrollToLatest({
           const vp = resolveChatScrollViewport(scrollContainerRef.current);
           if (vp && isViewportUserActive(vp)) return;
           resetViewportScroll();
-          if (isNearBottom(scrollContainerRef.current)) {
+          // Use a generous threshold during keyboard animation so the
+          // shrinking viewport (which artificially increases distance-to-
+          // bottom) doesn't prevent the snap that keeps the last message
+          // visible above the composer.
+          if (isNearBottom(scrollContainerRef.current, 400)) {
             snapToBottom();
           }
         });
