@@ -589,10 +589,12 @@ export function ManagePlayersDialog({
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                    {parentName && (
+                    {allParentNames.length > 0 && (
                       <>
                         <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                        <span className="text-xs text-muted-foreground truncate">{parentName}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {allParentNames.join(", ")}
+                        </span>
                       </>
                     )}
                     {isPlayerPending(player) && (
