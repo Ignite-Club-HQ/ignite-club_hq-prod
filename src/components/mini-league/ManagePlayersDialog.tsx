@@ -470,7 +470,7 @@ export function ManagePlayersDialog({
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
         <CardContent className="py-2.5 px-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Left: checkbox in selection mode */}
             {selectionMode && (
               <Checkbox
