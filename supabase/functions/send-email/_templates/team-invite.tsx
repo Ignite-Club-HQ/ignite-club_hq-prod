@@ -64,6 +64,7 @@ export const TeamInviteEmail = ({
   childrenNames = [],
   customMessage,
   isExistingUser = false,
+  isMiniLeague = false,
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
