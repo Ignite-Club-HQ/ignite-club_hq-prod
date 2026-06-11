@@ -773,7 +773,9 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
-  // Fetch mini-league players for mini-league events (for not responded list)
+  // Fetch mini-league players for mini-league events (for not responded list).
+  // We enrich each player with `is_pending` = no parent has accepted the app yet
+  // (no parent_user_id, linked child has no parent_id, and no guardians).
   const { data: miniLeaguePlayers } = useQuery({
     queryKey: ["mini-league-players-for-event", event?.mini_league_id],
     queryFn: async () => {
@@ -782,7 +784,31 @@ export default function EventDetailPage() {
         .select("id, name, parent_user_id, child_id")
         .eq("mini_league_id", event!.mini_league_id!);
       if (error) throw error;
-      return data || [];
+      const players = data || [];
+
+      const childIds = Array.from(
+        new Set(players.map((p: any) => p.child_id).filter((id: string | null): id is string => !!id)),
+      );
+
+      let childParentMap = new Map<string, string | null>();
+      let guardianCountMap = new Map<string, number>();
+      if (childIds.length > 0) {
+        const [childrenRes, guardiansRes] = await Promise.all([
+          supabase.from("children").select("id, parent_id").in("id", childIds),
+          supabase.from("child_guardians").select("child_id").in("child_id", childIds),
+        ]);
+        (childrenRes.data || []).forEach((c: any) => childParentMap.set(c.id, c.parent_id));
+        (guardiansRes.data || []).forEach((g: any) => {
+          guardianCountMap.set(g.child_id, (guardianCountMap.get(g.child_id) || 0) + 1);
+        });
+      }
+
+      return players.map((p: any) => {
+        const childParent = p.child_id ? childParentMap.get(p.child_id) : null;
+        const guardianCount = p.child_id ? (guardianCountMap.get(p.child_id) || 0) : 0;
+        const is_pending = !p.parent_user_id && !childParent && guardianCount === 0;
+        return { ...p, is_pending };
+      });
     },
     enabled: !!event?.mini_league_id,
   });
