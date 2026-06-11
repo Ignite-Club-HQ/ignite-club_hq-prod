@@ -398,6 +398,25 @@ export default function EventDetailPage() {
     staleTime: 60_000,
   });
 
+  // For club-wide events (no team_id), identify adult players via any
+  // role='player' assignment within the club so we can exclude parents
+  // from the "players attending" count.
+  const { data: clubPlayerAdultIds } = useQuery({
+    queryKey: ["club-player-adult-ids", (event as any)?.club_id, (event as any)?.team_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", (event as any).club_id)
+        .eq("role", "player");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.user_id as string));
+    },
+    enabled: !!(event as any)?.club_id && !(event as any)?.team_id,
+    staleTime: 60_000,
+  });
+
+
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
   
