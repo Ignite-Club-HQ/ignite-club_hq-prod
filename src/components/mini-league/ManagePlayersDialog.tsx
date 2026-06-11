@@ -68,12 +68,13 @@ interface ManagePlayersDialogProps {
 }
 
 const getAbilityLabel = (rating: number) => {
-  const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
+  const labels = ["Unrated", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
   return labels[rating] || "";
 };
 
 const getAbilityColor = (rating: number) => {
   const colors: Record<number, string> = {
+    0: "bg-muted text-muted-foreground",
     1: "bg-destructive/20 text-destructive",
     2: "bg-orange-500/20 text-orange-600 dark:text-orange-400",
     3: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
@@ -448,7 +449,10 @@ export function ManagePlayersDialog({
   ) || [];
 
   const playersByAbility = filteredPlayers.reduce((acc, player) => {
-    const key = player.ability_rating;
+    // Treat null/0 ability as "unrated" (bucket 0) so players without a
+    // rating still appear in the list instead of disappearing.
+    const raw = player.ability_rating;
+    const key = raw && raw >= 1 && raw <= 5 ? raw : 0;
     if (!acc[key]) acc[key] = [];
     acc[key].push(player);
     return acc;
@@ -713,7 +717,7 @@ export function ManagePlayersDialog({
               onDragEnd={handleDragEnd}
             >
               <div className="space-y-5" data-vaul-no-drag>
-                {[5, 4, 3, 2, 1].map((rating) => {
+                {[0, 5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
                   const showGroup = abilityPlayers?.length || activePlayer;
                   if (!showGroup) return null;
