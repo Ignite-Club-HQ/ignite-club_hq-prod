@@ -691,7 +691,7 @@ export function ManagePlayersDialog({
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-2 px-3 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 px-3 py-2 pb-24">
           {/* Toolbar row: search (full width) + actions */}
           <div className="flex items-center gap-2">
             <Input
