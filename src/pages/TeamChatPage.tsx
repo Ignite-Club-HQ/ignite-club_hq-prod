@@ -304,10 +304,34 @@ export default function TeamChatPage() {
     );
 
   // Clicking a search result jumps to the message in the full thread so the
-  // user sees surrounding context.
-  const handleSearchResultClick = (mid: string) => {
+  // user sees surrounding context. We first fetch a window of messages around
+  // the match so the rows immediately before/after are present in the loaded
+  // set (search alone merges only the matched row, leaving a gap).
+  const handleSearchResultClick = async (mid: string) => {
+    const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
     setSearchQuery("");
     setSearchOpen(false);
+    if (target?.created_at && teamId) {
+      try {
+        const ctx = await fetchMessagesAround({
+          table: "team_messages",
+          scope: { team_id: teamId },
+          createdAt: target.created_at,
+          selectColumns:
+            "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+          hasAnnouncements: true,
+        });
+        if (ctx.length) {
+          setLocalMessages((prev) => {
+            const existing = new Set((prev || []).map((m) => m.id));
+            const adds = ctx.filter((m) => !existing.has(m.id));
+            return adds.length ? [...(prev || []), ...adds] : prev;
+          });
+        }
+      } catch {
+        // best-effort; fall through to jump
+      }
+    }
     requestAnimationFrame(() => handleJumpToMessage(mid));
   };
 
