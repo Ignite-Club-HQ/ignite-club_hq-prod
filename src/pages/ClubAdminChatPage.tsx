@@ -503,6 +503,7 @@ export default function ClubAdminChatPage() {
         reply_to: replyToId && replyTo ? { text: replyTo.text, author: replyTo.author } : null,
       };
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
+      hapticSelectionTick();
       setTimeout(scrollToBottom, 50);
     },
     onSuccess: (newMessage) => {

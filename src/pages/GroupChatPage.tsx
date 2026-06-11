@@ -1436,6 +1436,7 @@ export default function GroupChatPage() {
       setImageUrl(null);
       setReplyTo(null);
       setPendingPollId(null);
+      hapticSelectionTick();
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.

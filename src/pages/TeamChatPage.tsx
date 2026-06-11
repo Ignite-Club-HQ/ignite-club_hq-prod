@@ -1432,6 +1432,7 @@ export default function TeamChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      hapticSelectionTick();
       
       // Scroll to bottom to show new message — force=true bypasses the
       // "user is touching viewport" guard, which can spuriously cancel the

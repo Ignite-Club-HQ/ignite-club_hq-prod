@@ -879,6 +879,7 @@ export default function BroadcastChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      hapticSelectionTick();
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.
