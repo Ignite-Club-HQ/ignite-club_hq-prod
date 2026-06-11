@@ -69,6 +69,7 @@ export function AttendanceRow({
   secondaryLine,
   rightSlot,
   avatarFallback,
+  isPending,
   className,
 }: AttendanceRowProps) {
   const fallback =
