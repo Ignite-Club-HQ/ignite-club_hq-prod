@@ -3507,7 +3507,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input
-                              placeholder="Search or type guardian name..."
+                              placeholder="Search by name or email, or type new"
                               value={member.secondParentSearch || member.secondParentName || ""}
                               onChange={(e) => {
                                 const val = e.target.value;
