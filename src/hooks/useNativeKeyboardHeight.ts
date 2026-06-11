@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
 import { Capacitor } from "@capacitor/core";
@@ -10,11 +10,7 @@ const isNativeAndroid = isNative && Capacitor.getPlatform() === "android";
  * Best-known full-viewport height for the current Android session. Captured
  * once at module load (before any push-launch navigation can race the
  * WebView's first layout) and continuously widened whenever the keyboard is
- * closed. Using a module-level ref means a chat page mounted via push deep
- * link inherits a sane baseline immediately — without it, the first
- * `syncInset()` would bake in a transitional WebView height, then later
- * under-report the keyboard inset, causing the bottom messages to slide
- * UNDER the composer/keyboard on cold-launch from a notification.
+ * closed.
  */
 let androidBaselineHeight = 0;
 if (isNativeAndroid && typeof window !== "undefined") {
@@ -28,80 +24,77 @@ if (isNativeAndroid && typeof window !== "undefined") {
   );
 }
 
+function computeAndroidInset(androidHeight: number): number {
+  if (!isNativeAndroid || typeof window === "undefined") return 0;
+  const vv = window.visualViewport;
+  const viewportHeight = vv?.height ?? window.innerHeight ?? 0;
+  if (viewportHeight <= 0) return Math.max(0, androidHeight);
+
+  if (androidHeight <= 0) {
+    // Keyboard closed — widen baseline so subsequent open math is correct.
+    const next = Math.max(
+      androidBaselineHeight,
+      viewportHeight,
+      window.innerHeight ?? 0,
+      document?.documentElement?.clientHeight ?? 0,
+    );
+    if (next > androidBaselineHeight) androidBaselineHeight = next;
+    return 0;
+  }
+
+  if (androidBaselineHeight <= 0) {
+    androidBaselineHeight = viewportHeight;
+  }
+
+  const viewportShrink = Math.max(0, androidBaselineHeight - viewportHeight);
+  const viewportPan = Math.max(0, vv?.offsetTop ?? 0);
+  const consumedByViewport = Math.min(androidHeight, Math.max(viewportShrink, viewportPan));
+  return Math.max(0, androidHeight - consumedByViewport);
+}
+
 /**
  * Returns the current soft-keyboard height (in CSS px) on native platforms.
- * iOS uses the raw native keyboard height.
- * Android compensates for WebViews that already shrink the visible viewport,
- * so chat layouts don't apply the keyboard offset twice.
- * On web this always returns 0.
+ *
+ * CRITICAL: this hook computes the Android inset SYNCHRONOUSLY during render
+ * (not via useState + useLayoutEffect). Previously the inset lagged the raw
+ * `androidHeight` by one paint, which produced a render where
+ * `useKeyboardOpen()` was already true but `useNativeKeyboardHeight()` was
+ * still 0. On that single render, the chat shell didn't shrink and the fixed
+ * composer was positioned at viewport bottom (behind the keyboard). Virtuoso
+ * pinned to that incorrect bottom; one paint later when the inset caught up,
+ * the composer lifted but the scroll position was now past the new visible
+ * bottom — leaving the latest message clipped behind the composer.
  */
 export function useNativeKeyboardHeight(): number {
   const iosState = useNativeIOSKeyboardState();
   const androidHeight = useNativeAndroidKeyboardState();
-  const [androidInset, setAndroidInset] = useState(0);
-  const lastBaselineRef = useRef(androidBaselineHeight);
+  const [, forceTick] = useReducer((n: number) => n + 1, 0);
+  const lastVvSignatureRef = useRef<string>("");
 
-  useLayoutEffect(() => {
+  // visualViewport can change without a React re-render (Gboard toolbar,
+  // predictive bar). Subscribe to it and force a tick so the synchronous
+  // compute below sees the latest values.
+  useEffect(() => {
     if (!isNativeAndroid || typeof window === "undefined") return;
-
-    const visualViewport = window.visualViewport;
-
-    const getViewportHeight = () =>
-      visualViewport?.height ?? window.innerHeight ?? 0;
-
-    const widenBaseline = (viewportHeight: number) => {
-      const next = Math.max(
-        androidBaselineHeight,
-        viewportHeight,
-        window.innerHeight ?? 0,
-        document?.documentElement?.clientHeight ?? 0,
-      );
-      if (next > androidBaselineHeight) androidBaselineHeight = next;
-      lastBaselineRef.current = androidBaselineHeight;
-    };
-
-    const syncInset = () => {
-      const viewportHeight = getViewportHeight();
-      if (viewportHeight <= 0) return;
-
-      if (androidHeight <= 0) {
-        // Keyboard closed — this is the only safe moment to grow the baseline.
-        widenBaseline(viewportHeight);
-        setAndroidInset(0);
-        return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onChange = () => {
+      const sig = `${Math.round(vv.height)}:${Math.round(vv.offsetTop)}:${Math.round(window.innerHeight)}`;
+      if (sig !== lastVvSignatureRef.current) {
+        lastVvSignatureRef.current = sig;
+        forceTick();
       }
-
-      // Keyboard open — never widen here, only consume.
-      if (androidBaselineHeight <= 0) {
-        androidBaselineHeight = viewportHeight;
-        lastBaselineRef.current = androidBaselineHeight;
-      }
-
-      const viewportShrink = Math.max(0, androidBaselineHeight - viewportHeight);
-      // Android WebView can either resize the visible viewport OR pan it upward
-      // when an input is focused (seen most often when opening a reply banner).
-      // A fixed composer is already visually lifted by that pan; applying the
-      // full native keyboard height again moves it one extra keyboard-height up,
-      // leaving the large blank gap shown above Gboard. Treat either shrink or
-      // visualViewport.offsetTop as keyboard space already consumed by WebView.
-      const viewportPan = Math.max(0, visualViewport?.offsetTop ?? 0);
-      const consumedByViewport = Math.min(androidHeight, Math.max(viewportShrink, viewportPan));
-      const nextInset = Math.max(0, androidHeight - consumedByViewport);
-      setAndroidInset((current) => (current === nextInset ? current : nextInset));
     };
-
-    syncInset();
-    visualViewport?.addEventListener("resize", syncInset);
-    window.addEventListener("resize", syncInset);
-
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    window.addEventListener("resize", onChange);
     return () => {
-      visualViewport?.removeEventListener("resize", syncInset);
-      window.removeEventListener("resize", syncInset);
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+      window.removeEventListener("resize", onChange);
     };
-  }, [androidHeight]);
+  }, []);
 
-  if (isNativeAndroid) return androidInset;
+  if (isNativeAndroid) return computeAndroidInset(androidHeight);
   return iosState.keyboardHeight;
 }
-
-
