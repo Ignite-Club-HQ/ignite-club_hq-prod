@@ -311,7 +311,7 @@ export default function EventDetailPage() {
       // Fetch rsvps first
       const { data: rsvpData, error: rsvpError } = await supabase
         .from("rsvps")
-        .select(`*, mini_league_players (id, name)`)
+        .select(`*, mini_league_players (id, name, child_id)`)
         .eq("event_id", id!);
       if (rsvpError) throw rsvpError;
       
@@ -3198,8 +3198,12 @@ export default function EventDetailPage() {
         const dedupeRsvps = (list: any[]) => {
           const seen = new Set<string>();
           return list.filter((r: any) => {
-            const key = r.child_id
-              ? `c:${r.child_id}`
+            // Prefer child_id (direct or via linked mini-league player) so the
+            // same underlying child isn't shown twice when both an mlp RSVP
+            // and a child RSVP exist.
+            const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
+            const key = linkedChildId
+              ? `c:${linkedChildId}`
               : r.mini_league_player_id
                 ? `m:${r.mini_league_player_id}`
                 : `u:${r.user_id}`;
