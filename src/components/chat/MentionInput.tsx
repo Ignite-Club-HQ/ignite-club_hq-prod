@@ -333,6 +333,11 @@ export function MentionInput({
   const adjustHeight = useCallback(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
+    // Skip layout thrash while IME composition is active — forcing
+    // height='auto' + reading scrollHeight can re-enter Gboard's composing
+    // region and cause autocorrect suggestions to lose characters
+    // ("becaus ei" instead of "because"). We re-run after compositionend.
+    if (isComposingRef.current) return;
     textarea.style.height = 'auto';
     // Cap at ~4 visible lines (20px line-height × 4 + 12px top + 12px bottom
     // padding = 104px). Keeps composer compact so more conversation stays
@@ -358,6 +363,7 @@ export function MentionInput({
   }, []);
 
   useEffect(() => {
+    if (isComposingRef.current) return;
     adjustHeight();
   }, [value, adjustHeight]);
 
