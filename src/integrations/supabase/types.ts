@@ -1188,7 +1188,7 @@ export type Database = {
           id: string
           ignite_points: number
           name: string
-          parent_id: string
+          parent_id: string | null
           year_of_birth: number | null
         }
         Insert: {
@@ -1196,7 +1196,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           name: string
-          parent_id: string
+          parent_id?: string | null
           year_of_birth?: number | null
         }
         Update: {
@@ -1204,7 +1204,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           name?: string
-          parent_id?: string
+          parent_id?: string | null
           year_of_birth?: number | null
         }
         Relationships: []
