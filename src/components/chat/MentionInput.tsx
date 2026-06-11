@@ -943,6 +943,8 @@ export function MentionInput({
             wrap="soft"
             autoComplete="off"
             autoCorrect="on"
+            autoCapitalize="sentences"
+            inputMode="text"
             spellCheck
             enterKeyHint="enter"
             aria-label={placeholder || "Message"}
