@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hapticImpactLight } from "@/lib/haptics";
 
 const HINT_STORAGE_KEY = "chat:send-long-press-hint:v1";
 const SEND_COUNT_KEY = "chat:send-count";
@@ -82,8 +81,6 @@ export function ChatSendButton({
     if (firedThisGestureRef.current) return;
     if (disabled || loading) return;
     firedThisGestureRef.current = true;
-    // Clear light impact — matches WhatsApp/Telegram send feel (selectionChanged was too subtle to perceive).
-    hapticImpactLight();
     onSend();
     if (canSend) maybeShowHint();
     // Reset shortly after so subsequent gestures can fire.
