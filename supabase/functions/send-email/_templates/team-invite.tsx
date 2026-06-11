@@ -25,6 +25,7 @@ interface TeamInviteEmailProps {
   childrenNames?: string[];
   customMessage?: string;
   isExistingUser?: boolean;
+  isMiniLeague?: boolean;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
