@@ -746,6 +746,9 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                         }}
                                       >
                                         <p className="font-medium">{p.display_name || "Unknown"}</p>
+                                        {p.roles && p.roles.length > 0 && (
+                                          <p className="text-xs text-muted-foreground capitalize">{p.roles.join(" · ")}</p>
+                                        )}
                                         {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
                                       </button>
                                     )) : (
