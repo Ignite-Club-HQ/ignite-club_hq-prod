@@ -2710,17 +2710,23 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              // Players-only count for match/training events: children RSVPs
-              // (always players) + adult RSVPs whose team role is "player".
+              // Players-only count for match/training events: unique children
+              // RSVPs (always players) + adult RSVPs whose role is "player"
+              // (team-scoped for team events, club-scoped for club-wide events).
               // Excludes parents who RSVP'd for themselves alongside a child.
-              const playerAdults = teamPlayerAdultIds;
-              const playerGoing = goingRsvps.filter(r =>
-                r.child_id != null || (r.user_id && playerAdults?.has(r.user_id))
-              ).length;
-              // Fallback to total going if we don't yet know team player roles
-              // (e.g. club-wide event with no team), so we never show 0.
-              const count = (playerAdults ? playerGoing : goingRsvps.length) + guestCount;
+              const playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
+              const uniqueChildIds = new Set(
+                goingRsvps.map(r => r.child_id).filter((id): id is string => !!id)
+              );
+              const adultPlayerCount = playerAdults
+                ? goingRsvps.filter(r => r.child_id == null && r.user_id && playerAdults.has(r.user_id)).length
+                : 0;
+              // If we have player-role info (even an empty set), use the strict
+              // count; otherwise fall back to total going so we never show 0.
+              const strictCount = uniqueChildIds.size + adultPlayerCount + guestCount;
+              const count = playerAdults ? strictCount : goingRsvps.length + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
+
             })() : <span>Loading...</span>}
           </div>
 
