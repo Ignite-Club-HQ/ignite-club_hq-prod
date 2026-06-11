@@ -273,10 +273,12 @@ export default function MiniLeagueDetailPage() {
           role: "parent" as string,
         }));
 
+      const parentIdSet = new Set(parentUserIds);
       const staff = [...allAdminIds].map(uid => ({
         id: uid,
         ...profileMap.get(uid),
         role: "league_admin" as string,
+        isAlsoParent: parentIdSet.has(uid),
       }));
 
       return { parents, staff };
