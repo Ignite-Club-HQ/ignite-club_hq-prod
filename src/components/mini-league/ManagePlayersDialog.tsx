@@ -625,13 +625,15 @@ export function ManagePlayersDialog({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 -mr-1 text-muted-foreground shrink-0"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
+                    data-vaul-no-drag
                     aria-label="Player actions"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-48 z-[100001]">
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditingName(player); }}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name
