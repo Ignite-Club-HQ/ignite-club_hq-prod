@@ -29,13 +29,7 @@ function computeAndroidInset(androidHeight: number): number {
   const vv = window.visualViewport;
   const viewportHeight = vv?.height ?? window.innerHeight ?? 0;
 
-  // Keep widening the baseline while the keyboard is closed so future
-  // diagnostics/clamps stay correct, but DO NOT subtract any viewport
-  // shrink/pan from the plugin-reported keyboard height. AppLayout's
-  // `--visual-vh` is monotonically locked (see StatusBarManager) and never
-  // shrinks with the IME, so any `visualViewport` shrink we observe here is
-  // spurious (Gboard quirks, predictive bar, etc.) — subtracting it cancels
-  // the real inset and leaves the latest message clipped behind the composer.
+  // Widen baseline while the keyboard is closed.
   if (androidHeight <= 0) {
     const next = Math.max(
       androidBaselineHeight,
@@ -51,10 +45,23 @@ function computeAndroidInset(androidHeight: number): number {
     androidBaselineHeight = viewportHeight;
   }
 
-  // Clamp to 60% of the baseline as a sanity ceiling (matches the clamp in
-  // useNativeAndroidKeyboardState).
-  const ceiling = androidBaselineHeight > 0 ? androidBaselineHeight * 0.6 : androidHeight;
-  return Math.max(0, Math.min(androidHeight, ceiling));
+  // When the WebView viewport actually shrinks with the keyboard (some Android
+  // OEMs/Gboard configs ignore `Keyboard.resize: 'none'`), the layout has
+  // already shifted up by `vvShrink`. Adding the full plugin height on top
+  // double-counts the inset and floats the composer mid-screen with messages
+  // bleeding below it. Subtract the observed shrink so the composer sits
+  // flush against the keyboard. If vv didn't shrink, use the plugin height
+  // as-is so the latest message isn't clipped behind the composer.
+  let inset = androidHeight;
+  if (vv && androidBaselineHeight > 0) {
+    const vvShrink = Math.max(0, androidBaselineHeight - vv.height);
+    if (vvShrink > 24 && vvShrink < androidHeight) {
+      inset = androidHeight - vvShrink;
+    }
+  }
+
+  const ceiling = androidBaselineHeight > 0 ? androidBaselineHeight * 0.6 : inset;
+  return Math.max(0, Math.min(inset, ceiling));
 }
 
 /**
