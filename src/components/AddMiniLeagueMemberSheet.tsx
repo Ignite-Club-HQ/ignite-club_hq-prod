@@ -278,7 +278,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             .from("children")
             .insert({
               id: newChildId,
-              parent_id: player.existingParentUserId || user!.id,
+              // Only attach parent_id if a real parent account exists. Otherwise
+              // leave NULL until the parent claims their invite — never fall back
+              // to the inviter, or the league admin becomes the legal parent.
+              parent_id: player.existingParentUserId || null,
               name: player.name.trim(),
             });
 
