@@ -1190,6 +1190,15 @@ export default function CreateEventPage() {
                 />
               )}
 
+              {/* Role restriction - only for club-wide social events */}
+              {type === "social" && !teamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
+
+
 
 
               {/* Price - only for social events */}
