@@ -676,11 +676,26 @@ export function MentionInput({
   }, []);
 
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLTextAreaElement>) => {
-    isComposingRef.current = false;
-    // Re-fire the change handler now that composition has committed, so the
-    // autocorrected/suggested text is captured into the raw value.
-    handleDisplayChange(e as unknown as React.ChangeEvent<HTMLTextAreaElement>);
-  }, [handleDisplayChange]);
+    // Defer clearing the composing flag + re-firing the change handler until
+    // AFTER Gboard's final `input` event lands in the same task. If we read
+    // e.target.value synchronously here we capture pre-correction text and
+    // then clobber the IME's final commit, producing garbled output like
+    // "becaus ei" or "wmotional". rAF gives the browser one frame to flush
+    // the corrected value into the textarea before we reconstruct raw value.
+    requestAnimationFrame(() => {
+      isComposingRef.current = false;
+      const textarea = inputRef.current;
+      if (!textarea) return;
+      // Synthesize a change event from the textarea's CURRENT value (post-commit)
+      // rather than the stale composition event target.
+      const synthetic = {
+        target: textarea,
+        currentTarget: textarea,
+      } as unknown as React.ChangeEvent<HTMLTextAreaElement>;
+      handleDisplayChange(synthetic);
+      adjustHeight();
+    });
+  }, [handleDisplayChange, adjustHeight]);
 
   const insertMention = useCallback((user: SuggestedUser) => {
     if (mentionStartIndex === -1 || !user.display_name) return;
