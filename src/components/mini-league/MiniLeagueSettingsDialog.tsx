@@ -415,6 +415,23 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
           <div className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Match Options</h3>
 
+            {/* Show matches to members toggle (off by default) */}
+            <label className="flex items-start justify-between gap-3 cursor-pointer">
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-sm font-medium block">Show matches to members</span>
+                <p className="text-xs text-muted-foreground">
+                  When off, only league admins can see generated match line-ups. Members will not see the Matches section on event pages.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={editShowMatchesToMembers}
+                onChange={(e) => setEditShowMatchesToMembers(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-primary cursor-pointer"
+              />
+            </label>
+
             <div className="space-y-2.5">
               <Label className="text-sm">Bib colours</Label>
               <p className="text-xs text-muted-foreground">Select which bib colours can be used during matches</p>
