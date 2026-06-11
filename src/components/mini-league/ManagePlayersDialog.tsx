@@ -370,16 +370,19 @@ export function ManagePlayersDialog({
   // Update ability rating mutation
   const updateAbilityMutation = useMutation({
     mutationFn: async ({ playerId, childId, newRating }: { playerId: string; childId: string | null; newRating: number }) => {
+      // DB CHECK constraint requires ability_rating IS NULL or 1..5.
+      // "Unrated" (group 0) maps to NULL.
+      const dbValue = newRating >= 1 && newRating <= 5 ? newRating : null;
       const { error } = await supabase
         .from("mini_league_players")
-        .update({ ability_rating: newRating })
+        .update({ ability_rating: dbValue })
         .eq("id", playerId);
       if (error) throw error;
 
       if (childId) {
         await supabase
           .from("child_mini_league_assignments")
-          .update({ ability_rating: newRating })
+          .update({ ability_rating: dbValue })
           .eq("child_id", childId)
           .eq("mini_league_id", miniLeagueId);
       }
