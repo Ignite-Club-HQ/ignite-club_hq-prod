@@ -2710,21 +2710,17 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              // Players-only count for match/training events: unique children
-              // RSVPs (always players) + adult RSVPs whose role is "player"
-              // (team-scoped for team events, club-scoped for club-wide events).
-              // Excludes parents who RSVP'd for themselves alongside a child.
-              const playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
-              const uniqueChildIds = new Set(
-                goingRsvps.map(r => r.child_id).filter((id): id is string => !!id)
-              );
-              const adultPlayerCount = playerAdults
-                ? goingRsvps.filter(r => r.child_id == null && r.user_id && playerAdults.has(r.user_id)).length
-                : 0;
-              // If we have player-role info (even an empty set), use the strict
-              // count; otherwise fall back to total going so we never show 0.
-              const strictCount = uniqueChildIds.size + adultPlayerCount + guestCount;
-              const count = playerAdults ? strictCount : goingRsvps.length + guestCount;
+              // Players-only count: mirror the same filter the Going list uses
+              // (child RSVP, mini-league player, or adult RSVP whose membership
+              // includes the "player" role) so the header and "Going (N)" tab
+              // always agree.
+              const playerUserIds = new Set((playerMembers || []).map((m: any) => m.id));
+              const playerGoing = goingRsvps.filter((r: any) => {
+                if (r.child_id) return true;
+                if (r.mini_league_player_id) return true;
+                return r.user_id && playerUserIds.has(r.user_id);
+              }).length;
+              const count = playerGoing + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
 
             })() : <span>Loading...</span>}
