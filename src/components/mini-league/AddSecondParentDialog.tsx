@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -13,8 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, UserPlus } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, UserPlus, Search, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 interface AddSecondParentDialogProps {
@@ -30,6 +32,13 @@ interface AddSecondParentDialogProps {
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type ExistingUser = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  email?: string | null;
+};
+
 export function AddSecondParentDialog({
   open,
   onOpenChange,
@@ -42,13 +51,100 @@ export function AddSecondParentDialog({
 }: AddSecondParentDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUser, setSelectedUser] = useState<ExistingUser | null>(null);
   const [parentName, setParentName] = useState("");
   const [parentEmail, setParentEmail] = useState("");
 
+  const debouncedSearch = useDebounce(searchTerm, 300);
+  const isEmailSearch = debouncedSearch.includes("@");
+
   const reset = () => {
+    setSearchTerm("");
+    setSelectedUser(null);
     setParentName("");
     setParentEmail("");
   };
+
+  // Search existing users (by name, or by email when search includes @)
+  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+    queryKey: ["second-parent-search", debouncedSearch],
+    queryFn: async (): Promise<ExistingUser[]> => {
+      if (debouncedSearch.length < 2) return [];
+
+      if (isEmailSearch) {
+        // Email lookup via RPC -> profile join
+        const { data: emailRows } = await supabase.rpc("get_user_by_email_for_passkey" as any, {
+          p_email: debouncedSearch.trim().toLowerCase(),
+        } as any);
+        const userId = Array.isArray(emailRows) ? emailRows[0]?.id : (emailRows as any)?.id;
+        if (!userId) {
+          // Fallback: substring match against display_name (handles partial typing)
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .ilike("display_name", `%${debouncedSearch}%`)
+            .limit(6);
+          return (data || []).filter(u => u.id !== user?.id);
+        }
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .eq("id", userId)
+          .maybeSingle();
+        if (!profile || profile.id === user?.id) return [];
+        return [{ ...profile, email: debouncedSearch.trim().toLowerCase() }];
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedSearch}%`)
+        .limit(6);
+      return (data || []).filter(u => u.id !== user?.id);
+    },
+    enabled: open && debouncedSearch.length >= 2 && !selectedUser,
+  });
+
+  const ensureChildId = async (): Promise<string> => {
+    if (childId) return childId;
+    const newChildId = crypto.randomUUID();
+    const { error: childError } = await supabase.from("children").insert({
+      id: newChildId,
+      parent_id: null,
+      name: playerName,
+    });
+    if (childError) throw new Error(`Couldn't prepare child record: ${childError.message}`);
+    await supabase
+      .from("mini_league_players")
+      .update({ child_id: newChildId })
+      .eq("id", playerId);
+    return newChildId;
+  };
+
+  // Link an existing user directly as a guardian (no email invite)
+  const linkExistingMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error("No user selected");
+      if (!user?.id) throw new Error("Not signed in");
+      const resolvedChildId = await ensureChildId();
+      const { error } = await supabase.from("child_guardians").insert({
+        child_id: resolvedChildId,
+        guardian_id: selectedUser.id,
+        relationship_type: "parent",
+        is_primary: false,
+      } as any);
+      if (error && !error.message?.toLowerCase().includes("duplicate")) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
+      queryClient.invalidateQueries({ queryKey: ["child_guardians"] });
+      toast.success(`${selectedUser?.display_name || "Parent"} linked to ${playerName}`);
+      reset();
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to link parent"),
+  });
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
@@ -58,25 +154,7 @@ export function AddSecondParentDialog({
       if (!emailRe.test(trimmedEmail)) throw new Error("Enter a valid email");
       if (!user?.id) throw new Error("Not signed in");
 
-      // Reuse existing child if linked; otherwise create one so the second
-      // parent has a child row to attach to when they accept.
-      let resolvedChildId = childId;
-      if (!resolvedChildId) {
-        const newChildId = crypto.randomUUID();
-        const { error: childError } = await supabase.from("children").insert({
-          id: newChildId,
-          parent_id: null,
-          name: playerName,
-        });
-        if (childError) throw new Error(`Couldn't prepare child record: ${childError.message}`);
-        resolvedChildId = newChildId;
-
-        // Link the player to this child so future accepts merge correctly.
-        await supabase
-          .from("mini_league_players")
-          .update({ child_id: newChildId })
-          .eq("id", playerId);
-      }
+      const resolvedChildId = await ensureChildId();
 
       const inviteToken = crypto.randomUUID();
       const inviteMetadata: Json = {
@@ -102,7 +180,6 @@ export function AddSecondParentDialog({
       const { error: inviteError } = await supabase.from("pending_invites").insert(invitePayload);
       if (inviteError) throw new Error(inviteError.message);
 
-      // Pull branding for the email
       const { data: clubBranding } = await supabase
         .from("clubs")
         .select("name, logo_url, contact_email")
@@ -152,6 +229,9 @@ export function AddSecondParentDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const showInviteFields = !selectedUser;
+  const busy = inviteMutation.isPending || linkExistingMutation.isPending;
+
   return (
     <ResponsiveDialog
       open={open}
@@ -167,47 +247,150 @@ export function AddSecondParentDialog({
             Invite Second Parent
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Send an invite to a second parent or guardian for <span className="font-medium">{playerName}</span>.
-            They'll be linked as an additional guardian when they join.
+            Search for an existing parent by name or email, or invite a new one for{" "}
+            <span className="font-medium">{playerName}</span>.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         <div className="space-y-3 px-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="second-parent-name">Parent name</Label>
-            <Input
-              id="second-parent-name"
-              value={parentName}
-              onChange={(e) => setParentName(e.target.value)}
-              placeholder="Jane Smith"
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="second-parent-email">Parent email</Label>
-            <Input
-              id="second-parent-email"
-              type="email"
-              value={parentEmail}
-              onChange={(e) => setParentEmail(e.target.value)}
-              placeholder="jane@example.com"
-              autoComplete="off"
-            />
-          </div>
+          {selectedUser ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={selectedUser.avatar_url || undefined} />
+                <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                  {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {selectedUser.display_name || "Unknown"}
+                </p>
+                {selectedUser.email && (
+                  <p className="text-xs text-muted-foreground truncate">{selectedUser.email}</p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setSelectedUser(null);
+                  setSearchTerm("");
+                }}
+              >
+                Change
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="second-parent-search">Search existing parents</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="second-parent-search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Name or email"
+                  className="pl-9"
+                  autoComplete="off"
+                />
+              </div>
+
+              {isSearching && debouncedSearch.length >= 2 && (
+                <div className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Searching...
+                </div>
+              )}
+
+              {!isSearching && searchResults.length > 0 && (
+                <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                  <p className="text-xs font-medium text-muted-foreground px-2 pt-1 pb-0.5">
+                    Tap to link existing user:
+                  </p>
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => setSelectedUser(result)}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg bg-background hover:bg-primary/5 active:bg-primary/10 border border-transparent hover:border-primary/30 transition-colors text-left touch-manipulation"
+                    >
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={result.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                          {result.display_name?.[0]?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium flex-1 truncate">
+                        {result.display_name || "Unknown"}
+                      </span>
+                      <span className="text-[10px] text-primary font-medium uppercase tracking-wide">
+                        Link
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!isSearching && debouncedSearch.length >= 2 && searchResults.length === 0 && (
+                <p className="text-xs text-muted-foreground py-1">
+                  No matching users found — invite as new below.
+                </p>
+              )}
+            </div>
+          )}
+
+          {showInviteFields && (
+            <div className="space-y-3 pt-2 border-t">
+              <p className="text-xs font-medium text-muted-foreground">Or invite a new parent</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="second-parent-name">Parent name</Label>
+                <Input
+                  id="second-parent-name"
+                  value={parentName}
+                  onChange={(e) => setParentName(e.target.value)}
+                  placeholder="Jane Smith"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="second-parent-email">Parent email</Label>
+                <Input
+                  id="second-parent-email"
+                  type="email"
+                  value={parentEmail}
+                  onChange={(e) => setParentEmail(e.target.value)}
+                  placeholder="jane@example.com"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <ResponsiveDialogFooter className="px-4 pb-safe gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={inviteMutation.isPending}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
-            {inviteMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            ) : (
-              <UserPlus className="h-4 w-4 mr-1.5" />
-            )}
-            Send Invite
-          </Button>
+          {selectedUser ? (
+            <Button onClick={() => linkExistingMutation.mutate()} disabled={busy}>
+              {linkExistingMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Link2 className="h-4 w-4 mr-1.5" />
+              )}
+              Link Parent
+            </Button>
+          ) : (
+            <Button onClick={() => inviteMutation.mutate()} disabled={busy}>
+              {inviteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-1.5" />
+              )}
+              Send Invite
+            </Button>
+          )}
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
