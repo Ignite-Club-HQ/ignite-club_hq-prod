@@ -2188,37 +2188,46 @@ export default function GroupChatPage() {
                     messagesById={messagesById}
                     isOwnMessage={isOwnMessage}
                     isAdmin={isAdmin}
-                    highlightedMessageId={highlightedMessageId}
-                    messageReactions={messageReactions}
-                    userId={user?.id}
-                    getProfile={getProfile}
-                    readFrontier={readFrontier}
-                    readCounts={readCounts}
-                    handleReply={handleReply}
-                    handleEdit={handleEdit}
-                    deleteMessageMutation={deleteMessageMutation}
-                    toggleReactionMutation={toggleReactionMutation}
-                    groupId={groupId || ""}
-                    searchQuery={searchQuery}
-                    isPinned={pinnedMessageIds.has(msg.id)}
-                    pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
-                    onPin={pinMessage}
-                    onUnpin={unpinMessage}
-                    canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && !!group?.team_id}
-                    isPublishingToGallery={galleryPublishingIds.has(msg.id)}
-                    isPublishedToGallery={galleryPublishedIds.has(msg.id)}
-                    onPublishToGallery={handlePublishToGallery}
-                    allowForwarding={group?.allow_forwarding !== false}
-                    groupName={group?.name ?? null}
-                    groupedWithPrev={groupedWithPrev}
-                    groupedWithNext={groupedWithNext}
-                  />
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <div
+                    role={searchQuery ? "button" : undefined}
+                    tabIndex={searchQuery ? 0 : undefined}
+                    onClick={searchQuery ? () => handleSearchResultClick(msg.id) : undefined}
+                    onKeyDown={searchQuery ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSearchResultClick(msg.id); } } : undefined}
+                    className={searchQuery ? "cursor-pointer hover:bg-muted/40 rounded-lg" : undefined}
+                  >
+                    <GroupChatMessageRow
+                      msg={msg}
+                      messagesById={messagesById}
+                      isOwnMessage={isOwnMessage}
+                      isAdmin={isAdmin}
+                      highlightedMessageId={highlightedMessageId}
+                      messageReactions={messageReactions}
+                      userId={user?.id}
+                      getProfile={getProfile}
+                      readFrontier={readFrontier}
+                      readCounts={readCounts}
+                      handleReply={handleReply}
+                      handleEdit={handleEdit}
+                      deleteMessageMutation={deleteMessageMutation}
+                      toggleReactionMutation={toggleReactionMutation}
+                      groupId={groupId || ""}
+                      searchQuery={searchQuery}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={pinMessage}
+                      onUnpin={unpinMessage}
+                      canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && !!group?.team_id}
+                      isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                      isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                      onPublishToGallery={handlePublishToGallery}
+                      allowForwarding={group?.allow_forwarding !== false}
+                      groupName={group?.name ?? null}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
+                    />
+                  </div>
                 </>
-              );
-            }}
-          />
-        )}
-      </div>
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
