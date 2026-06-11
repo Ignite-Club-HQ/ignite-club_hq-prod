@@ -620,62 +620,59 @@ export function ManagePlayersDialog({
               )}
             </div>
 
-            {/* Right: overflow menu */}
+            {/* Right: overflow menu (inline, no portal — works inside Vaul drawer) */}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 -mr-1 text-muted-foreground shrink-0"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    data-vaul-no-drag
-                    aria-label="Player actions"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 z-[100001]">
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditingName(player); }}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit name
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSecondParentForPlayer(player); }}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite second parent
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <DropdownMenuItem
-                        onSelect={(e) => e.preventDefault()}
-                        className="text-destructive focus:text-destructive"
+              <div className="relative shrink-0" data-vaul-no-drag>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 -mr-1 text-muted-foreground"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuPlayerId(openMenuPlayerId === player.id ? null : player.id);
+                  }}
+                  data-vaul-no-drag
+                  aria-label="Player actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+                {openMenuPlayerId === player.id && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-[100000]"
+                      onPointerDown={(e) => { e.stopPropagation(); setOpenMenuPlayerId(null); }}
+                    />
+                    <div className="absolute right-0 top-9 z-[100001] w-48 rounded-md border border-border bg-popover p-1 shadow-md">
+                      <button
+                        type="button"
+                        className="flex w-full items-center rounded-sm px-2 py-2 text-sm text-popover-foreground hover:bg-accent"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuPlayerId(null); startEditingName(player); }}
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit name
+                      </button>
+                      <button
+                        type="button"
+                        className="flex w-full items-center rounded-sm px-2 py-2 text-sm text-popover-foreground hover:bg-accent"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuPlayerId(null); setSecondParentForPlayer(player); }}
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Invite second parent
+                      </button>
+                      <div className="my-1 h-px bg-border" />
+                      <button
+                        type="button"
+                        className="flex w-full items-center rounded-sm px-2 py-2 text-sm text-destructive hover:bg-accent"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuPlayerId(null); setDeleteConfirmPlayer(player); }}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Remove player
-                      </DropdownMenuItem>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will remove {player.name} from the player pool.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deletePlayerMutation.mutate(player.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Remove
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
