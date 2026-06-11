@@ -1110,8 +1110,20 @@ export default function ClubChatPage() {
       return;
     }
     setReplyingTo(m);
-    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
-  }, [toast, scrollToBottom]);
+    // Focus the composer so the soft keyboard opens; on Android this triggers
+    // the keyboardWillShow chain so the scroller's keyboard effect can pin
+    // the latest message above the keyboard.
+    const focusComposer = () => {
+      const ta = composerRef.current?.querySelector("textarea") as HTMLTextAreaElement | null;
+      ta?.focus();
+    };
+    focusComposer();
+    // Re-pin to bottom in stages: immediate (reply pill height bump),
+    // 180ms (composer remeasure), 480ms (Android keyboard finishes opening).
+    [0, 180, 480].forEach((delay) => {
+      setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
+    });
+  }, [toast]);
 
   const queryKeyMemo = useMemo(() => ["club-messages", clubId!], [clubId]);
 

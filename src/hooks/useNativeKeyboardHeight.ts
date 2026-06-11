@@ -28,10 +28,15 @@ function computeAndroidInset(androidHeight: number): number {
   if (!isNativeAndroid || typeof window === "undefined") return 0;
   const vv = window.visualViewport;
   const viewportHeight = vv?.height ?? window.innerHeight ?? 0;
-  if (viewportHeight <= 0) return Math.max(0, androidHeight);
 
+  // Keep widening the baseline while the keyboard is closed so future
+  // diagnostics/clamps stay correct, but DO NOT subtract any viewport
+  // shrink/pan from the plugin-reported keyboard height. AppLayout's
+  // `--visual-vh` is monotonically locked (see StatusBarManager) and never
+  // shrinks with the IME, so any `visualViewport` shrink we observe here is
+  // spurious (Gboard quirks, predictive bar, etc.) — subtracting it cancels
+  // the real inset and leaves the latest message clipped behind the composer.
   if (androidHeight <= 0) {
-    // Keyboard closed — widen baseline so subsequent open math is correct.
     const next = Math.max(
       androidBaselineHeight,
       viewportHeight,
@@ -42,14 +47,14 @@ function computeAndroidInset(androidHeight: number): number {
     return 0;
   }
 
-  if (androidBaselineHeight <= 0) {
+  if (androidBaselineHeight <= 0 && viewportHeight > 0) {
     androidBaselineHeight = viewportHeight;
   }
 
-  const viewportShrink = Math.max(0, androidBaselineHeight - viewportHeight);
-  const viewportPan = Math.max(0, vv?.offsetTop ?? 0);
-  const consumedByViewport = Math.min(androidHeight, Math.max(viewportShrink, viewportPan));
-  return Math.max(0, androidHeight - consumedByViewport);
+  // Clamp to 60% of the baseline as a sanity ceiling (matches the clamp in
+  // useNativeAndroidKeyboardState).
+  const ceiling = androidBaselineHeight > 0 ? androidBaselineHeight * 0.6 : androidHeight;
+  return Math.max(0, Math.min(androidHeight, ceiling));
 }
 
 /**
