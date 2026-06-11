@@ -755,12 +755,9 @@ export function ManagePlayersDialog({
             </DndContext>
           )}
 
-          {pendingInvites.length > 0 && (
-            <div className="space-y-2 mt-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
-              <PendingInvitesList invites={pendingInvites} clubId={clubId} />
-            </div>
-          )}
+          {/* Pending invites are surfaced inline on each player row via the
+              "Pending" badge + invite-second-parent (UserPlus) button, so no
+              separate "Pending Parent Invites" section is rendered here. */}
 
           <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
             <AlertDialogContent>
