@@ -3122,9 +3122,13 @@ export default function EventDetailPage() {
 
         if (isMiniLeagueEvent && miniLeaguePlayers) {
           notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
+            // A player only counts as "responded" if an RSVP exists for that specific
+            // player (mini_league_player_id) or for their linked child (child_id).
+            // The parent's own adult RSVP says nothing about whether the player is
+            // attending, so do NOT hide the player just because their parent_user_id
+            // has any RSVP on the event.
             if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
             if (player.child_id && respondedChildIds.has(player.child_id)) return false;
-            if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
             return true;
           });
           // Adults bucket only when "Show all roles" is on.
