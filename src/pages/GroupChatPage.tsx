@@ -1436,8 +1436,9 @@ export default function GroupChatPage() {
       setReplyTo(null);
       setPendingPollId(null);
       
-      // Scroll to bottom to show new message
-      scrollToBottom();
+      // Scroll to bottom — force bypasses the touch-guard so the deferred
+      // re-pins still fire after composer reflow shrinks bottomPadding.
+      virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
       return { previousData };
     },
