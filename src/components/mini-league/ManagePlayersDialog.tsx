@@ -538,12 +538,12 @@ export function ManagePlayersDialog({
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-1 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span className="text-sm font-medium truncate">{player.name}</span>
                     {canManage && !selectionMode && (
                       <button
                         type="button"
-                        className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+                        className="p-1 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
                         onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
                       >
                         <Pencil className="h-3 w-3" />
