@@ -94,6 +94,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+import { hapticSelectionTick } from "@/lib/haptics";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
@@ -1435,6 +1436,7 @@ export default function GroupChatPage() {
       setImageUrl(null);
       setReplyTo(null);
       setPendingPollId(null);
+      hapticSelectionTick();
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.

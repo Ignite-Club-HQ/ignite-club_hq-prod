@@ -78,6 +78,7 @@ import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { hapticSelectionTick } from "@/lib/haptics";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
@@ -1431,6 +1432,7 @@ export default function TeamChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      hapticSelectionTick();
       
       // Scroll to bottom to show new message — force=true bypasses the
       // "user is touching viewport" guard, which can spuriously cancel the
