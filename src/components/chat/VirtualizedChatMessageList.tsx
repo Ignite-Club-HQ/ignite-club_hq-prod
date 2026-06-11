@@ -38,7 +38,7 @@ import {
 import { BasicChatMessageList } from "./BasicChatMessageList";
 import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
-import { isChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
+import { isChatJumpActive, setChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
@@ -1800,6 +1800,52 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   }, [initialRevealReady, lastMessageId, messages.length, bottomPinRevision, initialBottomPinned]);
 
+  // OWN-MESSAGE SEND PIN. When the newest appended message belongs to the
+  // current user, they just hit Send — the freshly sent bubble MUST be
+  // visible regardless of `followOutput`'s atBottom state, the open-pin
+  // window, or a stale jump flag. With the keyboard open Virtuoso often
+  // reports atBottom=false (the visual viewport shrank under it), so
+  // `followOutput` silently skips the append and the sent bubble lands
+  // clipped behind the composer. The page-level `onMutate` scrollToBottom
+  // can also be swallowed when `isChatJumpActive()` was left set — sending
+  // a message is an explicit intent change, so release the jump and pin.
+  const prevOwnPinLastIdRef = useRef<string | null>(lastMessageId);
+  useLayoutEffect(() => {
+    const prevId = prevOwnPinLastIdRef.current;
+    prevOwnPinLastIdRef.current = lastMessageId;
+    if (!lastMessageId || lastMessageId === prevId) return;
+    const last = messages[messages.length - 1] as { author_id?: string | null } | undefined;
+    if (!currentUserId || !last || last.author_id !== currentUserId) return;
+    if (isChatJumpActive()) setChatJumpActive(false);
+
+    const pin = () => {
+      const el = scrollerElRef.current;
+      if (!el) return;
+      // NOTE: do NOT bail on `isViewportTouching` here. On Android, sending a
+      // message keeps the soft keyboard open and the composer/viewport keeps
+      // resizing for several hundred ms after send; any of those resize
+      // gestures can leave the touch-tracker hot and silently swallow the
+      // pin, leaving the freshly-sent bubble clipped behind the composer.
+      // Send is an explicit intent change, so always honour it.
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (Math.abs(el.scrollTop - maxTop) > 1) {
+        el.scrollTop = maxTop;
+        markChatScrollWrite();
+      }
+    };
+    virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+    pin();
+    const r = requestAnimationFrame(() => requestAnimationFrame(pin));
+    // Trailing passes absorb composer collapse (reply pill clears, textarea
+    // shrinks back to one line), optimistic bubble height settling, and on
+    // Android the soft-keyboard / visualViewport reflow that can land 600ms+
+    // after send commits.
+    const timers = [80, 200, 360, 560, 820, 1200].map((delay) => window.setTimeout(pin, delay));
+    return () => {
+      cancelAnimationFrame(r);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [lastMessageId, messages, currentUserId]);
 
 
   // Only auto-follow new outgoing messages when the user is already at the
