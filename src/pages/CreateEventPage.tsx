@@ -137,6 +137,7 @@ export default function CreateEventPage() {
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
   const [isBye, setIsBye] = useState(false);
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
+  const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
