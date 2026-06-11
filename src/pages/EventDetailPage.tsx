@@ -773,7 +773,9 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
-  // Fetch mini-league players for mini-league events (for not responded list)
+  // Fetch mini-league players for mini-league events (for not responded list).
+  // We enrich each player with `is_pending` = no parent has accepted the app yet
+  // (no parent_user_id, linked child has no parent_id, and no guardians).
   const { data: miniLeaguePlayers } = useQuery({
     queryKey: ["mini-league-players-for-event", event?.mini_league_id],
     queryFn: async () => {
@@ -782,7 +784,31 @@ export default function EventDetailPage() {
         .select("id, name, parent_user_id, child_id")
         .eq("mini_league_id", event!.mini_league_id!);
       if (error) throw error;
-      return data || [];
+      const players = data || [];
+
+      const childIds = Array.from(
+        new Set(players.map((p: any) => p.child_id).filter((id: string | null): id is string => !!id)),
+      );
+
+      let childParentMap = new Map<string, string | null>();
+      let guardianCountMap = new Map<string, number>();
+      if (childIds.length > 0) {
+        const [childrenRes, guardiansRes] = await Promise.all([
+          supabase.from("children").select("id, parent_id").in("id", childIds),
+          supabase.from("child_guardians").select("child_id").in("child_id", childIds),
+        ]);
+        (childrenRes.data || []).forEach((c: any) => childParentMap.set(c.id, c.parent_id));
+        (guardiansRes.data || []).forEach((g: any) => {
+          guardianCountMap.set(g.child_id, (guardianCountMap.get(g.child_id) || 0) + 1);
+        });
+      }
+
+      return players.map((p: any) => {
+        const childParent = p.child_id ? childParentMap.get(p.child_id) : null;
+        const guardianCount = p.child_id ? (guardianCountMap.get(p.child_id) || 0) : 0;
+        const is_pending = !p.parent_user_id && !childParent && guardianCount === 0;
+        return { ...p, is_pending };
+      });
     },
     enabled: !!event?.mini_league_id,
   });
@@ -3249,10 +3275,12 @@ export default function EventDetailPage() {
             {notRespondedChildren.map((child: any) => {
               // For mini-league players: parent_user_id may be null; we still allow remind via
               // the linked child (children.parent_id + child_guardians).
+              const isPendingChild = isMiniLeagueEvent ? !!child.is_pending : false;
               const remindParentId: string | undefined = isMiniLeagueEvent ? child.parent_user_id : child.parent_id;
               const remindChildId: string | undefined = isMiniLeagueEvent ? child.child_id : (child.child_id || child.id);
               const recipientKey = remindParentId || remindChildId || child.id;
-              const canRemind = !!(remindParentId || remindChildId);
+              // No one to remind if the child is pending (no parent has accepted the app yet).
+              const canRemind = !isPendingChild && !!(remindParentId || remindChildId);
               const remindBtn = (isAdmin || isAppAdmin) && canRemind ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === remindParentId && individualRemindMutation.variables?.childId === remindChildId;
                 const lastRemindedAt = recentlyReminded.get(recipientKey) || (remindParentId ? recentReminderMap?.get(remindParentId) : null) || null;
@@ -3317,7 +3345,7 @@ export default function EventDetailPage() {
                   name={child.name || "Unknown"}
                   roleLabel={!isMiniLeagueEvent ? "Child" : null}
                   roleTone="child"
-                  isPending={isMiniLeagueEvent ? (!child.parent_user_id && !child.child_id) : false}
+                  isPending={isPendingChild}
                   rightSlot={
                     <>
                       {remindBtn}
