@@ -302,6 +302,14 @@ export default function TeamChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
+  // Clicking a search result jumps to the message in the full thread so the
+  // user sees surrounding context.
+  const handleSearchResultClick = (mid: string) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    requestAnimationFrame(() => handleJumpToMessage(mid));
+  };
+
   const { data: teamData, isLoading: loadingTeam, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
@@ -1795,9 +1803,13 @@ export default function TeamChatPage() {
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                   <div
                     id={`message-${msg.id}`}
+                    role={searchQuery ? "button" : undefined}
+                    tabIndex={searchQuery ? 0 : undefined}
+                    onClick={searchQuery ? () => handleSearchResultClick(msg.id) : undefined}
+                    onKeyDown={searchQuery ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSearchResultClick(msg.id); } } : undefined}
                     className={`transition-colors duration-500 ${
                       highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-                    }`}
+                    } ${searchQuery ? "cursor-pointer hover:bg-muted/40 rounded-lg" : ""}`}
                   >
                     <ChatMessage
                       id={msg.id}
