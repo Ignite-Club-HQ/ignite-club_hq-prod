@@ -29,28 +29,42 @@ function getHaptics(): Promise<HapticsMod | null> {
 // Kick off the import immediately so it's ready before first interaction
 getHaptics();
 
+let _loggedVibrate = false;
 function vibrateFallback(ms: number) {
   try {
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(ms);
+    if (typeof navigator === "undefined" || !navigator.vibrate) {
+      if (!_loggedVibrate) {
+        _loggedVibrate = true;
+        console.info("[haptics] navigator.vibrate not supported on this browser/device");
+      }
+      return;
     }
-  } catch {
-    // ignore
+    const ok = navigator.vibrate(ms);
+    if (!_loggedVibrate) {
+      _loggedVibrate = true;
+      console.info(
+        `[haptics] navigator.vibrate(${ms}) -> ${ok} (false = blocked by browser, e.g. cross-origin preview iframe or desktop)`,
+      );
+    }
+  } catch (err) {
+    if (!_loggedVibrate) {
+      _loggedVibrate = true;
+      console.info("[haptics] vibrate threw:", err);
+    }
   }
 }
 
-/** Light haptic tap — long-press confirmation, emoji picker open */
+/** Light haptic tap — long-press confirmation, emoji picker open, send */
 export const hapticImpactLight = () => {
   if (_mod && Capacitor.isNativePlatform()) {
     _mod.Haptics.impact({ style: _mod.ImpactStyle.Light }).catch(() => {});
   } else if (Capacitor.isNativePlatform()) {
-    // Module still loading — await it then fire
     getHaptics().then((m) => {
       if (m) m.Haptics.impact({ style: m.ImpactStyle.Light }).catch(() => {});
-      else vibrateFallback(12);
+      else vibrateFallback(25);
     });
   } else {
-    vibrateFallback(12);
+    vibrateFallback(25);
   }
 };
 

@@ -74,6 +74,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { hapticImpactLight } from "@/lib/haptics";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
@@ -1179,6 +1180,7 @@ export default function ClubChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      hapticImpactLight();
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.

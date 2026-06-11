@@ -82,7 +82,9 @@ export function ChatSendButton({
     if (firedThisGestureRef.current) return;
     if (disabled || loading) return;
     firedThisGestureRef.current = true;
-    // Clear light impact — matches WhatsApp/Telegram send feel (selectionChanged was too subtle to perceive).
+    // Fire haptic synchronously inside the user gesture so navigator.vibrate
+    // is allowed by mobile browsers (Android Chrome blocks it otherwise) and
+    // the feedback feels instant rather than waiting on the insert round-trip.
     hapticImpactLight();
     onSend();
     if (canSend) maybeShowHint();
@@ -173,13 +175,13 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          // 44x44 hit target via padding; inner visual stays 30px. Negative
+          // 50×50 hit target via padding; inner visual stays 30px. Negative
           // margin prevents the expanded target from shifting layout.
           // `mb-[5px]` lifts the button up so its optical center aligns with
           // the text baseline on a single-line composer (and keeps a
           // comfortable bottom inset when the composer grows multi-line —
           // matching WhatsApp/Messenger anchoring).
-          "group relative flex items-center justify-center shrink-0 p-1 -m-1 mb-[5px] rounded-full bg-transparent select-none touch-none",
+          "group relative flex items-center justify-center shrink-0 p-2.5 -m-2.5 mb-[5px] rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >

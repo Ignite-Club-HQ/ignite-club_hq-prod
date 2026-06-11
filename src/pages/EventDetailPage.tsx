@@ -311,7 +311,7 @@ export default function EventDetailPage() {
       // Fetch rsvps first
       const { data: rsvpData, error: rsvpError } = await supabase
         .from("rsvps")
-        .select(`*, mini_league_players (id, name)`)
+        .select(`*, mini_league_players (id, name, child_id)`)
         .eq("event_id", id!);
       if (rsvpError) throw rsvpError;
       
@@ -379,6 +379,43 @@ export default function EventDetailPage() {
     },
     enabled: !!id,
   });
+
+  // Adult players on this team — used to count "players attending" for
+  // match/training events so the attending number doesn't include parents who
+  // RSVP'd for themselves alongside their child.
+  const { data: teamPlayerAdultIds } = useQuery({
+    queryKey: ["team-player-adult-ids", (event as any)?.team_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", (event as any).team_id)
+        .eq("role", "player");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.user_id as string));
+    },
+    enabled: !!(event as any)?.team_id,
+    staleTime: 60_000,
+  });
+
+  // For club-wide events (no team_id), identify adult players via any
+  // role='player' assignment within the club so we can exclude parents
+  // from the "players attending" count.
+  const { data: clubPlayerAdultIds } = useQuery({
+    queryKey: ["club-player-adult-ids", (event as any)?.club_id, (event as any)?.team_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", (event as any).club_id)
+        .eq("role", "player");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.user_id as string));
+    },
+    enabled: !!(event as any)?.club_id && !(event as any)?.team_id,
+    staleTime: 60_000,
+  });
+
 
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
@@ -2673,8 +2710,24 @@ export default function EventDetailPage() {
                   </span>
                 );
               }
-              const count = goingRsvps.length + guestCount;
-              return <span>{count} attending</span>;
+              // Players-only count: mirror the same filter the Going list uses
+              // (child RSVP, mini-league player, or adult RSVP whose membership
+              // includes the "player" role) so the header and "Going (N)" tab
+              // always agree.
+              const playerUserIds = new Set((playerMembers || []).map((m: any) => m.id));
+              const _seenKeys = new Set<string>();
+              const playerGoing = goingRsvps.filter((r: any) => {
+                const isPlayer = r.child_id || r.mini_league_player_id || (r.user_id && playerUserIds.has(r.user_id));
+                if (!isPlayer) return false;
+                const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
+                const key = linkedChildId ? `c:${linkedChildId}` : r.mini_league_player_id ? `m:${r.mini_league_player_id}` : `u:${r.user_id}`;
+                if (_seenKeys.has(key)) return false;
+                _seenKeys.add(key);
+                return true;
+              }).length;
+              const count = playerGoing + guestCount;
+              return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
+
             })() : <span>Loading...</span>}
           </div>
 
@@ -3140,9 +3193,29 @@ export default function EventDetailPage() {
           return playerUserIds.has(rsvp.user_id);
         };
 
-        const goingRsvps = rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || [];
-        const maybeRsvps = rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || [];
-        const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
+        // Dedupe duplicate RSVP rows for the same player/adult (e.g. co-parent
+        // double-RSVPs or accidental duplicate inserts) so the list and the
+        // header count always agree.
+        const dedupeRsvps = (list: any[]) => {
+          const seen = new Set<string>();
+          return list.filter((r: any) => {
+            // Prefer child_id (direct or via linked mini-league player) so the
+            // same underlying child isn't shown twice when both an mlp RSVP
+            // and a child RSVP exist.
+            const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
+            const key = linkedChildId
+              ? `c:${linkedChildId}`
+              : r.mini_league_player_id
+                ? `m:${r.mini_league_player_id}`
+                : `u:${r.user_id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        };
+        const goingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
+        const maybeRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
+        const notGoingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
 
         const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
         const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);

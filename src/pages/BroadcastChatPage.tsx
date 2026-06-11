@@ -55,6 +55,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
+import { hapticImpactLight } from "@/lib/haptics";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
@@ -878,6 +879,7 @@ export default function BroadcastChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      hapticImpactLight();
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.
