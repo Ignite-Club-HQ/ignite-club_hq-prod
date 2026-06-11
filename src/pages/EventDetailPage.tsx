@@ -2719,7 +2719,8 @@ export default function EventDetailPage() {
               const playerGoing = goingRsvps.filter((r: any) => {
                 const isPlayer = r.child_id || r.mini_league_player_id || (r.user_id && playerUserIds.has(r.user_id));
                 if (!isPlayer) return false;
-                const key = r.child_id ? `c:${r.child_id}` : r.mini_league_player_id ? `m:${r.mini_league_player_id}` : `u:${r.user_id}`;
+                const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
+                const key = linkedChildId ? `c:${linkedChildId}` : r.mini_league_player_id ? `m:${r.mini_league_player_id}` : `u:${r.user_id}`;
                 if (_seenKeys.has(key)) return false;
                 _seenKeys.add(key);
                 return true;
