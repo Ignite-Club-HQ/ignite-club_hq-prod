@@ -3275,10 +3275,12 @@ export default function EventDetailPage() {
             {notRespondedChildren.map((child: any) => {
               // For mini-league players: parent_user_id may be null; we still allow remind via
               // the linked child (children.parent_id + child_guardians).
+              const isPendingChild = isMiniLeagueEvent ? !!child.is_pending : false;
               const remindParentId: string | undefined = isMiniLeagueEvent ? child.parent_user_id : child.parent_id;
               const remindChildId: string | undefined = isMiniLeagueEvent ? child.child_id : (child.child_id || child.id);
               const recipientKey = remindParentId || remindChildId || child.id;
-              const canRemind = !!(remindParentId || remindChildId);
+              // No one to remind if the child is pending (no parent has accepted the app yet).
+              const canRemind = !isPendingChild && !!(remindParentId || remindChildId);
               const remindBtn = (isAdmin || isAppAdmin) && canRemind ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === remindParentId && individualRemindMutation.variables?.childId === remindChildId;
                 const lastRemindedAt = recentlyReminded.get(recipientKey) || (remindParentId ? recentReminderMap?.get(remindParentId) : null) || null;
