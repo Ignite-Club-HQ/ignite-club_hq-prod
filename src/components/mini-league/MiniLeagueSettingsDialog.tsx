@@ -61,6 +61,7 @@ interface MiniLeagueSettingsDialogProps {
     min_players_per_side: number | null;
     minutes_per_half: number | null;
     bib_colors: string[] | null;
+    show_matches_to_members?: boolean | null;
   };
   /** Only club admins, league admins (club-wide or scoped) and app admins may delete. */
   canDelete?: boolean;
@@ -81,6 +82,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
   const [editBibColors, setEditBibColors] = useState<string[]>(
     league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]
   );
+  const [editShowMatchesToMembers, setEditShowMatchesToMembers] = useState<boolean>(!!league.show_matches_to_members);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [mockPlayerCount, setMockPlayerCount] = useState(20);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -162,6 +164,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
       setEditMinPlayersPerSide(league.min_players_per_side || 3);
       setEditMinutesPerHalf(league.minutes_per_half || 10);
       setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
+      setEditShowMatchesToMembers(!!league.show_matches_to_members);
       setAdvancedOpen(false);
     }
     onOpenChange(o);
@@ -205,6 +208,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete
           min_players_per_side: editMinPlayersPerSide,
           minutes_per_half: editMinutesPerHalf,
           bib_colors: editBibColors.length > 0 ? editBibColors : null,
+          show_matches_to_members: editShowMatchesToMembers,
         })
         .eq("id", league.id);
       if (error) throw error;
