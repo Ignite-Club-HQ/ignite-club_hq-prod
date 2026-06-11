@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical } from "lucide-react";
+import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus } from "lucide-react";
+import { AddSecondParentDialog } from "@/components/mini-league/AddSecondParentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -152,6 +153,7 @@ export function ManagePlayersDialog({
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const [activePlayer, setActivePlayer] = useState<MiniLeaguePlayer | null>(null);
+  const [secondParentForPlayer, setSecondParentForPlayer] = useState<MiniLeaguePlayer | null>(null);
 
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
@@ -523,7 +525,21 @@ export function ManagePlayersDialog({
                 </div>
               )}
             </div>
-            {/* Right: delete action */}
+            {/* Right: admin actions */}
+            {!selectionMode && canManage && !isEditing && !isDragOverlay && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                title="Invite second parent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSecondParentForPlayer(player);
+                }}
+              >
+                <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -737,6 +753,19 @@ export function ManagePlayersDialog({
           </Button>
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
+
+      {secondParentForPlayer && (
+        <AddSecondParentDialog
+          open={!!secondParentForPlayer}
+          onOpenChange={(o) => { if (!o) setSecondParentForPlayer(null); }}
+          playerId={secondParentForPlayer.id}
+          playerName={secondParentForPlayer.name}
+          childId={secondParentForPlayer.child_id}
+          miniLeagueId={miniLeagueId}
+          miniLeagueName={miniLeagueName}
+          clubId={clubId}
+        />
+      )}
     </ResponsiveDialog>
   );
 }
