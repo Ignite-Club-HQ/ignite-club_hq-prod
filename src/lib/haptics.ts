@@ -39,18 +39,17 @@ function vibrateFallback(ms: number) {
   }
 }
 
-/** Light haptic tap — long-press confirmation, emoji picker open */
+/** Light haptic tap — long-press confirmation, emoji picker open, send */
 export const hapticImpactLight = () => {
   if (_mod && Capacitor.isNativePlatform()) {
     _mod.Haptics.impact({ style: _mod.ImpactStyle.Light }).catch(() => {});
   } else if (Capacitor.isNativePlatform()) {
-    // Module still loading — await it then fire
     getHaptics().then((m) => {
       if (m) m.Haptics.impact({ style: m.ImpactStyle.Light }).catch(() => {});
-      else vibrateFallback(12);
+      else vibrateFallback(25);
     });
   } else {
-    vibrateFallback(12);
+    vibrateFallback(25);
   }
 };
 
