@@ -1537,9 +1537,13 @@ export default function ClubChatPage() {
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                   <div
                     id={`message-${msg.id}`}
+                    role={searchQuery ? "button" : undefined}
+                    tabIndex={searchQuery ? 0 : undefined}
+                    onClick={searchQuery ? () => handleSearchResultClick(msg.id) : undefined}
+                    onKeyDown={searchQuery ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSearchResultClick(msg.id); } } : undefined}
                     className={`transition-colors duration-500 ${
                       highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-                    }`}
+                    } ${searchQuery ? "cursor-pointer hover:bg-muted/40 rounded-lg" : ""}`}
                   >
                     <ChatMessage
                       id={msg.id}
