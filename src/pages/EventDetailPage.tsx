@@ -380,6 +380,24 @@ export default function EventDetailPage() {
     enabled: !!id,
   });
 
+  // Adult players on this team — used to count "players attending" for
+  // match/training events so the attending number doesn't include parents who
+  // RSVP'd for themselves alongside their child.
+  const { data: teamPlayerAdultIds } = useQuery({
+    queryKey: ["team-player-adult-ids", (event as any)?.team_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", (event as any).team_id)
+        .eq("role", "player");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.user_id as string));
+    },
+    enabled: !!(event as any)?.team_id,
+    staleTime: 60_000,
+  });
+
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
   
