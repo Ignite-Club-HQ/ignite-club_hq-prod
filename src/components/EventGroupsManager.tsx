@@ -1183,8 +1183,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           })}
           </div>
         </div>
-      ) : (
-        /* Empty State - Generate Matches */
+      ) : isAdmin ? (
+        /* Empty State - Generate Matches (admins only) */
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-3">
             <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1198,28 +1198,26 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   : "Select players as attending first to generate matches"}
               </p>
             </div>
-            {isAdmin && (
-              <div className="space-y-2 pt-1">
-                <Button 
-                  className="w-full h-12 text-base font-semibold"
-                  onClick={() => setIsQuickSetupOpen(true)}
-                  disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
-                >
-                  {quickSetupMutation.isPending ? (
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-5 w-5 mr-2" />
-                  )}
-                  Generate Matches
-                </Button>
-                <p className="text-[11px] text-muted-foreground/60">
-                  Automatically create balanced games based on who is playing
-                </p>
-              </div>
-            )}
+            <div className="space-y-2 pt-1">
+              <Button 
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => setIsQuickSetupOpen(true)}
+                disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
+              >
+                {quickSetupMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                ) : (
+                  <Wand2 className="h-5 w-5 mr-2" />
+                )}
+                Generate Matches
+              </Button>
+              <p className="text-[11px] text-muted-foreground/60">
+                Automatically create balanced games based on who is playing
+              </p>
+            </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {/* Manual Match Dialog */}
       <ManualMatchDialog
