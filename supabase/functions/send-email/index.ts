@@ -87,6 +87,7 @@ interface TeamInviteTemplateData {
   primaryColor?: string;
   childrenNames?: string[];
   customMessage?: string;
+  isMiniLeague?: boolean;
 }
 
 interface EventReminderTemplateData {
