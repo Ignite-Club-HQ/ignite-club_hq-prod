@@ -518,7 +518,7 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
             id="coord-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search club admins, committee or association admins"
+            placeholder="Search by name or email"
           />
           <p className="text-xs text-muted-foreground">
             Only admins from the organising club or its association can be added.
