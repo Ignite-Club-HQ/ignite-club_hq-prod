@@ -322,6 +322,7 @@ export function MentionInput({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const touchYRef = useRef<number | null>(null);
+  const isComposingRef = useRef(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Parse segments from raw value
