@@ -535,6 +535,11 @@ export function ManagePlayersDialog({
               ) : (
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium truncate">{player.name}</span>
+                  {isPlayerPending(player) && (
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px] shrink-0">
+                      Pending
+                    </Badge>
+                  )}
                   {canManage && !selectionMode && (
                     <button
                       type="button"
