@@ -507,44 +507,19 @@ export function ManagePlayersDialog({
         className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
-        <CardContent className="py-2.5 px-3">
-          <div className="flex items-center gap-3">
+        <CardContent className="py-3 px-3">
+          <div className="flex items-start gap-2.5">
             {/* Left: checkbox in selection mode */}
             {selectionMode && (
               <Checkbox
                 checked={selectedPlayerIds.has(player.id)}
                 onCheckedChange={() => togglePlayerSelection(player.id)}
                 onClick={(e) => e.stopPropagation()}
-                className="shrink-0"
+                className="shrink-0 mt-1"
               />
             )}
-            {/* Stars */}
-            <div className="flex items-center shrink-0">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={!canManage || selectionMode}
-                  className={`p-0.5 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
-                  onClick={
-                    canManage && !selectionMode
-                      ? (e) => {
-                          e.stopPropagation();
-                          const newRating = i + 1;
-                          if (newRating !== player.ability_rating) {
-                            updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
-                          }
-                        }
-                      : undefined
-                  }
-                >
-                  <Star
-                    className={`h-3.5 w-3.5 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/25"}`}
-                  />
-                </button>
-              ))}
-            </div>
-            {/* Name + parent */}
+
+            {/* Main content column */}
             <div className="min-w-0 flex-1">
               {isEditing ? (
                 <div className="flex items-center gap-1">
@@ -576,88 +551,123 @@ export function ManagePlayersDialog({
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-sm font-medium truncate">{player.name}</span>
+                  {/* Row 1: name + inline edit + pending */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {player.name}
+                    </span>
                     {canManage && !selectionMode && (
                       <button
                         type="button"
-                        className="p-1 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+                        className="p-0.5 text-muted-foreground/50 hover:text-foreground shrink-0"
                         onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
+                        aria-label="Edit name"
                       >
                         <Pencil className="h-3 w-3" />
                       </button>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                    {allParentNames.length > 0 && (
-                      <>
-                        <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                        <span className="text-xs text-muted-foreground truncate">
-                          {allParentNames.join(", ")}
-                        </span>
-                      </>
-                    )}
                     {isPlayerPending(player) && (
-                      <span className="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
+                      <span className="ml-auto inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
                         Pending
                       </span>
                     )}
                   </div>
+
+                  {/* Row 2: parent/guardian names */}
+                  {allParentNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                      <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                      <span className="text-xs text-muted-foreground truncate">
+                        {allParentNames.join(", ")}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Row 3: rating stars (compact, below name) */}
+                  <div className="flex items-center -ml-0.5 mt-1.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={!canManage || selectionMode}
+                        className={`p-0.5 ${canManage && !selectionMode ? "cursor-pointer active:scale-110 transition-transform" : ""}`}
+                        onClick={
+                          canManage && !selectionMode
+                            ? (e) => {
+                                e.stopPropagation();
+                                const newRating = i + 1;
+                                if (newRating !== player.ability_rating) {
+                                  updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                }
+                              }
+                            : undefined
+                        }
+                        aria-label={`Rate ${i + 1} star${i === 0 ? "" : "s"}`}
+                      >
+                        <Star
+                          className={`h-3.5 w-3.5 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  {player.notes && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                      {player.notes}
+                    </p>
+                  )}
                 </>
               )}
             </div>
-            {/* Right: admin actions */}
+
+            {/* Right: admin actions grouped */}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                title="Invite second parent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSecondParentForPlayer(player);
-                }}
-              >
-                <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            )}
-            {!selectionMode && canManage && !isEditing && !isDragOverlay && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove {player.name} from the player pool.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deletePlayerMutation.mutate(player.id)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              <div className="flex items-center gap-0.5 shrink-0 -mr-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Invite second parent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSecondParentForPlayer(player);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Remove player"
                     >
-                      Remove
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will remove {player.name} from the player pool.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deletePlayerMutation.mutate(player.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             )}
           </div>
-          {player.notes && !isEditing && (
-            <p className="text-xs text-muted-foreground mt-1 truncate pl-[calc(5*1.25rem+0.5rem)]">
-              {player.notes}
-            </p>
-          )}
         </CardContent>
       </Card>
     );
