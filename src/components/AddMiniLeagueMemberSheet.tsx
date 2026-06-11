@@ -703,7 +703,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 <Label htmlFor={`mini-league-parent-name-${player.id}`}>Parent name</Label>
                                 <Input
                                   id={`mini-league-parent-name-${player.id}`}
-                                  placeholder="Search existing or type"
+                                  placeholder="Search by name or email, or type new"
                                   value={player.parentName}
                                   onFocus={(event) => {
                                     setActiveSearch({ rowId: player.id, field: "parentName" });
