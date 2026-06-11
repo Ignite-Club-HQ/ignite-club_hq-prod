@@ -1816,8 +1816,10 @@ export default function GroupChatPage() {
       return;
     }
     setReplyTo(msg);
-    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
     inputRef.current?.focus();
+    [0, 180, 480].forEach((delay) => {
+      setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
+    });
   };
 
   const handleSearchResult = (messageId: string) => {
