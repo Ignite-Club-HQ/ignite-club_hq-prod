@@ -196,6 +196,34 @@ export function ManagePlayersDialog({
 
   const parentMap = new Map((parentProfiles || []).map(p => [p.id, p.display_name || "Unknown"]));
 
+  // Determine which players are "pending" (no parent has accepted the app yet).
+  // A player is pending when: no parent_user_id on the player, no parent_id on the
+  // linked child, and no entries in child_guardians for that child.
+  const childIdsForPending = [...new Set((players || []).map(p => p.child_id).filter(Boolean) as string[])];
+  const { data: pendingMeta } = useQuery({
+    queryKey: ["mini-league-players-pending-meta", miniLeagueId, childIdsForPending],
+    queryFn: async () => {
+      if (childIdsForPending.length === 0) return { childParent: new Map<string, string | null>(), guardianCount: new Map<string, number>() };
+      const [{ data: childRows }, { data: guardianRows }] = await Promise.all([
+        supabase.from("children").select("id, parent_id").in("id", childIdsForPending),
+        supabase.from("child_guardians").select("child_id").in("child_id", childIdsForPending),
+      ]);
+      const childParent = new Map<string, string | null>((childRows || []).map(c => [c.id, c.parent_id]));
+      const guardianCount = new Map<string, number>();
+      (guardianRows || []).forEach(g => guardianCount.set(g.child_id, (guardianCount.get(g.child_id) || 0) + 1));
+      return { childParent, guardianCount };
+    },
+    enabled: open && childIdsForPending.length > 0,
+  });
+
+  const isPlayerPending = (player: MiniLeaguePlayer) => {
+    if (player.parent_user_id) return false;
+    if (!player.child_id) return true;
+    const childParent = pendingMeta?.childParent.get(player.child_id) ?? null;
+    const guardianCount = pendingMeta?.guardianCount.get(player.child_id) ?? 0;
+    return !childParent && guardianCount === 0;
+  };
+
   // Fetch pending invites
   const { data: pendingInvites = [] } = useQuery({
     queryKey: ["pending-invites", null, clubId, miniLeagueId],
@@ -507,6 +535,11 @@ export function ManagePlayersDialog({
               ) : (
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium truncate">{player.name}</span>
+                  {isPlayerPending(player) && (
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px] shrink-0">
+                      Pending
+                    </Badge>
+                  )}
                   {canManage && !selectionMode && (
                     <button
                       type="button"
