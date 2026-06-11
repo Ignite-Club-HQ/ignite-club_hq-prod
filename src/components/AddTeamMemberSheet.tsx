@@ -3235,7 +3235,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
-                                placeholder="Search existing user or type new name"
+                                placeholder="Search by name or email, or type new"
                                 value={member.name}
                                 onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
                                 className="pl-10"
