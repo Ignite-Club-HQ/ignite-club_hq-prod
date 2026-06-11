@@ -303,11 +303,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const prevComposerHeightRef = useRef(composerHeight);
   const wasNearBottomBeforeLayoutRef = useRef(initialBottomPinned);
   useEffect(() => {
-    if (!virtualReady) {
-      prevKeyboardOpenRef.current = isKeyboardOpen;
-      prevComposerHeightRef.current = composerHeight;
-      return;
-    }
+    // NOTE: do NOT early-return on `!virtualReady` here. On Android the
+    // keyboard can open (focus the composer / tap Reply) while Virtuoso is
+    // still in its initial settle window. Silently updating the prev refs
+    // and bailing would swallow the false→true keyboard transition and the
+    // composer-grew transition, so no re-pin ever fires and the latest
+    // message stays clipped behind the composer. We rely on the
+    // `virtualHandleRef.current` null check below to skip work safely until
+    // the list has mounted.
+    
     const handle = virtualHandleRef.current;
     if (!handle) return;
     // Initial-mount quiet window: let Virtuoso's own bottom pin own first
