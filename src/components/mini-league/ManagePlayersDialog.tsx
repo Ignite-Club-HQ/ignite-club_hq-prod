@@ -129,12 +129,17 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
       ref={setNodeRef}
       style={style}
       className="relative flex items-center"
-      {...(canDrag ? { ...listeners, ...attributes } : {})}
     >
       {canDrag && (
-        <div className="w-5 shrink-0 flex items-center justify-center pointer-events-none opacity-30">
+        <button
+          type="button"
+          className="w-6 shrink-0 flex items-center justify-center opacity-40 touch-none -ml-1"
+          aria-label="Drag to reorder"
+          {...listeners}
+          {...attributes}
+        >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
+        </button>
       )}
       <div className="flex-1 min-w-0">
         {children}
