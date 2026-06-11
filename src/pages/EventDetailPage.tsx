@@ -3317,6 +3317,7 @@ export default function EventDetailPage() {
                   name={child.name || "Unknown"}
                   roleLabel={!isMiniLeagueEvent ? "Child" : null}
                   roleTone="child"
+                  isPending={isMiniLeagueEvent ? (!child.parent_user_id && !child.child_id) : false}
                   rightSlot={
                     <>
                       {remindBtn}
