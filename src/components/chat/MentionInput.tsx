@@ -649,6 +649,12 @@ export function MentionInput({
 
     if (newDisplay === displayValue) return;
 
+    // While the IME (e.g. Gboard) has an active composition, do NOT push a
+    // reconstructed value back into the textarea — doing so cancels the
+    // pending autocorrect/suggestion before the user can commit it. We re-run
+    // this handler on compositionend below.
+    if (isComposingRef.current) return;
+
     // Reconstruct raw value from display edit
     const newRaw = reconstructRawFromDisplayEdit(segments, displayValue, newDisplay, cursorPos);
 
@@ -658,6 +664,17 @@ export function MentionInput({
     // Check for mention trigger
     checkForMentionTrigger(newDisplay, cursorPos);
   }, [segments, displayValue, onChange, adjustHeight, checkForMentionTrigger]);
+
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    isComposingRef.current = false;
+    // Re-fire the change handler now that composition has committed, so the
+    // autocorrected/suggested text is captured into the raw value.
+    handleDisplayChange(e as unknown as React.ChangeEvent<HTMLTextAreaElement>);
+  }, [handleDisplayChange]);
 
   const insertMention = useCallback((user: SuggestedUser) => {
     if (mentionStartIndex === -1 || !user.display_name) return;
