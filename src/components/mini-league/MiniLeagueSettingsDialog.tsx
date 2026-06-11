@@ -62,9 +62,11 @@ interface MiniLeagueSettingsDialogProps {
     minutes_per_half: number | null;
     bib_colors: string[] | null;
   };
+  /** Only club admins, league admins (club-wide or scoped) and app admins may delete. */
+  canDelete?: boolean;
 }
 
-export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLeagueSettingsDialogProps) {
+export function MiniLeagueSettingsDialog({ open, onOpenChange, league, canDelete = false }: MiniLeagueSettingsDialogProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -82,6 +84,9 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [mockPlayerCount, setMockPlayerCount] = useState(20);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
   const MOCK_FIRST_NAMES = [
     "Oliver", "Jack", "Sophie", "Charlie", "Emily", "Noah", "Amelia", "George", "Isla", "Harry",
@@ -533,31 +538,85 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
                   Duplicate league with players
                 </Button>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete league
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete "{league.name}" and all its players. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteLeagueMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                {canDelete && (
+                  <AlertDialog
+                    open={deleteOpen}
+                    onOpenChange={(o) => {
+                      setDeleteOpen(o);
+                      if (!o) {
+                        setDeleteConfirmText("");
+                        setDeleteAcknowledged(false);
+                      }
+                    }}
+                  >
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete league
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-destructive">Permanently delete this mini league?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-3 text-sm">
+                            <p>
+                              This will <strong>permanently delete</strong> "{league.name}", along with all its players, sessions, groups and history.
+                              This cannot be undone and parents will lose access to anything stored against the league.
+                            </p>
+                            <p>
+                              To continue, type the league name exactly:
+                              <span className="block mt-1 font-mono font-semibold text-foreground">{league.name}</span>
+                            </p>
+                            <Input
+                              autoFocus
+                              value={deleteConfirmText}
+                              onChange={(e) => setDeleteConfirmText(e.target.value)}
+                              placeholder="Type the league name"
+                            />
+                            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={deleteAcknowledged}
+                                onChange={(e) => setDeleteAcknowledged(e.target.checked)}
+                              />
+                              <span>I understand this permanently deletes the league and all its data.</span>
+                            </label>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(e) => {
+                            if (
+                              deleteConfirmText.trim() !== league.name.trim() ||
+                              !deleteAcknowledged ||
+                              deleteLeagueMutation.isPending
+                            ) {
+                              e.preventDefault();
+                              return;
+                            }
+                            deleteLeagueMutation.mutate();
+                          }}
+                          disabled={
+                            deleteConfirmText.trim() !== league.name.trim() ||
+                            !deleteAcknowledged ||
+                            deleteLeagueMutation.isPending
+                          }
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {deleteLeagueMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Delete league permanently"
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             </CollapsibleContent>
           </Collapsible>

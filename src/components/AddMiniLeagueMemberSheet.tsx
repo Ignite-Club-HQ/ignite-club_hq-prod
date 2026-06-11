@@ -227,6 +227,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       const validPlayers = playersSource.filter((player) => player.name.trim());
       if (validPlayers.length === 0) throw new Error("Please enter at least one player");
 
+      const missingParent = validPlayers.find((p) => !p.parentName.trim());
+      if (missingParent) throw new Error(`Enter a parent name for ${missingParent.name.trim()}`);
+      const missingEmail = validPlayers.find((p) => !p.existingParentUserId && !p.parentEmail.trim());
+      if (missingEmail) throw new Error(`Enter a parent email for ${missingEmail.name.trim()} so they can be invited`);
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmail = validPlayers.find((p) => !p.existingParentUserId && !emailRe.test(p.parentEmail.trim()));
+      if (invalidEmail) throw new Error(`Enter a valid parent email for ${invalidEmail.name.trim()}`);
+
       const addedResults: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
@@ -465,7 +473,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
     ? parentResults
     : [];
-  const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
+  // Use ONLY visualViewport inset for layout. On Android the WebView resizes
+  // (so visualKeyboardInset ≈ 0 and 100dvh already excludes the keyboard); on
+  // iOS visualViewport correctly reports the keyboard overlap. Mixing in the
+  // Capacitor nativeKeyboardHeight here caused double-compensation — the sheet
+  // both shrunk and shifted up by ~300px, producing the focus flash/jump.
+  const keyboardInset = visualKeyboardInset;
   const sheetStyle = {
     "--mini-league-keyboard-inset": `${keyboardInset}px`,
     bottom: `${keyboardInset}px`,
@@ -658,7 +671,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-2 relative">
-                                <Label htmlFor={`mini-league-parent-name-${player.id}`}>Parent name optional</Label>
+                                <Label htmlFor={`mini-league-parent-name-${player.id}`}>Parent name</Label>
                                 <Input
                                   id={`mini-league-parent-name-${player.id}`}
                                   placeholder="Search existing or type"
@@ -677,11 +690,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                     setParentQuery(event.target.value);
                                   }}
                                 />
-                                {player.existingParentUserId && (
+                                {player.existingParentUserId ? (
                                   <p className="text-xs text-primary flex items-center gap-1">
                                     <Check className="h-3 w-3" /> Linked to existing parent
                                   </p>
-                                )}
+                                ) : player.parentName.trim().length > 0 ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Not on the app yet — enter their email below to send an invite.
+                                  </p>
+                                ) : null}
                                 {activeSearch?.rowId === player.id && activeSearch.field === "parentName" && !player.existingParentUserId && player.parentName.trim().length >= 2 && (
                                   <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
                                     {activeParentSuggestions.length > 0 ? activeParentSuggestions.map((p) => (
@@ -709,7 +726,9 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 )}
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor={`mini-league-parent-email-${player.id}`}>Parent email optional</Label>
+                                <Label htmlFor={`mini-league-parent-email-${player.id}`}>
+                                  {player.existingParentUserId ? "Parent email" : "Parent email (required to invite)"}
+                                </Label>
                                 <Input
                                   id={`mini-league-parent-email-${player.id}`}
                                   type="email"
@@ -718,6 +737,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   disabled={!!player.existingParentUserId}
                                   onChange={(event) => updatePlayer(player.id, { parentEmail: event.target.value })}
                                 />
+                                {!player.existingParentUserId && player.name.trim() && !player.parentEmail.trim() && (
+                                  <p className="text-xs text-destructive">
+                                    Enter the parent's email so they can be invited to the app.
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -733,7 +757,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                     <Button
                       className="w-full"
                       onClick={() => addPlayersMutation.mutate(undefined)}
-                      disabled={!players.some((player) => player.name.trim()) || isPending}
+                      disabled={!players.some((player) => player.name.trim()) || players.some((p) => p.name.trim() && (!p.parentName.trim() || (!p.existingParentUserId && !p.parentEmail.trim()))) || isPending}
                     >
                       {isPending ? (
                         <>

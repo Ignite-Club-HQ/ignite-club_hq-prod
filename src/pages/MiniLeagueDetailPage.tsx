@@ -132,6 +132,33 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!user,
   });
 
+  // Delete is restricted to club admins, league admins (club-wide or
+  // scoped to this league via mini_league_admins) and app admins.
+  // Mirrors the is_league_admin() RLS function on mini_leagues.
+  const { data: canDeleteLeague } = useQuery({
+    queryKey: ["can-delete-league", id, league?.club_id, user?.id],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
+      const adminRole = roles?.some(r =>
+        ['club_admin', 'league_admin', 'app_admin'].includes(r.role)
+      ) ?? false;
+      if (adminRole) return true;
+
+      const { data: scoped } = await supabase
+        .from("mini_league_admins")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!scoped;
+    },
+    enabled: !!league?.club_id && !!user && !!id,
+  });
+
   const { data: players } = useQuery({
     queryKey: ["mini-league-players", id],
     queryFn: async () => {
@@ -395,17 +422,6 @@ export default function MiniLeagueDetailPage() {
           <h1 className="text-lg font-bold leading-tight">{league.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
-        {leagueChatGroup?.id && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 h-10 w-10"
-            onClick={() => navigate(`/groups/${leagueChatGroup.id}`)}
-            aria-label="Open mini-league chat"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </Button>
-        )}
         {canManageLeague && (
           <Button
             variant="ghost"
@@ -460,6 +476,31 @@ export default function MiniLeagueDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* League Chat — primary action */}
+      {leagueChatGroup?.id && (
+        <button
+          type="button"
+          onClick={() => navigate(`/groups/${leagueChatGroup.id}`)}
+          aria-label="Open mini-league chat"
+          className="block w-full text-left"
+        >
+          <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors rounded-xl">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <MessageSquare className="h-[18px] w-[18px] text-primary" aria-hidden="true" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold leading-tight">League Chat</p>
+                <p className="text-xs text-muted-foreground truncate">Open the {league.name} chat</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </button>
+      )}
+
+
 
       {/* Players Section */}
       <div className="space-y-2.5">
@@ -754,6 +795,7 @@ export default function MiniLeagueDetailPage() {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         league={league}
+        canDelete={!!canDeleteLeague}
       />
 
       {canManageLeague && (
