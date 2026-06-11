@@ -186,15 +186,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           aria-expanded={open}
           data-emoji-button
           onPointerDown={(e) => {
-            // Open immediately on pointerdown so fast taps register reliably.
+            // Toggle immediately on pointerdown so fast taps register reliably.
             // Radix's default click-based trigger can lose fast taps when the
             // dismissable layer races the pointerup event.
             if (disabled) return;
             if (!open) {
               dismissIOSKeyboardAccessory();
               dismissNativeKeyboard();
-              setOpen(true);
             }
+            setOpen((prev) => !prev);
             // Prevent the default focus shift so the popover doesn't
             // immediately receive then drop focus on touch.
             e.preventDefault();
