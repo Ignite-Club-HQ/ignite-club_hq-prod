@@ -153,6 +153,7 @@ export function ManagePlayersDialog({
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
   const [activePlayer, setActivePlayer] = useState<MiniLeaguePlayer | null>(null);
+  const [secondParentForPlayer, setSecondParentForPlayer] = useState<MiniLeaguePlayer | null>(null);
 
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
