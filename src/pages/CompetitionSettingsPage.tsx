@@ -400,6 +400,7 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
         display_name: string | null;
         avatar_url: string | null;
         source: string;
+        masked_email: string | null;
       }>;
     },
   });
