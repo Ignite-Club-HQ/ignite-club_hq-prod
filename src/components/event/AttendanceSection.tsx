@@ -104,18 +104,28 @@ export function AttendanceSection({
     staleTime: 30_000,
   });
 
-  const viewedCount = eventViews?.length ?? 0;
+  const addressableMemberIds = useMemo(
+    () => addressableMembers ? new Set(addressableMembers.map((m) => m.id)) : null,
+    [addressableMembers],
+  );
+  const scopedEventViews = useMemo(
+    () => addressableMemberIds
+      ? (eventViews || []).filter((v: any) => addressableMemberIds.has(v.user_id))
+      : (eventViews || []),
+    [addressableMemberIds, eventViews],
+  );
+  const viewedCount = scopedEventViews.length;
   const viewedUserIds = useMemo(
-    () => new Set((eventViews || []).map((v: any) => v.user_id)),
-    [eventViews],
+    () => new Set(scopedEventViews.map((v: any) => v.user_id)),
+    [scopedEventViews],
   );
   const viewedAtMap = useMemo(() => {
     const map = new Map<string, string>();
-    (eventViews || []).forEach((v: any) => {
+    scopedEventViews.forEach((v: any) => {
       if (v.viewed_at) map.set(v.user_id, v.viewed_at);
     });
     return map;
-  }, [eventViews]);
+  }, [scopedEventViews]);
 
   // Fetch the most recent bulk reminder for this event (24h cooldown window).
   // Only admins query — non-admins never see the bulk reminder button anyway.
