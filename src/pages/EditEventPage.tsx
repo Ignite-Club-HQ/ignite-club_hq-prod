@@ -927,16 +927,25 @@ export default function EditEventPage() {
               )}
 
               {(type === "game" || type === "training" || type === "social") && (
+              {(type === "game" || type === "training" || type === "social") && (
                 <RsvpAudienceSelect
                   value={rsvpAudience}
                   onChange={setRsvpAudience}
                   teamDefault={teamDefaultRsvpAudience}
                 />
               )}
+
+              {type === "social" && !selectedTeamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
       </Card>
+
 
       {/* Schedule Section */}
       <Card>
