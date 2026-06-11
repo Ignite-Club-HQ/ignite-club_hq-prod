@@ -619,7 +619,7 @@ export function ManagePlayersDialog({
 
             {/* Right: overflow menu */}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -734,13 +734,13 @@ export function ManagePlayersDialog({
                     Add Player
                   </Button>
                   {(players?.length || 0) > 0 && (
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" aria-label="More options">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" data-vaul-no-drag aria-label="More options">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuContent align="end" className="w-44 z-[100001]">
                         <DropdownMenuItem onClick={() => setSelectionMode(true)}>
                           <CheckSquare className="h-4 w-4 mr-2" />
                           Select players
