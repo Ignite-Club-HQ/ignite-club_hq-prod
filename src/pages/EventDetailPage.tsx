@@ -3240,9 +3240,13 @@ export default function EventDetailPage() {
         const notRespondedNode = (
           <div className="divide-y divide-border/50">
             {notRespondedChildren.map((child: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) && !isMiniLeagueEvent && child.parent_id ? (() => {
-                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                const lastRemindedAt = recentlyReminded.get(child.parent_id) || recentReminderMap?.get(child.parent_id) || null;
+              // For mini-league players the "parent" is on mini_league_players.parent_user_id;
+              // for team children it's children.parent_id. childId is used to fan-out to all guardians.
+              const remindParentId = isMiniLeagueEvent ? child.parent_user_id : child.parent_id;
+              const remindChildId = isMiniLeagueEvent ? child.child_id : (child.child_id || child.id);
+              const remindBtn = (isAdmin || isAppAdmin) && remindParentId ? (() => {
+                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === remindParentId;
+                const lastRemindedAt = recentlyReminded.get(remindParentId) || recentReminderMap?.get(remindParentId) || null;
                 const wasReminded = !!lastRemindedAt;
                 const remindedLabel = lastRemindedAt ? `Reminded ${formatRelativePast(lastRemindedAt)}` : "Reminded";
                 const isProBlocked = !canSendReminders && !wasReminded;
@@ -3253,7 +3257,7 @@ export default function EventDetailPage() {
                     className={`h-8 px-2.5 shrink-0 gap-1 ${isProBlocked ? "opacity-60 cursor-not-allowed" : ""}`}
                     onClick={() => {
                       if (!gateReminders()) return;
-                      individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id });
+                      individualRemindMutation.mutate({ userId: remindParentId, displayName: child.name || "Unknown", childId: remindChildId });
                     }}
                     disabled={isLoadingThis || wasReminded}
                     title={wasReminded ? remindedLabel : isProBlocked ? "Pro required — upgrade to send reminders" : "Remind all parents"}
@@ -3271,6 +3275,7 @@ export default function EventDetailPage() {
                   </Button>
                 );
               })() : null;
+
               const editBtn = (isAdmin || isAppAdmin) ? (
                 <AdminRsvpChanger
                   currentStatus={null}
