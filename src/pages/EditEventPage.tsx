@@ -537,6 +537,8 @@ export default function EditEventPage() {
         is_bye: type === "game" ? isBye : false,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
+        restricted_to_roles:
+          type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       };
 
       // If converting single event to recurring series
