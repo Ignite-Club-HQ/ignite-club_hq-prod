@@ -3470,7 +3470,19 @@ export default function EventDetailPage() {
           </div>
         );
 
-        const goingTotal = goingRsvps.length + (eventGuests?.length || 0);
+        // Dedupe by child_id so co-parents RSVPing for the same child only
+        // count once — keeps this number consistent with the "N players
+        // attending" header. Adult RSVPs (one per user) remain 1:1.
+        const _playerAdults = (event as any)?.team_id ? teamPlayerAdultIds : clubPlayerAdultIds;
+        const _uniqueChildIds = new Set(
+          goingRsvps.map((r: any) => r.child_id).filter((id: any): id is string => !!id)
+        );
+        const _adultGoing = isSocialEvent
+          ? goingRsvps.filter((r: any) => r.child_id == null).length
+          : (_playerAdults
+              ? goingRsvps.filter((r: any) => r.child_id == null && r.user_id && _playerAdults.has(r.user_id)).length
+              : goingRsvps.filter((r: any) => r.child_id == null).length);
+        const goingTotal = _uniqueChildIds.size + _adultGoing + (eventGuests?.length || 0);
         const trackableMembers = (members?.length || 0);
 
         return (
