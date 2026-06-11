@@ -689,8 +689,8 @@ export function ManagePlayersDialog({
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-3 px-4 py-2">
-          {/* Toolbar row: search + actions on one line */}
+        <div className="flex-1 overflow-y-auto space-y-2 px-3 py-2">
+          {/* Toolbar row: search (full width) + actions */}
           <div className="flex items-center gap-2">
             <Input
               placeholder="Search players..."
@@ -699,35 +699,47 @@ export function ManagePlayersDialog({
               className="h-9 text-sm flex-1"
             />
             {canManage && (
-              <>
-                {selectionMode ? (
-                  <>
-                    <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={exitSelectionMode}>Cancel</Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-9 shrink-0"
-                      disabled={selectedPlayerIds.size === 0}
-                      onClick={() => setBulkDeleteOpen(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      ({selectedPlayerIds.size})
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {(players?.length || 0) > 0 && (
-                      <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => setSelectionMode(true)}>
-                        <CheckSquare className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button size="sm" className="h-9 shrink-0" onClick={handleAddPlayersClick}>
-                      <Users className="h-4 w-4 mr-1" />
-                      Add
-                    </Button>
-                  </>
-                )}
-              </>
+              selectionMode ? (
+                <>
+                  <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={exitSelectionMode}>Cancel</Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-9 shrink-0"
+                    disabled={selectedPlayerIds.size === 0}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    ({selectedPlayerIds.size})
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    className="h-9 shrink-0 px-3 gap-1"
+                    onClick={handleAddPlayersClick}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Player
+                  </Button>
+                  {(players?.length || 0) > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" aria-label="More options">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          Select players
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
+              )
             )}
           </div>
 
@@ -739,11 +751,12 @@ export function ManagePlayersDialog({
           )}
 
           {canDrag && players && players.length > 0 && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <GripVertical className="h-3.5 w-3.5" />
-              Hold and drag players between groups
+            <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
+              <GripVertical className="h-3 w-3" />
+              Hold and drag to move between groups
             </p>
           )}
+
 
           {playersLoading ? (
             <div className="flex justify-center py-6">
