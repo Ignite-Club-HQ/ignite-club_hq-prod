@@ -684,7 +684,7 @@ export function ManagePlayersDialog({
       onOpenChange(o);
     }}>
       <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
-        <ResponsiveDialogHeader className="pb-0">
+        <ResponsiveDialogHeader className="pb-3">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             Manage Players
