@@ -58,11 +58,22 @@ export function useChatAutoScrollToLatest({
       // Reset outer window scroll only if it has drifted (header would hide).
       resetViewportScroll();
       requestAnimationFrame(resetViewportScroll);
-      // Only auto-scroll the chat container to bottom if the user was
-      // already near the bottom; otherwise preserve their scroll position
-      // and DO NOT schedule extra delayed resets — those caused mid-scroll jolts.
-      if (isNearBottom(scrollContainerRef.current)) {
+      // When the user focuses the composer (to reply), use a generous
+      // threshold so the latest message stays visible above the keyboard
+      // even if the viewport just shrank from the IME opening.
+      if (isNearBottom(scrollContainerRef.current, 400)) {
         snapToBottom();
+        // Re-snap across the keyboard animation window so the last message
+        // remains pinned above the composer once the IME has fully opened.
+        [120, 280, 480].forEach((delay) => {
+          setTimeout(() => {
+            const vp = resolveChatScrollViewport(scrollContainerRef.current);
+            if (vp && isViewportUserActive(vp)) return;
+            if (isNearBottom(scrollContainerRef.current, 400)) {
+              snapToBottom();
+            }
+          }, delay);
+        });
       }
     };
 
