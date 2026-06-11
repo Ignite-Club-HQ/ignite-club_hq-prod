@@ -338,9 +338,10 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
-  const playerCount = players?.length || 0;
+  const acceptedPlayers = (players || []).filter(p => !!p.parent_user_id);
+  const playerCount = acceptedPlayers.length;
   const displayPlayers = players?.slice(0, 12) || [];
-  const remainingPlayers = playerCount - displayPlayers.length;
+  const remainingPlayers = (players?.length || 0) - displayPlayers.length;
 
   const renderMatchDayCard = (event: MiniLeagueEvent, compact = false) => {
     const hasScore = event.final_score_home != null && event.final_score_away != null;
