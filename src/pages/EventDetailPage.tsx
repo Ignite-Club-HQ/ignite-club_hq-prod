@@ -2715,10 +2715,14 @@ export default function EventDetailPage() {
               // includes the "player" role) so the header and "Going (N)" tab
               // always agree.
               const playerUserIds = new Set((playerMembers || []).map((m: any) => m.id));
+              const _seenKeys = new Set<string>();
               const playerGoing = goingRsvps.filter((r: any) => {
-                if (r.child_id) return true;
-                if (r.mini_league_player_id) return true;
-                return r.user_id && playerUserIds.has(r.user_id);
+                const isPlayer = r.child_id || r.mini_league_player_id || (r.user_id && playerUserIds.has(r.user_id));
+                if (!isPlayer) return false;
+                const key = r.child_id ? `c:${r.child_id}` : r.mini_league_player_id ? `m:${r.mini_league_player_id}` : `u:${r.user_id}`;
+                if (_seenKeys.has(key)) return false;
+                _seenKeys.add(key);
+                return true;
               }).length;
               const count = playerGoing + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
@@ -3188,9 +3192,25 @@ export default function EventDetailPage() {
           return playerUserIds.has(rsvp.user_id);
         };
 
-        const goingRsvps = rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || [];
-        const maybeRsvps = rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || [];
-        const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
+        // Dedupe duplicate RSVP rows for the same player/adult (e.g. co-parent
+        // double-RSVPs or accidental duplicate inserts) so the list and the
+        // header count always agree.
+        const dedupeRsvps = (list: any[]) => {
+          const seen = new Set<string>();
+          return list.filter((r: any) => {
+            const key = r.child_id
+              ? `c:${r.child_id}`
+              : r.mini_league_player_id
+                ? `m:${r.mini_league_player_id}`
+                : `u:${r.user_id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        };
+        const goingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
+        const maybeRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
+        const notGoingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
 
         const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
         const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
