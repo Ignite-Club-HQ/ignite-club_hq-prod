@@ -817,8 +817,12 @@ export default function BroadcastChatPage() {
       return;
     }
     setReplyingTo(m);
-    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
-  }, [toast, scrollToBottom]);
+    const ta = composerRef.current?.querySelector("textarea") as HTMLTextAreaElement | null;
+    ta?.focus();
+    [0, 180, 480].forEach((delay) => {
+      setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
+    });
+  }, [toast]);
 
   const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);
 
