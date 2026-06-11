@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical } from "lucide-react";
+import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus } from "lucide-react";
+import { AddSecondParentDialog } from "@/components/mini-league/AddSecondParentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
