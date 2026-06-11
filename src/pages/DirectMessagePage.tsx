@@ -55,6 +55,7 @@ import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages 
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { queueMessage } from "@/lib/messageQueue";
+import { hapticSelectionTick } from "@/lib/haptics";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
