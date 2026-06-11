@@ -114,7 +114,11 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     if (!isNative) return;
     const active = document.activeElement as HTMLElement | null;
     if (active && typeof active.blur === "function") active.blur();
-    Keyboard.hide().catch(() => {});
+    try {
+      Keyboard.hide().catch(() => {});
+    } catch {
+      // Plugin may be unavailable in some web contexts
+    }
   }, [isNative]);
 
   // Keep refs updated
