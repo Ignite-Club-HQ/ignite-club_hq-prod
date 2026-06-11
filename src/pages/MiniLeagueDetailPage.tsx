@@ -625,9 +625,14 @@ export default function MiniLeagueDetailPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
                         </div>
-                        <Badge variant="secondary" className="text-xs shrink-0">
-                          League Admin
-                        </Badge>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {member.isAlsoParent && (
+                            <Badge variant="outline" className="text-xs">Parent</Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            League Admin
+                          </Badge>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
