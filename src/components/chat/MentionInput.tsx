@@ -871,14 +871,16 @@ export function MentionInput({
         }
       >
         {showEmojiPicker && (
-          // Distinct 44px tap target sitting tight to the "+" on the left.
-          // Negative margin pulls the emoji visually flush with the attachment
-          // button (WhatsApp/iMessage grouping) without shrinking the tap
-          // area, so the textarea baseline can start further left.
-          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1 mr-0" : "mr-2"}`}>
+          // Distinct 44x44 tap target. Keep a small right gap (mr-1 = 4px)
+          // so edge taps near the emoji icon never slip onto the textarea
+          // and accidentally focus the input instead of opening the picker.
+          // Negative left margin keeps the visual grouping with the "+"
+          // button without shrinking the hit area.
+          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-0.5 mr-1" : "mr-2"}`}>
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
+
 
 
         <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
