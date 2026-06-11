@@ -268,10 +268,9 @@ function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"
           .in("child_id", ids);
         const allowed = new Set((players || []).map((p: any) => p.child_id).filter(Boolean));
         merged = merged.filter((c) => allowed.has(c.id));
-      } else if (!event.team_id && !(event as any).mini_league_id) {
-        // Pure club-wide event — can't verify a roster, don't show child rows.
-        merged = [];
       }
+      // Pure club-wide events (no team, no mini-league): show all household
+      // children so parents can RSVP on their behalf.
 
       return merged;
 
