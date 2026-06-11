@@ -522,7 +522,7 @@ export function ManagePlayersDialog({
 
     return (
       <Card
-        className={`overflow-hidden rounded-xl border-border/60 ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
+        className={`rounded-xl border-border/60 ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
         <CardContent className="py-2 px-2.5">
