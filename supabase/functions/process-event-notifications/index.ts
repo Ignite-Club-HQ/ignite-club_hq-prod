@@ -100,6 +100,7 @@ function buildUpdateMessage(title: string, changedFields: ChangedField[]): strin
 // Resolve recipients for team/club/mini-league scoped events
 async function resolveRecipients(
   supabase: any,
+  eventId: string,
   clubId: string,
   teamId: string | null,
   miniLeagueId: string | null,
@@ -172,14 +173,31 @@ async function resolveRecipients(
     return [...new Set(ids)];
   }
 
-  // Club-wide
-  const ids = await paginateUserIds(() =>
-    supabase
+  // Club-wide. If the event is role-restricted, only invite those roles plus club admins.
+  const { data: eventRow, error: eventError } = await supabase
+    .from('events')
+    .select('restricted_to_roles')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (eventError) {
+    console.error('[EVENT-NOTIFY] Restricted-role lookup error:', eventError);
+  }
+  const restrictedRoles = Array.isArray(eventRow?.restricted_to_roles)
+    ? eventRow.restricted_to_roles
+    : [];
+  const rolesToInvite = restrictedRoles.length > 0
+    ? [...new Set([...restrictedRoles, 'club_admin'])]
+    : null;
+
+  const ids = await paginateUserIds(() => {
+    let query = supabase
       .from('user_roles')
       .select('user_id')
       .eq('club_id', clubId)
-      .neq('user_id', excludeUserId)
-  );
+      .neq('user_id', excludeUserId);
+    if (rolesToInvite) query = query.in('role', rolesToInvite);
+    return query;
+  });
   return [...new Set(ids)];
 }
 
@@ -248,7 +266,7 @@ Deno.serve(async (req) => {
     if (action === 'event_created') {
       notificationType = 'event_invite';
       message = `You've been invited to: ${title}`;
-      recipientUserIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, createdBy);
+      recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
 
     } else if (action === 'event_cancelled') {
       notificationType = 'event_cancelled';
