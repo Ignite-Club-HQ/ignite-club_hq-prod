@@ -68,12 +68,13 @@ interface ManagePlayersDialogProps {
 }
 
 const getAbilityLabel = (rating: number) => {
-  const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
+  const labels = ["Unrated", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
   return labels[rating] || "";
 };
 
 const getAbilityColor = (rating: number) => {
   const colors: Record<number, string> = {
+    0: "bg-muted text-muted-foreground",
     1: "bg-destructive/20 text-destructive",
     2: "bg-orange-500/20 text-orange-600 dark:text-orange-400",
     3: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
