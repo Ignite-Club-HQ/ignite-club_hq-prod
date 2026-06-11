@@ -225,17 +225,18 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id && !!user && !canManageLeague,
   });
 
-  // Fetch league members (parents from players + admins/coaches from user_roles)
+  // Fetch league members (parents from players + child guardians + admins)
   const parentUserIds = [...new Set((players || []).map(p => p.parent_user_id).filter(Boolean) as string[])];
+  const childIdsForMembers = [...new Set((players || []).map(p => p.child_id).filter(Boolean) as string[])];
   
   const { data: leagueMembers } = useQuery({
-    queryKey: ["mini-league-members", id, league?.club_id, parentUserIds],
+    queryKey: ["mini-league-members", id, league?.club_id, parentUserIds, childIdsForMembers],
     queryFn: async () => {
       // Staff = club-wide league_admin holders + per-mini-league grants
       // (mini_league_admins). Team-level coaches are NOT included — there
       // is no `coach ↔ mini_league` link in the schema, so showing them
       // here would surface every club coach as a coach of this league.
-      const [{ data: adminRoles }, { data: scopedAdmins }] = await Promise.all([
+      const [{ data: adminRoles }, { data: scopedAdmins }, { data: guardianRows }] = await Promise.all([
         supabase
           .from("user_roles")
           .select("user_id, role")
@@ -245,14 +246,22 @@ export default function MiniLeagueDetailPage() {
           .from("mini_league_admins")
           .select("user_id")
           .eq("mini_league_id", id!),
+        childIdsForMembers.length > 0
+          ? supabase
+            .from("child_guardians")
+            .select("guardian_id")
+            .in("child_id", childIdsForMembers)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const clubWideIds = new Set((adminRoles || []).map(r => r.user_id));
       const scopedIds = new Set((scopedAdmins || []).map(r => r.user_id));
       const allAdminIds = new Set<string>([...clubWideIds, ...scopedIds]);
+      const guardianUserIds = (guardianRows || []).map((r: any) => r.guardian_id).filter(Boolean) as string[];
+      const allParentIds = [...new Set([...parentUserIds, ...guardianUserIds])];
 
       const allUserIds = [...new Set([
-        ...parentUserIds,
+        ...allParentIds,
         ...allAdminIds,
       ])];
 
@@ -265,7 +274,7 @@ export default function MiniLeagueDetailPage() {
 
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
-      const parents = parentUserIds
+      const parents = allParentIds
         .filter(uid => !allAdminIds.has(uid))
         .map(uid => ({
           id: uid,
@@ -273,7 +282,7 @@ export default function MiniLeagueDetailPage() {
           role: "parent" as string,
         }));
 
-      const parentIdSet = new Set(parentUserIds);
+      const parentIdSet = new Set(allParentIds);
       const staff = [...allAdminIds].map(uid => ({
         id: uid,
         ...profileMap.get(uid),
