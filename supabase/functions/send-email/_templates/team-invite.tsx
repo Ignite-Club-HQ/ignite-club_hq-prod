@@ -242,7 +242,7 @@ export const TeamInviteEmail = ({
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Open in App' : 'View Their Team'}
+                    {isAdminRole ? 'Open in App' : isMiniLeague ? 'Join Now' : 'View Their Team'}
                   </Button>
                 </Section>
 
