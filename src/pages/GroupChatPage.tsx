@@ -360,6 +360,12 @@ export default function GroupChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
+  const handleSearchResultClick = (mid: string) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    requestAnimationFrame(() => handleJumpToMessage(mid));
+  };
+
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
     queryKey: ["chat-group", groupId],
