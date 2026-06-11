@@ -862,9 +862,20 @@ export default function EventDetailPage() {
   const isMiniLeagueEvent = !!event?.mini_league_id;
   const eventTypeLabel = isMiniLeagueEvent ? "Match Day" : getEventTypeLabel(event?.type);
 
-  // Filter members based on showAllRoles toggle
-  const members = membersWithRoles;
-  const playerMembers = membersWithRoles?.filter((m: any) => m.roles?.includes("player")) || [];
+  const restrictedEventRoles = Array.isArray((event as any)?.restricted_to_roles)
+    ? ((event as any).restricted_to_roles as string[])
+    : [];
+  const hasRestrictedEventRoles = restrictedEventRoles.length > 0;
+  const roleRestrictedMembers = membersWithRoles?.filter((m: any) => {
+    if (!hasRestrictedEventRoles) return true;
+    return (m.roles ?? []).some((role: string) =>
+      restrictedEventRoles.includes(role) || role === "club_admin" || role === "app_admin",
+    );
+  }) || [];
+
+  // Filter members based on showAllRoles toggle / event role restrictions
+  const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
+  const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
 
   // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
   const { data: miniLeagueDutyAssignees } = useQuery({
