@@ -448,7 +448,10 @@ export function ManagePlayersDialog({
   ) || [];
 
   const playersByAbility = filteredPlayers.reduce((acc, player) => {
-    const key = player.ability_rating;
+    // Treat null/0 ability as "unrated" (bucket 0) so players without a
+    // rating still appear in the list instead of disappearing.
+    const raw = player.ability_rating;
+    const key = raw && raw >= 1 && raw <= 5 ? raw : 0;
     if (!acc[key]) acc[key] = [];
     acc[key].push(player);
     return acc;
