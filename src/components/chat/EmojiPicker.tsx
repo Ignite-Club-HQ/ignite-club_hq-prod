@@ -172,8 +172,16 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
       // the keyboard forces an extra tap to resume typing. The composer is
       // already positioned above the keyboard via useNativeKeyboardBottomInset,
       // so the popover (side="top") renders above the composer + keyboard.
-      setOpen(newOpen);
+      //
+      // IMPORTANT: ignore Radix-initiated CLOSE requests entirely. Every
+      // legitimate close path is handled explicitly by us (trigger toggle,
+      // onPointerDownOutside, Escape, GIF pick). Radix's dismissable layer
+      // has additional internal close triggers (focus/blur races while
+      // typing in the GIF search input, visual-viewport shifts, etc.) that
+      // were dismissing the picker mid-interaction.
+      if (newOpen) setOpen(true);
     }}>
+
 
       <PopoverTrigger asChild>
         <Button
