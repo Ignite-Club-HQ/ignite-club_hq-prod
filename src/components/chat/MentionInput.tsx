@@ -902,6 +902,13 @@ export function MentionInput({
             className={`flex items-center justify-center h-12 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-0.5 pl-1 pr-2 mr-1" : "pl-1 pr-2 mr-2"}`}
             onPointerDown={(e) => {
               const target = e.target as HTMLElement;
+              // PopoverContent renders in a React portal, so React events from
+              // INSIDE the open picker (e.g. the GIF search input) bubble up
+              // through the React tree to this handler even though the DOM
+              // target lives in document.body. Only forward taps whose DOM
+              // target is physically inside this wrapper — otherwise tapping
+              // the GIF search box re-toggled the trigger and closed the popup.
+              if (!e.currentTarget.contains(target)) return;
               if (target.closest('[data-emoji-button]')) return;
               const btn = e.currentTarget.querySelector<HTMLButtonElement>('[data-emoji-button]');
               if (!btn) return;
