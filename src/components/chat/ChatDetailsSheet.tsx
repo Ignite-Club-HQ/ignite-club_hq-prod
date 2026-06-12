@@ -179,10 +179,27 @@ export function ChatDetailsSheet({
                   />
                 )}
                 {miniLeagueId ? (
-                  <NavRow
-                    label="View mini-league page"
-                    onClick={() => handleNavigate(`/mini-leagues/${miniLeagueId}`)}
-                  />
+                  <>
+                    <NavRow
+                      label="View mini-league page"
+                      onClick={() => handleNavigate(`/mini-leagues/${miniLeagueId}`)}
+                    />
+                    {onInviteToMiniLeague && (
+                      <button
+                        type="button"
+                        onClick={onInviteToMiniLeague}
+                        className="w-full flex items-center gap-2.5 py-3 px-1 text-left active:opacity-70 transition-opacity"
+                      >
+                        <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                          <UserPlus className="h-4 w-4 text-primary" strokeWidth={2.25} />
+                        </div>
+                        <span className="flex-1 text-[15px] font-medium text-primary">
+                          Invite people to mini-league
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" />
+                      </button>
+                    )}
+                  </>
                 ) : (clubId || chatType === "club") && (
                   <NavRow
                     label="View club page"
