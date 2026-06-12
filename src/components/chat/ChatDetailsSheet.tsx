@@ -70,6 +70,7 @@ export function ChatDetailsSheet({
   groupMembershipMode,
   miniLeagueId,
   competitionId,
+  onInviteToMiniLeague,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
