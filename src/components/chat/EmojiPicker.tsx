@@ -314,7 +314,19 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
                 <button
                   type="button"
                   key={cat.name}
-                  onClick={() => setActiveCategory(idx)}
+                  data-emoji-button
+                  onMouseDown={(e) => {
+                    // Don't steal focus from the composer/popover — focus
+                    // transfer can race with Radix's dismissable layer and
+                    // tear down the popover before the click registers.
+                    e.preventDefault();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActiveCategory(idx);
+                  }}
                   className={`shrink-0 rounded transition-colors ${
                     isMobile
                       ? "h-8 w-8 flex items-center justify-center text-lg"
