@@ -175,13 +175,11 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          // 50×50 hit target via padding; inner visual stays 30px. Negative
-          // margin prevents the expanded target from shifting layout.
-          // `mb-[5px]` lifts the button up so its optical center aligns with
-          // the text baseline on a single-line composer (and keeps a
-          // comfortable bottom inset when the composer grows multi-line —
-          // matching WhatsApp/Messenger anchoring).
-          "group relative flex items-center justify-center shrink-0 p-2.5 -m-2.5 rounded-full bg-transparent select-none touch-none",
+          // 40×40 outer (matches + and emoji buttons so optical centers align
+          // when the composer pill bottom-aligns its children). Inner visual
+          // circle stays 30px. Negative margin keeps the expanded hit target
+          // from shifting surrounding layout.
+          "group relative flex items-center justify-center shrink-0 p-[5px] -m-[5px] rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
