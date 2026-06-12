@@ -193,11 +193,19 @@ export function ChatSendButton({
           )}
         >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+            <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.4} />
           ) : (
             // Optical nudge: Send icon's visual mass sits top-right, so shift
-            // slightly down-left so it reads as centered in the circle.
-            <Send className="h-4 w-4 translate-x-[-0.5px] translate-y-[0.5px]" strokeWidth={2.2} />
+            // slightly down-left so it reads as centered. Only nudge when the
+            // filled circle is present; on the bare (empty) state the icon
+            // should sit dead-center to match the + and emoji buttons.
+            <Send
+              className={cn(
+                "h-[18px] w-[18px]",
+                canSend && "translate-x-[-0.5px] translate-y-[0.5px]",
+              )}
+              strokeWidth={2.2}
+            />
           )}
         </span>
       </button>
