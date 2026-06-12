@@ -139,14 +139,11 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   }, [open]);
 
   const handleEmojiClick = useCallback((emoji: string) => {
-    dismissIOSKeyboardAccessory();
+    // Keep the textarea focused so the native keyboard stays up — users
+    // typically insert an emoji mid-sentence and want to keep typing.
     saveRecentEmoji(emoji);
     onEmojiSelectRef.current(emoji);
-    requestAnimationFrame(() => {
-      setOpen(false);
-      dismissIOSKeyboardAccessory();
-    });
-  }, [dismissIOSKeyboardAccessory]);
+  }, []);
 
   const handleGifPick = useCallback((url: string) => {
     dismissIOSKeyboardAccessory();
@@ -157,6 +154,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
+
 
   const createEmojiHandler = useCallback((emoji: string) => {
     return (e: React.MouseEvent | React.TouchEvent) => {
@@ -169,12 +167,22 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   return (
     <>
     <Popover open={open} onOpenChange={(newOpen) => {
-      if (newOpen) {
-        dismissIOSKeyboardAccessory();
-        dismissNativeKeyboard();
-      }
-      setOpen(newOpen);
+      // Intentionally do NOT blur the textarea / hide the native keyboard
+      // here. Users expect to keep typing after inserting an emoji; dismissing
+      // the keyboard forces an extra tap to resume typing. The composer is
+      // already positioned above the keyboard via useNativeKeyboardBottomInset,
+      // so the popover (side="top") renders above the composer + keyboard.
+      //
+      // IMPORTANT: ignore Radix-initiated CLOSE requests entirely. Every
+      // legitimate close path is handled explicitly by us (trigger toggle,
+      // onPointerDownOutside, Escape, GIF pick). Radix's dismissable layer
+      // has additional internal close triggers (focus/blur races while
+      // typing in the GIF search input, visual-viewport shifts, etc.) that
+      // were dismissing the picker mid-interaction.
+      if (newOpen) setOpen(true);
     }}>
+
+
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -190,25 +198,23 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             // Radix's default click-based trigger can lose fast taps when the
             // dismissable layer races the pointerup event.
             if (disabled) return;
-            if (!open) {
-              dismissIOSKeyboardAccessory();
-              dismissNativeKeyboard();
-            }
             setOpen((prev) => !prev);
             // Prevent the default focus shift so the popover doesn't
-            // immediately receive then drop focus on touch.
+            // immediately receive then drop focus on touch — and so the
+            // textarea retains focus and the native keyboard stays open.
             e.preventDefault();
           }}
+
           onClick={(e) => {
             // Click is redundant with pointerdown above; swallow it so Radix
             // doesn't toggle the popover closed right after we opened it.
             e.preventDefault();
             e.stopPropagation();
           }}
-          className="h-11 w-11 shrink-0 rounded-full text-foreground/60 hover:text-foreground hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation"
+          className="h-12 w-12 shrink-0 rounded-full text-foreground/60 hover:text-foreground hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation"
           disabled={disabled}
         >
-          <Smile className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden="true" />
+          <Smile className="h-[24px] w-[24px]" strokeWidth={2} aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -220,12 +226,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         avoidCollisions={true}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onEscapeKeyDown={() => setOpen(false)}
+
         onFocusOutside={(e) => {
-          // Don't let focus moving to the search input (or anywhere inside the GIF tab) close the popover
-          const target = e.target as HTMLElement | null;
-          if (target?.closest('[data-gif-picker]')) {
-            e.preventDefault();
-          }
+          // Never close on focus changes. Tapping the GIF search input (or any
+          // interactive child) blurs the composer textarea, which can briefly
+          // move focus to <body> before landing on the new target — that
+          // intermediate focus would otherwise fall through Radix's default
+          // and dismiss the popover.
+          e.preventDefault();
         }}
         onInteractOutside={(e) => {
           const target = e.target as HTMLElement | null;
@@ -249,7 +258,14 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           <div className="flex gap-1 mb-2 p-0.5 rounded-md bg-muted/60">
             <button
               type="button"
-              onClick={() => setTab("emoji")}
+              data-emoji-button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTab("emoji");
+              }}
               className={`flex-1 rounded text-xs font-medium py-1.5 transition-colors ${
                 tab === "emoji"
                   ? "bg-background shadow-sm text-foreground"
@@ -260,7 +276,12 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </button>
             <button
               type="button"
-              onClick={() => {
+              data-emoji-button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
                   dismissIOSKeyboardAccessory();
@@ -316,7 +337,19 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
                 <button
                   type="button"
                   key={cat.name}
-                  onClick={() => setActiveCategory(idx)}
+                  data-emoji-button
+                  onMouseDown={(e) => {
+                    // Don't steal focus from the composer/popover — focus
+                    // transfer can race with Radix's dismissable layer and
+                    // tear down the popover before the click registers.
+                    e.preventDefault();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActiveCategory(idx);
+                  }}
                   className={`shrink-0 rounded transition-colors ${
                     isMobile
                       ? "h-8 w-8 flex items-center justify-center text-lg"
