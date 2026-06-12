@@ -226,6 +226,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         avoidCollisions={true}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onEscapeKeyDown={() => setOpen(false)}
+
         onFocusOutside={(e) => {
           // Never close on focus changes. Tapping the GIF search input (or any
           // interactive child) blurs the composer textarea, which can briefly
