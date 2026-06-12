@@ -547,7 +547,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
         )}
         <SheetContent
           side="bottom"
-          className="h-[min(85vh,calc(100dvh-var(--mini-league-keyboard-inset)))] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain transition-[bottom,height] duration-200 ease-out"
+          className="h-[min(85vh,calc(100dvh-var(--mini-league-keyboard-inset)))] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
           data-lock-keyboard-scroll="true"
           data-allow-scroll
           style={sheetStyle}
