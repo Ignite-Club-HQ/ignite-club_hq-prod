@@ -175,34 +175,31 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          // 40×40 outer (matches + and emoji buttons so optical centers align
-          // when the composer pill bottom-aligns its children). Inner visual
-          // circle stays 30px. Negative margin keeps the expanded hit target
-          // from shifting surrounding layout.
-          "group relative flex items-center justify-center shrink-0 p-[5px] -m-[5px] rounded-full bg-transparent select-none touch-none",
+          // True 40×40 outer box to match + and emoji exactly. Avoid negative
+          // margins here: flex bottom-alignment uses the margin box, which made
+          // the paper-plane sit a few pixels low in the composer.
+          "group relative flex h-10 w-10 items-center justify-center shrink-0 rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
         <span
           className={cn(
-            "flex items-center justify-center h-[30px] w-[30px] rounded-full transition-all duration-200 ease-out",
+            "flex items-center justify-center rounded-full transition-all duration-200 ease-out",
             canSend
-              ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_6px_-2px_hsl(var(--primary)/0.40)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
-              : "bg-transparent text-muted-foreground/85 shadow-none scale-95",
+              ? "h-8 w-8 bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_6px_-2px_hsl(var(--primary)/0.40)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
+              : "h-10 w-10 bg-transparent text-muted-foreground/85 shadow-none scale-100",
             pressing && canSend && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           )}
         >
           {loading ? (
             <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.4} />
           ) : (
-            // Optical nudge: Send icon's visual mass sits top-right, so shift
-            // slightly down-left so it reads as centered. Only nudge when the
-            // filled circle is present; on the bare (empty) state the icon
-            // should sit dead-center to match the + and emoji buttons.
             <Send
               className={cn(
-                "h-[18px] w-[18px]",
-                canSend && "translate-x-[-0.5px] translate-y-[0.5px]",
+                "transition-transform duration-150",
+                canSend
+                  ? "h-[18px] w-[18px] translate-x-[-0.5px]"
+                  : "h-[22px] w-[22px] translate-y-[-0.5px]",
               )}
               strokeWidth={2.2}
             />
