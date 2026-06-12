@@ -50,6 +50,8 @@ interface ChatDetailsSheetProps {
   miniLeagueId?: string;
   /** For competition chats — enables "View competition" link */
   competitionId?: string;
+  /** Mini-league invite handler — shows an "Invite people" action when provided */
+  onInviteToMiniLeague?: () => void;
 }
 
 export function ChatDetailsSheet({
