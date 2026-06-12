@@ -594,6 +594,13 @@ export function MediaCommentSheet({
               onClick={handleTextareaSelect}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
+              // Use the OS keyboard's native spellcheck for the red squiggle —
+              // mentions/URLs are naturally ignored by Gboard/QuickType so this
+              // doesn't fight usernames, club/team names, emails or emoji.
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
+              inputMode="text"
               className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] px-1 py-2.5 leading-5 ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
