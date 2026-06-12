@@ -103,14 +103,29 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       return;
     }
 
+    let rafId: number | null = null;
+    let lastInset = -1;
     const syncKeyboardInset = () => {
-      const viewport = window.visualViewport;
-      if (!viewport) {
-        setVisualKeyboardInset(0);
-        return;
-      }
-      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      setVisualKeyboardInset(Math.round(inset));
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        const viewport = window.visualViewport;
+        if (!viewport) {
+          if (lastInset !== 0) {
+            lastInset = 0;
+            setVisualKeyboardInset(0);
+          }
+          return;
+        }
+        const inset = Math.round(
+          Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        );
+        // Ignore sub-pixel jitter (Android keyboard animation pings the
+        // visualViewport repeatedly during open/close → re-render flash).
+        if (Math.abs(inset - lastInset) < 2) return;
+        lastInset = inset;
+        setVisualKeyboardInset(inset);
+      });
     };
 
     syncKeyboardInset();
@@ -119,11 +134,13 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     window.addEventListener("resize", syncKeyboardInset);
 
     return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
       window.visualViewport?.removeEventListener("resize", syncKeyboardInset);
       window.visualViewport?.removeEventListener("scroll", syncKeyboardInset);
       window.removeEventListener("resize", syncKeyboardInset);
     };
   }, [open]);
+
 
   const { data: clubBranding } = useQuery({
     queryKey: ["club-branding", clubId],
