@@ -892,12 +892,24 @@ export function MentionInput({
         }
       >
         {showEmojiPicker && (
-          // Distinct 44x44 tap target. Keep a small right gap (mr-1 = 4px)
-          // so edge taps near the emoji icon never slip onto the textarea
-          // and accidentally focus the input instead of opening the picker.
-          // Negative left margin keeps the visual grouping with the "+"
-          // button without shrinking the hit area.
-          <div className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-0.5 mr-1" : "mr-2"}`}>
+          // 48dp dedicated emoji/GIF target with extra hit-padding on every
+          // side. Taps inside the padding also open the picker — we forward
+          // pointerdown to the inner [data-emoji-button] so users don't
+          // accidentally focus the textarea when aiming for the emoji icon.
+          // Padding gap to the textarea keeps quick emoji access while
+          // protecting the message input from accidental edge taps.
+          <div
+            className={`flex items-center justify-center h-12 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-0.5 pl-1 pr-2 mr-1" : "pl-1 pr-2 mr-2"}`}
+            onPointerDown={(e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('[data-emoji-button]')) return;
+              const btn = e.currentTarget.querySelector<HTMLButtonElement>('[data-emoji-button]');
+              if (!btn) return;
+              e.preventDefault();
+              e.stopPropagation();
+              btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+            }}
+          >
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
