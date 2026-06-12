@@ -192,15 +192,13 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             // Radix's default click-based trigger can lose fast taps when the
             // dismissable layer races the pointerup event.
             if (disabled) return;
-            if (!open) {
-              dismissIOSKeyboardAccessory();
-              dismissNativeKeyboard();
-            }
             setOpen((prev) => !prev);
             // Prevent the default focus shift so the popover doesn't
-            // immediately receive then drop focus on touch.
+            // immediately receive then drop focus on touch — and so the
+            // textarea retains focus and the native keyboard stays open.
             e.preventDefault();
           }}
+
           onClick={(e) => {
             // Click is redundant with pointerdown above; swallow it so Radix
             // doesn't toggle the popover closed right after we opened it.
