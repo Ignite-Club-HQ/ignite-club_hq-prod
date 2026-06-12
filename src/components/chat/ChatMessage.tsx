@@ -773,16 +773,15 @@ function ChatMessageInner({
   const inlineRsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
   const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
 
-  // Subtle entrance animation only for freshly inserted messages (optimistic
-  // sends or just-arrived incoming). Older rows that mount via virtualization
-  // scroll-up must NOT animate.
-  const isFreshlyInserted = (() => {
-    const t = Date.parse(timestamp);
-    if (!Number.isFinite(t)) return false;
-    return Date.now() - t < 2000;
-  })();
+  // NOTE: We intentionally do NOT apply an entrance animation here. When an
+  // optimistic `temp-…` row is replaced by the realtime row with the real
+  // UUID, React's key changes and the row unmounts/remounts — any entrance
+  // animation would then re-run, producing a visible "flash" on send. Team
+  // chat never showed this flash only because its formatted timestamp
+  // happened to be unparseable; we now match that behaviour for all chats.
   return (
-    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""} ${isFreshlyInserted ? "chat-message-enter" : ""}`} style={{ overflowAnchor: 'none' }}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
+
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.18] bg-black/[0.22] z-[99999] animate-in fade-in-0 duration-200 ease-out"
