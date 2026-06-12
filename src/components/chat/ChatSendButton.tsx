@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hapticImpactLight } from "@/lib/haptics";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 const HINT_STORAGE_KEY = "chat:send-long-press-hint:v1";
 const SEND_COUNT_KEY = "chat:send-count";
@@ -82,10 +82,10 @@ export function ChatSendButton({
     if (firedThisGestureRef.current) return;
     if (disabled || loading) return;
     firedThisGestureRef.current = true;
-    // Fire haptic synchronously inside the user gesture so navigator.vibrate
-    // is allowed by mobile browsers (Android Chrome blocks it otherwise) and
-    // the feedback feels instant rather than waiting on the insert round-trip.
-    hapticImpactLight();
+    // Fire a tiny selection-tick haptic synchronously inside the user gesture
+    // (Light/Medium felt too heavy on send — Messenger/WhatsApp use a barely
+    // perceptible tick). Stays inside the gesture so navigator.vibrate works.
+    hapticSelectionTick();
     onSend();
     if (canSend) maybeShowHint();
     // Reset shortly after so subsequent gestures can fire.
@@ -175,31 +175,34 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          // 50×50 hit target via padding; inner visual stays 30px. Negative
-          // margin prevents the expanded target from shifting layout.
-          // `mb-[5px]` lifts the button up so its optical center aligns with
-          // the text baseline on a single-line composer (and keeps a
-          // comfortable bottom inset when the composer grows multi-line —
-          // matching WhatsApp/Messenger anchoring).
-          "group relative flex items-center justify-center shrink-0 p-2.5 -m-2.5 mb-[5px] rounded-full bg-transparent select-none touch-none",
+          // True 40×40 outer box to match + and emoji exactly. Avoid negative
+          // margins here: flex bottom-alignment uses the margin box, which made
+          // the paper-plane sit a few pixels low in the composer.
+          "group relative flex h-10 w-10 items-center justify-center shrink-0 rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
         <span
           className={cn(
-            "flex items-center justify-center h-[30px] w-[30px] rounded-full transition-all duration-200 ease-out",
+            "flex items-center justify-center rounded-full transition-all duration-200 ease-out",
             canSend
-              ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_6px_-2px_hsl(var(--primary)/0.40)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
-              : "bg-transparent text-muted-foreground/85 shadow-none scale-95",
+              ? "h-8 w-8 bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_6px_-2px_hsl(var(--primary)/0.40)] scale-100 group-hover:bg-primary/95 group-active:bg-primary/90 group-active:scale-95"
+              : "h-10 w-10 bg-transparent text-muted-foreground/85 shadow-none scale-100",
             pressing && canSend && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           )}
         >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+            <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.4} />
           ) : (
-            // Optical nudge: Send icon's visual mass sits top-right, so shift
-            // slightly down-left so it reads as centered in the circle.
-            <Send className="h-4 w-4 translate-x-[-0.5px] translate-y-[0.5px]" strokeWidth={2.2} />
+            <Send
+              className={cn(
+                "transition-transform duration-150",
+                canSend
+                  ? "h-[18px] w-[18px] translate-x-[-0.5px]"
+                  : "h-[22px] w-[22px] translate-y-[-0.5px]",
+              )}
+              strokeWidth={2.2}
+            />
           )}
         </span>
       </button>

@@ -395,13 +395,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     );
   }
 
+  const isFreshlyInserted = (() => {
+    const t = Date.parse(msg.created_at);
+    if (!Number.isFinite(t)) return false;
+    return Date.now() - t < 2000;
+  })();
+
   return (
     <div
       ref={rowRef}
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-      } ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`}
+      } ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""} ${isFreshlyInserted ? "chat-message-enter" : ""}`}
       style={{ overflowAnchor: 'none' }}
     >
       {isInteracting && createPortal(
