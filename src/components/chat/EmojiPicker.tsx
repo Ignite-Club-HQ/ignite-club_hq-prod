@@ -219,11 +219,12 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onFocusOutside={(e) => {
-          // Don't let focus moving to the search input (or anywhere inside the GIF tab) close the popover
-          const target = e.target as HTMLElement | null;
-          if (target?.closest('[data-gif-picker]')) {
-            e.preventDefault();
-          }
+          // Never close on focus changes. Tapping the GIF search input (or any
+          // interactive child) blurs the composer textarea, which can briefly
+          // move focus to <body> before landing on the new target — that
+          // intermediate focus would otherwise fall through Radix's default
+          // and dismiss the popover.
+          e.preventDefault();
         }}
         onInteractOutside={(e) => {
           const target = e.target as HTMLElement | null;
