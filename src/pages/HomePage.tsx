@@ -436,14 +436,19 @@ export default function HomePage() {
         supabase
           .from("events")
           .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
-          // event_date is a DATE column — compare against the user's LOCAL
-          // date (YYYY-MM-DD), not UTC. Using toISOString() previously caused
-          // yesterday's events to leak into Next Up for users east of UTC
-          // (e.g. AU/NZ), where the UTC date is still "yesterday" through
-          // mid-morning local time.
+          // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
+          // today's local-morning fixtures are stored as YESTERDAY's UTC date
+          // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
+          // against today's local YYYY-MM-DD therefore excludes them at the
+          // server, so morning home-team games disappeared from Next Up
+          // while still appearing on the Schedule page (which uses a wider
+          // window). Widen the lower bound by one day; the client-side
+          // `isStillUpcomingForNextUp` strictly filters past events using
+          // local date + start_time, so this only admits candidates that may
+          // belong to today locally.
           .gte(
             "event_date",
-            todayStr
+            getLocalDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))
           )
           .order("event_date", { ascending: true })
           .limit(50),
