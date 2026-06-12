@@ -899,7 +899,7 @@ export function MentionInput({
           // Padding gap to the textarea keeps quick emoji access while
           // protecting the message input from accidental edge taps.
           <div
-            className={`flex items-center justify-center h-12 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-0.5 pl-1 pr-2 mr-1" : "pl-1 pr-2 mr-2"}`}
+            className={`flex items-center justify-center h-11 shrink-0 transition-all duration-200 animate-in fade-in zoom-in-95 ${bare ? "-ml-1 mr-0.5" : "mr-1"}`}
             onPointerDown={(e) => {
               const target = e.target as HTMLElement;
               // PopoverContent renders in a React portal, so React events from
