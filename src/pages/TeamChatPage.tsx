@@ -12,7 +12,7 @@ import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Search, UserPlus, ChevronRight } from "lucide-react";
@@ -241,7 +241,7 @@ export default function TeamChatPage() {
   
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
-  const nativeKbHeight = useNativeKeyboardHeight();
+  const nativeKbHeight = useNativeKeyboardBottomInset();
 
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");
