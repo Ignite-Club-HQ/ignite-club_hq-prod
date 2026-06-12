@@ -52,6 +52,8 @@ interface ChatDetailsSheetProps {
   competitionId?: string;
   /** Mini-league invite handler — shows an "Invite people" action when provided */
   onInviteToMiniLeague?: () => void;
+  /** Team invite handler — shows an "Invite people" action when provided */
+  onInviteToTeam?: () => void;
 }
 
 export function ChatDetailsSheet({
