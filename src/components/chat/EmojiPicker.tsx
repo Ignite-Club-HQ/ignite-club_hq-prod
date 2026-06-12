@@ -247,7 +247,14 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           <div className="flex gap-1 mb-2 p-0.5 rounded-md bg-muted/60">
             <button
               type="button"
-              onClick={() => setTab("emoji")}
+              data-emoji-button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTab("emoji");
+              }}
               className={`flex-1 rounded text-xs font-medium py-1.5 transition-colors ${
                 tab === "emoji"
                   ? "bg-background shadow-sm text-foreground"
@@ -258,7 +265,12 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </button>
             <button
               type="button"
-              onClick={() => {
+              data-emoji-button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
                   dismissIOSKeyboardAccessory();
