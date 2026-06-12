@@ -73,6 +73,7 @@ export function ChatDetailsSheet({
   miniLeagueId,
   competitionId,
   onInviteToMiniLeague,
+  onInviteToTeam,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
