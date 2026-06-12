@@ -181,7 +181,7 @@ export function ChatSendButton({
           // the text baseline on a single-line composer (and keeps a
           // comfortable bottom inset when the composer grows multi-line —
           // matching WhatsApp/Messenger anchoring).
-          "group relative flex items-center justify-center shrink-0 p-2.5 -m-2.5 mb-[5px] rounded-full bg-transparent select-none touch-none",
+          "group relative flex items-center justify-center shrink-0 p-2.5 -m-2.5 rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
