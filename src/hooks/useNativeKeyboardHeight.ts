@@ -49,14 +49,14 @@ function computeAndroidInset(androidHeight: number): number {
   // OEMs/Gboard configs ignore `Keyboard.resize: 'none'`), the layout has
   // already shifted up by `vvShrink`. Adding the full plugin height on top
   // double-counts the inset and floats the composer mid-screen with messages
-  // bleeding below it. Subtract the observed shrink so the composer sits
-  // flush against the keyboard. If vv didn't shrink, use the plugin height
-  // as-is so the latest message isn't clipped behind the composer.
+  // bleeding below it. Always subtract the observed shrink whenever vv has
+  // moved more than the 24px threshold — including the case where vvShrink
+  // >= androidHeight (WebView fully resized; we should add zero extra inset).
   let inset = androidHeight;
   if (vv && androidBaselineHeight > 0) {
     const vvShrink = Math.max(0, androidBaselineHeight - vv.height);
-    if (vvShrink > 24 && vvShrink < androidHeight) {
-      inset = androidHeight - vvShrink;
+    if (vvShrink > 24) {
+      inset = Math.max(0, androidHeight - vvShrink);
     }
   }
 
