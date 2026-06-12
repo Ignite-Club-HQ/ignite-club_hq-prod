@@ -169,12 +169,14 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   return (
     <>
     <Popover open={open} onOpenChange={(newOpen) => {
-      if (newOpen) {
-        dismissIOSKeyboardAccessory();
-        dismissNativeKeyboard();
-      }
+      // Intentionally do NOT blur the textarea / hide the native keyboard
+      // here. Users expect to keep typing after inserting an emoji; dismissing
+      // the keyboard forces an extra tap to resume typing. The composer is
+      // already positioned above the keyboard via useNativeKeyboardBottomInset,
+      // so the popover (side="top") renders above the composer + keyboard.
       setOpen(newOpen);
     }}>
+
       <PopoverTrigger asChild>
         <Button
           type="button"
