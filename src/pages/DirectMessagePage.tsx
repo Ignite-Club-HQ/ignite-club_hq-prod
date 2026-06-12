@@ -55,7 +55,6 @@ import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages 
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { queueMessage } from "@/lib/messageQueue";
-import { hapticImpactLight } from "@/lib/haptics";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
@@ -922,7 +921,6 @@ export default function DirectMessagePage() {
         reply_to: replyToId && replyTo ? { text: replyTo.text, author: replyTo.author } : null,
       };
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
-      hapticImpactLight();
       setTimeout(scrollToBottom, 50);
     },
     onSuccess: async (newMessage) => {
