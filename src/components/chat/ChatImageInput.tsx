@@ -161,6 +161,25 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     return !!composer && document.activeElement === composer;
   };
 
+  const handleMoreActionsPressStart = (e: React.PointerEvent<HTMLButtonElement>) => {
+    closingViaTriggerRef.current = menuOpen;
+    const composerWasFocused = isComposerFocused();
+    composerWasFocusedRef.current = composerWasFocused;
+
+    // Android WebView can dismiss the IME as soon as a non-editable control is
+    // tapped, before Radix's click-driven trigger has a chance to restore focus.
+    // Toggle from pointerdown and cancel the default focus transfer so the
+    // textarea remains the active element throughout the tap.
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (composerWasFocused) {
+      getComposerElement()?.focus({ preventScroll: true });
+    }
+
+    setMenuOpen((open) => !open);
+  };
+
   const boardSubtitle = (() => {
     const s = (clubSport || "").toLowerCase();
     if (s.includes("soccer") || s.includes("football")) return "Track your soccer match live";
@@ -764,13 +783,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               // Always prevent the trigger from taking focus. If the composer
               // was already focused this keeps the keyboard up; if it was not,
               // repeated + / X taps cannot move focus into the composer later.
-              onPointerDown={(e) => {
-                closingViaTriggerRef.current = menuOpen;
-                composerWasFocusedRef.current = isComposerFocused();
-                e.preventDefault();
-              }}
+              onPointerDown={handleMoreActionsPressStart}
               onMouseDown={(e) => {
                 e.preventDefault();
+              }}
+              onClick={(e) => {
+                // State is already toggled in pointerdown. Prevent Radix's
+                // click handler from running a second toggle after Android has
+                // potentially hidden the keyboard.
+                e.preventDefault();
+                e.stopPropagation();
               }}
               className={`inline-flex items-center justify-center h-11 w-11 -ml-0.5 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background touch-manipulation ${
                 menuOpen
@@ -830,7 +852,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               composer?.focus({ preventScroll: true });
             }}
 
-            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
               type Action = {
