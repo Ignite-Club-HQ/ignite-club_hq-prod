@@ -175,11 +175,10 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          // 40×40 outer (matches + and emoji buttons so optical centers align
-          // when the composer pill bottom-aligns its children). Inner visual
-          // circle stays 30px. Negative margin keeps the expanded hit target
-          // from shifting surrounding layout.
-          "group relative flex items-center justify-center shrink-0 p-[5px] -m-[5px] rounded-full bg-transparent select-none touch-none",
+          // True 40×40 outer box to match + and emoji exactly. Avoid negative
+          // margins here: flex bottom-alignment uses the margin box, which made
+          // the paper-plane sit a few pixels low in the composer.
+          "group relative flex h-10 w-10 items-center justify-center shrink-0 rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
