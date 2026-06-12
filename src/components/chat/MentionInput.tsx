@@ -796,7 +796,7 @@ export function MentionInput({
   // read as a single [+ 😊] control group (WhatsApp-style). The textarea
   // inside still expands via flex-1, so typing width is preserved.
   return (
-    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full ${bare ? "self-center" : "self-stretch ml-1"} space-y-2`}>
+    <div ref={containerRef} className={`relative flex-1 min-w-0 max-w-full ${bare ? "self-end" : "self-stretch ml-1"} space-y-2`}>
 
 
 
