@@ -1266,6 +1266,22 @@ export default function ClubChatPage() {
   });
 
   const handleSend = () => {
+    // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
+    // BEFORE reading message state. Without this, a tap on Send mid-word
+    // sends the partial/garbled composing fragment ("wothpur" → "without").
+    // We re-focus the same element on the next tick so the on-screen keyboard
+    // never actually dismisses — otherwise the viewport grows and the whole
+    // thread visibly jumps up after each send.
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+      ae.blur();
+      setTimeout(() => {
+        handleSend();
+        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
+      }, 0);
+      return;
+    }
+
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();

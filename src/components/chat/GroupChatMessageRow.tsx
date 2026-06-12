@@ -407,7 +407,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-      } ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""} ${isFreshlyInserted ? "chat-message-enter" : ""}`}
+      } ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`}
       style={{ overflowAnchor: 'none' }}
     >
       {isInteracting && createPortal(

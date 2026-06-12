@@ -1724,6 +1724,10 @@ export default function TeamChatPage() {
         sublabel={team.clubs?.name}
         avatarUrl={team.logo_url || team.clubs?.logo_url}
         clubId={team.club_id || undefined}
+        onInviteToTeam={() => {
+          setMembersOpen(false);
+          setTimeout(() => setInviteSheetOpen(true), 80);
+        }}
       />
       <AddTeamMemberSheet
         teamId={teamId!}
@@ -1735,17 +1739,19 @@ export default function TeamChatPage() {
         externalOpen={inviteSheetOpen}
         onExternalOpenChange={setInviteSheetOpen}
       />
-      {/* Compact pinned invite utility — single row, low visual weight */}
+      {/* Invite banner — team chats */}
       <button
         onClick={() => setInviteSheetOpen(true)}
         aria-label={`Invite people to ${team.name}`}
-        className="group w-full flex items-center gap-2 px-3.5 py-1.5 bg-background border-b border-border/40 text-left touch-manipulation active:bg-muted/60 transition-colors shrink-0"
+        className="group w-full flex items-center gap-2 px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-left touch-manipulation active:bg-primary/15 transition-colors shrink-0"
       >
-        <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
-        <span className="flex-1 min-w-0 text-[12.5px] text-foreground/80 truncate">
-          Invite to <span className="font-medium text-foreground">{team.name}</span>
+        <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+          <UserPlus className="h-3 w-3 text-primary" strokeWidth={2.25} />
+        </div>
+        <span className="flex-1 min-w-0 text-[13.5px] text-foreground truncate">
+          Invite people to <span className="font-semibold">{team.name}</span>
         </span>
-        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" strokeWidth={2} />
+        <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
       </button>
 
 

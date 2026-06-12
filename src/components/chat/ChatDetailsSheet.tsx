@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ChevronRight, X, ImageIcon, Play, Loader2 } from "lucide-react";
+import { ChevronRight, X, ImageIcon, Play, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -50,6 +50,10 @@ interface ChatDetailsSheetProps {
   miniLeagueId?: string;
   /** For competition chats — enables "View competition" link */
   competitionId?: string;
+  /** Mini-league invite handler — shows an "Invite people" action when provided */
+  onInviteToMiniLeague?: () => void;
+  /** Team invite handler — shows an "Invite people" action when provided */
+  onInviteToTeam?: () => void;
 }
 
 export function ChatDetailsSheet({
@@ -68,6 +72,8 @@ export function ChatDetailsSheet({
   groupMembershipMode,
   miniLeagueId,
   competitionId,
+  onInviteToMiniLeague,
+  onInviteToTeam,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -169,6 +175,21 @@ export function ChatDetailsSheet({
                     }
                   />
                 )}
+                {(teamId || chatType === "team") && onInviteToTeam && (
+                  <button
+                    type="button"
+                    onClick={onInviteToTeam}
+                    className="w-full flex items-center gap-2.5 py-3 px-1 text-left active:opacity-70 transition-opacity"
+                  >
+                    <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                      <UserPlus className="h-4 w-4 text-primary" strokeWidth={2.25} />
+                    </div>
+                    <span className="flex-1 text-[15px] font-medium text-primary">
+                      Invite people to team
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" />
+                  </button>
+                )}
                 {competitionId && (
                   <NavRow
                     label="View competition"
@@ -176,10 +197,27 @@ export function ChatDetailsSheet({
                   />
                 )}
                 {miniLeagueId ? (
-                  <NavRow
-                    label="View mini-league page"
-                    onClick={() => handleNavigate(`/mini-leagues/${miniLeagueId}`)}
-                  />
+                  <>
+                    <NavRow
+                      label="View mini-league page"
+                      onClick={() => handleNavigate(`/mini-leagues/${miniLeagueId}`)}
+                    />
+                    {onInviteToMiniLeague && (
+                      <button
+                        type="button"
+                        onClick={onInviteToMiniLeague}
+                        className="w-full flex items-center gap-2.5 py-3 px-1 text-left active:opacity-70 transition-opacity"
+                      >
+                        <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                          <UserPlus className="h-4 w-4 text-primary" strokeWidth={2.25} />
+                        </div>
+                        <span className="flex-1 text-[15px] font-medium text-primary">
+                          Invite people to mini-league
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" />
+                      </button>
+                    )}
+                  </>
                 ) : (clubId || chatType === "club") && (
                   <NavRow
                     label="View club page"
