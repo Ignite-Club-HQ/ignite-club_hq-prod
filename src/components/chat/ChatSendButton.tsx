@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hapticImpactLight } from "@/lib/haptics";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 const HINT_STORAGE_KEY = "chat:send-long-press-hint:v1";
 const SEND_COUNT_KEY = "chat:send-count";
@@ -82,10 +82,10 @@ export function ChatSendButton({
     if (firedThisGestureRef.current) return;
     if (disabled || loading) return;
     firedThisGestureRef.current = true;
-    // Fire haptic synchronously inside the user gesture so navigator.vibrate
-    // is allowed by mobile browsers (Android Chrome blocks it otherwise) and
-    // the feedback feels instant rather than waiting on the insert round-trip.
-    hapticImpactLight();
+    // Fire a tiny selection-tick haptic synchronously inside the user gesture
+    // (Light/Medium felt too heavy on send — Messenger/WhatsApp use a barely
+    // perceptible tick). Stays inside the gesture so navigator.vibrate works.
+    hapticSelectionTick();
     onSend();
     if (canSend) maybeShowHint();
     // Reset shortly after so subsequent gestures can fire.

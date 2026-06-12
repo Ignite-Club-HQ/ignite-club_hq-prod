@@ -47,7 +47,6 @@ import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSea
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { Capacitor } from "@capacitor/core";
-import { hapticImpactLight } from "@/lib/haptics";
 
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -503,7 +502,6 @@ export default function ClubAdminChatPage() {
         reply_to: replyToId && replyTo ? { text: replyTo.text, author: replyTo.author } : null,
       };
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
-      hapticImpactLight();
       setTimeout(scrollToBottom, 50);
     },
     onSuccess: (newMessage) => {
