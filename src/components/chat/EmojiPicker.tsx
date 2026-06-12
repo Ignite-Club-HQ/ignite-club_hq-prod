@@ -139,14 +139,11 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   }, [open]);
 
   const handleEmojiClick = useCallback((emoji: string) => {
-    dismissIOSKeyboardAccessory();
+    // Keep the textarea focused so the native keyboard stays up — users
+    // typically insert an emoji mid-sentence and want to keep typing.
     saveRecentEmoji(emoji);
     onEmojiSelectRef.current(emoji);
-    requestAnimationFrame(() => {
-      setOpen(false);
-      dismissIOSKeyboardAccessory();
-    });
-  }, [dismissIOSKeyboardAccessory]);
+  }, []);
 
   const handleGifPick = useCallback((url: string) => {
     dismissIOSKeyboardAccessory();
@@ -157,6 +154,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
+
 
   const createEmojiHandler = useCallback((emoji: string) => {
     return (e: React.MouseEvent | React.TouchEvent) => {
