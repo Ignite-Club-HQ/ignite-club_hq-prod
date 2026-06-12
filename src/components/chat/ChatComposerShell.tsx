@@ -38,7 +38,7 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
     >
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-end gap-0 overflow-visible",
+          "flex w-full max-w-full min-w-0 items-center gap-0 overflow-visible",
           "rounded-[26px] bg-muted dark:bg-muted/60",
           "pl-0.5 pr-1.5 py-1 min-h-[44px]",
           "transition-[background-color] duration-150",
