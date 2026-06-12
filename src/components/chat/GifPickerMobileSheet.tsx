@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 
 import { GifGrid } from "@/components/chat/GifGrid";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 
 /**
  * Mobile GIPHY bottom sheet — fully keyboard-aware.
@@ -37,7 +37,7 @@ interface GifPickerMobileSheetProps {
 }
 
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
-  const nativeKeyboardHeight = useNativeKeyboardHeight();
+  const keyboardBottomInset = useNativeKeyboardBottomInset();
   const [layoutViewportHeight, setLayoutViewportHeight] = useState(() =>
     typeof window === "undefined" ? 0 : window.innerHeight,
   );
@@ -135,7 +135,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     }, 0);
     return () => window.clearTimeout(id);
-  }, [open, nativeKeyboardHeight]);
+  }, [open, keyboardBottomInset]);
 
   useEffect(() => {
     if (!open) {
@@ -154,8 +154,8 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
     const keyboardHeight = isNativeAndroid
-      ? nativeKeyboardHeight
-      : Math.max(nativeKeyboardHeight, visualKeyboardHeight);
+      ? keyboardBottomInset
+      : Math.max(keyboardBottomInset, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
 
     // Pin the sheet's bottom directly to the top of the keyboard (or to the
@@ -172,8 +172,8 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       keyboardOpen: isKeyboardOpen,
     };
   }, [
+    keyboardBottomInset,
     layoutViewportHeight,
-    nativeKeyboardHeight,
     safeAreaBottom,
     visualViewportHeight,
     visualViewportOffsetTop,
