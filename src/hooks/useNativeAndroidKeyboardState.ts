@@ -31,6 +31,21 @@ export function useNativeAndroidKeyboardState(): number {
     // stale show-time value and drifts mid-session.
     let pluginHeight = 0;
     let keyboardOpen = false;
+    let baselineLayoutHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+
+    const readCssPx = (name: string) => {
+      if (typeof window === "undefined" || typeof document === "undefined") return 0;
+      const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const getLayoutBaseline = () => {
+      const current = typeof window !== "undefined" ? window.innerHeight : 0;
+      const lockedVisual = readCssPx("--visual-vh");
+      baselineLayoutHeight = Math.max(baselineLayoutHeight, current, lockedVisual);
+      return baselineLayoutHeight;
+    };
 
     const applyHeight = (nextHeight: number) => {
       const rounded = Math.max(0, Math.round(nextHeight));
@@ -42,29 +57,28 @@ export function useNativeAndroidKeyboardState(): number {
         ? window.devicePixelRatio
         : 1;
       const layoutH = typeof window !== "undefined" ? window.innerHeight : 0;
+      const baselineH = getLayoutBaseline();
       const raw = rawPluginHeight || 0;
       const looksLikeDevicePx = layoutH > 0 && raw > layoutH * 0.6;
       let finalHeight = looksLikeDevicePx ? raw / dpr : raw;
 
-      // visualViewport-derived inset is the source of truth whenever it's
-      // available and credible (>24px). It tracks the *actual* region above
-      // the keyboard in CSS px and updates live as the IME resizes.
+      // visualViewport-derived TOTAL inset is the source of truth whenever
+      // credible. Compare against the locked/pre-keyboard layout baseline, not
+      // current innerHeight: OEM WebViews can partially shrink innerHeight even
+      // with Keyboard.resize='none', and using current innerHeight returns only
+      // the overlay remainder. The chat shell needs the total hidden region.
       if (typeof window !== "undefined") {
         const vv = window.visualViewport;
-        const vvShrink = vv && layoutH > 0
-          ? Math.max(0, layoutH - vv.height)
+        const vvTotalInset = vv && baselineH > 0
+          ? Math.max(0, baselineH - vv.height)
           : 0;
-        if (vvShrink > 24) {
-          // Trust vv whenever it's smaller (plugin over-reported), AND
-          // whenever the plugin hasn't reported yet (raw == 0).
-          if (raw === 0 || vvShrink < finalHeight) {
-            finalHeight = vvShrink;
-          }
+        if (vvTotalInset > 24) {
+          finalHeight = vvTotalInset;
         }
       }
 
-      if (layoutH > 0) {
-        finalHeight = Math.min(finalHeight, layoutH * 0.6);
+      if (baselineH > 0) {
+        finalHeight = Math.min(finalHeight, baselineH * 0.6);
       }
       return Math.max(0, finalHeight);
     };
@@ -116,8 +130,17 @@ export function useNativeAndroidKeyboardState(): number {
     // predictive bar appearing, voice input, OEM keyboards that don't
     // refire Capacitor events on resize.
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const handleWindowResize = () => {
+      if (!keyboardOpen) {
+        getLayoutBaseline();
+        return;
+      }
+      reconcile();
+    };
+
     vv?.addEventListener("resize", reconcile);
     vv?.addEventListener("scroll", reconcile);
+    window.addEventListener("resize", handleWindowResize);
 
     // Re-measure when an editable element gains focus while the keyboard
     // may already be open (e.g. tapping Reply re-focuses the composer
@@ -181,6 +204,7 @@ export function useNativeAndroidKeyboardState(): number {
       keyboardDidHideHandle?.remove();
       vv?.removeEventListener("resize", reconcile);
       vv?.removeEventListener("scroll", reconcile);
+      window.removeEventListener("resize", handleWindowResize);
       document.removeEventListener("focusin", handleFocusIn, true);
       document.removeEventListener("focusout", handleFocusOut, true);
       document.removeEventListener("visibilitychange", handleVisibility);

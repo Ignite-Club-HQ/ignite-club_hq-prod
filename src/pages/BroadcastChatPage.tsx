@@ -8,7 +8,7 @@ import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Flame, Search, CalendarPlus } from "lucide-react";
@@ -141,7 +141,7 @@ export default function BroadcastChatPage() {
 
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
-  const nativeKbHeight = useNativeKeyboardHeight();
+  const nativeKbHeight = useNativeKeyboardBottomInset();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 

@@ -11,7 +11,7 @@ import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -149,7 +149,7 @@ export default function ClubAdminChatPage() {
 
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
-  const nativeKbHeight = useNativeKeyboardHeight();
+  const nativeKbHeight = useNativeKeyboardBottomInset();
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
