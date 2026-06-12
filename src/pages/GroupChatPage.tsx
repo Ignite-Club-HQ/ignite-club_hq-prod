@@ -2114,10 +2114,10 @@ export default function GroupChatPage() {
           <button
             onClick={() => setMiniLeagueInviteOpen(true)}
             aria-label={`Invite people to ${miniLeagueInfo?.name || group.name}`}
-            className="group w-full flex items-center gap-2.5 px-4 py-2.5 bg-primary/10 border-b border-primary/20 text-left touch-manipulation active:bg-primary/15 transition-colors shrink-0"
+            className="group w-full flex items-center gap-2 px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-left touch-manipulation active:bg-primary/15 transition-colors shrink-0"
           >
-            <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-              <UserPlus className="h-4 w-4 text-primary" strokeWidth={2.25} />
+            <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+              <UserPlus className="h-3 w-3 text-primary" strokeWidth={2.25} />
             </div>
             <span className="flex-1 min-w-0 text-[13.5px] text-foreground truncate">
               Invite people to <span className="font-semibold">{miniLeagueInfo?.name || group.name}</span>
