@@ -2097,22 +2097,32 @@ export default function GroupChatPage() {
         groupAllowedRoles={group.allowed_roles}
         groupCreatedBy={group.created_by}
         groupMembershipMode={group.membership_mode}
+        onInviteToMiniLeague={
+          group.mini_league_id && group.club_id
+            ? () => {
+                setMembersOpen(false);
+                setTimeout(() => setMiniLeagueInviteOpen(true), 80);
+              }
+            : undefined
+        }
       />
 
 
-      {/* Compact invite banner — mini-league chats */}
+      {/* Invite banner — mini-league chats */}
       {group.mini_league_id && group.club_id && (
         <>
           <button
             onClick={() => setMiniLeagueInviteOpen(true)}
             aria-label={`Invite people to ${miniLeagueInfo?.name || group.name}`}
-            className="group w-full flex items-center gap-2 px-3.5 py-1.5 bg-background border-b border-border/40 text-left touch-manipulation active:bg-muted/60 transition-colors shrink-0"
+            className="group w-full flex items-center gap-2.5 px-4 py-2.5 bg-primary/10 border-b border-primary/20 text-left touch-manipulation active:bg-primary/15 transition-colors shrink-0"
           >
-            <UserPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
-            <span className="flex-1 min-w-0 text-[12.5px] text-foreground/80 truncate">
-              Invite to <span className="font-medium text-foreground">{miniLeagueInfo?.name || group.name}</span>
+            <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+              <UserPlus className="h-4 w-4 text-primary" strokeWidth={2.25} />
+            </div>
+            <span className="flex-1 min-w-0 text-[13.5px] text-foreground truncate">
+              Invite people to <span className="font-semibold">{miniLeagueInfo?.name || group.name}</span>
             </span>
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" strokeWidth={2} />
+            <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
           </button>
           <AddMiniLeagueMemberSheet
             miniLeagueId={group.mini_league_id}
