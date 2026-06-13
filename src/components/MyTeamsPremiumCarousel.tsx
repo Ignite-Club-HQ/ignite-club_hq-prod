@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
-import { getCachedCarousel, setCachedCarousel } from "@/lib/myTeamsCarouselCache";
+import { getCachedCarousel, setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
@@ -332,10 +332,12 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   const { activeClubFilter } = useClubTheme();
 
   // Hydrate from localStorage so cold opens paint real cards instantly
-  const snapshot = useMemo<CarouselSnapshot | null>(
-    () => getCachedCarousel<CarouselSnapshot>(user?.id, activeClubFilter),
+  const snapshotWithTs = useMemo(
+    () => getCachedCarouselWithTs<CarouselSnapshot>(user?.id, activeClubFilter),
     [user?.id, activeClubFilter]
   );
+  const snapshot = snapshotWithTs?.data ?? null;
+
 
   // Defer non-critical queries (photos) until after first paint to free up the main thread
   const [deferredReady, setDeferredReady] = useState(false);
@@ -356,6 +358,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   const { data: items = snapshot?.items ?? [], isLoading, isFetching } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
     retry: 3,
+    initialData: snapshot?.items,
+    initialDataUpdatedAt: snapshotWithTs?.timestamp,
     queryFn: async () => {
       if (!user) return [];
 

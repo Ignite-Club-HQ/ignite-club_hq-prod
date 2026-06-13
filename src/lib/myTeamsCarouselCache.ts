@@ -41,3 +41,30 @@ export function setCachedCarousel<T>(userId: string | undefined, activeClubFilte
     // quota or unavailable — ignore
   }
 }
+
+/**
+ * Variant that returns both the cached payload and its write timestamp so
+ * callers can hand the timestamp to React Query as `initialDataUpdatedAt`.
+ * That lets RQ report `isLoading=false` immediately for warm-cache mounts,
+ * letting downstream readiness gates flip without waiting for the network.
+ */
+export function getCachedCarouselWithTs<T>(
+  userId: string | undefined,
+  activeClubFilter: string | null,
+): { data: T; timestamp: number } | null {
+  if (!userId) return null;
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem(key(userId, activeClubFilter));
+    if (!raw) return null;
+    const entry: Entry<T> = JSON.parse(raw);
+    if (Date.now() - entry.timestamp > TTL_MS) {
+      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch {}
+      return null;
+    }
+    return { data: entry.data, timestamp: entry.timestamp };
+  } catch {
+    return null;
+  }
+}
+
