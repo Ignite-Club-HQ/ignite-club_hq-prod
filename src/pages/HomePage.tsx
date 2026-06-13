@@ -1387,7 +1387,8 @@ export default function HomePage() {
       // Coaches and team admins require Pro Football subscription for pitch board access
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships && (userMemberships?.teamIds?.length ?? 0) > 0,
+
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -1478,7 +1479,8 @@ export default function HomePage() {
       // Return only teams with Pro Football
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships && ((userMemberships?.teamIds?.length ?? 0) > 0 || (userMemberships?.clubIds?.length ?? 0) > 0),
+
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
