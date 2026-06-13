@@ -682,11 +682,15 @@ export default function TeamChatPage() {
     placeholderData: (prev: any) => {
       if (!teamId) return prev;
       // When opened from a push notification, the cached message just written
-      // by the preload handler is fresher than `prev`. Prefer it so the new
-      // message renders at first paint.
+      // by the preload handler is fresher than `prev`. Prefer it ONLY when
+      // it actually contains a meaningful history window — otherwise a
+      // single preloaded row replaces `prev` and the user sees one message
+      // floating at the top of an empty viewport until the real fetch lands.
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedTeamMessages(teamId);
-        if (cachedMessages.length) {
+        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
+        const cachedHasHistory = cachedMessages.length >= 5 || cachedMessages.length > prevLen;
+        if (cachedMessages.length && cachedHasHistory) {
           return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
         }
       }
