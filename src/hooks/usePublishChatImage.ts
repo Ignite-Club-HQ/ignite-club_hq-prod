@@ -105,14 +105,11 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
    * "Add to gallery" chip on the just-sent message.
    */
   const nudgeAfterSend = useCallback(() => {
-    if (!canPublish) return;
-    if (!shouldShowGalleryNudge()) return;
-    markGalleryNudgeShown();
-    toast("Saved to chat", {
-      description: "Tap “Add to gallery” under your photo to save it to the team Media Gallery.",
-      duration: 7000,
-    });
-  }, [canPublish]);
+    // Disabled: the "Saved to chat / Add to gallery" toast was noisy after every image send.
+    // The inline chip under the message still lets users publish to the gallery.
+    return;
+  }, []);
+
 
   return {
     publishingIds,
