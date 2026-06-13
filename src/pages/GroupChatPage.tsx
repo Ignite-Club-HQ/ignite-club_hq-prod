@@ -2013,6 +2013,10 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: group?.team_id ?? null,
+    miniLeagueId: group?.mini_league_id ?? null,
+  });
 
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
