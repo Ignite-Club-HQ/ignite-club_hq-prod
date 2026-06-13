@@ -478,6 +478,7 @@ export default function MessagesPage() {
   const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isError: teamsError } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
