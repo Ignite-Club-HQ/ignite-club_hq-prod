@@ -56,6 +56,28 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closingViaTriggerRef = useRef(false);
 
+  // Close the "+" attachment menu when the soft keyboard is dismissed.
+  // The popover is anchored to the trigger and does NOT re-position once the
+  // visual viewport grows — leaving it floating mid-screen over old composer
+  // coordinates. Detecting a viewport-height growth >120px while the menu is
+  // open is a reliable proxy for keyboard-hide on both Android and iOS.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastH = vv.height;
+    const onResize = () => {
+      const h = vv.height;
+      if (h - lastH > 120) {
+        setMenuOpen(false);
+      }
+      lastH = h;
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [menuOpen]);
+
+
   const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
   const [attachChooserOpen, setAttachChooserOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

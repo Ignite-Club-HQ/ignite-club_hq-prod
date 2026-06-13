@@ -85,6 +85,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
+  const closingForMessageSendRef = useRef(false);
+  const closeResetTimerRef = useRef<number | null>(null);
   const showGifTab = !!onGifSelect;
   // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
   // of inside the popover so the search input + results never get covered.
@@ -137,6 +139,46 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
       setTab("emoji");
     }
   }, [open]);
+
+  // Close when the soft keyboard is dismissed while the picker is open.
+  // The popover anchors to the trigger and won't reflow when the visual
+  // viewport grows, so it would otherwise float mid-screen above an empty
+  // gap where the keyboard used to be.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastH = vv.height;
+    const onResize = () => {
+      const h = vv.height;
+      if (h - lastH > 120 && !closingForMessageSendRef.current) setOpen(false);
+      lastH = h;
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [open]);
+
+  // Close on message send so the popover doesn't re-position over an
+  // updating message list.
+  useEffect(() => {
+    const close = () => {
+      closingForMessageSendRef.current = true;
+      if (closeResetTimerRef.current !== null) window.clearTimeout(closeResetTimerRef.current);
+      setOpen(false);
+      closeResetTimerRef.current = window.setTimeout(() => {
+        closingForMessageSendRef.current = false;
+        closeResetTimerRef.current = null;
+      }, 500);
+    };
+    window.addEventListener("chat:message-sent", close);
+    return () => {
+      window.removeEventListener("chat:message-sent", close);
+      if (closeResetTimerRef.current !== null) window.clearTimeout(closeResetTimerRef.current);
+    };
+  }, []);
+
+
+
 
   const handleEmojiClick = useCallback((emoji: string) => {
     // Keep the textarea focused so the native keyboard stays up — users
@@ -245,6 +287,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement;
           if (target.closest('[data-gif-picker]')) {
+            e.preventDefault();
+            return;
+          }
+          if (target.closest('[data-chat-send-button]')) {
             e.preventDefault();
             return;
           }

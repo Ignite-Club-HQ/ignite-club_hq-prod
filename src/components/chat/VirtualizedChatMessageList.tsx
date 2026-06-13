@@ -1673,7 +1673,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Coordinate with sibling writers (openPinWindow timers, parent
       // keyboard-pin). If one of them just wrote scrollTop, skip this pass
       // so we don't apply an opposing micro-correction in the same frame.
-      if (isRecentChatScrollWrite(80)) return;
+      if (isRecentChatScrollWrite(200)) return;
 
 
       const sh = viewport.scrollHeight;

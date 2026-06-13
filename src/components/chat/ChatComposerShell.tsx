@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 interface ChatComposerShellProps {
   children: ReactNode;
   className?: string;
+  /** Optional preview row (e.g. attached poll) rendered inside the composer pill, above the input row. */
+  preview?: ReactNode;
 }
 
 /**
@@ -13,7 +15,7 @@ interface ChatComposerShellProps {
  * `chat-action-sheet:toggle` event and fade the composer out + disable
  * interaction so the user's focus stays on the selected message + actions.
  */
-export function ChatComposerShell({ children, className }: ChatComposerShellProps) {
+export function ChatComposerShell({ children, className, preview }: ChatComposerShellProps) {
   const [actionSheetOpen, setActionSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -38,15 +40,21 @@ export function ChatComposerShell({ children, className }: ChatComposerShellProp
     >
       <div
         className={cn(
-          "flex w-full max-w-full min-w-0 items-end gap-0 overflow-visible",
+          "w-full max-w-full min-w-0 overflow-visible",
           "rounded-[26px] bg-muted dark:bg-muted/60",
-          "pl-0.5 pr-1.5 py-1 min-h-[44px]",
           "transition-[background-color] duration-150",
           "focus-within:bg-muted/90 dark:focus-within:bg-muted/75",
           className,
         )}
       >
-        {children}
+        {preview && (
+          <div className="px-1.5 pt-1.5">
+            {preview}
+          </div>
+        )}
+        <div className="flex w-full max-w-full min-w-0 items-end gap-0 overflow-visible pl-0.5 pr-1.5 py-1 min-h-[44px]">
+          {children}
+        </div>
       </div>
     </div>
   );

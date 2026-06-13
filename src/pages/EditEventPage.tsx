@@ -205,7 +205,7 @@ export default function EditEventPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select("*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs (name)")
+        .select("*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs (name), mini_leagues (id, name)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -493,8 +493,9 @@ export default function EditEventPage() {
       return;
     }
 
-    // Require team selection for games and training
-    if ((type === "game" || type === "training") && !selectedTeamId) {
+    // Require team selection for games and training, except mini-league events
+    const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
+    if ((type === "game" || type === "training") && !selectedTeamId && !isMiniLeagueEvent) {
       toast({
         title: "Team required",
         description: "Please select a team for games and training sessions.",
@@ -883,17 +884,27 @@ export default function EditEventPage() {
                   required
                 />
 
-                <MobileCardSelect
-                  value={selectedTeamId || (type === "social" ? "__none__" : "")}
-                  onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
-                  options={[
-                    ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
-                    ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
-                  ]}
-                  placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
-                  label="Team"
-                  required={type !== "social"}
-                />
+                {(event as any)?.mini_league_id ? (
+                  <div className="rounded-lg border p-3 bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Mini-League</div>
+                    <div className="text-sm font-medium">
+                      {(event as any)?.mini_leagues?.name || "Mini-League event"}
+                    </div>
+                  </div>
+
+                ) : (
+                  <MobileCardSelect
+                    value={selectedTeamId || (type === "social" ? "__none__" : "")}
+                    onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
+                    options={[
+                      ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
+                      ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                    ]}
+                    placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
+                    label="Team"
+                    required={type !== "social"}
+                  />
+                )}
                 {type === "social" && (
                   <p className="text-xs text-muted-foreground">
                     Leave blank for club-wide events.

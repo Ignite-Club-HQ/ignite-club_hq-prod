@@ -1500,7 +1500,10 @@ export default function TeamChatPage() {
     onError: () => toast.error("Failed to update message"),
   });
 
-  const handleSend = () => {
+  const handleSend = (imeFlushed = false) => {
+    if (!imeFlushed) {
+      try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
+    }
     // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
     // BEFORE reading message state. Without this, a tap on Send mid-word
     // sends the partial/garbled composing fragment ("wothpur" → "without").
@@ -1508,10 +1511,10 @@ export default function TeamChatPage() {
     // never actually dismisses — otherwise the viewport grows and the whole
     // thread visibly jumps up after each send.
     const ae = document.activeElement as HTMLElement | null;
-    if (ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
+    if (!imeFlushed && ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
       ae.blur();
       setTimeout(() => {
-        handleSend();
+        handleSend(true);
         try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
       }, 0);
       return;
@@ -1917,15 +1920,18 @@ export default function TeamChatPage() {
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-        {pendingPollId && !editingMessage && (
-          <PollAttachmentPreview
-            pollId={pendingPollId}
-            onRemove={() => setPendingPollId(null)}
-            disabled={sendMessageMutation.isPending}
-          />
-        )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <ChatComposerShell>
+        <ChatComposerShell
+          preview={
+            pendingPollId && !editingMessage ? (
+              <PollAttachmentPreview
+                pollId={pendingPollId}
+                onRemove={() => setPendingPollId(null)}
+                disabled={sendMessageMutation.isPending}
+              />
+            ) : undefined
+          }
+        >
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}

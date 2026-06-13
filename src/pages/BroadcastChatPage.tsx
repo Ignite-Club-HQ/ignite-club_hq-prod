@@ -925,6 +925,7 @@ export default function BroadcastChatPage() {
 
   const handleSend = () => {
     if (!message.trim() && !imageUrl && !pendingPollId) return;
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -1168,15 +1169,18 @@ export default function BroadcastChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          {pendingPollId && !editingMessage && (
-            <PollAttachmentPreview
-              pollId={pendingPollId}
-              onRemove={() => setPendingPollId(null)}
-              disabled={sendMutation.isPending}
-            />
-          )}
           <ScheduledMessagesBanner target={scheduleTarget} />
-          <ChatComposerShell>
+          <ChatComposerShell
+            preview={
+              pendingPollId && !editingMessage ? (
+                <PollAttachmentPreview
+                  pollId={pendingPollId}
+                  onRemove={() => setPendingPollId(null)}
+                  disabled={sendMutation.isPending}
+                />
+              ) : undefined
+            }
+          >
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
