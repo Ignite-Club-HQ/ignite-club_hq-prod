@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
+
 
 interface CancelEventConfirmDialogProps {
   open: boolean;
