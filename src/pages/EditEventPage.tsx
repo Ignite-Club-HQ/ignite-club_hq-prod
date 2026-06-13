@@ -884,17 +884,29 @@ export default function EditEventPage() {
                   required
                 />
 
-                <MobileCardSelect
-                  value={selectedTeamId || (type === "social" ? "__none__" : "")}
-                  onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
-                  options={[
-                    ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
-                    ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
-                  ]}
-                  placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
-                  label="Team"
-                  required={type !== "social"}
-                />
+                {(event as any)?.mini_league_id ? (
+                  <div className="rounded-lg border p-3 bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Mini-League</div>
+                    <div className="text-sm font-medium">
+                      {(event as any)?.mini_leagues?.name || "Mini-League event"}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This Match Day event is assigned to the mini-league, not a team.
+                    </p>
+                  </div>
+                ) : (
+                  <MobileCardSelect
+                    value={selectedTeamId || (type === "social" ? "__none__" : "")}
+                    onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
+                    options={[
+                      ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
+                      ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                    ]}
+                    placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
+                    label="Team"
+                    required={type !== "social"}
+                  />
+                )}
                 {type === "social" && (
                   <p className="text-xs text-muted-foreground">
                     Leave blank for club-wide events.
