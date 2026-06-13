@@ -890,10 +890,8 @@ export default function EditEventPage() {
                     <div className="text-sm font-medium">
                       {(event as any)?.mini_leagues?.name || "Mini-League event"}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      This Match Day event is assigned to the mini-league, not a team.
-                    </p>
                   </div>
+
                 ) : (
                   <MobileCardSelect
                     value={selectedTeamId || (type === "social" ? "__none__" : "")}
