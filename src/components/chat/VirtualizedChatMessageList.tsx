@@ -2243,7 +2243,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       context={virtuosoContext}
       components={components as any}
     />
-    {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    {renderJumpOverlay ? <JumpHydrationSkeleton visible={isJumpHydrating} /> : null}
     </div>
     </div>
   );
