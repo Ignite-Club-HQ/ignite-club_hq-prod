@@ -59,6 +59,7 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
+import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
@@ -623,10 +624,15 @@ export default function GroupChatPage() {
     placeholderData: (prev: any) => {
       if (!groupId) return prev;
       // From-push freshness: prefer the just-preloaded localStorage cache
-      // over a stale `prev` so the new message renders at first paint.
+      // over a stale `prev` so the new message renders at first paint —
+      // but only when the cache has a meaningful history window. A single
+      // preloaded row replacing `prev` strands the user with one message
+      // floating at the top of an empty viewport.
       if (openedFromNotificationRef.current) {
         const cachedData = getCachedGroupMessages(groupId);
-        if (cachedData.messages.length) {
+        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
+        const cachedHasHistory = cachedData.messages.length >= 5 || cachedData.messages.length > prevLen;
+        if (cachedData.messages.length && cachedHasHistory) {
           return { ...cachedData, hasOlderMessages: false, fromCache: true };
         }
       }
@@ -2012,6 +2018,10 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: group?.team_id ?? null,
+    miniLeagueId: group?.mini_league_id ?? null,
+  });
 
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
@@ -2249,7 +2259,7 @@ export default function GroupChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && !!group?.team_id}
+                      canPublishToGallery={galleryWindowOpen && isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.mini_league_id)}
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}

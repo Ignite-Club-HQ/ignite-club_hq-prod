@@ -209,7 +209,12 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     const handle = getHandle();
     const idx = messages.findIndex((m) => m.id === messageId);
 
-    if (idx >= 0 && handle) {
+    // Defer settle passes until the real fetch has hydrated at least a
+    // small window of history. Otherwise (push-notification preload cache
+    // with a single row) scrollToIndex(0,"end") lands the lone message at
+    // the top of an empty viewport and the settle window suppresses the
+    // bottom-pin compensator that would normally fix it.
+    if (idx >= 0 && handle && messages.length > 1) {
       focusOn(messageId, idx, handle);
       // If we previously landed on the parent as a fallback, keep polling so
       // we can re-centre once the real target row finishes mounting; but

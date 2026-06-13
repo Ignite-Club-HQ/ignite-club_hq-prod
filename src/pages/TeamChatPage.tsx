@@ -42,6 +42,7 @@ import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
+import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
@@ -681,11 +682,15 @@ export default function TeamChatPage() {
     placeholderData: (prev: any) => {
       if (!teamId) return prev;
       // When opened from a push notification, the cached message just written
-      // by the preload handler is fresher than `prev`. Prefer it so the new
-      // message renders at first paint.
+      // by the preload handler is fresher than `prev`. Prefer it ONLY when
+      // it actually contains a meaningful history window — otherwise a
+      // single preloaded row replaces `prev` and the user sees one message
+      // floating at the top of an empty viewport until the real fetch lands.
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedTeamMessages(teamId);
-        if (cachedMessages.length) {
+        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
+        const cachedHasHistory = cachedMessages.length >= 5 || cachedMessages.length > prevLen;
+        if (cachedMessages.length && cachedHasHistory) {
           return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
         }
       }
@@ -1551,6 +1556,9 @@ export default function TeamChatPage() {
     teamId: teamId ?? null,
     clubId: team?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: teamId ?? null,
+  });
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
@@ -1898,7 +1906,7 @@ export default function TeamChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      canPublishToGallery={galleryWindowOpen && msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
                       isPublishingToGallery={publishingIds.has(msg.id)}
                       isPublishedToGallery={publishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}

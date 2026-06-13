@@ -517,10 +517,15 @@ export default function ClubChatPage() {
     placeholderData: (prev: any) => {
       if (!clubId) return prev;
       // From-push freshness: prefer the just-preloaded localStorage cache
-      // over a stale `prev` so the new message renders at first paint.
+      // over a stale `prev` so the new message renders at first paint —
+      // but only when the cache has a meaningful history window. A single
+      // preloaded row replacing `prev` strands the user with one message
+      // floating at the top of an empty viewport.
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedClubMessages(clubId);
-        if (cachedMessages.length) {
+        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
+        const cachedHasHistory = cachedMessages.length >= 5 || cachedMessages.length > prevLen;
+        if (cachedMessages.length && cachedHasHistory) {
           return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
         }
       }
@@ -1632,7 +1637,7 @@ export default function ClubChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      canPublishToGallery={false}
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}

@@ -29,7 +29,7 @@ import { setChatJumpActive, isChatJumpActive } from "@/lib/chatJumpActive";
  * slow Android devices; tight enough to recover before the next user
  * interaction needs a fresh scroll.
  */
-const EAGER_JUMP_ARM_TIMEOUT_MS = 12_000;
+const EAGER_JUMP_ARM_TIMEOUT_MS = 4_000;
 let eagerJumpClearTimer: ReturnType<typeof setTimeout> | null = null;
 
 function armEagerChatJump(): void {
