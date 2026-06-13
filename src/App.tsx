@@ -136,6 +136,7 @@ const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
+import { setupAndroidWebViewWake } from "@/lib/androidWebViewWake";
 
 // `offlineFirst` lets queryFn run even when the device is offline, so our
 // cache-fallback branches (chat messages, schedule events, etc.) can return
@@ -167,6 +168,8 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter();
+// Force Android WebView to repaint on resume (compositor pauses in background)
+setupAndroidWebViewWake();
 
 // Loading fallback component - uses CSS variables to respect current theme
 const PageLoader = () => (
