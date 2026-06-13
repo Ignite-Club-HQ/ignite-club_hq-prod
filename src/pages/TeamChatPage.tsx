@@ -1551,6 +1551,9 @@ export default function TeamChatPage() {
     teamId: teamId ?? null,
     clubId: team?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: teamId ?? null,
+  });
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
