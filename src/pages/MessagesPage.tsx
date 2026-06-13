@@ -2603,7 +2603,7 @@ export default function MessagesPage() {
           has appear, keeping the inbox uncluttered for simple users. Gated on
           ALL inbox queries having resolved so chips pop in together instead of
           Teams → Groups → DMs appearing one-by-one as each query finishes. */}
-      {(teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched) && (() => {
+      {((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError)) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
           if (c.type === 'team' || c.type === 'league') counts.teams++;
