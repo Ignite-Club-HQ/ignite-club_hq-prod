@@ -289,9 +289,9 @@ export default function ScheduledMessagesPage() {
 
   return (
     <div className="pb-10 max-w-2xl mx-auto">
-      {/* Hero header */}
-      <div className="relative overflow-hidden border-b border-border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-4 pt-4 pb-6">
-        <div className="flex items-start gap-3">
+      {/* Compact header */}
+      <div className="border-b border-border bg-background/90 backdrop-blur-sm px-3 pt-2 pb-2.5 sticky top-0 z-10">
+        <div className="flex items-center gap-1.5">
           <Button
             variant="ghost"
             size="icon"
@@ -301,19 +301,19 @@ export default function ScheduledMessagesPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/20">
-            <Clock className="h-6 w-6" />
-          </div>
+          <Clock className="h-4 w-4 text-primary shrink-0" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">Scheduled messages</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {totalPending === 0
-                ? "Messages you've scheduled to send later"
-                : `${totalPending} message${totalPending === 1 ? "" : "s"} queued to send`}
+            <h1 className="text-base font-semibold leading-tight truncate">Scheduled Messages</h1>
+            <p className="text-[11px] text-muted-foreground leading-tight truncate">
+              Messages scheduled to send later
             </p>
           </div>
+          {totalPending > 0 && (
+            <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
+              {totalPending}
+            </span>
+          )}
         </div>
-
       </div>
 
       {!proLoading && !hasAnyClubPro ? (
@@ -323,19 +323,16 @@ export default function ScheduledMessagesPage() {
           showUpgradeButton={false}
         />
       ) : (
-      <div className="px-4 pt-6 space-y-8">
+      <div className="px-3 pt-4 space-y-6">
         {/* Pending */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Upcoming
-            </h2>
-            {totalPending > 0 && (
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                {totalPending}
-              </span>
-            )}
-          </div>
+        <section className="space-y-2.5">
+          {totalPending > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Upcoming
+              </h2>
+            </div>
+          )}
           {loadingPending ? (
             <div className="space-y-2">
               {[1, 2].map((i) => (
@@ -350,14 +347,23 @@ export default function ScheduledMessagesPage() {
               ))}
             </div>
           ) : pendingRows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-                <Clock className="h-7 w-7 text-muted-foreground" />
+            <div className="flex justify-center pt-6">
+              <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <Clock className="h-6 w-6" />
+                </div>
+                <p className="font-semibold text-[15px]">No scheduled messages yet</p>
+                <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
+                  Long press <span className="font-medium text-foreground">Send</span> in any chat to schedule a message for later.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => navigate("/messages")}
+                >
+                  Open Messages
+                </Button>
               </div>
-              <p className="font-semibold text-base">No scheduled messages</p>
-              <p className="text-sm text-muted-foreground mt-1.5 max-w-xs mx-auto">
-                Schedule a message from any chat to send it at the perfect time.
-              </p>
             </div>
           ) : (
             <div className="space-y-5">
