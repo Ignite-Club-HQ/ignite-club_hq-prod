@@ -258,6 +258,7 @@ export default function EditEventPage() {
 
       // For mini-league (Match Day) events, league admins can edit
       if ((event as any).mini_league_id) {
+        // Check mini_league_admins table (per-league admins)
         const { data: leagueAdmin } = await supabase
           .from("mini_league_admins")
           .select("id")
@@ -265,6 +266,16 @@ export default function EditEventPage() {
           .eq("mini_league_id", (event as any).mini_league_id)
           .maybeSingle();
         if (leagueAdmin) return true;
+
+        // Check club-scoped league_admin role (matches events RLS)
+        const { data: clubLeagueAdmin } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user!.id)
+          .eq("club_id", event.club_id)
+          .eq("role", "league_admin")
+          .maybeSingle();
+        if (clubLeagueAdmin) return true;
       }
       
       return false;
