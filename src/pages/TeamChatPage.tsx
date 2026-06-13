@@ -42,6 +42,7 @@ import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
+import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
@@ -1551,6 +1552,9 @@ export default function TeamChatPage() {
     teamId: teamId ?? null,
     clubId: team?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: teamId ?? null,
+  });
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
@@ -1898,7 +1902,7 @@ export default function TeamChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      canPublishToGallery={galleryWindowOpen && msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
                       isPublishingToGallery={publishingIds.has(msg.id)}
                       isPublishedToGallery={publishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}

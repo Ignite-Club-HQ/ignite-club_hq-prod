@@ -59,6 +59,7 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
+import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
@@ -2012,6 +2013,10 @@ export default function GroupChatPage() {
     teamId: group?.team_id ?? null,
     clubId: group?.club_id ?? null,
   });
+  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+    teamId: group?.team_id ?? null,
+    miniLeagueId: group?.mini_league_id ?? null,
+  });
 
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
@@ -2249,7 +2254,7 @@ export default function GroupChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && !!group?.team_id}
+                      canPublishToGallery={galleryWindowOpen && isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.mini_league_id)}
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}
