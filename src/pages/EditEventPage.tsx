@@ -493,8 +493,9 @@ export default function EditEventPage() {
       return;
     }
 
-    // Require team selection for games and training
-    if ((type === "game" || type === "training") && !selectedTeamId) {
+    // Require team selection for games and training, except mini-league events
+    const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
+    if ((type === "game" || type === "training") && !selectedTeamId && !isMiniLeagueEvent) {
       toast({
         title: "Team required",
         description: "Please select a team for games and training sessions.",
