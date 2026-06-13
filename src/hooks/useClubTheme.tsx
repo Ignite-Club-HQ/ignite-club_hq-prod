@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
 import { preloadLogo } from "@/components/ui/logo-image";
+import { consumeAuthThemeHint } from "@/lib/authThemeHint";
+
 
 interface HSLColor {
   h: number;
@@ -481,13 +483,25 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const loadThemeFromDb = async () => {
         setIsLoadingFromDb(true);
         try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('active_club_theme_id')
-            .eq('id', user.id)
-            .single();
-          
+          // Short-circuit the profiles round-trip when useAuth.fetchProfile
+          // just retrieved active_club_theme_id during the SIGNED_IN gate.
+          const hint = consumeAuthThemeHint(user.id);
+          let data: { active_club_theme_id: string | null } | null = null;
+          let error: unknown = null;
+          if (hint) {
+            data = { active_club_theme_id: hint.value };
+          } else {
+            const res = await supabase
+              .from('profiles')
+              .select('active_club_theme_id')
+              .eq('id', user.id)
+              .single();
+            data = res.data as any;
+            error = res.error;
+          }
+
           if (!error && data) {
+
             // We successfully fetched profile data
             if (data.active_club_theme_id) {
               // Database has a club theme preference - use it (overrides localStorage for cross-device sync)
