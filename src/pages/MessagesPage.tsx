@@ -798,6 +798,7 @@ export default function MessagesPage() {
   // Fetch chat groups with their latest messages in a single query
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       // Perf: pre-filter via SECURITY DEFINER RPC that returns just the
       // accessible group ids (scope-table lookup), then do a PK select on
