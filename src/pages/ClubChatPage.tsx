@@ -1266,6 +1266,7 @@ export default function ClubChatPage() {
   });
 
   const handleSend = () => {
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
     // BEFORE reading message state. Without this, a tap on Send mid-word
     // sends the partial/garbled composing fragment ("wothpur" → "without").

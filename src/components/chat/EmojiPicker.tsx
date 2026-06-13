@@ -138,6 +138,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     }
   }, [open]);
 
+  // Close the popover when a chat message is sent. Otherwise the popover
+  // stays anchored to the trigger and visibly re-positions ("jumps") as the
+  // message list updates and the composer / viewport re-layouts beneath it.
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener("chat:message-sent", close);
+    return () => window.removeEventListener("chat:message-sent", close);
+  }, []);
+
   const handleEmojiClick = useCallback((emoji: string) => {
     // Keep the textarea focused so the native keyboard stays up — users
     // typically insert an emoji mid-sentence and want to keep typing.

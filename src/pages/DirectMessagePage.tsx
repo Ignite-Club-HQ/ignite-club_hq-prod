@@ -1038,6 +1038,7 @@ export default function DirectMessagePage() {
   );
 
   const handleSend = () => {
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     // Flush IME composition before reading composer state (see TeamChatPage).
     // Re-focus on next tick so the keyboard stays open and the thread does
     // not jump upward after sending.
