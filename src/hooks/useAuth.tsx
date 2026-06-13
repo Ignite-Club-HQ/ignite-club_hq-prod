@@ -216,9 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const fetchPromise = supabase
           .from("profiles")
-          .select("id, display_name, avatar_url, ignite_points, theme_preference, events_view_mode")
+          .select("id, display_name, avatar_url, ignite_points, theme_preference, events_view_mode, active_club_theme_id")
           .eq("id", userId)
           .maybeSingle();
+
         
         const result = await Promise.race([fetchPromise, timeoutPromise]);
         const { data, error } = result;
@@ -240,6 +241,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfileResolved(true);
           setCachedProfile(profileData, userId);
           setProfileError(false);
+          // Hand the freshly-fetched active_club_theme_id to useClubTheme so it
+          // can skip its own profiles round-trip on cold-login Gate 2.
+          try {
+            setAuthThemeHint(userId, (data as any).active_club_theme_id ?? null);
+          } catch { /* noop */ }
+
           
           // HARD RULE: If profile has display_name, set the profileCompleted flag for this user
           // This ensures invite flow progress dots never appear for users with completed profiles
