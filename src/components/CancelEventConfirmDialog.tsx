@@ -46,6 +46,8 @@ export function CancelEventConfirmDialog({
   const [customMessage, setCustomMessage] = useState("");
   const [sendPushNotification, setSendPushNotification] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const keyboardBottomInset = useNativeKeyboardBottomInset();
+
 
   useEffect(() => {
     if (open) {
