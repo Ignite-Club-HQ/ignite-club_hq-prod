@@ -255,6 +255,17 @@ export default function EditEventPage() {
         
         if (teamRoleData && teamRoleData.length > 0) return true;
       }
+
+      // For mini-league (Match Day) events, league admins can edit
+      if ((event as any).mini_league_id) {
+        const { data: leagueAdmin } = await supabase
+          .from("mini_league_admins")
+          .select("id")
+          .eq("user_id", user!.id)
+          .eq("mini_league_id", (event as any).mini_league_id)
+          .maybeSingle();
+        if (leagueAdmin) return true;
+      }
       
       return false;
     },
