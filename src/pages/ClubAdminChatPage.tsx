@@ -951,15 +951,18 @@ export default function ClubAdminChatPage() {
           />
         )}
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-        {pendingPollId && !editingMessage && (
-          <PollAttachmentPreview
-            pollId={pendingPollId}
-            onRemove={() => setPendingPollId(null)}
-            disabled={sendMessageMutation.isPending}
-          />
-        )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <ChatComposerShell>
+        <ChatComposerShell
+          preview={
+            pendingPollId && !editingMessage ? (
+              <PollAttachmentPreview
+                pollId={pendingPollId}
+                onRemove={() => setPendingPollId(null)}
+                disabled={sendMessageMutation.isPending}
+              />
+            ) : undefined
+          }
+        >
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
