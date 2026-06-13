@@ -329,6 +329,7 @@ export default function MessagesPage() {
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
@@ -433,8 +434,9 @@ export default function MessagesPage() {
   const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
-  const { data: latestBroadcast, isFetched: latestBroadcastFetched } = useQuery({
+  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isError: latestBroadcastError } = useQuery({
     queryKey: ["latest-broadcast"],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data } = await supabase
         .from("broadcast_messages")
@@ -476,6 +478,7 @@ export default function MessagesPage() {
   const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isError: teamsError } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
@@ -795,6 +798,7 @@ export default function MessagesPage() {
   // Fetch chat groups with their latest messages in a single query
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       // Perf: pre-filter via SECURITY DEFINER RPC that returns just the
       // accessible group ids (scope-table lookup), then do a PK select on
@@ -974,8 +978,9 @@ export default function MessagesPage() {
   });
 
   // Fetch DM conversations
-  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
+  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched, isError: dmError } = useQuery({
     queryKey: ["dm-conversations", user?.id],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       // Note: session freshness is handled globally by the auth listener /
       // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
@@ -1841,7 +1846,16 @@ export default function MessagesPage() {
   // visibility is the only thing it gates, and DMs settle into the already-
   // rendered list in-place (no re-sort jump) because they sort by their own
   // lastActivity alongside the rest.
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && dmFetched;
+  // Treat errored queries as "settled" — otherwise a network drop during the
+  // initial load leaves `isFetched` false forever, and the inbox is stuck on
+  // the skeleton even after coverage returns. The errored query will retry
+  // on reconnect (refetchOnReconnect: "always") and rehydrate in place.
+  const freshSortDataReady =
+    (teamsFetched || teamsError) &&
+    (memberClubsFetched || memberClubsError) &&
+    (chatGroupsFetched || chatGroupsError) &&
+    (latestBroadcastFetched || latestBroadcastError) &&
+    (dmFetched || dmError);
   const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
 
 
@@ -2589,7 +2603,7 @@ export default function MessagesPage() {
           has appear, keeping the inbox uncluttered for simple users. Gated on
           ALL inbox queries having resolved so chips pop in together instead of
           Teams → Groups → DMs appearing one-by-one as each query finishes. */}
-      {(teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched) && (() => {
+      {((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError)) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
           if (c.type === 'team' || c.type === 'league') counts.teams++;
