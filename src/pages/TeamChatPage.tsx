@@ -42,6 +42,7 @@ import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
+import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
