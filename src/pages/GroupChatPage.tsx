@@ -624,10 +624,15 @@ export default function GroupChatPage() {
     placeholderData: (prev: any) => {
       if (!groupId) return prev;
       // From-push freshness: prefer the just-preloaded localStorage cache
-      // over a stale `prev` so the new message renders at first paint.
+      // over a stale `prev` so the new message renders at first paint —
+      // but only when the cache has a meaningful history window. A single
+      // preloaded row replacing `prev` strands the user with one message
+      // floating at the top of an empty viewport.
       if (openedFromNotificationRef.current) {
         const cachedData = getCachedGroupMessages(groupId);
-        if (cachedData.messages.length) {
+        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
+        const cachedHasHistory = cachedData.messages.length >= 5 || cachedData.messages.length > prevLen;
+        if (cachedData.messages.length && cachedHasHistory) {
           return { ...cachedData, hasOlderMessages: false, fromCache: true };
         }
       }
