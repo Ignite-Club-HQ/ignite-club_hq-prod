@@ -1653,15 +1653,18 @@ export default function ClubChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          {pendingPollId && !editingMessage && (
-            <PollAttachmentPreview
-              pollId={pendingPollId}
-              onRemove={() => setPendingPollId(null)}
-              disabled={sendMutation.isPending}
-            />
-          )}
           {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-          <ChatComposerShell>
+          <ChatComposerShell
+            preview={
+              pendingPollId && !editingMessage ? (
+                <PollAttachmentPreview
+                  pollId={pendingPollId}
+                  onRemove={() => setPendingPollId(null)}
+                  disabled={sendMutation.isPending}
+                />
+              ) : undefined
+            }
+          >
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
