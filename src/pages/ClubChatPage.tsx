@@ -1632,7 +1632,7 @@ export default function ClubChatPage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
                       onUnpin={unpinMessage}
-                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      canPublishToGallery={false}
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}
