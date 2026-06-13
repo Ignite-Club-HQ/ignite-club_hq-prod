@@ -678,7 +678,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             );
           }
 
-          const isMiniLeagueOnly = !event.team_id && !!event.mini_league_id;
+          // Club-wide events (no team) should surface their actual title rather than the generic "Club event" label.
+          const isClubWideTitled = !event.team_id && !!event.title?.trim();
           return (
             <div className="space-y-1.5">
               {/* Match Day eyebrow — only competitive events earn extra vertical space */}
@@ -687,8 +688,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                   Match Day
                 </span>
               )}
-              {/* PRIMARY: team identity as title — or actual event title for mini-league events with no team */}
-              {isMiniLeagueOnly ? (
+              {/* PRIMARY: team identity as title — or actual event title for club-wide events with no team */}
+              {isClubWideTitled ? (
                 <h3 className={`text-[15px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
