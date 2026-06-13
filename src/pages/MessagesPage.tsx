@@ -1846,7 +1846,16 @@ export default function MessagesPage() {
   // visibility is the only thing it gates, and DMs settle into the already-
   // rendered list in-place (no re-sort jump) because they sort by their own
   // lastActivity alongside the rest.
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && dmFetched;
+  // Treat errored queries as "settled" — otherwise a network drop during the
+  // initial load leaves `isFetched` false forever, and the inbox is stuck on
+  // the skeleton even after coverage returns. The errored query will retry
+  // on reconnect (refetchOnReconnect: "always") and rehydrate in place.
+  const freshSortDataReady =
+    (teamsFetched || teamsError) &&
+    (memberClubsFetched || memberClubsError) &&
+    (chatGroupsFetched || chatGroupsError) &&
+    (latestBroadcastFetched || latestBroadcastError) &&
+    (dmFetched || dmError);
   const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
 
 
