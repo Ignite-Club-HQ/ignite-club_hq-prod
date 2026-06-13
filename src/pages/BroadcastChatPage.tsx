@@ -924,6 +924,7 @@ export default function BroadcastChatPage() {
   });
 
   const handleSend = () => {
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
