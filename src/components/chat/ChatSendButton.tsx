@@ -165,6 +165,7 @@ export function ChatSendButton({
       )}
       <button
         type="button"
+        data-chat-send-button="true"
         onClick={handleClick}
         onPointerDown={startLongPress}
         onPointerUp={endLongPress}
