@@ -329,6 +329,7 @@ export default function MessagesPage() {
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
