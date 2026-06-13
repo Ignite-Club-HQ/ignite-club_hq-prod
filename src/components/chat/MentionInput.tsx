@@ -733,6 +733,37 @@ export function MentionInput({
   }, [mentionStartIndex, mentionSearch, value, onChange, segments]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Backspace at the end of a mention → delete the entire mention tag.
+    if (e.key === "Backspace" && !e.shiftKey) {
+      const ta = e.currentTarget;
+      const start = ta.selectionStart ?? 0;
+      const end = ta.selectionEnd ?? 0;
+      if (start === end && start > 0) {
+        let dispAccum = 0;
+        let rawAccum = 0;
+        for (const seg of segments) {
+          const segDispEnd = dispAccum + seg.display.length;
+          const segRawEnd = rawAccum + seg.raw.length;
+          if (seg.type === "mention" && start === segDispEnd) {
+            e.preventDefault();
+            const newRaw = value.slice(0, rawAccum) + value.slice(segRawEnd);
+            onChange(newRaw);
+            setTimeout(() => {
+              if (inputRef.current) {
+                inputRef.current.focus();
+                const newSegs = parseRawValue(newRaw);
+                const newDispCursor = rawToDisplayCursor(newSegs, rawAccum);
+                inputRef.current.setSelectionRange(newDispCursor, newDispCursor);
+              }
+            }, 0);
+            return;
+          }
+          dispAccum = segDispEnd;
+          rawAccum = segRawEnd;
+        }
+      }
+    }
+
     if (!showSuggestions || !users || users.length === 0) {
       // On iOS native, Enter should insert a newline (matches iMessage / WhatsApp).
       // Sending is done via the explicit Send button. On desktop, Enter still sends
@@ -743,6 +774,7 @@ export function MentionInput({
       }
       return;
     }
+
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -758,7 +790,7 @@ export function MentionInput({
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
-  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress, isNativeIOS]);
+  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress, isNativeIOS, segments, value, onChange]);
 
   // Close suggestions when clicking outside (but not inside our component)
   const containerRef = useRef<HTMLDivElement>(null);

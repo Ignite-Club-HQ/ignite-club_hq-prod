@@ -451,7 +451,7 @@ export default function DirectMessagePage() {
     },
     enabled: !!otherUserId && authReady,
     staleTime: 30 * 1000, // Shorter stale time - 30 seconds
-    refetchOnMount: true, // Always re-check when returning to page
+    refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet)
   });
 
   // Memoize query key to prevent ChatMessage memo breaks
@@ -563,7 +563,7 @@ export default function DirectMessagePage() {
     enabled: !!conversationId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.

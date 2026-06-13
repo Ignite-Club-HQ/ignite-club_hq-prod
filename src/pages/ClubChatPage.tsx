@@ -512,7 +512,7 @@ export default function ClubChatPage() {
     enabled: !!clubId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true,
+    refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
       if (!clubId) return prev;

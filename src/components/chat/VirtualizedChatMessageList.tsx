@@ -791,19 +791,26 @@ const ChatRowAdapter = memo(
  * and `pointer-events-none` so the user can still scroll/tap underneath if
  * they want to abort.
  */
-function JumpHydrationSkeleton() {
+function JumpHydrationSkeleton({ visible = true }: { visible?: boolean }) {
   const rows = [82, 64, 96, 72, 88, 60, 78];
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6"
       style={{
+        // Solid background — any translucency lets the underlying virtualised
+        // list bleed through and the user sees the multi-pass settle "bobble"
+        // as deferred row heights stabilise. Solid + fade-out transition
+        // makes the chat appear fully settled when the overlay lifts.
         // NOTE: do NOT add backdrop-filter here. On Android WebView, a
         // backdrop blur layered over a virtualised scroller forces the
         // compositor to re-rasterise on every scroll frame and causes
-        // multi-second freezes. The gradient alone is sufficient.
-        background:
-          "linear-gradient(to bottom, hsl(var(--background) / 0.96), hsl(var(--background)))",
+        // multi-second freezes.
+        background: "hsl(var(--background))",
+        opacity: visible ? 1 : 0,
+        // Slow fade-out so the underlying chat is already stationary by the
+        // time it becomes visible — no perceptible bobble after a deep link.
+        transition: "opacity 260ms ease-out",
       }}
     >
       {rows.map((width, i) => (
@@ -821,6 +828,7 @@ function JumpHydrationSkeleton() {
     </div>
   );
 }
+
 
 /**
  * Defers prepended history pages until the user's scroll gesture has gone
@@ -2106,20 +2114,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // overlay (the CustomEvent itself would have been dispatched before our
   // listener was attached and silently lost).
   const [isJumpHydrating, setIsJumpHydrating] = useState(() => isChatJumpActive());
+  // Keep the skeleton mounted (with opacity 0) for the duration of its
+  // CSS fade-out transition, so a deep-link landing reads as "load → settled"
+  // instead of "load → bobble → snap" when the overlay disappears.
+  const [renderJumpOverlay, setRenderJumpOverlay] = useState(() => isChatJumpActive());
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    let unmountTimer: ReturnType<typeof setTimeout> | null = null;
     const onStart = () => {
-      if (fadeTimer) {
-        clearTimeout(fadeTimer);
-        fadeTimer = null;
-      }
+      if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
+      if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
+      setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
     };
     const onEnd = () => {
-      // Slight delay before hiding so the cross-fade reads as intentional
-      // rather than a flash if hydration finishes in <100ms.
       if (fadeTimer) clearTimeout(fadeTimer);
-      fadeTimer = setTimeout(() => setIsJumpHydrating(false), 120);
+      // Slight delay before fading so the cross-fade reads as intentional
+      // rather than a flash if hydration finishes in <100ms.
+      fadeTimer = setTimeout(() => {
+        setIsJumpHydrating(false);
+        // Unmount after the 260ms opacity transition completes.
+        if (unmountTimer) clearTimeout(unmountTimer);
+        unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
+      }, 120);
     };
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
@@ -2136,8 +2153,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       window.removeEventListener("chat:jump-hydration-end", onEnd);
       unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
+      if (unmountTimer) clearTimeout(unmountTimer);
     };
   }, []);
+
 
   return (
     <div
@@ -2224,7 +2243,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       context={virtuosoContext}
       components={components as any}
     />
-    {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    {renderJumpOverlay ? <JumpHydrationSkeleton visible={isJumpHydrating} /> : null}
     </div>
     </div>
   );

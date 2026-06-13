@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
+
 
 interface RecurringCancelEventDialogProps {
   open: boolean;
@@ -44,6 +46,8 @@ export function RecurringCancelEventDialog({
   const [customMessage, setCustomMessage] = useState("");
   const [sendPushNotification, setSendPushNotification] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const keyboardBottomInset = useNativeKeyboardBottomInset();
+
 
   useEffect(() => {
     if (open) {
@@ -137,7 +141,11 @@ export function RecurringCancelEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent
+        className="sm:max-w-[425px] top-[max(0.75rem,env(safe-area-inset-top))] translate-y-0 sm:top-[50%] sm:translate-y-[-50%] p-4 sm:p-6 gap-3"
+        style={{ maxHeight: `calc(100dvh - ${keyboardBottomInset + 24}px)` }}
+      >
+
         <DialogHeader>
           <DialogTitle>Cancel {typeLabel}?</DialogTitle>
           <DialogDescription className="space-y-2">
