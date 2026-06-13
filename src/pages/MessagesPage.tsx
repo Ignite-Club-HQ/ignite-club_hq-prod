@@ -975,8 +975,9 @@ export default function MessagesPage() {
   });
 
   // Fetch DM conversations
-  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
+  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched, isError: dmError } = useQuery({
     queryKey: ["dm-conversations", user?.id],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       // Note: session freshness is handled globally by the auth listener /
       // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
