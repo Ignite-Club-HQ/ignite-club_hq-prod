@@ -892,7 +892,6 @@ export default function EditEventPage() {
                     </div>
                   </div>
 
-                  </div>
                 ) : (
                   <MobileCardSelect
                     value={selectedTeamId || (type === "social" ? "__none__" : "")}
