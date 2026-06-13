@@ -85,6 +85,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
+  const closingForMessageSendRef = useRef(false);
+  const closeResetTimerRef = useRef<number | null>(null);
   const showGifTab = !!onGifSelect;
   // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
   // of inside the popover so the search input + results never get covered.
@@ -149,7 +151,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     let lastH = vv.height;
     const onResize = () => {
       const h = vv.height;
-      if (h - lastH > 120) setOpen(false);
+      if (h - lastH > 120 && !closingForMessageSendRef.current) setOpen(false);
       lastH = h;
     };
     vv.addEventListener("resize", onResize);
@@ -159,9 +161,20 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   // Close on message send so the popover doesn't re-position over an
   // updating message list.
   useEffect(() => {
-    const close = () => setOpen(false);
+    const close = () => {
+      closingForMessageSendRef.current = true;
+      if (closeResetTimerRef.current !== null) window.clearTimeout(closeResetTimerRef.current);
+      setOpen(false);
+      closeResetTimerRef.current = window.setTimeout(() => {
+        closingForMessageSendRef.current = false;
+        closeResetTimerRef.current = null;
+      }, 500);
+    };
     window.addEventListener("chat:message-sent", close);
-    return () => window.removeEventListener("chat:message-sent", close);
+    return () => {
+      window.removeEventListener("chat:message-sent", close);
+      if (closeResetTimerRef.current !== null) window.clearTimeout(closeResetTimerRef.current);
+    };
   }, []);
 
 
