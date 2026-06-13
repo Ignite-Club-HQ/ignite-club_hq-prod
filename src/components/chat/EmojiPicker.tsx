@@ -290,6 +290,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             e.preventDefault();
             return;
           }
+          if (target.closest('[data-chat-send-button]')) {
+            e.preventDefault();
+            return;
+          }
           if (!target.closest('[data-emoji-button]')) {
             setOpen(false);
           }

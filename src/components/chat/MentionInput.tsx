@@ -364,7 +364,8 @@ export function MentionInput({
 
   useEffect(() => {
     if (isComposingRef.current) return;
-    adjustHeight();
+    const frame = requestAnimationFrame(adjustHeight);
+    return () => cancelAnimationFrame(frame);
   }, [value, adjustHeight]);
 
   useEffect(() => {
