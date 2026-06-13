@@ -138,14 +138,24 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     }
   }, [open]);
 
-  // Close the popover when a chat message is sent. Otherwise the popover
-  // stays anchored to the trigger and visibly re-positions ("jumps") as the
-  // message list updates and the composer / viewport re-layouts beneath it.
+  // Close when the soft keyboard is dismissed while the picker is open.
+  // The popover anchors to the trigger and won't reflow when the visual
+  // viewport grows, so it would otherwise float mid-screen above an empty
+  // gap where the keyboard used to be.
   useEffect(() => {
-    const close = () => setOpen(false);
-    window.addEventListener("chat:message-sent", close);
-    return () => window.removeEventListener("chat:message-sent", close);
-  }, []);
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastH = vv.height;
+    const onResize = () => {
+      const h = vv.height;
+      if (h - lastH > 120) setOpen(false);
+      lastH = h;
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [open]);
+
 
   const handleEmojiClick = useCallback((emoji: string) => {
     // Keep the textarea focused so the native keyboard stays up — users
