@@ -156,6 +156,16 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     return () => vv.removeEventListener("resize", onResize);
   }, [open]);
 
+  // Close on message send so the popover doesn't re-position over an
+  // updating message list.
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener("chat:message-sent", close);
+    return () => window.removeEventListener("chat:message-sent", close);
+  }, []);
+
+
+
 
   const handleEmojiClick = useCallback((emoji: string) => {
     // Keep the textarea focused so the native keyboard stays up — users
