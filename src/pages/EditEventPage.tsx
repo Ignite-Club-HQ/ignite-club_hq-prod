@@ -600,11 +600,13 @@ export default function EditEventPage() {
               parent_event_id: id,
               club_id: event!.club_id,
               team_id: event!.team_id,
+              mini_league_id: event!.mini_league_id ?? null,
               is_recurring: true,
               recurrence_end_date: recurrenceEndDate,
               created_by: user!.id,
             };
           });
+
 
           const { error: childError } = await supabase
             .from("events")
