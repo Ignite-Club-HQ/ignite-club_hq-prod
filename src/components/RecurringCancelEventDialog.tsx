@@ -137,7 +137,7 @@ export function RecurringCancelEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] top-[max(1rem,env(safe-area-inset-top))] translate-y-0 sm:top-[50%] sm:translate-y-[-50%] max-h-[calc(100dvh-2rem)]">
         <DialogHeader>
           <DialogTitle>Cancel {typeLabel}?</DialogTitle>
           <DialogDescription className="space-y-2">
