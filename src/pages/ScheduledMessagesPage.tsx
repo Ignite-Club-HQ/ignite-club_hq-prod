@@ -291,18 +291,16 @@ export default function ScheduledMessagesPage() {
     <div className="pb-10 max-w-2xl mx-auto">
       {/* Hero header */}
       <div className="relative overflow-hidden border-b border-border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-4 pt-4 pb-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-start gap-3">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate(-1)}
-            className="h-9 w-9 -ml-2"
+            className="h-9 w-9 -ml-2 shrink-0"
             aria-label="Back"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-        </div>
-        <div className="flex items-start gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/20">
             <Clock className="h-6 w-6" />
           </div>
@@ -315,6 +313,7 @@ export default function ScheduledMessagesPage() {
             </p>
           </div>
         </div>
+
       </div>
 
       {!proLoading && !hasAnyClubPro ? (
