@@ -433,8 +433,9 @@ export default function MessagesPage() {
   const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
-  const { data: latestBroadcast, isFetched: latestBroadcastFetched } = useQuery({
+  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isError: latestBroadcastError } = useQuery({
     queryKey: ["latest-broadcast"],
+    refetchOnReconnect: "always",
     queryFn: async () => {
       const { data } = await supabase
         .from("broadcast_messages")
