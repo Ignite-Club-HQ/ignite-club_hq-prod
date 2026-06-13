@@ -790,7 +790,7 @@ export function MentionInput({
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
-  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress, isNativeIOS]);
+  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress, isNativeIOS, segments, value, onChange]);
 
   // Close suggestions when clicking outside (but not inside our component)
   const containerRef = useRef<HTMLDivElement>(null);
