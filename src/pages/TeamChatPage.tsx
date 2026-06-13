@@ -675,7 +675,7 @@ export default function TeamChatPage() {
     enabled: !!teamId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
-    refetchOnMount: true, // Always refetch on mount to pick up reactions/messages added while away
+    refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
