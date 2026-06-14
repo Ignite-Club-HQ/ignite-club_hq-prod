@@ -624,10 +624,18 @@ export default function MiniLeagueDetailPage() {
           </div>
 
           {/* Staff (League Admins) */}
-          {(leagueMembers.staff.length > 0 || isClubAdmin) && (
+          {(leagueMembers.staff.length > 0 || isClubAdmin || (pendingAdminInvites?.length ?? 0) > 0) && (
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <p className="text-sm font-medium text-muted-foreground">League Admins</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-muted-foreground">League Admins</p>
+                  {(pendingAdminInvites?.length ?? 0) > 0 && (
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                      <Mail className="h-3 w-3" />
+                      {pendingAdminInvites!.length} pending
+                    </Badge>
+                  )}
+                </div>
                 {isClubAdmin && (
                   <Button
                     variant="ghost"
@@ -640,7 +648,7 @@ export default function MiniLeagueDetailPage() {
                   </Button>
                 )}
               </div>
-              {leagueMembers.staff.length === 0 ? (
+              {leagueMembers.staff.length === 0 && (pendingAdminInvites?.length ?? 0) === 0 ? (
                 <p className="text-xs text-muted-foreground px-1 py-1">
                   No league admins yet. Add one to delegate management of this mini-league.
                 </p>
@@ -666,6 +674,30 @@ export default function MiniLeagueDetailPage() {
                             League Admin
                           </Badge>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {(pendingAdminInvites ?? []).map((invite: any) => (
+                    <Card
+                      key={invite.id}
+                      className="border-dashed cursor-pointer hover:bg-muted/40 transition-colors"
+                      onClick={() => isClubAdmin && setManageAdminsOpen(true)}
+                    >
+                      <CardContent className="p-3 flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-sm">
+                            {(invite.invited_label || invite.invited_email || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{invite.invited_label || "Invited admin"}</p>
+                          {invite.invited_email && (
+                            <p className="text-xs text-muted-foreground truncate">{invite.invited_email}</p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-xs shrink-0 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                          Pending
+                        </Badge>
                       </CardContent>
                     </Card>
                   ))}
