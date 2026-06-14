@@ -17,6 +17,7 @@ import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialo
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { ManageMiniLeagueAdminsSheet } from "@/components/mini-league/ManageMiniLeagueAdminsSheet";
+import PendingInvitesList from "@/components/PendingInvitesList";
 
 interface MiniLeagueEvent {
   id: string;
@@ -296,15 +297,14 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!id,
   });
 
-  // Pending league_admin email invites for this mini-league
-  const { data: pendingAdminInvites } = useQuery({
-    queryKey: ["mini-league-pending-admin-invites-inline", id, league?.club_id],
+  // Pending email invites for this mini-league (parents added via player invites + league admins)
+  const { data: pendingInvitesAll } = useQuery({
+    queryKey: ["mini-league-pending-invites-inline", id, league?.club_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, invited_label, invited_email, created_at, email_sent_at, metadata")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
         .eq("club_id", league!.club_id)
-        .eq("role", "league_admin")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -312,7 +312,8 @@ export default function MiniLeagueDetailPage() {
         (r: any) =>
           r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata) &&
           r.metadata.mini_league_id === id &&
-          r.metadata.kind !== "league_admin_join_link",
+          r.metadata.kind !== "league_admin_join_link" &&
+          r.metadata.kind !== "mini_league_parent_join_link",
       );
     },
     enabled: !!league?.club_id && !!id && !!canManageLeague,
@@ -624,18 +625,10 @@ export default function MiniLeagueDetailPage() {
           </div>
 
           {/* Staff (League Admins) */}
-          {(leagueMembers.staff.length > 0 || isClubAdmin || (pendingAdminInvites?.length ?? 0) > 0) && (
+          {(leagueMembers.staff.length > 0 || isClubAdmin) && (
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-muted-foreground">League Admins</p>
-                  {(pendingAdminInvites?.length ?? 0) > 0 && (
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
-                      <Mail className="h-3 w-3" />
-                      {pendingAdminInvites!.length} pending
-                    </Badge>
-                  )}
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">League Admins</p>
                 {isClubAdmin && (
                   <Button
                     variant="ghost"
@@ -648,7 +641,7 @@ export default function MiniLeagueDetailPage() {
                   </Button>
                 )}
               </div>
-              {leagueMembers.staff.length === 0 && (pendingAdminInvites?.length ?? 0) === 0 ? (
+              {leagueMembers.staff.length === 0 ? (
                 <p className="text-xs text-muted-foreground px-1 py-1">
                   No league admins yet. Add one to delegate management of this mini-league.
                 </p>
@@ -674,30 +667,6 @@ export default function MiniLeagueDetailPage() {
                             League Admin
                           </Badge>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {(pendingAdminInvites ?? []).map((invite: any) => (
-                    <Card
-                      key={invite.id}
-                      className="border-dashed cursor-pointer hover:bg-muted/40 transition-colors"
-                      onClick={() => isClubAdmin && setManageAdminsOpen(true)}
-                    >
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-sm">
-                            {(invite.invited_label || invite.invited_email || "?").charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{invite.invited_label || "Invited admin"}</p>
-                          {invite.invited_email && (
-                            <p className="text-xs text-muted-foreground truncate">{invite.invited_email}</p>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-xs shrink-0 border-amber-500/40 text-amber-600 dark:text-amber-400">
-                          Pending
-                        </Badge>
                       </CardContent>
                     </Card>
                   ))}
@@ -728,6 +697,21 @@ export default function MiniLeagueDetailPage() {
                   </Card>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Pending Invites (parents added via player invites + league admin email invites) */}
+          {canManageLeague && (pendingInvitesAll?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground px-1 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5" />
+                Pending Invites
+              </p>
+              <PendingInvitesList
+                invites={pendingInvitesAll as any}
+                clubId={league?.club_id}
+                isAdmin={!!isClubAdmin}
+              />
             </div>
           )}
         </div>
