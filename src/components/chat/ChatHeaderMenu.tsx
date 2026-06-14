@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ interface ChatHeaderMenuProps {
   onEditGroup?: () => void;
   onDeleteGroup?: () => void;
   onSearch?: () => void;
+  /** Open the schedule-message dialog for the current conversation. */
+  onScheduleMessage?: () => void;
   /** Open the pinned-vault management sheet (admins only). */
   onManagePinnedVault?: () => void;
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
@@ -30,6 +32,7 @@ export function ChatHeaderMenu({
   onEditGroup,
   onDeleteGroup,
   onSearch,
+  onScheduleMessage,
   onManagePinnedVault,
   pinnedVaultEnabled,
   onTogglePinnedVault,
@@ -40,6 +43,7 @@ export function ChatHeaderMenu({
     || !!onEditGroup
     || !!onDeleteGroup
     || !!onSearch
+    || !!onScheduleMessage
     || !!onManagePinnedVault;
   if (!hasAnyAction) return null;
 
@@ -49,6 +53,7 @@ export function ChatHeaderMenu({
     && !onEditGroup
     && !onDeleteGroup
     && !onSearch
+    && !onScheduleMessage
     && !onManagePinnedVault;
   if (isRefreshOnly) {
     return (
