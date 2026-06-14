@@ -386,8 +386,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         supabase
           .from("children")
           .select("name, parent_id")
-          .in("parent_id", uniqueUserIds)
-          .is("deleted_at" as any, null as any),
+          .in("parent_id", uniqueUserIds),
         supabase
           .from("direct_conversations")
           .select("participant_1, participant_2")
