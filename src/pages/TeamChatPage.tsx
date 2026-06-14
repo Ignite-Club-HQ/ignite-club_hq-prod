@@ -280,6 +280,7 @@ export default function TeamChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
