@@ -57,6 +57,8 @@ interface PendingInviteCardProps {
     email_sent_at?: string | null;
     email_id?: string | null;
     email_error?: string | null;
+    last_reminder_sent_at?: string | null;
+    reminder_count?: number | null;
     profiles?: {
       id: string;
       display_name: string | null;
