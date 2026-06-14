@@ -504,9 +504,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
               )}
             </div>
             {isAdmin && invite.invited_email && (
-              <button
+            <button
                 type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors mt-0.5 max-w-full min-w-0 w-full"
+                className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors mt-0.5 max-w-full min-w-0 w-full"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigator.clipboard.writeText(invite.invited_email!);
