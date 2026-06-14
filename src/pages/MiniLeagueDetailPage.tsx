@@ -39,6 +39,7 @@ export default function MiniLeagueDetailPage() {
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
   const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   const { data: league, isLoading: leagueLoading } = useQuery({
     queryKey: ["mini-league", id],
