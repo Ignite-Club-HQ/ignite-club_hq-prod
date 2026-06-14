@@ -858,6 +858,7 @@ export default function ClubAdminChatPage() {
           <ChatHeaderMenu
             onRefresh={handleManualRefresh}
             isRefreshing={isManualRefreshing}
+            onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
           />
         </div>
       </div>
