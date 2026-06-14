@@ -276,6 +276,17 @@ export function consumePendingChatJump(kind: ChatJumpKind, targetId: string | nu
  * even if the search param is stripped during navigation.
  */
 export function captureJumpFromNotification(data: any, url: string | null | undefined): void {
+  // Same non-chat guard as normalizeNotificationChatUrl — never stash a
+  // pending chat jump for /media, /schedule, /profile, etc. pushes.
+  if (url) {
+    try {
+      const path = new URL(url, "https://placeholder.local").pathname;
+      const isChatPath = path.startsWith("/messages") || path.startsWith("/groups/");
+      if (!isChatPath) return;
+    } catch {
+      return;
+    }
+  }
   const target = getJumpTarget(data, url);
   if (!target) return;
   setPendingChatJump(target.kind, target.targetId, target.messageId);
