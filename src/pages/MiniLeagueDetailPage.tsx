@@ -698,6 +698,21 @@ export default function MiniLeagueDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Pending Invites (parents added via player invites + league admin email invites) */}
+          {canManageLeague && (pendingInvitesAll?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground px-1 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5" />
+                Pending Invites
+              </p>
+              <PendingInvitesList
+                invites={pendingInvitesAll as any}
+                clubId={league?.club_id}
+                isAdmin={!!isClubAdmin}
+              />
+            </div>
+          )}
         </div>
       )}
 
