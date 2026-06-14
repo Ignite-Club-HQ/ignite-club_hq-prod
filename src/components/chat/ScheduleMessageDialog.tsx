@@ -356,7 +356,7 @@ export function ScheduleMessageDialog({
         </div>
         )}
 
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+        <ResponsiveDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2 px-0 pb-2 sm:pb-0">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -371,8 +371,8 @@ export function ScheduleMessageDialog({
               {isEditing ? "Save changes" : "Schedule"}
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
