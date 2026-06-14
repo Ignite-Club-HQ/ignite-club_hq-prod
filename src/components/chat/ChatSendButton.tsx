@@ -33,6 +33,7 @@ export function ChatSendButton({
   loading,
   canSend = true,
   className,
+  hideScheduleIcon,
 }: ChatSendButtonProps) {
   const timerRef = useRef<number | null>(null);
   const longPressedRef = useRef(false);
