@@ -36,6 +36,10 @@ interface DMableUser {
   shared_clubs: string[];
   club_ids: string[];
   team_ids: string[];
+  role_label: string | null;
+  children_names: string[];
+  has_prior_dm: boolean;
+  last_seen_at: string | null;
 }
 
 interface ClubInfo {
@@ -47,6 +51,37 @@ interface TeamInfo {
   id: string;
   name: string;
   club_id: string;
+}
+
+const ROLE_PRIORITY: Record<string, number> = {
+  club_admin: 100,
+  committee_member: 90,
+  team_admin: 80,
+  coach: 70,
+  parent: 50,
+  player: 40,
+  basic_user: 10,
+};
+
+const ROLE_DISPLAY: Record<string, string> = {
+  club_admin: "Club Admin",
+  committee_member: "Committee",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  parent: "Parent",
+  player: "Player",
+  basic_user: "Member",
+};
+
+function pickTopRole(roles: string[]): string | null {
+  if (!roles.length) return null;
+  let best: string | null = null;
+  let bestScore = -1;
+  for (const r of roles) {
+    const s = ROLE_PRIORITY[r] ?? 0;
+    if (s > bestScore) { bestScore = s; best = r; }
+  }
+  return best ? (ROLE_DISPLAY[best] ?? best) : null;
 }
 
 interface StartDMDialogProps {
