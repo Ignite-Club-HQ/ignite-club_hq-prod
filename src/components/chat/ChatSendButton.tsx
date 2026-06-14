@@ -17,6 +17,8 @@ interface ChatSendButtonProps {
   /** Set true when there's something to send — affects the "send count" tracking. */
   canSend?: boolean;
   className?: string;
+  /** When true the explicit schedule icon is hidden (useful when the parent already shows one). */
+  hideScheduleIcon?: boolean;
 }
 
 /**
