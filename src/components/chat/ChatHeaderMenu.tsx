@@ -123,7 +123,7 @@ export function ChatHeaderMenu({
 
         {onManagePinnedVault && (
           <>
-            {(onSearch || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
+            {(onSearch || onScheduleMessage || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onManagePinnedVault}>
               <Pin className="h-4 w-4 mr-2" />
               <span className="flex-1">Pinned vault…</span>
@@ -154,7 +154,7 @@ export function ChatHeaderMenu({
 
         {onRefresh && (
           <>
-            {(onEditGroup || onDeleteGroup || onSearch || onManagePinnedVault) && <DropdownMenuSeparator />}
+            {(onEditGroup || onDeleteGroup || onSearch || onScheduleMessage || onManagePinnedVault) && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => void onRefresh()}
               disabled={isRefreshing}
