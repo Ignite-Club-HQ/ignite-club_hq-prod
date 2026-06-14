@@ -1415,7 +1415,11 @@ export default function DirectMessagePage() {
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
               <Search className="h-4 w-4" />
             </Button>
-            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isAnyRefreshing}
+              onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
+            />
           </>
         }
       />

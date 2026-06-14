@@ -1475,6 +1475,7 @@ export default function ClubChatPage() {
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
+              onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {

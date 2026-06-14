@@ -1705,6 +1705,7 @@ export default function TeamChatPage() {
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
+              onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               onManagePinnedVault={
                 isAdmin
                   ? () => {

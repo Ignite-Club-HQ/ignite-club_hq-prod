@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ interface ChatHeaderMenuProps {
   onEditGroup?: () => void;
   onDeleteGroup?: () => void;
   onSearch?: () => void;
+  /** Open the schedule-message dialog for the current conversation. */
+  onScheduleMessage?: () => void;
   /** Open the pinned-vault management sheet (admins only). */
   onManagePinnedVault?: () => void;
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
@@ -30,6 +32,7 @@ export function ChatHeaderMenu({
   onEditGroup,
   onDeleteGroup,
   onSearch,
+  onScheduleMessage,
   onManagePinnedVault,
   pinnedVaultEnabled,
   onTogglePinnedVault,
@@ -40,6 +43,7 @@ export function ChatHeaderMenu({
     || !!onEditGroup
     || !!onDeleteGroup
     || !!onSearch
+    || !!onScheduleMessage
     || !!onManagePinnedVault;
   if (!hasAnyAction) return null;
 
@@ -49,6 +53,7 @@ export function ChatHeaderMenu({
     && !onEditGroup
     && !onDeleteGroup
     && !onSearch
+    && !onScheduleMessage
     && !onManagePinnedVault;
   if (isRefreshOnly) {
     return (
@@ -85,6 +90,16 @@ export function ChatHeaderMenu({
           </DropdownMenuItem>
         )}
 
+        {onScheduleMessage && (
+          <>
+            {onSearch && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onScheduleMessage}>
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Schedule message
+            </DropdownMenuItem>
+          </>
+        )}
+
         {(onEditGroup || onDeleteGroup) && (
           <>
             {onSearch && <DropdownMenuSeparator />}
@@ -108,7 +123,7 @@ export function ChatHeaderMenu({
 
         {onManagePinnedVault && (
           <>
-            {(onSearch || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
+            {(onSearch || onScheduleMessage || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onManagePinnedVault}>
               <Pin className="h-4 w-4 mr-2" />
               <span className="flex-1">Pinned vault…</span>
@@ -139,7 +154,7 @@ export function ChatHeaderMenu({
 
         {onRefresh && (
           <>
-            {(onEditGroup || onDeleteGroup || onSearch || onManagePinnedVault) && <DropdownMenuSeparator />}
+            {(onEditGroup || onDeleteGroup || onSearch || onScheduleMessage || onManagePinnedVault) && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => void onRefresh()}
               disabled={isRefreshing}
