@@ -247,6 +247,17 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       tryLoadOlder();
     }
 
+    // Cold-start push-notification race: when the target is the NEWEST message,
+    // tryLoadOlder won't surface it (it's not older — the initial fetch hit a
+    // lagging read-replica that hadn't replicated the just-inserted row yet).
+    // Re-invalidate the head query on escalating retries so the replica gets
+    // re-polled until the row appears. Attempts 4, 16, 40 ≈ 0.6s / 2.4s / 6s.
+    if (idx < 0 && refetchLatest && attempts - lastRefetchLatestAttempt >= 12 && (attempts === 4 || attempts >= 16)) {
+      lastRefetchLatestAttempt = attempts;
+      refetchLatest();
+    }
+
+
     // Parent fallback: if the target is still missing past the half-way mark
     // but the parent is loaded, land on the parent so the user has context
     // while we keep polling for the real target.
