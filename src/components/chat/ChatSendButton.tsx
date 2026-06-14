@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, CalendarClock } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -33,7 +33,6 @@ export function ChatSendButton({
   loading,
   canSend = true,
   className,
-  hideScheduleIcon,
 }: ChatSendButtonProps) {
   const timerRef = useRef<number | null>(null);
   const longPressedRef = useRef(false);
@@ -153,31 +152,14 @@ export function ChatSendButton({
     onSchedule();
   };
 
-  const showScheduleBtn = onSchedule && canSend && !hideScheduleIcon && !loading;
-
   return (
     <div className="relative inline-flex items-center">
       {showHint && (
-        <button
-          type="button"
-          onClick={dismissHint}
-          aria-label="Dismiss hint"
+        <div
           className="absolute bottom-full right-0 mb-2 z-50 inline-flex items-center gap-1.5 rounded-md bg-foreground text-background text-[11px] font-medium px-2.5 py-1.5 shadow-lg whitespace-nowrap animate-in fade-in slide-in-from-bottom-1"
         >
-          <CalendarClock className="h-3 w-3" aria-hidden="true" />
           Hold send to schedule
-        </button>
-      )}
-      {showScheduleBtn && (
-        <button
-          type="button"
-          onClick={onSchedule}
-          aria-label="Schedule message"
-          title="Schedule message"
-          className="flex h-9 w-9 items-center justify-center shrink-0 rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/80 active:scale-95 mr-0.5"
-        >
-          <CalendarClock className="h-[18px] w-[18px]" strokeWidth={2} />
-        </button>
+        </div>
       )}
       <button
         type="button"
