@@ -199,18 +199,18 @@ export function ScheduleMessageDialog({
   const { hasAccess: hasProAccess, isLoading: proLoading } = useScheduleProAccess(target);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
-        <DialogHeader className="space-y-1.5 text-left">
-          <DialogTitle className="text-lg sm:text-xl">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+        <ResponsiveDialogHeader className="space-y-1.5 text-left px-0 pt-2 sm:pt-0">
+          <ResponsiveDialogTitle className="text-base sm:text-xl">
             {isEditing ? "Edit scheduled message" : "Schedule message"}
-          </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="text-xs sm:text-sm">
             {isEditing
               ? `Times shown in your local timezone (${localTimezoneLabel()}).`
               : `Pick when to send. Times shown in your local timezone (${localTimezoneLabel()}).`}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         {!proLoading && !hasProAccess ? (
           <ProFeatureLock
