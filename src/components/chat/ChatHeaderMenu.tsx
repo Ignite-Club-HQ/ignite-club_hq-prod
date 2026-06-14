@@ -90,6 +90,16 @@ export function ChatHeaderMenu({
           </DropdownMenuItem>
         )}
 
+        {onScheduleMessage && (
+          <>
+            {onSearch && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onScheduleMessage}>
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Schedule message
+            </DropdownMenuItem>
+          </>
+        )}
+
         {(onEditGroup || onDeleteGroup) && (
           <>
             {onSearch && <DropdownMenuSeparator />}
