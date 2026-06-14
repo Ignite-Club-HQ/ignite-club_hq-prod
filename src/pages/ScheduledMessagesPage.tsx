@@ -354,7 +354,7 @@ export default function ScheduledMessagesPage() {
                 </div>
                 <p className="font-semibold text-[15px]">No scheduled messages yet</p>
                 <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
-                  Long press <span className="font-medium text-foreground">Send</span> in any chat to schedule a message for later.
+                  Tap the <CalendarClock className="h-3 w-3 inline-block -mt-0.5" /> icon next to <span className="font-medium text-foreground">Send</span> in any chat, or long-press Send, to schedule a message for later.
                 </p>
                 <Button
                   size="sm"
