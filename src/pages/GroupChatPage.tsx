@@ -339,6 +339,7 @@ export default function GroupChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
