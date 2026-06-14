@@ -57,6 +57,8 @@ interface PendingInviteCardProps {
     email_sent_at?: string | null;
     email_id?: string | null;
     email_error?: string | null;
+    last_reminder_sent_at?: string | null;
+    reminder_count?: number | null;
     profiles?: {
       id: string;
       display_name: string | null;
@@ -447,13 +449,18 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
-  // If the invite email has been re-sent after creation (>30s later), surface
-  // the most recent reminder time so admins know when they last nudged.
+  // If a reminder has been sent (either via cron `last_reminder_sent_at`/`reminder_count`,
+  // or via manual resend which bumps `email_sent_at` >30s after creation), surface the
+  // most recent reminder time so admins know when they last nudged.
   const createdAtMs = new Date(invite.created_at).getTime();
   const emailSentAtMs = invite.email_sent_at ? new Date(invite.email_sent_at).getTime() : 0;
-  const wasReminded = emailSentAtMs > 0 && emailSentAtMs - createdAtMs > 30_000;
+  const lastReminderMs = invite.last_reminder_sent_at ? new Date(invite.last_reminder_sent_at).getTime() : 0;
+  const emailReminded = emailSentAtMs > 0 && emailSentAtMs - createdAtMs > 30_000;
+  const cronReminded = (invite.reminder_count ?? 0) > 0 && lastReminderMs > 0;
+  const wasReminded = emailReminded || cronReminded;
+  const reminderMs = Math.max(emailReminded ? emailSentAtMs : 0, cronReminded ? lastReminderMs : 0);
   const timeAgo = formatDistanceToNow(
-    new Date(wasReminded ? invite.email_sent_at! : invite.created_at),
+    new Date(wasReminded ? reminderMs : invite.created_at),
     { addSuffix: true },
   );
   const sentLabel = wasReminded ? "Reminded" : "Sent";
