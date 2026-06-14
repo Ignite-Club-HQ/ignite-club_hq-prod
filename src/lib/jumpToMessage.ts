@@ -96,6 +96,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let attempts = 0;
   let cancelled = false;
   let lastLoadOlderAttempt = -1;
+  let lastRefetchLatestAttempt = -1;
   let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
   let settleTimers: ReturnType<typeof setTimeout>[] = [];
