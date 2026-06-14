@@ -875,6 +875,36 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                         .slice(0, 2)
                         .map(s => s.charAt(0).toUpperCase())
                         .join("");
+
+                      // Show actual team name when the user is in exactly one team
+                      // within the current picker scope; otherwise show the count.
+                      const scopedTeamIds = selectedClubId === "all"
+                        ? dmUser.team_ids
+                        : dmUser.team_ids.filter(tid => {
+                            const t = teamNameById.get(tid);
+                            return !!t;
+                          });
+                      const singleTeamName = scopedTeamIds.length === 1
+                        ? teamNameById.get(scopedTeamIds[0]) ?? null
+                        : null;
+
+                      // Privacy-friendly collision disambiguator: 4 hex chars
+                      // from the user id, only shown when the visible list
+                      // contains another row with the same display name.
+                      const nameKey = (dmUser.display_name || "").trim().toLowerCase();
+                      const showIdSuffix = nameKey && collidingNames.has(nameKey);
+                      const idSuffix = showIdSuffix ? `#${dmUser.id.replace(/-/g, "").slice(0, 4)}` : null;
+
+                      // Secondary line: role · parent of kid names
+                      const secondaryParts: string[] = [];
+                      if (dmUser.role_label) secondaryParts.push(dmUser.role_label);
+                      if (dmUser.children_names.length > 0) {
+                        const kids = dmUser.children_names.slice(0, 3).join(", ");
+                        const more = dmUser.children_names.length > 3 ? ` +${dmUser.children_names.length - 3}` : "";
+                        secondaryParts.push(`Parent of ${kids}${more}`);
+                      }
+                      const secondaryLine = secondaryParts.join(" · ");
+
                       return (
                         <button
                           key={dmUser.id}
@@ -902,7 +932,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate text-sm leading-tight">
                               {dmUser.display_name || "Unknown User"}
+                              {idSuffix && (
+                                <span className="ml-1.5 text-[10px] font-mono font-normal text-muted-foreground align-middle">
+                                  {idSuffix}
+                                </span>
+                              )}
+                              {dmUser.has_prior_dm && (
+                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground align-middle">
+                                  · DM'd before
+                                </span>
+                              )}
                             </p>
+                            {secondaryLine && (
+                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {secondaryLine}
+                              </p>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {dmUser.shared_clubs.slice(0, 1).map(c => (
                                 <span
@@ -912,12 +957,17 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                                   {c}
                                 </span>
                               ))}
-                              {teamCount > 0 && (
+                              {singleTeamName ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[180px] truncate">
+                                  <Users className="h-2.5 w-2.5 shrink-0" />
+                                  <span className="truncate">{singleTeamName}</span>
+                                </span>
+                              ) : teamCount > 0 ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
                                   <Users className="h-2.5 w-2.5" />
-                                  {teamCount} {teamCount === 1 ? "team" : "teams"}
+                                  {teamCount} teams
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </button>
