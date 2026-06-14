@@ -463,7 +463,13 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     new Date(wasReminded ? reminderMs : invite.created_at),
     { addSuffix: true },
   );
-  const sentLabel = wasReminded ? "Reminded" : "Sent";
+  // Distinguish manual resend ("Reminded") from cron auto-reminder ("Auto-reminded")
+  // so admins don't think they personally nudged when it was the system.
+  const sentLabel = emailReminded
+    ? "Reminded"
+    : cronReminded
+      ? "Auto-reminded"
+      : "Sent";
 
   // Determine if email was the original invite method
   const hasEmail = !!invite.invited_email;
