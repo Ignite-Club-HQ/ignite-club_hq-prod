@@ -17,6 +17,7 @@ import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialo
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { ManageMiniLeagueAdminsSheet } from "@/components/mini-league/ManageMiniLeagueAdminsSheet";
+import PendingInvitesList from "@/components/PendingInvitesList";
 
 interface MiniLeagueEvent {
   id: string;
