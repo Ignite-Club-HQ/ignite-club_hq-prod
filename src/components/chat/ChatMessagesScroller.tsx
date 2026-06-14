@@ -220,7 +220,23 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // interim height, its initial bottom-pin can visibly correct down/up/down.
   const viewportSettled = useViewportHeightSettled(180);
   const [initialViewportReleased, setInitialViewportReleased] = useState(false);
-  const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
+  // Hold the reveal until the composer has reported a real measured height.
+  // Previously `initialLayoutSettled` (a fixed 600ms) short-circuited this to
+  // true even when `composerHeight` was still 0, so Virtuoso mounted with an
+  // under-sized `bottomPadding` (the 56px floor in `safeComposer`) and the
+  // initial bottom pin landed the latest bubble behind the composer. Once the
+  // composer subsequently measured (~80–100px), the late `bottomPadding`
+  // growth was past the reveal point and the post-pin guard's >24px no-snap
+  // rule left the last message clipped — exactly the push-landing report.
+  //
+  // New rule: composer is "settled" only when its reported height matches the
+  // debounced value AND is > 0. Fall back to the legacy timeout-based settle
+  // only when the composer has been absent for the entire `initialLayoutSettled`
+  // window (chat surfaces without a composer, e.g. read-only previews).
+  const composerHasMeasured = composerHeight > 0 && Math.abs(layoutComposerHeight - composerHeight) <= 1;
+  const initialComposerSettled = isKeyboardOpen
+    || composerHasMeasured
+    || (initialLayoutSettled && composerHeight === 0);
   const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
   const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
 
