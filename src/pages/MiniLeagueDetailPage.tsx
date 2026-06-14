@@ -303,7 +303,7 @@ export default function MiniLeagueDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, last_reminder_sent_at, reminder_count, metadata")
         .eq("club_id", league!.club_id)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
