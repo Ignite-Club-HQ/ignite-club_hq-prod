@@ -596,9 +596,41 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         u.shared_clubs.some(c => c.toLowerCase().includes(query))
       );
     }
-    
-    return filtered;
+
+    // Sort: prior DM partners first, then most recently active, then by name
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.has_prior_dm !== b.has_prior_dm) return a.has_prior_dm ? -1 : 1;
+      const aSeen = a.last_seen_at ? Date.parse(a.last_seen_at) : 0;
+      const bSeen = b.last_seen_at ? Date.parse(b.last_seen_at) : 0;
+      if (aSeen !== bSeen) return bSeen - aSeen;
+      return (a.display_name || "").localeCompare(b.display_name || "");
+    });
+
+    return sorted;
   }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId]);
+
+  // Detect display-name collisions within the current visible result set so we
+  // can append a privacy-friendly disambiguator (#abcd from user id) only when
+  // two or more visible rows share the exact name.
+  const collidingNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredUsers.forEach(u => {
+      const key = (u.display_name || "").trim().toLowerCase();
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const set = new Set<string>();
+    counts.forEach((n, k) => { if (n > 1) set.add(k); });
+    return set;
+  }, [filteredUsers]);
+
+  // Quick lookup for team names by id (used to show actual team name when a
+  // user belongs to exactly one team shared with the picker scope).
+  const teamNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    availableTeams.forEach(t => m.set(t.id, t.name));
+    return m;
+  }, [availableTeams]);
 
   const isPending = startDMMutation.isPending || startGroupDMMutation.isPending;
 
