@@ -296,15 +296,14 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!id,
   });
 
-  // Pending league_admin email invites for this mini-league
-  const { data: pendingAdminInvites } = useQuery({
-    queryKey: ["mini-league-pending-admin-invites-inline", id, league?.club_id],
+  // Pending email invites for this mini-league (any role — parents added via player invites, league admins, etc.)
+  const { data: pendingInvitesAll } = useQuery({
+    queryKey: ["mini-league-pending-invites-inline", id, league?.club_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, invited_label, invited_email, created_at, email_sent_at, metadata")
+        .select("id, role, invited_label, invited_email, created_at, email_sent_at, metadata")
         .eq("club_id", league!.club_id)
-        .eq("role", "league_admin")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -312,11 +311,14 @@ export default function MiniLeagueDetailPage() {
         (r: any) =>
           r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata) &&
           r.metadata.mini_league_id === id &&
-          r.metadata.kind !== "league_admin_join_link",
+          r.metadata.kind !== "league_admin_join_link" &&
+          r.metadata.kind !== "mini_league_parent_join_link",
       );
     },
     enabled: !!league?.club_id && !!id && !!canManageLeague,
   });
+  const pendingAdminInvites = (pendingInvitesAll || []).filter((r: any) => r.role === "league_admin");
+  const pendingParentInvites = (pendingInvitesAll || []).filter((r: any) => r.role === "parent");
 
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
   const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
