@@ -296,13 +296,13 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!id,
   });
 
-  // Pending email invites for this mini-league (any role — parents added via player invites, league admins, etc.)
+  // Pending email invites for this mini-league (parents added via player invites + league admins)
   const { data: pendingInvitesAll } = useQuery({
     queryKey: ["mini-league-pending-invites-inline", id, league?.club_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, role, invited_label, invited_email, created_at, email_sent_at, metadata")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
         .eq("club_id", league!.club_id)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
@@ -317,8 +317,6 @@ export default function MiniLeagueDetailPage() {
     },
     enabled: !!league?.club_id && !!id && !!canManageLeague,
   });
-  const pendingAdminInvites = (pendingInvitesAll || []).filter((r: any) => r.role === "league_admin");
-  const pendingParentInvites = (pendingInvitesAll || []).filter((r: any) => r.role === "parent");
 
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
   const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
