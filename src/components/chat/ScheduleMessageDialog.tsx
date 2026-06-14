@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { format, addHours, setHours, setMinutes, setSeconds, addDays, nextMonday } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Loader2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -199,18 +199,18 @@ export function ScheduleMessageDialog({
   const { hasAccess: hasProAccess, isLoading: proLoading } = useScheduleProAccess(target);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
-        <DialogHeader className="space-y-1.5 text-left">
-          <DialogTitle className="text-lg sm:text-xl">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+        <ResponsiveDialogHeader className="space-y-1.5 text-left px-0 pt-2 sm:pt-0">
+          <ResponsiveDialogTitle className="text-base sm:text-xl">
             {isEditing ? "Edit scheduled message" : "Schedule message"}
-          </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="text-xs sm:text-sm">
             {isEditing
               ? `Times shown in your local timezone (${localTimezoneLabel()}).`
               : `Pick when to send. Times shown in your local timezone (${localTimezoneLabel()}).`}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         {!proLoading && !hasProAccess ? (
           <ProFeatureLock
@@ -356,7 +356,7 @@ export function ScheduleMessageDialog({
         </div>
         )}
 
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+        <ResponsiveDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2 px-0 pb-2 sm:pb-0">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -371,8 +371,8 @@ export function ScheduleMessageDialog({
               {isEditing ? "Save changes" : "Schedule"}
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

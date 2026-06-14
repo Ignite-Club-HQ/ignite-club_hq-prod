@@ -5,7 +5,7 @@ import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
-  UserPlus, CalendarDays, Shield, UserRound, MessageSquare
+  UserPlus, CalendarDays, Shield, UserRound, MessageSquare, Mail
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,7 @@ import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialo
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { ManageMiniLeagueAdminsSheet } from "@/components/mini-league/ManageMiniLeagueAdminsSheet";
+import PendingInvitesList from "@/components/PendingInvitesList";
 
 interface MiniLeagueEvent {
   id: string;
@@ -39,6 +40,7 @@ export default function MiniLeagueDetailPage() {
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
   const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   const { data: league, isLoading: leagueLoading } = useQuery({
     queryKey: ["mini-league", id],
@@ -293,6 +295,28 @@ export default function MiniLeagueDetailPage() {
       return { parents, staff };
     },
     enabled: !!league?.club_id && !!id,
+  });
+
+  // Pending email invites for this mini-league (parents added via player invites + league admins)
+  const { data: pendingInvitesAll } = useQuery({
+    queryKey: ["mini-league-pending-invites-inline", id, league?.club_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
+        .eq("club_id", league!.club_id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).filter(
+        (r: any) =>
+          r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata) &&
+          r.metadata.mini_league_id === id &&
+          r.metadata.kind !== "league_admin_join_link" &&
+          r.metadata.kind !== "mini_league_parent_join_link",
+      );
+    },
+    enabled: !!league?.club_id && !!id && !!canManageLeague,
   });
 
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
@@ -675,6 +699,21 @@ export default function MiniLeagueDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Pending Invites (parents added via player invites + league admin email invites) */}
+          {canManageLeague && (pendingInvitesAll?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground px-1 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5" />
+                Pending Invites
+              </p>
+              <PendingInvitesList
+                invites={pendingInvitesAll as any}
+                clubId={league?.club_id}
+                isAdmin={!!isClubAdmin}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -769,11 +808,36 @@ export default function MiniLeagueDetailPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {upcomingEvents.length > 0 && (
-              <div className="space-y-2">
-                {[...upcomingEvents].reverse().map(event => renderMatchDayCard(event))}
-              </div>
-            )}
+            {upcomingEvents.length > 0 && (() => {
+              const chronological = [...upcomingEvents].reverse();
+              const visible = showAllUpcoming ? chronological : chronological.slice(0, 4);
+              const hiddenCount = chronological.length - visible.length;
+              return (
+                <div className="space-y-2">
+                  {visible.map(event => renderMatchDayCard(event))}
+                  {hiddenCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllUpcoming(true)}
+                      className="w-full text-primary hover:text-primary"
+                    >
+                      Show all {chronological.length} match days
+                    </Button>
+                  )}
+                  {showAllUpcoming && chronological.length > 4 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllUpcoming(false)}
+                      className="w-full text-muted-foreground"
+                    >
+                      Show less
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
             {pastEvents.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider px-1">Results</p>
