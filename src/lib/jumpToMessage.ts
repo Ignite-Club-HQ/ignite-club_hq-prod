@@ -30,6 +30,16 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     intervalMs?: number;
     tryLoadOlder?: () => void;
     /**
+     * Cold-start push-notification race fix: when the target is the NEWEST
+     * message, the initial fetch may hit a read-replica that hasn't yet
+     * replicated the just-inserted row. `tryLoadOlder` cannot help (the row
+     * isn't older — it's missing entirely). This callback re-runs the head
+     * query (e.g. `queryClient.invalidateQueries(["team-messages", id])`)
+     * on escalating retries (attempts 4, 16, 40) so the lagging replica
+     * gets re-polled until the row appears. Optional; safe to omit.
+     */
+    refetchLatest?: () => void;
+    /**
      * Optional thread/parent context. When the primary `messageId` cannot be
      * located in the loaded set after exhausting older-page loads, the helper
      * falls back to scrolling to (and briefly highlighting) the parent so the
