@@ -304,6 +304,7 @@ export default function DirectMessagePage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
