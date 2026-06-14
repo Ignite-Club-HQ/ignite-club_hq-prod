@@ -213,6 +213,20 @@ function getJumpTarget(data: any, url: string | null | undefined): ChatJumpTarge
 
 export function normalizeNotificationChatUrl(data: any, url: string | null | undefined): string | null {
   if (!url) return null;
+  // Guard: never rewrite non-chat URLs into a chat jump. Photo / media /
+  // schedule pushes carry their own SPA path in `url` and may also include
+  // `team_id` / `club_id` hints in the payload (used for scoping). Without
+  // this guard, getJumpTarget's payload-based fallback would turn
+  // `/media?photo=<id>&team=<team_id>` into
+  // `/messages/<team_id>?message=<photo_id>` — landing the user in the wrong
+  // team chat with the photo id treated as a message id.
+  try {
+    const path = new URL(url, "https://placeholder.local").pathname;
+    const isChatPath = path.startsWith("/messages") || path.startsWith("/groups/");
+    if (!isChatPath) return url;
+  } catch {
+    return url;
+  }
   const target = getJumpTarget(data, url);
   if (!target) return url;
 
