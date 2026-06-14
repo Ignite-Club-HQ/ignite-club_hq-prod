@@ -1076,65 +1076,50 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
                     )}
                   </div>
 
-                  {/* Parent's own RSVP — promoted call-to-action. Auto-expands once any
-                      child has been RSVP'd (or the parent already has) so it never hides. */}
-                  {(() => {
-                    const anyChildAnswered = (childRsvps?.length ?? 0) > 0;
-                    const forceOpen = anyChildAnswered || !!currentStatus;
-                    const open = parentRsvpOpen || forceOpen;
-                    return (
-                      <div className="pt-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setParentRsvpOpen((v) => !v)}
-                          aria-expanded={open}
-                          className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-colors touch-manipulation ${
-                            currentStatus
-                              ? "border-primary/30 bg-primary/10 text-foreground"
-                              : "border-primary/40 bg-primary/5 text-foreground hover:bg-primary/10"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-primary" />
-                            {currentStatus
-                              ? `Your RSVP: ${currentStatus === "going" ? "Going" : currentStatus === "maybe" ? "Maybe" : "Can't go"}`
-                              : "Are you attending too?"}
-                          </span>
-                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-                        </button>
-                        {open && (
-                          <div className="flex gap-1.5 pt-1.5">
-                            {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
-                              const isActive = currentStatus === status;
-                              return (
-                                <Button
-                                  key={`parent-${status}`}
-                                  variant="outline"
-                                  size="sm"
-                                  aria-pressed={isActive}
-                                  aria-label={`Your RSVP ${label}`}
-                                  className={`flex-1 h-9 gap-1 px-2 text-[12px] rounded-full transition-all duration-200 ease-out will-change-transform ${
-                                    isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
-                                  }`}
-                                  disabled={rsvpMutation.isPending}
-                                  onClick={() => !isActive && rsvpMutation.mutate(status)}
-                                >
-                                  {rsvpMutation.isPending && rsvpMutation.variables === status ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                                  ) : isActive ? (
-                                    <Check className="h-3.5 w-3.5" />
-                                  ) : (
-                                    icon
-                                  )}
-                                  <span className="truncate">{label}</span>
-                                </Button>
-                              );
-                            })}
-                          </div>
-                        )}
+                  {/* Optional parent RSVP — secondary disclosure */}
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setParentRsvpOpen((v) => !v)}
+                      aria-expanded={parentRsvpOpen}
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                    >
+                      <span>
+                        {currentStatus ? "Your attendance" : "Are you attending too?"}
+                      </span>
+                      <ChevronDown className={`h-3 w-3 transition-transform ${parentRsvpOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {parentRsvpOpen && (
+                      <div className="flex gap-1.5 pt-1.5">
+                        {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
+                          const isActive = currentStatus === status;
+                          return (
+                            <Button
+                              key={`parent-${status}`}
+                              variant="outline"
+                              size="sm"
+                              aria-pressed={isActive}
+                              aria-label={`Your RSVP ${label}`}
+                              className={`flex-1 h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                              }`}
+                              disabled={rsvpMutation.isPending}
+                              onClick={() => !isActive && rsvpMutation.mutate(status)}
+                            >
+                              {rsvpMutation.isPending && rsvpMutation.variables === status ? (
+                                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                              ) : isActive ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                icon
+                              )}
+                              <span className="truncate">{label}</span>
+                            </Button>
+                          );
+                        })}
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
                 </>
               );
             })() : (
