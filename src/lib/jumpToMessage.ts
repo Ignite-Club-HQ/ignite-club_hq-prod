@@ -58,6 +58,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     maxAttempts = 200,
     intervalMs = 150,
     tryLoadOlder,
+    refetchLatest,
     parentMessageId,
   } = options;
 
