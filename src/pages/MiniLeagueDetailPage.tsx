@@ -770,11 +770,36 @@ export default function MiniLeagueDetailPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {upcomingEvents.length > 0 && (
-              <div className="space-y-2">
-                {[...upcomingEvents].reverse().map(event => renderMatchDayCard(event))}
-              </div>
-            )}
+            {upcomingEvents.length > 0 && (() => {
+              const chronological = [...upcomingEvents].reverse();
+              const visible = showAllUpcoming ? chronological : chronological.slice(0, 4);
+              const hiddenCount = chronological.length - visible.length;
+              return (
+                <div className="space-y-2">
+                  {visible.map(event => renderMatchDayCard(event))}
+                  {hiddenCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllUpcoming(true)}
+                      className="w-full text-primary hover:text-primary"
+                    >
+                      Show all {chronological.length} match days
+                    </Button>
+                  )}
+                  {showAllUpcoming && chronological.length > 4 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllUpcoming(false)}
+                      className="w-full text-muted-foreground"
+                    >
+                      Show less
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
             {pastEvents.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider px-1">Results</p>
