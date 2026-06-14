@@ -233,16 +233,16 @@ export default function EditEventPage() {
       
       if (appAdmin) return true;
 
-      // Check for club_admin role (always applies to club events)
+      // Check for club_admin / committee_member role (always applies to club events)
       const { data: clubAdminData } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
         .in("role", ["club_admin", "committee_member"])
-        .maybeSingle();
+        .limit(1);
       
-      if (clubAdminData) return true;
+      if (clubAdminData && clubAdminData.length > 0) return true;
       
       // For team-specific events, also check team_admin/coach roles
       if (event.team_id) {
