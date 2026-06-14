@@ -190,6 +190,7 @@ export default function BroadcastChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
