@@ -535,7 +535,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Pending
               </Badge>
               <span className="text-xs text-muted-foreground">
-                Sent {timeAgo}
+                {sentLabel} {timeAgo}
               </span>
             </div>
           </div>
