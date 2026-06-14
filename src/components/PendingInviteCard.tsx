@@ -447,7 +447,16 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
-  const timeAgo = formatDistanceToNow(new Date(invite.created_at), { addSuffix: true });
+  // If the invite email has been re-sent after creation (>30s later), surface
+  // the most recent reminder time so admins know when they last nudged.
+  const createdAtMs = new Date(invite.created_at).getTime();
+  const emailSentAtMs = invite.email_sent_at ? new Date(invite.email_sent_at).getTime() : 0;
+  const wasReminded = emailSentAtMs > 0 && emailSentAtMs - createdAtMs > 30_000;
+  const timeAgo = formatDistanceToNow(
+    new Date(wasReminded ? invite.email_sent_at! : invite.created_at),
+    { addSuffix: true },
+  );
+  const sentLabel = wasReminded ? "Reminded" : "Sent";
 
   // Determine if email was the original invite method
   const hasEmail = !!invite.invited_email;
@@ -526,7 +535,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Pending
               </Badge>
               <span className="text-xs text-muted-foreground">
-                Sent {timeAgo}
+                {sentLabel} {timeAgo}
               </span>
             </div>
           </div>
