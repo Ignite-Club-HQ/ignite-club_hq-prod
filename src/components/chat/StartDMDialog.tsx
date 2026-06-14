@@ -321,10 +321,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       // Build a map of mini-league to club
       const miniLeagueClubMap = new Map(miniLeagues.map(ml => [ml.id, ml.club_id]));
 
-      // Group by user and collect their clubs and teams
+      // Group by user and collect their clubs, teams, and roles
       const userClubMap = new Map<string, Set<string>>();
       const userTeamMap = new Map<string, Set<string>>();
       const userClubNameMap = new Map<string, string[]>();
+      const userRoleMap = new Map<string, Set<string>>();
       
       // Process club members (excluding app_admin role users)
       clubMembers.forEach((member: { user_id: string; club_id: string; team_id: string | null; role: string }) => {
@@ -335,6 +336,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           userClubMap.set(member.user_id, new Set());
           userTeamMap.set(member.user_id, new Set());
           userClubNameMap.set(member.user_id, []);
+          userRoleMap.set(member.user_id, new Set());
         }
         if (member.club_id) {
           userClubMap.get(member.user_id)!.add(member.club_id);
@@ -346,6 +348,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         if (member.team_id) {
           userTeamMap.get(member.user_id)!.add(member.team_id);
         }
+        if (member.role) userRoleMap.get(member.user_id)!.add(member.role);
       });
 
       // Process mini-league parents (they might not have user_roles entries)
@@ -360,8 +363,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           userClubMap.set(mlParent.parent_user_id, new Set());
           userTeamMap.set(mlParent.parent_user_id, new Set());
           userClubNameMap.set(mlParent.parent_user_id, []);
+          userRoleMap.set(mlParent.parent_user_id, new Set());
         }
         userClubMap.get(mlParent.parent_user_id)!.add(clubId);
+        userRoleMap.get(mlParent.parent_user_id)!.add("parent");
         const clubName = clubNameMap.get(clubId);
         if (clubName && !userClubNameMap.get(mlParent.parent_user_id)!.includes(clubName)) {
           userClubNameMap.get(mlParent.parent_user_id)!.push(clubName);
@@ -372,17 +377,50 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
       if (uniqueUserIds.length === 0) return { users: [], clubs, teams };
 
-      // Fetch profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", uniqueUserIds);
+      // Fetch profiles, children (parent's kids), and prior DM partners in parallel
+      const [profilesResult, childrenResult, dmResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url, last_seen_at")
+          .in("id", uniqueUserIds),
+        supabase
+          .from("children")
+          .select("name, parent_id")
+          .in("parent_id", uniqueUserIds)
+          .is("deleted_at" as any, null as any),
+        supabase
+          .from("direct_conversations")
+          .select("participant_1, participant_2")
+          .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`),
+      ]);
 
-      const users = (profiles || []).map(p => ({
+      const profiles = profilesResult.data || [];
+      const childRows = (childrenResult.data || []) as { name: string; parent_id: string }[];
+      const dmRows = (dmResult.data || []) as { participant_1: string; participant_2: string }[];
+
+      const childrenByParent = new Map<string, string[]>();
+      childRows.forEach(c => {
+        if (!c.parent_id || !c.name) return;
+        const list = childrenByParent.get(c.parent_id) || [];
+        list.push(c.name);
+        childrenByParent.set(c.parent_id, list);
+      });
+
+      const priorDMPartners = new Set<string>();
+      dmRows.forEach(d => {
+        const other = d.participant_1 === user!.id ? d.participant_2 : d.participant_1;
+        if (other) priorDMPartners.add(other);
+      });
+
+      const users = profiles.map(p => ({
         ...p,
         shared_clubs: userClubNameMap.get(p.id) || [],
         club_ids: [...(userClubMap.get(p.id) || [])],
         team_ids: [...(userTeamMap.get(p.id) || [])],
+        role_label: pickTopRole([...(userRoleMap.get(p.id) || [])]),
+        children_names: childrenByParent.get(p.id) || [],
+        has_prior_dm: priorDMPartners.has(p.id),
+        last_seen_at: (p as { last_seen_at?: string | null }).last_seen_at ?? null,
       })) as DMableUser[];
 
       return { users, clubs, teams };
