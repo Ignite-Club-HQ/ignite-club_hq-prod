@@ -17,6 +17,8 @@ interface ChatSendButtonProps {
   /** Set true when there's something to send — affects the "send count" tracking. */
   canSend?: boolean;
   className?: string;
+  /** When true the explicit schedule icon is hidden (useful when the parent already shows one). */
+  hideScheduleIcon?: boolean;
 }
 
 /**
@@ -31,6 +33,7 @@ export function ChatSendButton({
   loading,
   canSend = true,
   className,
+  hideScheduleIcon,
 }: ChatSendButtonProps) {
   const timerRef = useRef<number | null>(null);
   const longPressedRef = useRef(false);
@@ -150,8 +153,10 @@ export function ChatSendButton({
     onSchedule();
   };
 
+  const showScheduleBtn = onSchedule && canSend && !hideScheduleIcon && !loading;
+
   return (
-    <div className="relative inline-flex">
+    <div className="relative inline-flex items-center">
       {showHint && (
         <button
           type="button"
@@ -161,6 +166,17 @@ export function ChatSendButton({
         >
           <CalendarClock className="h-3 w-3" aria-hidden="true" />
           Hold send to schedule
+        </button>
+      )}
+      {showScheduleBtn && (
+        <button
+          type="button"
+          onClick={onSchedule}
+          aria-label="Schedule message"
+          title="Schedule message"
+          className="flex h-9 w-9 items-center justify-center shrink-0 rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/80 active:scale-95 mr-0.5"
+        >
+          <CalendarClock className="h-[18px] w-[18px]" strokeWidth={2} />
         </button>
       )}
       <button
