@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert, Clock, Send } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, Baby, UserCheck, Crown, ShieldAlert, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
