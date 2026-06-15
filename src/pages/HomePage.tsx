@@ -1970,6 +1970,7 @@ export default function HomePage() {
           onJoinTeam={() => setTeamDialogOpen(true)}
           hasTeams={!!userRoles?.some(r => r.team_id)}
           activeClubFilter={activeClubFilter}
+          activeClubName={activeClubName}
         />
       </div>
 
