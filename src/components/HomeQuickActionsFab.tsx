@@ -24,7 +24,7 @@ type ActionItem = {
 
 type ActionGroup = { heading: string; items: ActionItem[] };
 
-export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuickActionsFabProps) {
+export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams, activeClubFilter }: HomeQuickActionsFabProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -58,6 +58,12 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
         { label: "Create Event", icon: Calendar, onClick: () => go("/events/new") },
         { label: "Create Team", icon: Users, onClick: () => go("/start") },
         { label: "Create Competition", icon: Trophy, onClick: () => go("/competitions/new") },
+      ],
+    },
+    {
+      heading: "Club",
+      items: [
+        { label: "Create Club", icon: Flag, onClick: () => go("/clubs/new"), show: !activeClubFilter },
       ],
     },
   ];
