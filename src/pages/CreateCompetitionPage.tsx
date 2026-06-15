@@ -139,8 +139,8 @@ export default function CreateCompetitionPage() {
     <div className="container max-w-2xl mx-auto px-4 pt-4 pb-32">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
-        <Button asChild variant="ghost" size="icon" className="-ml-2 shrink-0">
-          <Link to="/start" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
+        <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={() => navigate(-1)} aria-label="Back">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <Trophy className="h-5 w-5 text-primary shrink-0" />
         <h1 className="text-xl font-semibold leading-none">New competition</h1>
