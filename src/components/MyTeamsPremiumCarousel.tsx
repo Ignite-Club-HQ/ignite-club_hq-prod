@@ -706,29 +706,72 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     placeholderData: (prev) => prev,
   });
 
-  // Fetch active competition name per team via security-definer RPC so all
-  // team members (not just admins) can see which competition their team is
+  // Fetch active competition rows per team via security-definer RPC so all
+  // team members (not just admins) can see which competitions their team is
   // entered in — RLS on competition_entries would otherwise hide it.
-  const { data: competitionNames = {} as Record<string, string> } = useQuery({
-    queryKey: ["team-competitions-premium", teamIds],
+  type CompetitionRow = {
+    team_id: string;
+    competition_id: string;
+    competition_name: string;
+    competition_logo_url: string | null;
+    competition_sport: string | null;
+  };
+  const { data: competitionRows = [] as CompetitionRow[] } = useQuery({
+    queryKey: ["team-competitions-premium-v2", teamIds],
     queryFn: async () => {
-      if (teamIds.length === 0) return {} as Record<string, string>;
+      if (teamIds.length === 0) return [] as CompetitionRow[];
       const { data, error } = await supabase.rpc("get_team_competition_names", {
         _team_ids: teamIds,
       });
-      if (error) return {} as Record<string, string>;
-      const map: Record<string, string> = {};
-      for (const row of (data || []) as { team_id: string; competition_name: string }[]) {
-        if (row.team_id && row.competition_name && !map[row.team_id]) {
-          map[row.team_id] = row.competition_name;
-        }
-      }
-      return map;
+      if (error) return [] as CompetitionRow[];
+      return (data || []) as CompetitionRow[];
     },
     enabled: teamIds.length > 0,
     staleTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
+  // Per-team competition name (small inline label on team cards).
+  const competitionNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of competitionRows) {
+      if (row.team_id && row.competition_name && !map[row.team_id]) {
+        map[row.team_id] = row.competition_name;
+      }
+    }
+    return map;
+  }, [competitionRows]);
+
+  // Unique competition cards: one per competition, with a comma-separated
+  // list of the user's teams entered in that competition.
+  const competitionItems = useMemo<TeamOrLeague[]>(() => {
+    if (competitionRows.length === 0) return [];
+    const byComp = new Map<string, { row: CompetitionRow; teamNames: string[] }>();
+    const teamNameById = new Map(items.filter(i => i.type === "team").map(i => [i.id, i.name] as const));
+    for (const row of competitionRows) {
+      if (!row.competition_id) continue;
+      const existing = byComp.get(row.competition_id);
+      const teamName = teamNameById.get(row.team_id);
+      if (existing) {
+        if (teamName && !existing.teamNames.includes(teamName)) existing.teamNames.push(teamName);
+      } else {
+        byComp.set(row.competition_id, { row, teamNames: teamName ? [teamName] : [] });
+      }
+    }
+    return Array.from(byComp.values()).map(({ row, teamNames }) => ({
+      id: row.competition_id,
+      name: row.competition_name,
+      logo_url: row.competition_logo_url,
+      club_logo_url: null,
+      type: "competition" as const,
+      club_name: "",
+      sport: row.competition_sport,
+      club_id: "",
+      canManage: false,
+      competitionTeamsLabel: teamNames.join(", "),
+    }));
+  }, [competitionRows, items]);
+
 
 
 
