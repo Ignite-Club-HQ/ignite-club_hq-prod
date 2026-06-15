@@ -900,11 +900,17 @@ export default function EventsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Collapsible Filter Panel */}
-      <Collapsible open={showFilters}>
-        <CollapsibleContent>
-          <Card className="p-4">
-            <div className="flex flex-wrap items-center gap-3">
+      {/* Filter Drawer */}
+      <Drawer open={showFilters} onOpenChange={setShowFilters}>
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
+            <DrawerTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filter Schedule
+            </DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-4">
               <ClubTeamFilter
                 clubs={userClubs || []}
                 teams={userTeams || []}
@@ -917,11 +923,10 @@ export default function EventsPage() {
                 showTeamFilter={((userTeams?.length || 0) + (userMiniLeagues?.length || 0)) > 0}
                 getSportEmoji={getSportEmoji}
               />
-
             </div>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       {/* View Toggle + Add to calendar */}
       <div className="flex items-center gap-2">
