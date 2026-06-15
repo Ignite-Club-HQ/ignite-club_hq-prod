@@ -48,7 +48,6 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
       heading: "Join",
       items: [
         { label: "Join Team", icon: Users, onClick: () => { close(); onJoinTeam(); } },
-        { label: "Join Competition", icon: Trophy, onClick: () => { close(); setJoinCompOpen(true); } },
       ],
     },
     {
