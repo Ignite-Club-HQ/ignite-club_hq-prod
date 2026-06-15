@@ -220,6 +220,10 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
     );
   }
 
+  return (
+    <Card
+      className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+      role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
       onClick={handleCardClick}
