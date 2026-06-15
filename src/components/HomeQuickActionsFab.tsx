@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle } from "lucide-react";
+import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle, Flag } from "lucide-react";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
