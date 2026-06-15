@@ -72,10 +72,9 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
     {
       heading: "Invite",
       items: [
-        { label: "Invite Player", icon: UserPlus, onClick: () => { close(); onInvite(); }, show: hasTeams },
-        { label: "Invite Parent", icon: UserPlus, onClick: () => { close(); onInvite(); }, show: hasTeams },
-        { label: "Invite Team", icon: Users, onClick: () => { close(); onInvite(); }, show: hasTeams },
+        { label: "Invite Members", icon: UserPlus, onClick: () => { close(); onInvite(); }, show: hasTeams },
       ],
+    
     },
     {
       heading: "Join",
