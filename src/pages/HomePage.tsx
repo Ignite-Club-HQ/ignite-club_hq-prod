@@ -2063,19 +2063,6 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
-      {/* Pending competition invites for team/club admins */}
-      <HomePendingCompetitionInvitesCard activeClubFilter={activeClubFilter} />
-
-      {/* My Competitions - entries for the user's teams / admin clubs */}
-      <HomeMyCompetitionsCard />
-
-      {/* Team Actions — compact secondary utilities below primary team content */}
-      <HomeQuickActions
-        onCreateTeam={() => navigate("/start")}
-        onInvite={() => setMemberInviteOpen(true)}
-        onJoinTeam={() => setTeamDialogOpen(true)}
-        hasTeams={!!userRoles?.some(r => r.team_id)}
-      />
 
       <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
