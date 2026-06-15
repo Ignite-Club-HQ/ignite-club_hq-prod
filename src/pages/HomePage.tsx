@@ -1956,13 +1956,20 @@ export default function HomePage() {
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
-      <div className="px-1">
-        <h1 className="text-2xl font-bold text-foreground">
-          Welcome, {firstName}! 👋
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
-        </p>
+      <div className="px-1 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-foreground">
+            Welcome, {firstName}! 👋
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
+          </p>
+        </div>
+        <HomeQuickActionsFab
+          onInvite={() => setMemberInviteOpen(true)}
+          onJoinTeam={() => setTeamDialogOpen(true)}
+          hasTeams={!!userRoles?.some(r => r.team_id)}
+        />
       </div>
 
       <div className="relative">
