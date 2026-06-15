@@ -1263,18 +1263,16 @@ export default function MediaPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant={hasActiveFilters ? "secondary" : "ghost"}
+            variant={hasActiveFilters ? "default" : "outline"}
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className={`h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative ${hasActiveFilters ? "text-secondary-foreground hover:text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            className="relative"
             aria-label="Filter"
           >
-            <Filter className="h-5 w-5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline ml-1">Filter</span>
+            <Filter className="h-4 w-4" />
             {hasActiveFilters && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary sm:hidden" />
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
-            {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 px-1.5 hidden sm:inline-flex">!</Badge>}
           </Button>
           {hasProAccess && (
             <>
