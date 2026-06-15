@@ -44,12 +44,14 @@ interface TeamOrLeague {
   name: string;
   logo_url: string | null;
   club_logo_url: string | null;
-  type: "team" | "league";
+  type: "team" | "league" | "competition";
   club_name: string;
   sport: string | null;
   club_id: string;
   canManage: boolean;
   isOnTrial?: boolean;
+  /** For competition cards: comma-separated list of the user's teams entered */
+  competitionTeamsLabel?: string;
 }
 
 interface NextEventInfo {
@@ -133,9 +135,13 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
   const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
 
+  const navTarget =
+    item.type === "team" ? `/teams/${item.id}` :
+    item.type === "league" ? `/mini-leagues/${item.id}` :
+    `/competitions/${item.id}`;
   const handleCardClick = useCallback(() => {
-    navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
-  }, [navigate, item.type, item.id]);
+    navigate(navTarget);
+  }, [navigate, navTarget]);
 
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
@@ -149,6 +155,71 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
   const evStyle = nextEvent ? (eventTypeStyles[nextEvent.type] || { dot: "bg-primary", label: "Event" }) : null;
   const dateParts = nextEvent ? formatDateParts(nextEvent.eventDate) : null;
 
+  // Competition cards are simpler: header + competition badge + teams list. No
+  // events, photos or member rows — those don't apply to a competition entity.
+  if (item.type === "competition") {
+    return (
+      <Card
+        className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+        role="button"
+        tabIndex={0}
+        aria-label={`${item.name} — Competition`}
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(navTarget); }
+        }}
+      >
+        <CardContent className="p-4 h-full flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            {item.logo_url ? (
+              <LogoImage
+                src={item.logo_url}
+                className="h-10 w-10 rounded-full object-cover shrink-0"
+                fallback={
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
+                    <Trophy className="h-5 w-5 text-primary" />
+                  </div>
+                }
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
+                <Trophy className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 h-[16px] shrink-0 border-primary/40 text-primary">
+                  Competition
+                </Badge>
+              </div>
+              <h3 className="font-semibold text-base leading-tight truncate text-foreground mt-1">{item.name}</h3>
+              {item.club_name && (
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1 min-h-[62px]">
+            <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Your entries</span>
+            <span className="text-sm font-medium text-foreground line-clamp-2">
+              {item.competitionTeamsLabel || "—"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="h-7 w-7 rounded-md bg-primary/10 ring-2 ring-card shrink-0 flex items-center justify-center">
+                <Trophy className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">View fixtures & ladder</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card
       className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
@@ -159,7 +230,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
+          navigate(navTarget);
         }
       }}
     >
@@ -172,13 +243,13 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
               className="h-10 w-10 rounded-full object-cover shrink-0"
               fallback={
                 <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
-                  {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
+                  {item.type === "team" ? <Users className="h-5 w-5 text-muted-foreground" /> : <Trophy className="h-5 w-5 text-muted-foreground" />}
                 </div>
               }
             />
           ) : (
             <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
-              {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
+              {item.type === "team" ? <Users className="h-5 w-5 text-muted-foreground" /> : <Trophy className="h-5 w-5 text-muted-foreground" />}
             </div>
           )}
           <div className="min-w-0 flex-1">
@@ -635,29 +706,72 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     placeholderData: (prev) => prev,
   });
 
-  // Fetch active competition name per team via security-definer RPC so all
-  // team members (not just admins) can see which competition their team is
+  // Fetch active competition rows per team via security-definer RPC so all
+  // team members (not just admins) can see which competitions their team is
   // entered in — RLS on competition_entries would otherwise hide it.
-  const { data: competitionNames = {} as Record<string, string> } = useQuery({
-    queryKey: ["team-competitions-premium", teamIds],
+  type CompetitionRow = {
+    team_id: string;
+    competition_id: string;
+    competition_name: string;
+    competition_logo_url: string | null;
+    competition_sport: string | null;
+  };
+  const { data: competitionRows = [] as CompetitionRow[] } = useQuery({
+    queryKey: ["team-competitions-premium-v2", teamIds],
     queryFn: async () => {
-      if (teamIds.length === 0) return {} as Record<string, string>;
+      if (teamIds.length === 0) return [] as CompetitionRow[];
       const { data, error } = await supabase.rpc("get_team_competition_names", {
         _team_ids: teamIds,
       });
-      if (error) return {} as Record<string, string>;
-      const map: Record<string, string> = {};
-      for (const row of (data || []) as { team_id: string; competition_name: string }[]) {
-        if (row.team_id && row.competition_name && !map[row.team_id]) {
-          map[row.team_id] = row.competition_name;
-        }
-      }
-      return map;
+      if (error) return [] as CompetitionRow[];
+      return (data || []) as CompetitionRow[];
     },
     enabled: teamIds.length > 0,
     staleTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
+  // Per-team competition name (small inline label on team cards).
+  const competitionNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of competitionRows) {
+      if (row.team_id && row.competition_name && !map[row.team_id]) {
+        map[row.team_id] = row.competition_name;
+      }
+    }
+    return map;
+  }, [competitionRows]);
+
+  // Unique competition cards: one per competition, with a comma-separated
+  // list of the user's teams entered in that competition.
+  const competitionItems = useMemo<TeamOrLeague[]>(() => {
+    if (competitionRows.length === 0) return [];
+    const byComp = new Map<string, { row: CompetitionRow; teamNames: string[] }>();
+    const teamNameById = new Map(items.filter(i => i.type === "team").map(i => [i.id, i.name] as const));
+    for (const row of competitionRows) {
+      if (!row.competition_id) continue;
+      const existing = byComp.get(row.competition_id);
+      const teamName = teamNameById.get(row.team_id);
+      if (existing) {
+        if (teamName && !existing.teamNames.includes(teamName)) existing.teamNames.push(teamName);
+      } else {
+        byComp.set(row.competition_id, { row, teamNames: teamName ? [teamName] : [] });
+      }
+    }
+    return Array.from(byComp.values()).map(({ row, teamNames }) => ({
+      id: row.competition_id,
+      name: row.competition_name,
+      logo_url: row.competition_logo_url,
+      club_logo_url: null,
+      type: "competition" as const,
+      club_name: "",
+      sport: row.competition_sport,
+      club_id: "",
+      canManage: false,
+      competitionTeamsLabel: teamNames.join(", "),
+    }));
+  }, [competitionRows, items]);
+
 
 
 
@@ -818,6 +932,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
               competitionName={competitionNames[item.id]}
+            />
+          ))}
+          {competitionItems.map((item) => (
+            <TeamCard
+              key={`${item.type}-${item.id}`}
+              item={item}
+              photos={[]}
             />
           ))}
           {createClubCard}

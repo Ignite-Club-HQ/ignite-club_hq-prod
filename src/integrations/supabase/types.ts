@@ -9961,7 +9961,10 @@ export type Database = {
       get_team_competition_names: {
         Args: { _team_ids: string[] }
         Returns: {
+          competition_id: string
+          competition_logo_url: string
           competition_name: string
+          competition_sport: string
           team_id: string
         }[]
       }
