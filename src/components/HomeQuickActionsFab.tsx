@@ -72,7 +72,6 @@ export function HomeQuickActionsFab({
       icon: Building2,
       onClick: () => go("/associations/new"),
       tone: "muted" as const,
-      show: !activeClubFilter,
     },
   ] satisfies ActionItem[]).filter((i) => i.show !== false);
 
