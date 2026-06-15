@@ -57,7 +57,7 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams, activeClub
       items: [
         { label: "Create Message", icon: MessageCircle, onClick: () => go("/messages?new=picker") },
         { label: "Create Event", icon: Calendar, onClick: () => go("/events/new") },
-        { label: "Create…", icon: Plus, onClick: () => go("/start") },
+        { label: "Create…", icon: Plus, onClick: () => go("/start"), description: activeClubFilter ? "Team, competition or association" : "Team, club, competition or association" },
       ],
     },
   ];
