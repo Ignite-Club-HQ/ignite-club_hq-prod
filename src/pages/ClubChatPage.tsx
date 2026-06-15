@@ -247,6 +247,7 @@ export default function ClubChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] }),
         parentMessageId: targetParentId ?? undefined,
       },
     );

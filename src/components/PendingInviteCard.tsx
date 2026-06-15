@@ -57,6 +57,8 @@ interface PendingInviteCardProps {
     email_sent_at?: string | null;
     email_id?: string | null;
     email_error?: string | null;
+    last_reminder_sent_at?: string | null;
+    reminder_count?: number | null;
     profiles?: {
       id: string;
       display_name: string | null;
@@ -447,7 +449,27 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
-  const timeAgo = formatDistanceToNow(new Date(invite.created_at), { addSuffix: true });
+  // If a reminder has been sent (either via cron `last_reminder_sent_at`/`reminder_count`,
+  // or via manual resend which bumps `email_sent_at` >30s after creation), surface the
+  // most recent reminder time so admins know when they last nudged.
+  const createdAtMs = new Date(invite.created_at).getTime();
+  const emailSentAtMs = invite.email_sent_at ? new Date(invite.email_sent_at).getTime() : 0;
+  const lastReminderMs = invite.last_reminder_sent_at ? new Date(invite.last_reminder_sent_at).getTime() : 0;
+  const emailReminded = emailSentAtMs > 0 && emailSentAtMs - createdAtMs > 30_000;
+  const cronReminded = (invite.reminder_count ?? 0) > 0 && lastReminderMs > 0;
+  const wasReminded = emailReminded || cronReminded;
+  const reminderMs = Math.max(emailReminded ? emailSentAtMs : 0, cronReminded ? lastReminderMs : 0);
+  const timeAgo = formatDistanceToNow(
+    new Date(wasReminded ? reminderMs : invite.created_at),
+    { addSuffix: true },
+  );
+  // Distinguish manual resend ("Reminded") from cron auto-reminder ("Auto-reminded")
+  // so admins don't think they personally nudged when it was the system.
+  const sentLabel = emailReminded
+    ? "Reminded"
+    : cronReminded
+      ? "Auto-reminded"
+      : "Sent";
 
   // Determine if email was the original invite method
   const hasEmail = !!invite.invited_email;
@@ -504,9 +526,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
               )}
             </div>
             {isAdmin && invite.invited_email && (
-              <button
+            <button
                 type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors mt-0.5 max-w-full min-w-0 w-full"
+                className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors mt-0.5 max-w-full min-w-0 w-full"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigator.clipboard.writeText(invite.invited_email!);
@@ -526,7 +548,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Pending
               </Badge>
               <span className="text-xs text-muted-foreground">
-                Sent {timeAgo}
+                {sentLabel} {timeAgo}
               </span>
             </div>
           </div>

@@ -36,6 +36,10 @@ interface DMableUser {
   shared_clubs: string[];
   club_ids: string[];
   team_ids: string[];
+  role_label: string | null;
+  children_names: string[];
+  has_prior_dm: boolean;
+  last_seen_at: string | null;
 }
 
 interface ClubInfo {
@@ -47,6 +51,37 @@ interface TeamInfo {
   id: string;
   name: string;
   club_id: string;
+}
+
+const ROLE_PRIORITY: Record<string, number> = {
+  club_admin: 100,
+  committee_member: 90,
+  team_admin: 80,
+  coach: 70,
+  parent: 50,
+  player: 40,
+  basic_user: 10,
+};
+
+const ROLE_DISPLAY: Record<string, string> = {
+  club_admin: "Club Admin",
+  committee_member: "Committee",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  parent: "Parent",
+  player: "Player",
+  basic_user: "Member",
+};
+
+function pickTopRole(roles: string[]): string | null {
+  if (!roles.length) return null;
+  let best: string | null = null;
+  let bestScore = -1;
+  for (const r of roles) {
+    const s = ROLE_PRIORITY[r] ?? 0;
+    if (s > bestScore) { bestScore = s; best = r; }
+  }
+  return best ? (ROLE_DISPLAY[best] ?? best) : null;
 }
 
 interface StartDMDialogProps {
@@ -286,10 +321,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       // Build a map of mini-league to club
       const miniLeagueClubMap = new Map(miniLeagues.map(ml => [ml.id, ml.club_id]));
 
-      // Group by user and collect their clubs and teams
+      // Group by user and collect their clubs, teams, and roles
       const userClubMap = new Map<string, Set<string>>();
       const userTeamMap = new Map<string, Set<string>>();
       const userClubNameMap = new Map<string, string[]>();
+      const userRoleMap = new Map<string, Set<string>>();
       
       // Process club members (excluding app_admin role users)
       clubMembers.forEach((member: { user_id: string; club_id: string; team_id: string | null; role: string }) => {
@@ -300,6 +336,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           userClubMap.set(member.user_id, new Set());
           userTeamMap.set(member.user_id, new Set());
           userClubNameMap.set(member.user_id, []);
+          userRoleMap.set(member.user_id, new Set());
         }
         if (member.club_id) {
           userClubMap.get(member.user_id)!.add(member.club_id);
@@ -311,6 +348,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         if (member.team_id) {
           userTeamMap.get(member.user_id)!.add(member.team_id);
         }
+        if (member.role) userRoleMap.get(member.user_id)!.add(member.role);
       });
 
       // Process mini-league parents (they might not have user_roles entries)
@@ -325,8 +363,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           userClubMap.set(mlParent.parent_user_id, new Set());
           userTeamMap.set(mlParent.parent_user_id, new Set());
           userClubNameMap.set(mlParent.parent_user_id, []);
+          userRoleMap.set(mlParent.parent_user_id, new Set());
         }
         userClubMap.get(mlParent.parent_user_id)!.add(clubId);
+        userRoleMap.get(mlParent.parent_user_id)!.add("parent");
         const clubName = clubNameMap.get(clubId);
         if (clubName && !userClubNameMap.get(mlParent.parent_user_id)!.includes(clubName)) {
           userClubNameMap.get(mlParent.parent_user_id)!.push(clubName);
@@ -337,17 +377,49 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
       if (uniqueUserIds.length === 0) return { users: [], clubs, teams };
 
-      // Fetch profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", uniqueUserIds);
+      // Fetch profiles, children (parent's kids), and prior DM partners in parallel
+      const [profilesResult, childrenResult, dmResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url, last_seen_at")
+          .in("id", uniqueUserIds),
+        supabase
+          .from("children")
+          .select("name, parent_id")
+          .in("parent_id", uniqueUserIds),
+        supabase
+          .from("direct_conversations")
+          .select("participant_1, participant_2")
+          .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`),
+      ]);
 
-      const users = (profiles || []).map(p => ({
+      const profiles = profilesResult.data || [];
+      const childRows = (childrenResult.data || []) as { name: string; parent_id: string }[];
+      const dmRows = (dmResult.data || []) as { participant_1: string; participant_2: string }[];
+
+      const childrenByParent = new Map<string, string[]>();
+      childRows.forEach(c => {
+        if (!c.parent_id || !c.name) return;
+        const list = childrenByParent.get(c.parent_id) || [];
+        list.push(c.name);
+        childrenByParent.set(c.parent_id, list);
+      });
+
+      const priorDMPartners = new Set<string>();
+      dmRows.forEach(d => {
+        const other = d.participant_1 === user!.id ? d.participant_2 : d.participant_1;
+        if (other) priorDMPartners.add(other);
+      });
+
+      const users = profiles.map(p => ({
         ...p,
         shared_clubs: userClubNameMap.get(p.id) || [],
         club_ids: [...(userClubMap.get(p.id) || [])],
         team_ids: [...(userTeamMap.get(p.id) || [])],
+        role_label: pickTopRole([...(userRoleMap.get(p.id) || [])]),
+        children_names: childrenByParent.get(p.id) || [],
+        has_prior_dm: priorDMPartners.has(p.id),
+        last_seen_at: (p as { last_seen_at?: string | null }).last_seen_at ?? null,
       })) as DMableUser[];
 
       return { users, clubs, teams };
@@ -524,9 +596,41 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         u.shared_clubs.some(c => c.toLowerCase().includes(query))
       );
     }
-    
-    return filtered;
+
+    // Sort: prior DM partners first, then most recently active, then by name
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.has_prior_dm !== b.has_prior_dm) return a.has_prior_dm ? -1 : 1;
+      const aSeen = a.last_seen_at ? Date.parse(a.last_seen_at) : 0;
+      const bSeen = b.last_seen_at ? Date.parse(b.last_seen_at) : 0;
+      if (aSeen !== bSeen) return bSeen - aSeen;
+      return (a.display_name || "").localeCompare(b.display_name || "");
+    });
+
+    return sorted;
   }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId]);
+
+  // Detect display-name collisions within the current visible result set so we
+  // can append a privacy-friendly disambiguator (#abcd from user id) only when
+  // two or more visible rows share the exact name.
+  const collidingNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredUsers.forEach(u => {
+      const key = (u.display_name || "").trim().toLowerCase();
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const set = new Set<string>();
+    counts.forEach((n, k) => { if (n > 1) set.add(k); });
+    return set;
+  }, [filteredUsers]);
+
+  // Quick lookup for team names by id (used to show actual team name when a
+  // user belongs to exactly one team shared with the picker scope).
+  const teamNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    availableTeams.forEach(t => m.set(t.id, t.name));
+    return m;
+  }, [availableTeams]);
 
   const isPending = startDMMutation.isPending || startGroupDMMutation.isPending;
 
@@ -771,6 +875,36 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                         .slice(0, 2)
                         .map(s => s.charAt(0).toUpperCase())
                         .join("");
+
+                      // Show actual team name when the user is in exactly one team
+                      // within the current picker scope; otherwise show the count.
+                      const scopedTeamIds = selectedClubId === "all"
+                        ? dmUser.team_ids
+                        : dmUser.team_ids.filter(tid => {
+                            const t = teamNameById.get(tid);
+                            return !!t;
+                          });
+                      const singleTeamName = scopedTeamIds.length === 1
+                        ? teamNameById.get(scopedTeamIds[0]) ?? null
+                        : null;
+
+                      // Privacy-friendly collision disambiguator: 4 hex chars
+                      // from the user id, only shown when the visible list
+                      // contains another row with the same display name.
+                      const nameKey = (dmUser.display_name || "").trim().toLowerCase();
+                      const showIdSuffix = nameKey && collidingNames.has(nameKey);
+                      const idSuffix = showIdSuffix ? `#${dmUser.id.replace(/-/g, "").slice(0, 4)}` : null;
+
+                      // Secondary line: role · parent of kid names
+                      const secondaryParts: string[] = [];
+                      if (dmUser.role_label) secondaryParts.push(dmUser.role_label);
+                      if (dmUser.children_names.length > 0) {
+                        const kids = dmUser.children_names.slice(0, 3).join(", ");
+                        const more = dmUser.children_names.length > 3 ? ` +${dmUser.children_names.length - 3}` : "";
+                        secondaryParts.push(`Parent of ${kids}${more}`);
+                      }
+                      const secondaryLine = secondaryParts.join(" · ");
+
                       return (
                         <button
                           key={dmUser.id}
@@ -798,7 +932,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate text-sm leading-tight">
                               {dmUser.display_name || "Unknown User"}
+                              {idSuffix && (
+                                <span className="ml-1.5 text-[10px] font-mono font-normal text-muted-foreground align-middle">
+                                  {idSuffix}
+                                </span>
+                              )}
+                              {dmUser.has_prior_dm && (
+                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground align-middle">
+                                  · DM'd before
+                                </span>
+                              )}
                             </p>
+                            {secondaryLine && (
+                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {secondaryLine}
+                              </p>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {dmUser.shared_clubs.slice(0, 1).map(c => (
                                 <span
@@ -808,12 +957,17 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                                   {c}
                                 </span>
                               ))}
-                              {teamCount > 0 && (
+                              {singleTeamName ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[180px] truncate">
+                                  <Users className="h-2.5 w-2.5 shrink-0" />
+                                  <span className="truncate">{singleTeamName}</span>
+                                </span>
+                              ) : teamCount > 0 ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
                                   <Users className="h-2.5 w-2.5" />
-                                  {teamCount} {teamCount === 1 ? "team" : "teams"}
+                                  {teamCount} teams
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </button>

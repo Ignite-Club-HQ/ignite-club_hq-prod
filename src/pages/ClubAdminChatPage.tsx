@@ -366,7 +366,10 @@ export default function ClubAdminChatPage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
-      { parentMessageId: targetParentId ?? undefined },
+      {
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] }),
+        parentMessageId: targetParentId ?? undefined,
+      },
     );
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
