@@ -1,16 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle, UsersRound } from "lucide-react";
+import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle } from "lucide-react";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-  ResponsiveDialogDescription,
 } from "@/components/ui/responsive-dialog";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -29,38 +25,10 @@ type ActionGroup = { heading: string; items: ActionItem[] };
 
 export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuickActionsFabProps) {
   const [open, setOpen] = useState(false);
-  const [joinCompOpen, setJoinCompOpen] = useState(false);
-  const [joinCompInput, setJoinCompInput] = useState("");
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const close = () => setOpen(false);
 
-  const extractCompetitionToken = (raw: string): string | null => {
-    const v = raw.trim();
-    if (!v) return null;
-    // Try to parse as URL with ?token=
-    try {
-      const u = new URL(v);
-      const t = u.searchParams.get("token") || u.searchParams.get("id");
-      if (t) return t;
-    } catch {
-      /* not a URL */
-    }
-    // Otherwise assume the raw string is the token
-    return v;
-  };
-
-  const submitJoinCompetition = () => {
-    const token = extractCompetitionToken(joinCompInput);
-    if (!token) {
-      toast({ title: "Paste a join link or code", variant: "destructive" });
-      return;
-    }
-    setJoinCompOpen(false);
-    setJoinCompInput("");
-    navigate(`/competitions/join?token=${encodeURIComponent(token)}`);
-  };
   const go = (path: string) => {
     close();
     navigate(path);
@@ -80,7 +48,6 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
       heading: "Join",
       items: [
         { label: "Join Team", icon: Users, onClick: () => { close(); onJoinTeam(); } },
-        { label: "Join Competition", icon: Trophy, onClick: () => { close(); setJoinCompOpen(true); } },
       ],
     },
     {
@@ -141,34 +108,6 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      <ResponsiveDialog open={joinCompOpen} onOpenChange={(o) => { setJoinCompOpen(o); if (!o) setJoinCompInput(""); }}>
-        <ResponsiveDialogContent className="max-w-md">
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Join a competition</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              Paste the competition join link or invite code shared by the organiser.
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="px-4 pb-6 pt-2 space-y-3">
-            <Input
-              autoFocus
-              value={joinCompInput}
-              onChange={(e) => setJoinCompInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitJoinCompetition(); } }}
-              placeholder="https://… or invite code"
-              className="h-11"
-            />
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => { setJoinCompOpen(false); setJoinCompInput(""); }}>
-                Cancel
-              </Button>
-              <Button onClick={submitJoinCompetition} disabled={!joinCompInput.trim()}>
-                Continue
-              </Button>
-            </div>
-          </div>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
     </>
   );
 }
