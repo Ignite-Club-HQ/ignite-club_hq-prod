@@ -7,6 +7,8 @@ import {
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
+import { CreateActionButton } from "@/components/CreateActionButton";
+
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -64,14 +66,10 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams, activeClub
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Quick actions"
+      <CreateActionButton
+        ariaLabel="Quick actions"
         onClick={() => setOpen(true)}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95 transition-all touch-manipulation select-none cursor-pointer shrink-0"
-      >
-        <Plus className="h-5 w-5" strokeWidth={2.5} />
-      </button>
+      />
 
       <ResponsiveDialog open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="max-w-md">
