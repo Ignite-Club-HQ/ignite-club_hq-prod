@@ -8,7 +8,7 @@ import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon,
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -205,6 +205,15 @@ export default function MessagesPage() {
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") === "picker") {
+      setShowNewMessageSheet(true);
+      params.delete("new");
+      navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
+    }
+  }, [location.search, location.pathname, navigate]);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level
