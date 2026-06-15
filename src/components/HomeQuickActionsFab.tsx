@@ -6,7 +6,11 @@ import {
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
 } from "@/components/ui/responsive-dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
