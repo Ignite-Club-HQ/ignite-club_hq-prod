@@ -83,9 +83,7 @@ import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
-import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
-import HomeMyCompetitionsCard from "@/components/competitions/HomeMyCompetitionsCard";
-import { HomeQuickActions } from "@/components/HomeQuickActions";
+import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { LazyMount } from "@/components/LazyMount";
 
 type EventType = "game" | "training" | "social";
