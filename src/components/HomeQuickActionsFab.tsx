@@ -65,10 +65,7 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
     close();
     navigate(path);
   };
-  const go = (path: string) => {
-    close();
-    navigate(path);
-  };
+
 
 
   const groups: ActionGroup[] = [
