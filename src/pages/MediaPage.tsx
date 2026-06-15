@@ -13,6 +13,7 @@ import {
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useSearchParams } from "react-router-dom";
+import { CreateActionButton } from "@/components/CreateActionButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -1277,12 +1278,12 @@ export default function MediaPage() {
           </Button>
           {hasProAccess && (
             <>
-              <Button size="icon" onClick={() => setUploadDialogOpen(true)} className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3" aria-label="Add photo">
-                <Plus className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline ml-1">Add Photo</span>
-              </Button>
-              <UploadPhotoSheet 
-                open={uploadDialogOpen} 
+              <CreateActionButton
+                ariaLabel="Add photo"
+                onClick={() => setUploadDialogOpen(true)}
+              />
+              <UploadPhotoSheet
+                open={uploadDialogOpen}
                 onOpenChange={setUploadDialogOpen}
                 onUploadingCountChange={setUploadingCount}
                 defaultTeamId={searchParams.get("team")}

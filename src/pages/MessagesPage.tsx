@@ -4,7 +4,8 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2, Clock } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
+import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -2533,15 +2534,10 @@ export default function MessagesPage() {
           >
             <Clock className="h-5 w-5" />
           </Button>
-          <Button
-            size="icon"
-            variant="default"
-            className="h-10 w-10 rounded-full shadow-sm shadow-primary/20 active:scale-95 transition-transform"
-            aria-label="New message"
+          <CreateActionButton
+            ariaLabel="New message"
             onClick={() => setShowNewMessageSheet(true)}
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
+          />
         </div>
       </div>
 
