@@ -934,6 +934,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               competitionName={competitionNames[item.id]}
             />
           ))}
+          {competitionItems.map((item) => (
+            <TeamCard
+              key={`${item.type}-${item.id}`}
+              item={item}
+              photos={[]}
+            />
+          ))}
           {createClubCard}
         </div>
       </div>
