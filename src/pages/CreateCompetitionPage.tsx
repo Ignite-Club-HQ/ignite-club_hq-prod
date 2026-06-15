@@ -238,7 +238,7 @@ export default function CreateCompetitionPage() {
 
       {/* Sticky bottom action */}
       <div
-        className="fixed left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/60 px-4 pt-3"
+        className="fixed left-0 right-0 z-40 bg-background border-t border-border/60 px-4 pt-3"
         style={{ bottom: "var(--bottom-nav-height, 56px)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
         <div className="container max-w-2xl mx-auto px-0">
