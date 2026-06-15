@@ -14,6 +14,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { CreateActionButton } from "@/components/CreateActionButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -771,18 +772,15 @@ export default function EventsPage() {
           )}
 
           {/* Primary action: + opens an action menu */}
-          <Button
-            size="icon"
-            variant="default"
+          <CreateActionButton
+            ariaLabel="Create"
             onClick={() => {
               const canCreate =
                 isAppAdmin ||
                 userRoles?.some((r) =>
                   ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role),
                 );
-              // If the user can't create, jump straight to add-to-calendar export.
               if (!canCreate) {
-                // Trigger the same export flow inline
                 const evts = upcomingEvents || [];
                 if (!evts.length) {
                   toast({ title: "No upcoming events to export" });
@@ -817,10 +815,7 @@ export default function EventsPage() {
               }
               setCreateMenuOpen(true);
             }}
-            aria-label="Create"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          />
         </div>
       </div>
 
