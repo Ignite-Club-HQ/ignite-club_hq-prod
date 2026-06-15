@@ -104,8 +104,8 @@ export default function StartTeamPage() {
 
   return (
     <div className="container max-w-md mx-auto px-4 py-6">
-      <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/start"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
+      <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate(-1)}>
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </Button>
 
       <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">
