@@ -121,13 +121,14 @@ function MyTeamsCarouselSkeleton() {
   );
 }
 
-function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members }: {
+function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members, competitionName }: {
   item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
   photoCount?: number;
   unreadMessages?: number;
   members?: MemberSummary;
+  competitionName?: string;
 }) {
   const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
