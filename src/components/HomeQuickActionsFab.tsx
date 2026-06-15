@@ -64,16 +64,11 @@ export function HomeQuickActionsFab({
   ].filter((i) => i.show !== false);
 
   // Admin — less frequent, structural actions
-  const admin: ActionItem[] = ([
-    { label: "Create Team", icon: Users2, onClick: () => go("/teams/new"), tone: "muted" as const },
-    { label: "Create Competition", icon: Trophy, onClick: () => go("/competitions/new"), tone: "muted" as const },
-    {
-      label: "Create Association",
-      icon: Building2,
-      onClick: () => go("/associations/new"),
-      tone: "muted" as const,
-    },
-  ]).filter((i) => i.show !== false);
+  const admin: ActionItem[] = [
+    { label: "Create Team", icon: Users2, onClick: () => go("/teams/new"), tone: "muted" },
+    { label: "Create Competition", icon: Trophy, onClick: () => go("/competitions/new"), tone: "muted" },
+    { label: "Create Association", icon: Building2, onClick: () => go("/associations/new"), tone: "muted" },
+  ];
 
   const renderRow = (item: ActionItem) => (
     <button
