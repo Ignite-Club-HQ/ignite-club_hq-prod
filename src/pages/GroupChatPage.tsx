@@ -631,16 +631,17 @@ export default function GroupChatPage() {
       // floating at the top of an empty viewport.
       if (openedFromNotificationRef.current) {
         const cachedData = getCachedGroupMessages(groupId);
-        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
-        const cachedHasHistory = cachedData.messages.length >= 5 || cachedData.messages.length > prevLen;
-        if (cachedData.messages.length && cachedHasHistory) {
+        // Require a meaningful history window (>=5). The notification preload
+        // writes a SINGLE message into cache before the chat mounts.
+        const cachedHasHistory = cachedData.messages.length >= 5;
+        if (cachedHasHistory) {
           return { ...cachedData, hasOlderMessages: false, fromCache: true };
         }
       }
       if (prev) return prev;
 
       const cachedData = getCachedGroupMessages(groupId);
-      if (!cachedData.messages.length) return undefined;
+      if (cachedData.messages.length < 2) return undefined;
 
       return { ...cachedData, hasOlderMessages: false, fromCache: true };
     },
@@ -658,7 +659,8 @@ export default function GroupChatPage() {
     );
   }, [messagesData]);
 
-  // Local copy used for rendering so optimistic updates are instant
+  // Local copy used for rendering so optimistic updates are instant.
+  // 1-item cache = notification preload; don't seed from it.
   const getInitialLocalMessages = () => {
     if (!groupId) return undefined;
 
@@ -667,20 +669,22 @@ export default function GroupChatPage() {
       groupId,
     ]);
 
-    if (cachedQueryData?.messages?.length) {
-      return cachedQueryData.messages;
+    if ((cachedQueryData?.messages?.length ?? 0) >= 2) {
+      return cachedQueryData!.messages;
     }
 
-    return getCachedGroupMessages(groupId).messages;
+    const fromCache = getCachedGroupMessages(groupId).messages;
+    return fromCache.length >= 2 ? fromCache : undefined;
   };
 
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
     getInitialLocalMessages(),
   );
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !(localMessages?.length)) ||
-    (messagesLoading && !messagesData && !(localMessages?.length));
+    (!authReady && !hasMeaningfulLocal) ||
+    (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
