@@ -44,12 +44,14 @@ interface TeamOrLeague {
   name: string;
   logo_url: string | null;
   club_logo_url: string | null;
-  type: "team" | "league";
+  type: "team" | "league" | "competition";
   club_name: string;
   sport: string | null;
   club_id: string;
   canManage: boolean;
   isOnTrial?: boolean;
+  /** For competition cards: comma-separated list of the user's teams entered */
+  competitionTeamsLabel?: string;
 }
 
 interface NextEventInfo {
