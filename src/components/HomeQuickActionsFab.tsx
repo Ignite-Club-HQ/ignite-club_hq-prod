@@ -1,16 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle, UsersRound } from "lucide-react";
+import { Plus, UserPlus, Users, Trophy, Calendar, MessageCircle } from "lucide-react";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-  ResponsiveDialogDescription,
 } from "@/components/ui/responsive-dialog";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
