@@ -524,16 +524,17 @@ export default function ClubChatPage() {
       // floating at the top of an empty viewport.
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedClubMessages(clubId);
-        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
-        const cachedHasHistory = cachedMessages.length >= 5 || cachedMessages.length > prevLen;
-        if (cachedMessages.length && cachedHasHistory) {
+        // Require a meaningful history window (>=5). The notification preload
+        // writes a SINGLE message into cache before the chat mounts.
+        const cachedHasHistory = cachedMessages.length >= 5;
+        if (cachedHasHistory) {
           return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
         }
       }
       if (prev) return prev;
 
       const cachedMessages = getCachedClubMessages(clubId);
-      if (!cachedMessages.length) return undefined;
+      if (cachedMessages.length < 2) return undefined;
 
       return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
     },
@@ -551,14 +552,18 @@ export default function ClubChatPage() {
     );
   }, [messagesData]);
 
-  // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() =>
-    clubId ? getCachedClubMessages(clubId) : undefined,
-  );
+  // Local copy used for rendering so optimistic updates are instant.
+  // 1-item cache = notification preload; don't seed from it.
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => {
+    if (!clubId) return undefined;
+    const cached = getCachedClubMessages(clubId);
+    return cached.length >= 2 ? cached : undefined;
+  });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !(localMessages?.length)) ||
-    (isLoading && !messagesData && !(localMessages?.length));
+    (!authReady && !hasMeaningfulLocal) ||
+    (isLoading && !messagesData && !hasMeaningfulLocal);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {

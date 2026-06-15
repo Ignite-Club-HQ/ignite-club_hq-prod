@@ -568,14 +568,12 @@ export default function DirectMessagePage() {
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.
-      // When opened from a push notification, the preload handler has already
-      // merged the new message into this cache (see notificationPreload.ts),
-      // so the user sees the new message at first paint. The background
-      // refetch (refetchOnMount: 'always') still runs to fill in reactions
-      // and any other recent activity.
+      // 1-item cache = notification preload — using it as placeholder strands
+      // a lone message at the top of the viewport. Require >= 2 so the
+      // proper loading state is shown until the real fetch lands.
       if (!conversationId) return undefined;
       const messages = getCachedDirectMessages(conversationId);
-      if (!messages.length) return undefined;
+      if (messages.length < 2) return undefined;
 
       return { messages, hasOlderMessages: false };
     },
@@ -602,15 +600,19 @@ export default function DirectMessagePage() {
     );
   }, [messagesData]);
 
-  const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(() =>
-    conversationId ? getCachedDirectMessages(conversationId) : undefined,
-  );
+  // 1-item cache = notification preload; don't seed from it.
+  const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(() => {
+    if (!conversationId) return undefined;
+    const cached = getCachedDirectMessages(conversationId);
+    return cached.length >= 2 ? cached : undefined;
+  });
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !(localMessages?.length)) ||
-    (messagesLoading && !messagesData && !(localMessages?.length));
+    (!authReady && !hasMeaningfulLocal) ||
+    (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {

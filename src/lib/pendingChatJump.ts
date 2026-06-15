@@ -29,7 +29,12 @@ import { setChatJumpActive, isChatJumpActive } from "@/lib/chatJumpActive";
  * slow Android devices; tight enough to recover before the next user
  * interaction needs a fresh scroll.
  */
-const EAGER_JUMP_ARM_TIMEOUT_MS = 4_000;
+// Slow Android cold starts (auth bootstrap + React mount + chat chunk load)
+// regularly exceed 4s. If the timer fires before VirtualizedChatMessageList
+// mounts, the jump-hydration overlay is never shown and the user sees the
+// 1-message preload stranded at the top. 10s is generous enough to cover the
+// slowest cold-start path but still recovers before the user's next gesture.
+const EAGER_JUMP_ARM_TIMEOUT_MS = 10_000;
 let eagerJumpClearTimer: ReturnType<typeof setTimeout> | null = null;
 
 function armEagerChatJump(): void {
