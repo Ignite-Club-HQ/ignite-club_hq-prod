@@ -165,7 +165,7 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
+          navigate(navTarget);
         }
       }}
     >
