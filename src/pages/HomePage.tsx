@@ -2279,152 +2279,51 @@ export default function HomePage() {
 
       <section aria-label="Points and rewards">
       <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label="View points and rewards" onClick={() => navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/profile?section=points-history"); } }}>
-        <CardContent className="px-4 py-4 space-y-3">
-          {/* Primary message area */}
-          <div className="flex items-start justify-between gap-3">
+        <CardContent className="px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
+              <Flame className="h-4 w-4 text-primary" />
+            </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
-                  <Flame className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
-                </span>
-                {showProBadge && (
-                  <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
-                    <Lock className="h-2.5 w-2.5 mr-0.5" />
-                    Pro
-                  </Badge>
-                )}
-              </div>
-
-              {/* Primary: progress to next reward */}
-              {minRewardThreshold !== null && (myPoints) < minRewardThreshold ? (
-                <div>
-                  <p className="text-base font-semibold leading-tight">
-                    {minRewardThreshold - (myPoints)} points to next reward
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {myPoints} total points
-                  </p>
-                </div>
-              ) : minRewardThreshold !== null ? (
-                <div>
-                  <p className="text-base font-semibold leading-tight text-primary">
-                    🎉 Rewards available!
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {myPoints} total points
-                  </p>
-                </div>
-              ) : (
-                <p className="text-2xl font-bold leading-tight">{myPoints}</p>
-              )}
-
-              {/* Pending claim */}
-              {latestPendingRedemption && (
-                <p className="text-xs text-muted-foreground mt-1">
+              {latestPendingRedemption ? (
+                <p className="text-sm font-semibold leading-tight text-primary truncate">
                   🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
                 </p>
-              )}
-            </div>
-
-            {/* CTA */}
-            <div className="shrink-0 pt-1">
-              {latestPendingRedemption ? (
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium"
-                  onClick={(e) => { e.stopPropagation(); setClaimDialogOpen(true); }}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Claim
-                </Button>
+              ) : minRewardThreshold !== null && myPoints >= minRewardThreshold ? (
+                <p className="text-sm font-semibold leading-tight text-primary">
+                  🎉 Rewards Available
+                </p>
               ) : (
-                <Button
-                  size="sm"
-                  className="gap-1.5 h-8 text-xs font-medium"
-                  onClick={(e) => { e.stopPropagation(); handleBrowseRewards(); }}
-                >
-                  <Gift className="h-3.5 w-3.5" />
-                  View Rewards
-                </Button>
+                <p className="text-sm font-semibold leading-tight">
+                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                </p>
               )}
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {myPoints} Point{myPoints === 1 ? '' : 's'}
+                {showProBadge ? ' · Pro' : ''}
+              </p>
             </div>
+            {latestPendingRedemption ? (
+              <Button
+                size="sm"
+                className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium shrink-0"
+                onClick={(e) => { e.stopPropagation(); setClaimDialogOpen(true); }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Claim
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1 h-8 text-xs font-medium text-primary shrink-0 px-2"
+                onClick={(e) => { e.stopPropagation(); handleBrowseRewards(); }}
+              >
+                View Rewards
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
-
-          {/* Progress bar */}
-          {minRewardThreshold !== null && (myPoints) < minRewardThreshold && (() => {
-            const currentPoints = myPoints;
-            const progress = Math.min(100, (currentPoints / minRewardThreshold) * 100);
-            const isClose = progress >= 70;
-            return (
-              <div className="space-y-1.5">
-                <div 
-                  className="h-2 rounded-full bg-muted overflow-hidden relative" 
-                  role="progressbar" 
-                  aria-valuenow={currentPoints} 
-                  aria-valuemin={0} 
-                  aria-valuemax={minRewardThreshold} 
-                  aria-label="Progress to next reward"
-                >
-                  <div 
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-1000 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                  {/* Threshold marker */}
-                  <div className="absolute right-0 top-0 h-full w-0.5 bg-primary/40" />
-                </div>
-                <div className="flex items-center justify-between">
-                  {isClose && (
-                    <p className="text-[11px] text-primary/80 font-medium">
-                      Nearly there — keep going!
-                    </p>
-                  )}
-                  {nextRewardInfo?.name && (
-                    <p className="text-[11px] text-muted-foreground ml-auto truncate max-w-[60%]">
-                      Next: {nextRewardInfo.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-           {/* Children's reward progress - collapsible */}
-          {userChildren.length > 0 && minRewardThreshold !== null && (
-            <Collapsible className="pt-1 border-t border-border/50">
-              <CollapsibleTrigger className="flex items-center justify-between w-full py-1 group" onClick={(e) => e.stopPropagation()}>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 pt-1">
-                {userChildren.map((child: any) => {
-                  const childPoints = childPointsFor(child);
-                  const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
-                  const childHasReward = childPoints >= minRewardThreshold;
-                  return (
-                    <div key={child.id} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium truncate">{child.name}</span>
-                        <span className={`text-xs font-medium ${childHasReward ? 'text-primary' : 'text-muted-foreground'}`}>
-                          {childHasReward ? '🎉 Reward available!' : `${childPoints}/${minRewardThreshold} pts`}
-                        </span>
-                      </div>
-                      {!childHasReward && (
-                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div 
-                            className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary/40 transition-all duration-1000 ease-out"
-                            style={{ width: `${childProgress}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
         </CardContent>
       </Card>
       </section>
