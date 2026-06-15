@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -16,9 +15,16 @@ import { ensureFreshSession } from "@/lib/ensureFreshSession";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
+import { cn } from "@/lib/utils";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 const PERSONAL_ORGANISER = "__personal__";
+
+const VISIBILITY_LABELS: Record<string, string> = {
+  private: "Private",
+  unlisted: "Unlisted",
+  public: "Public",
+};
 
 export default function CreateCompetitionPage() {
   usePageTitle("New competition");
@@ -67,7 +73,6 @@ export default function CreateCompetitionPage() {
 
     let clubIdToUse = organizerClubId;
 
-    // Auto-create a personal shell club if the user picked "Personal organiser"
     if (organizerClubId === PERSONAL_ORGANISER) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -124,90 +129,151 @@ export default function CreateCompetitionPage() {
   const kindLabel = (kind: string) =>
     kind === "association" ? "Association" : kind === "full" ? "Club" : kind;
 
+  const organiserValueLabel = (() => {
+    if (organizerClubId === PERSONAL_ORGANISER) return "Personal (just me)";
+    const c = organisers.find((c: any) => c.id === organizerClubId);
+    return c?.name ?? "Choose";
+  })();
+
   return (
-    <div className="container max-w-2xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-1">
+    <div className="container max-w-2xl mx-auto px-4 pt-4 pb-32">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
         <Button asChild variant="ghost" size="icon" className="-ml-2 shrink-0">
           <Link to="/start" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
         </Button>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Trophy className="h-6 w-6 text-primary" /> New competition
-        </h1>
+        <Trophy className="h-5 w-5 text-primary shrink-0" />
+        <h1 className="text-xl font-semibold leading-none">New competition</h1>
       </div>
-      <p className="text-sm text-muted-foreground mb-6 pl-10">
-        Set up a league or tournament that teams can be invited to.
+      <p className="text-[13px] text-muted-foreground mb-5 pl-10">
+        Create a competition and invite teams to join.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Label htmlFor="club">Organiser</Label>
-          <Select value={organizerClubId} onValueChange={setOrganizerClubId}>
-            <SelectTrigger id="club"><SelectValue placeholder="Choose organiser" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={PERSONAL_ORGANISER}>
-                Personal organiser (just me)
-              </SelectItem>
-              {!loadingClubs && organisers.length > 0 && (
-                <>
-                  {organisers.map((c: any) => (
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Primary field: name */}
+        <div className="space-y-1.5">
+          <label htmlFor="name" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground pl-1">
+            Competition name
+          </label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Twilight Twenty 2026"
+            required
+            className="h-14 rounded-2xl bg-muted/40 border-border/60 px-4 text-base font-medium placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+          />
+        </div>
+
+        {/* Grouped settings card */}
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground pl-1">
+            Details
+          </div>
+          <div className="rounded-2xl bg-muted/40 border border-border/60 overflow-hidden divide-y divide-border/50">
+            {/* Organiser */}
+            <SettingsRow label="Organiser">
+              <Select value={organizerClubId} onValueChange={setOrganizerClubId}>
+                <SettingsSelectTrigger>{organiserValueLabel}</SettingsSelectTrigger>
+                <SelectContent>
+                  <SelectItem value={PERSONAL_ORGANISER}>Personal organiser (just me)</SelectItem>
+                  {!loadingClubs && organisers.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} <span className="text-muted-foreground">· {kindLabel(c.kind)}</span>
                     </SelectItem>
                   ))}
-                </>
-              )}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Pick a club or association if this competition belongs to one, or run it under a personal organiser.
-          </p>
-        </div>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
 
-        <div>
-          <Label htmlFor="name">Competition name</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Twilight Twenty 2026" required />
-        </div>
+            {/* Sport */}
+            <SettingsRow label="Sport">
+              <Select value={sport} onValueChange={setSport}>
+                <SettingsSelectTrigger placeholder>{sport || "Optional"}</SettingsSelectTrigger>
+                <SelectContent>
+                  {SPORTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </SettingsRow>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="sport">Sport</Label>
-            <Select value={sport} onValueChange={setSport}>
-              <SelectTrigger id="sport"><SelectValue placeholder="Optional" /></SelectTrigger>
-              <SelectContent>
-                {SPORTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/* Season */}
+            <SettingsRow label="Season">
+              <Input
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+                placeholder="e.g. 2026"
+                className="h-9 w-28 border-0 bg-transparent text-right text-sm font-medium px-0 focus-visible:ring-0 placeholder:text-muted-foreground/60"
+              />
+            </SettingsRow>
+
+            {/* Visibility */}
+            <SettingsRow label="Visibility">
+              <Select value={visibility} onValueChange={(v: any) => setVisibility(v)}>
+                <SettingsSelectTrigger>{VISIBILITY_LABELS[visibility]}</SettingsSelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private — admins and entered teams only</SelectItem>
+                  <SelectItem value="unlisted">Unlisted — admins and entered teams only</SelectItem>
+                  <SelectItem value="public">Public — anyone signed in</SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
           </div>
-          <div>
-            <Label htmlFor="season">Season</Label>
-            <Input id="season" value={season} onChange={(e) => setSeason(e.target.value)} placeholder="e.g. 2026" />
-          </div>
         </div>
 
-        <div>
-          <Label htmlFor="visibility">Visibility</Label>
-          <Select value={visibility} onValueChange={(v: any) => setVisibility(v)}>
-            <SelectTrigger id="visibility"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="private">Private — admins and entered teams only</SelectItem>
-              <SelectItem value="unlisted">Unlisted — admins and entered teams only</SelectItem>
-              <SelectItem value="public">Public — anyone signed in</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Description */}
+        <div className="space-y-1.5">
+          <label htmlFor="description" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground pl-1">
+            Description
+          </label>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Add competition details (optional)"
+            className="rounded-2xl bg-muted/40 border-border/60 px-4 py-3 text-sm resize-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+          />
         </div>
-
-        <div>
-          <Label htmlFor="description">Description</Label>
-          <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-        </div>
-
-        <CreateCompetitionSubmitButton
-          organizerClubId={organizerClubId === PERSONAL_ORGANISER ? null : organizerClubId}
-          saving={saving}
-          name={name}
-        />
       </form>
+
+      {/* Sticky bottom action */}
+      <div
+        className="fixed left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/60 px-4 pt-3"
+        style={{ bottom: "var(--bottom-nav-height, 56px)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="container max-w-2xl mx-auto px-0">
+          <CreateCompetitionSubmitButton
+            organizerClubId={organizerClubId === PERSONAL_ORGANISER ? null : organizerClubId}
+            saving={saving}
+            name={name}
+            onSubmit={() => handleSubmit(new Event("submit") as any)}
+          />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function SettingsRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 min-h-[52px]">
+      <div className="text-sm text-foreground/80">{label}</div>
+      <div className="flex-1 flex justify-end min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function SettingsSelectTrigger({ children, placeholder }: { children: React.ReactNode; placeholder?: boolean }) {
+  return (
+    <SelectTrigger
+      className={cn(
+        "h-9 border-0 bg-transparent px-0 py-0 shadow-none focus:ring-0 focus-visible:ring-0 gap-1.5 [&>svg:last-child]:hidden text-sm font-medium justify-end max-w-full",
+        placeholder && "text-muted-foreground font-normal"
+      )}
+    >
+      <span className="truncate text-right">{children}</span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+    </SelectTrigger>
   );
 }
 
@@ -215,10 +281,12 @@ function CreateCompetitionSubmitButton({
   organizerClubId,
   saving,
   name,
+  onSubmit,
 }: {
   organizerClubId: string | null;
   saving: boolean;
   name: string;
+  onSubmit: () => void;
 }) {
   const scoped = useClubProAccess(organizerClubId);
   const any = useUserHasAnyClubPro();
@@ -235,7 +303,12 @@ function CreateCompetitionSubmitButton({
     );
   }
   return (
-    <Button type="submit" disabled={saving || !name.trim()} className="w-full">
+    <Button
+      type="button"
+      onClick={onSubmit}
+      disabled={saving || !name.trim()}
+      className="w-full h-12 rounded-2xl text-base font-semibold"
+    >
       {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
       Create competition
     </Button>
