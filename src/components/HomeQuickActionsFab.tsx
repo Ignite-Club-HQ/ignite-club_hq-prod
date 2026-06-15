@@ -25,38 +25,10 @@ type ActionGroup = { heading: string; items: ActionItem[] };
 
 export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuickActionsFabProps) {
   const [open, setOpen] = useState(false);
-  const [joinCompOpen, setJoinCompOpen] = useState(false);
-  const [joinCompInput, setJoinCompInput] = useState("");
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const close = () => setOpen(false);
 
-  const extractCompetitionToken = (raw: string): string | null => {
-    const v = raw.trim();
-    if (!v) return null;
-    // Try to parse as URL with ?token=
-    try {
-      const u = new URL(v);
-      const t = u.searchParams.get("token") || u.searchParams.get("id");
-      if (t) return t;
-    } catch {
-      /* not a URL */
-    }
-    // Otherwise assume the raw string is the token
-    return v;
-  };
-
-  const submitJoinCompetition = () => {
-    const token = extractCompetitionToken(joinCompInput);
-    if (!token) {
-      toast({ title: "Paste a join link or code", variant: "destructive" });
-      return;
-    }
-    setJoinCompOpen(false);
-    setJoinCompInput("");
-    navigate(`/competitions/join?token=${encodeURIComponent(token)}`);
-  };
   const go = (path: string) => {
     close();
     navigate(path);
