@@ -88,7 +88,7 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
       items: [
         { label: "Create Team", icon: Users, onClick: () => go("/start") },
         { label: "Create Competition", icon: Trophy, onClick: () => go("/competitions/new") },
-        { label: "Create Group", icon: UsersRound, onClick: () => go("/messages?new=group") },
+        { label: "Create Message", icon: MessageCircle, onClick: () => go("/messages?new=dm") },
         { label: "Create Event", icon: Calendar, onClick: () => go("/events/new") },
       ],
     },
