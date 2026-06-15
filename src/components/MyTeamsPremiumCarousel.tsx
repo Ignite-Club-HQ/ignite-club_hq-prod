@@ -135,9 +135,13 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
   const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
 
+  const navTarget =
+    item.type === "team" ? `/teams/${item.id}` :
+    item.type === "league" ? `/mini-leagues/${item.id}` :
+    `/competitions/${item.id}`;
   const handleCardClick = useCallback(() => {
-    navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
-  }, [navigate, item.type, item.id]);
+    navigate(navTarget);
+  }, [navigate, navTarget]);
 
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
