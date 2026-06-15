@@ -2271,7 +2271,17 @@ export default function HomePage() {
             <Button
               className="w-full sm:w-auto"
               onClick={() => teamRequestMutation.mutate()}
-              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole || hasExistingLeagueRole}
+              disabled={
+                !selectedTeam ||
+                teamRequestMutation.isPending ||
+                hasExistingTeamRole ||
+                hasExistingLeagueRole ||
+                (showChildLinker && (
+                  (selectedChildForLink === "__new__" || !selectedChildForLink)
+                    ? !newChildName.trim()
+                    : false
+                ))
+              }
             >
               {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
             </Button>
