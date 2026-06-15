@@ -103,39 +103,67 @@ export default function StartTeamPage() {
   };
 
   return (
-    <div className="container max-w-md mx-auto px-4 py-6">
-      <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate(-1)}>
-        <ArrowLeft className="h-4 w-4 mr-1" /> Back
-      </Button>
+    <div className="container max-w-md mx-auto px-4 pt-4 pb-8">
+      {/* Inline header */}
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/60 active:scale-95 transition-transform"
+          aria-label="Back"
+        >
+          <ChevronLeft className="h-5 w-5 text-foreground" />
+        </button>
+        <h1 className="text-2xl font-bold tracking-tight">Start a Team</h1>
+      </div>
 
-      <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">
-        <Users className="h-6 w-6 text-primary" /> Start a team
-      </h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Attach this team to a club, or run it on its own. You can always link it
-        to a club later.
+      <p className="text-sm text-muted-foreground max-w-[280px] mb-5 leading-relaxed">
+        Choose a club or create a standalone team. You can link it later.
       </p>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div>
-          <Label htmlFor="club">Club (optional)</Label>
+          <Label htmlFor="club" className="text-sm font-medium text-foreground mb-2 block">
+            Club
+          </Label>
           <Select value={choice} onValueChange={setChoice}>
-            <SelectTrigger id="club"><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger
+              id="club"
+              className="h-12 w-full rounded-2xl border-0 bg-[#FAFAFA] dark:bg-card px-4 shadow-sm text-sm focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
               <SelectItem value={PERSONAL}>No club — just me (personal)</SelectItem>
               {!isLoading && clubs.map((c: any) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Only clubs where you're an admin appear here.
-          </p>
+
+          <div className="flex items-start gap-1.5 mt-2">
+            <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+            <p className="text-[13px] text-muted-foreground leading-snug">
+              Only clubs you manage are shown
+            </p>
+          </div>
         </div>
 
-        <Button onClick={handleContinue} disabled={working} className="w-full">
-          {working ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Continue
+        <Button
+          onClick={handleContinue}
+          disabled={working}
+          className="w-full h-12 rounded-2xl text-base font-semibold shadow-sm active:scale-[0.97] transition-transform"
+        >
+          {working ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </>
+          )}
         </Button>
       </div>
     </div>
