@@ -20,6 +20,7 @@ type ActionItem = {
   icon: typeof Plus;
   onClick: () => void;
   show?: boolean;
+  description?: string;
 };
 
 type ActionGroup = { heading: string; items: ActionItem[] };
