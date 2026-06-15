@@ -815,6 +815,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               photoCount={teamPhotoCounts[item.id]}
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
+              competitionName={competitionNames[item.id]}
             />
           ))}
           {createClubCard}
