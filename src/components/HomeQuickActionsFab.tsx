@@ -12,6 +12,7 @@ interface HomeQuickActionsFabProps {
   onInvite: () => void;
   onJoinTeam: () => void;
   hasTeams: boolean;
+  activeClubFilter?: string | null;
 }
 
 type ActionItem = {
