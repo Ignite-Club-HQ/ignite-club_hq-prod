@@ -121,13 +121,14 @@ function MyTeamsCarouselSkeleton() {
   );
 }
 
-function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members }: {
+function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members, competitionName }: {
   item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
   photoCount?: number;
   unreadMessages?: number;
   members?: MemberSummary;
+  competitionName?: string;
 }) {
   const totalPhotos = photoCount ?? photos.length;
   const navigate = useNavigate();
@@ -188,6 +189,12 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
               )}
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
+            {competitionName && (
+              <p className="text-[10px] text-muted-foreground/80 truncate flex items-center gap-1 mt-0.5">
+                <Trophy className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{competitionName}</span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -628,7 +635,30 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     placeholderData: (prev) => prev,
   });
 
-  // Fetch unread message counts per team — use the SAME source as the
+  // Fetch active competition name per team (first accepted entry).
+  const { data: competitionNames = {} as Record<string, string> } = useQuery({
+    queryKey: ["team-competitions-premium", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("competition_entries")
+        .select("team_id, status, competitions:competition_id(name, status)")
+        .in("team_id", teamIds)
+        .in("status", ["accepted", "invited"]);
+      const map: Record<string, string> = {};
+      for (const row of (data || []) as any[]) {
+        if (!row.team_id || map[row.team_id]) continue;
+        const name = row.competitions?.name;
+        if (name) map[row.team_id] = name;
+      }
+      return map;
+    },
+    enabled: teamIds.length > 0 && deferredReady,
+    staleTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+
   // Messages inbox (notifications.is_read=false) so the team card and inbox
   // never disagree. Shared via useUnreadMessageCounts so the RPC is deduped
   // with MessagesPage + BottomNav.
@@ -785,6 +815,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               photoCount={teamPhotoCounts[item.id]}
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
+              competitionName={competitionNames[item.id]}
             />
           ))}
           {createClubCard}
