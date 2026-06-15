@@ -178,13 +178,13 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
               className="h-10 w-10 rounded-full object-cover shrink-0"
               fallback={
                 <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
-                  {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
+                  {item.type === "team" ? <Users className="h-5 w-5 text-muted-foreground" /> : <Trophy className="h-5 w-5 text-muted-foreground" />}
                 </div>
               }
             />
           ) : (
             <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
-              {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
+              {item.type === "team" ? <Users className="h-5 w-5 text-muted-foreground" /> : <Trophy className="h-5 w-5 text-muted-foreground" />}
             </div>
           )}
           <div className="min-w-0 flex-1">
