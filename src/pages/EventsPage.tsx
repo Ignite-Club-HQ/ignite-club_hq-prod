@@ -23,7 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { supabase } from "@/integrations/supabase/client";
