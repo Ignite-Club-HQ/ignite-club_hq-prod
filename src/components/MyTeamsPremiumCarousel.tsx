@@ -922,6 +922,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
+          {competitionItems.map((item) => (
+            <TeamCard
+              key={`${item.type}-${item.id}`}
+              item={item}
+              photos={[]}
+            />
+          ))}
           {sortedItems.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
@@ -932,13 +939,6 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               unreadMessages={unreadCounts[item.id]}
               members={teamMembers[item.id]}
               competitionName={competitionNames[item.id]}
-            />
-          ))}
-          {competitionItems.map((item) => (
-            <TeamCard
-              key={`${item.type}-${item.id}`}
-              item={item}
-              photos={[]}
             />
           ))}
           {createClubCard}
