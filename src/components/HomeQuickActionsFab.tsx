@@ -20,6 +20,7 @@ type ActionItem = {
   icon: typeof Plus;
   onClick: () => void;
   show?: boolean;
+  description?: string;
 };
 
 type ActionGroup = { heading: string; items: ActionItem[] };
@@ -56,7 +57,7 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams, activeClub
       items: [
         { label: "Create Message", icon: MessageCircle, onClick: () => go("/messages?new=picker") },
         { label: "Create Event", icon: Calendar, onClick: () => go("/events/new") },
-        { label: "Create…", icon: Plus, onClick: () => go("/start") },
+        { label: "Create…", icon: Plus, onClick: () => go("/start"), description: activeClubFilter ? "Team, competition or association" : "Team, club, competition or association" },
       ],
     },
   ];
@@ -92,12 +93,17 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams, activeClub
                         key={item.label}
                         type="button"
                         onClick={item.onClick}
-                        className="flex items-center gap-3 h-12 px-3 rounded-lg border border-border bg-card hover:bg-accent/50 active:bg-accent transition-colors text-sm font-medium text-foreground touch-manipulation text-left"
+                        className="flex items-center gap-3 min-h-12 py-2 px-3 rounded-lg border border-border bg-card hover:bg-accent/50 active:bg-accent transition-colors text-sm font-medium text-foreground touch-manipulation text-left"
                       >
                         <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary shrink-0">
                           <item.icon className="h-4 w-4" />
                         </span>
-                        <span className="truncate">{item.label}</span>
+                        <span className="flex flex-col min-w-0">
+                          <span className="truncate">{item.label}</span>
+                          {item.description && (
+                            <span className="text-xs text-muted-foreground truncate">{item.description}</span>
+                          )}
+                        </span>
                       </button>
                     ))}
                   </div>
