@@ -189,6 +189,12 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
               )}
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
+            {competitionName && (
+              <p className="text-[10px] text-muted-foreground/80 truncate flex items-center gap-1 mt-0.5">
+                <Trophy className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate">{competitionName}</span>
+              </p>
+            )}
           </div>
         </div>
 
