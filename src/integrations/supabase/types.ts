@@ -9958,6 +9958,16 @@ export type Database = {
           year_of_birth: number
         }[]
       }
+      get_team_competition_names: {
+        Args: { _team_ids: string[] }
+        Returns: {
+          competition_id: string
+          competition_logo_url: string
+          competition_name: string
+          competition_sport: string
+          team_id: string
+        }[]
+      }
       get_team_invite_by_token: {
         Args: { _token: string }
         Returns: {
