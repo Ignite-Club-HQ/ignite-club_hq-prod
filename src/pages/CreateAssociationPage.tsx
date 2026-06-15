@@ -52,8 +52,8 @@ export default function CreateAssociationPage() {
 
   return (
     <div className="container max-w-xl mx-auto px-4 py-6 space-y-4">
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/start"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </Button>
       <header className="flex items-center gap-3">
         <div className="rounded-xl bg-primary/10 p-3"><Network className="h-5 w-5 text-primary" /></div>
