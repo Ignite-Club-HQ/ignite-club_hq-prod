@@ -23,7 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { supabase } from "@/integrations/supabase/client";
@@ -760,7 +766,7 @@ export default function EventsPage() {
             <Button
               variant={hasActiveFilters ? "default" : "outline"}
               size="icon"
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => setShowFilters(true)}
               className="relative"
               aria-label="Filter"
             >
@@ -894,11 +900,17 @@ export default function EventsPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Collapsible Filter Panel */}
-      <Collapsible open={showFilters}>
-        <CollapsibleContent>
-          <Card className="p-4">
-            <div className="flex flex-wrap items-center gap-3">
+      {/* Filter Drawer */}
+      <Drawer open={showFilters} onOpenChange={setShowFilters}>
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
+            <DrawerTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filter Schedule
+            </DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-4">
               <ClubTeamFilter
                 clubs={userClubs || []}
                 teams={userTeams || []}
@@ -911,11 +923,10 @@ export default function EventsPage() {
                 showTeamFilter={((userTeams?.length || 0) + (userMiniLeagues?.length || 0)) > 0}
                 getSportEmoji={getSportEmoji}
               />
-
             </div>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       {/* View Toggle + Add to calendar */}
       <div className="flex items-center gap-2">
