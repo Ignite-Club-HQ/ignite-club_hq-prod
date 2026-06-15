@@ -73,7 +73,7 @@ export function HomeQuickActionsFab({
       onClick: () => go("/associations/new"),
       tone: "muted" as const,
     },
-  ] satisfies ActionItem[]).filter((i) => i.show !== false);
+  ]).filter((i) => i.show !== false);
 
   const renderRow = (item: ActionItem) => (
     <button
