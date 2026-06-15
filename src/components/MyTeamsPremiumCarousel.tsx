@@ -155,10 +155,71 @@ function TeamCard({ item, nextEvent, photos, photoCount, unreadMessages, members
   const evStyle = nextEvent ? (eventTypeStyles[nextEvent.type] || { dot: "bg-primary", label: "Event" }) : null;
   const dateParts = nextEvent ? formatDateParts(nextEvent.eventDate) : null;
 
-  return (
-    <Card
-      className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
-      role="button"
+  // Competition cards are simpler: header + competition badge + teams list. No
+  // events, photos or member rows — those don't apply to a competition entity.
+  if (item.type === "competition") {
+    return (
+      <Card
+        className="shrink-0 w-[85vw] max-w-[320px] h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+        role="button"
+        tabIndex={0}
+        aria-label={`${item.name} — Competition`}
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(navTarget); }
+        }}
+      >
+        <CardContent className="p-4 h-full flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            {item.logo_url ? (
+              <LogoImage
+                src={item.logo_url}
+                className="h-10 w-10 rounded-full object-cover shrink-0"
+                fallback={
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
+                    <Trophy className="h-5 w-5 text-primary" />
+                  </div>
+                }
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
+                <Trophy className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 h-[16px] shrink-0 border-primary/40 text-primary">
+                  Competition
+                </Badge>
+              </div>
+              <h3 className="font-semibold text-base leading-tight truncate text-foreground mt-1">{item.name}</h3>
+              {item.club_name && (
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1 min-h-[62px]">
+            <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Your entries</span>
+            <span className="text-sm font-medium text-foreground line-clamp-2">
+              {item.competitionTeamsLabel || "—"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="h-7 w-7 rounded-md bg-primary/10 ring-2 ring-card shrink-0 flex items-center justify-center">
+                <Trophy className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">View fixtures & ladder</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
       onClick={handleCardClick}
