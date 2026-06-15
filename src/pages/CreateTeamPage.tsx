@@ -632,42 +632,6 @@ export default function CreateTeamPage() {
               </p>
             </div>
 
-            {/* Folder Selection */}
-            {folders.length > 0 && !club?.class_mode_enabled && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                  Team Folder
-                </Label>
-                <Select
-                  value={folderId || "none"}
-                  onValueChange={(value) => setFolderId(value === "none" ? null : value)}
-                >
-                  <SelectTrigger className="h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
-                    <SelectValue placeholder="Select a folder (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="none">No folder</SelectItem>
-                    {folders.map((folder) => (
-                      <SelectItem key={folder.id} value={folder.id}>
-                        <span className="flex items-center gap-2">
-                          {folder.color && (
-                            <span 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: folder.color }} 
-                            />
-                          )}
-                          {folder.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Organize this team into a folder (e.g., Junior Teams, Senior Teams)
-                </p>
-              </div>
-            )}
 
             {/* Class Mode Fields */}
             {club?.class_mode_enabled && (
