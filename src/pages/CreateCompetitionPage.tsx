@@ -126,14 +126,15 @@ export default function CreateCompetitionPage() {
 
   return (
     <div className="container max-w-2xl mx-auto px-4 py-6">
-      <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/start"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
-      </Button>
-
-      <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">
-        <Trophy className="h-6 w-6 text-primary" /> New competition
-      </h1>
-      <p className="text-sm text-muted-foreground mb-6">
+      <div className="flex items-center gap-3 mb-1">
+        <Button asChild variant="ghost" size="icon" className="-ml-2 shrink-0">
+          <Link to="/start" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
+        </Button>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Trophy className="h-6 w-6 text-primary" /> New competition
+        </h1>
+      </div>
+      <p className="text-sm text-muted-foreground mb-6 pl-10">
         Set up a league or tournament that teams can be invited to.
       </p>
 
