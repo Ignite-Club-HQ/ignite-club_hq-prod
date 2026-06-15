@@ -140,6 +140,35 @@ export function HomeQuickActionsFab({ onInvite, onJoinTeam, hasTeams }: HomeQuic
           </div>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      <ResponsiveDialog open={joinCompOpen} onOpenChange={(o) => { setJoinCompOpen(o); if (!o) setJoinCompInput(""); }}>
+        <ResponsiveDialogContent className="max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Join a competition</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              Paste the competition join link or invite code shared by the organiser.
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="px-4 pb-6 pt-2 space-y-3">
+            <Input
+              autoFocus
+              value={joinCompInput}
+              onChange={(e) => setJoinCompInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitJoinCompetition(); } }}
+              placeholder="https://… or invite code"
+              className="h-11"
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => { setJoinCompOpen(false); setJoinCompInput(""); }}>
+                Cancel
+              </Button>
+              <Button onClick={submitJoinCompetition} disabled={!joinCompInput.trim()}>
+                Continue
+              </Button>
+            </div>
+          </div>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </>
   );
 }
