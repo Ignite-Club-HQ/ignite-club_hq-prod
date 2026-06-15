@@ -1271,7 +1271,7 @@ export default function MediaPage() {
           <Button
             variant={hasActiveFilters ? "default" : "outline"}
             size="icon"
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={() => setShowFilters(true)}
             className="relative"
             aria-label="Filter"
           >
