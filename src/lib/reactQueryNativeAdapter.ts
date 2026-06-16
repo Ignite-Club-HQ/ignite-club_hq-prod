@@ -158,6 +158,10 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
               if (status.connected) {
                 onlineManager.setOnline(true);
                 clearProbe();
+                // Kick any queries that errored while we were backgrounded.
+                // refetchOnWindowFocus is `false` globally, so the focusManager
+                // path alone won't refire them.
+                recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
                 probeDelay = 5000;
