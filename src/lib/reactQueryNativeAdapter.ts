@@ -1,4 +1,4 @@
-import { onlineManager, focusManager } from '@tanstack/react-query';
+import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 
 /**
@@ -11,8 +11,16 @@ import { Capacitor } from '@capacitor/core';
  * then suppress further updates for minutes, we also run a lightweight
  * HEAD probe against Supabase (with exponential backoff, foreground-only)
  * to recover from a stuck-offline state, and re-probe on every app resume.
+ *
+ * When `queryClient` is provided, we ALSO actively refetch errored queries
+ * on every offline→online transition and on every app resume. This is the
+ * recovery path for Messages/Schedule/Media on Android: when a query has
+ * already errored out (offlineFirst networkMode), React Query's built-in
+ * `refetchOnReconnect` only refires the queryFn for queries with status
+ * `success` — errored queries stay errored until something invalidates
+ * them. We explicitly invalidate so blank pages recover without a relaunch.
  */
-export function setupReactQueryNativeAdapter() {
+export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   if (!Capacitor.isNativePlatform()) return;
 
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
