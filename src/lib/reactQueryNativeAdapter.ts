@@ -60,6 +60,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       if (res) {
         onlineManager.setOnline(true);
         clearProbe();
+        recoverErroredQueries('probe-recovered');
         return;
       }
     } finally {
