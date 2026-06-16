@@ -109,6 +109,96 @@ export function ClubTeamFilter({
     return null;
   }
 
+  // Expanded inline mode — for use inside a parent drawer/sheet on mobile.
+  if (expanded) {
+    const optionBtn = (
+      active: boolean,
+      onClick: () => void,
+      content: React.ReactNode,
+      key?: string,
+    ) => (
+      <button
+        key={key}
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left",
+          "hover:bg-accent/50 active:scale-[0.99]",
+          active ? "border-primary bg-primary/5" : "border-border bg-card",
+        )}
+      >
+        <span className="text-sm sm:text-base font-medium flex items-center gap-2 min-w-0 truncate">
+          {content}
+        </span>
+        {active && <Check className="h-5 w-5 text-primary shrink-0" />}
+      </button>
+    );
+
+    return (
+      <div className="space-y-5">
+        {showClubOption && (
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+              <Building2 className="h-3.5 w-3.5" /> {clubLabel}
+            </h3>
+            <div className="space-y-2">
+              {optionBtn(selectedClubId === "all", () => onClubChange("all"), "All Clubs", "all")}
+              {clubs.map((club) =>
+                optionBtn(
+                  selectedClubId === club.id,
+                  () => onClubChange(club.id),
+                  <>
+                    {getSportEmoji && club.sport && <span>{getSportEmoji(club.sport)}</span>}
+                    <span className="truncate">{club.name}</span>
+                  </>,
+                  club.id,
+                ),
+              )}
+            </div>
+          </section>
+        )}
+
+        {showTeamOption && (
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+              <Users className="h-3.5 w-3.5" /> {teamLabel}
+            </h3>
+            <div className="space-y-2">
+              {optionBtn(selectedTeamId === "all", () => onTeamChange("all"), "All Teams", "all")}
+              {teams.map((team) =>
+                optionBtn(
+                  selectedTeamId === team.id,
+                  () => onTeamChange(team.id),
+                  <span className="truncate">{team.name}</span>,
+                  team.id,
+                ),
+              )}
+              {miniLeagues.length > 0 && (
+                <div className="pt-2 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground px-1">
+                  Mini-leagues
+                </div>
+              )}
+              {miniLeagues.map((ml) =>
+                optionBtn(
+                  selectedTeamId === `ml:${ml.id}`,
+                  () => onTeamChange(`ml:${ml.id}`),
+                  <span className="truncate">🏆 {ml.name}</span>,
+                  ml.id,
+                ),
+              )}
+            </div>
+          </section>
+        )}
+
+        {hasActiveFilters && (
+          <Button variant="outline" size="sm" onClick={clearFilters} className="w-full rounded-full">
+            <X className="h-4 w-4 mr-1" /> Clear filters
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   if (isMobile) {
     return (
       <div className="flex flex-wrap gap-2">
