@@ -912,6 +912,7 @@ export default function EventsPage() {
           <ScrollArea className="max-h-[60vh]">
             <div className="p-4">
               <ClubTeamFilter
+                expanded
                 clubs={userClubs || []}
                 teams={userTeams || []}
                 miniLeagues={userMiniLeagues || []}
