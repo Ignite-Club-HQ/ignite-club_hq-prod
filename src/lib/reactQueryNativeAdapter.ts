@@ -126,9 +126,11 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
         if (!status.connected) scheduleProbeIfOffline();
       });
       return Network.addListener('networkStatusChange', (status) => {
+        const wasOnline = onlineManager.isOnline();
         setOnline(status.connected);
         if (status.connected) {
           clearProbe();
+          if (!wasOnline) recoverErroredQueries('network-reconnect');
         } else {
           scheduleProbeIfOffline();
         }
