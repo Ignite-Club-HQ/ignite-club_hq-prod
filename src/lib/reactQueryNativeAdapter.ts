@@ -26,7 +26,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
-  let probeDelay = 5000; // start at 5s, cap at 60s
+  let probeDelay = 1000; // start at ~1s, cap at 60s
   let isForeground = true;
   let probing = false;
 
