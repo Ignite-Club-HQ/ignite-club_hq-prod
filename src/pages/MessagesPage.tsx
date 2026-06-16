@@ -2505,7 +2505,7 @@ export default function MessagesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {(!activeClubFilter && displayMemberClubs.length > 1) ? (
+          {(!activeClubFilter && displayMemberClubs.length > 1) && (
             <Button
               variant={hasLocalFilter ? "default" : "outline"}
               size="icon"
@@ -2524,17 +2524,8 @@ export default function MessagesPage() {
                 <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
               )}
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowClubFilterDrawer(true)}
-              className="relative"
-              aria-label="Filter"
-            >
-              <Filter className="h-4 w-4" />
-            </Button>
           )}
+
           <Button
             variant="outline"
             size="icon"
