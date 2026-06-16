@@ -26,7 +26,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
-  let probeDelay = 5000; // start at 5s, cap at 60s
+  let probeDelay = 1000; // start at ~1s, cap at 60s
   let isForeground = true;
   let probing = false;
 
@@ -35,7 +35,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       clearTimeout(probeTimer);
       probeTimer = null;
     }
-    probeDelay = 5000;
+    probeDelay = 1000;
   };
 
   const runProbe = async () => {
@@ -164,7 +164,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
                 recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
-                probeDelay = 5000;
+                probeDelay = 1000;
                 runProbe();
               }
             });
