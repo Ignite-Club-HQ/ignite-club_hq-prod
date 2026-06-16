@@ -1300,14 +1300,14 @@ export default function MediaPage() {
 
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
-        <DrawerContent className="h-[75vh] flex flex-col">
-          <DrawerHeader className="text-left border-b shrink-0">
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
             <DrawerTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filter Media
             </DrawerTitle>
           </DrawerHeader>
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="max-h-[60vh]">
             <div className="p-4">
               {(availableClubs?.length || 0) > 1 || (filteredTeams?.length || 0) > 0 ? (
                 <>
