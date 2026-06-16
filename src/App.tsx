@@ -171,7 +171,7 @@ const queryClient = new QueryClient({
 
 
 // Configure React Query to refetch on reconnect/resume in native apps
-setupReactQueryNativeAdapter();
+setupReactQueryNativeAdapter(queryClient);
 // Force Android WebView to repaint on resume (compositor pauses in background)
 setupAndroidWebViewWake();
 
