@@ -1268,18 +1268,21 @@ export default function MediaPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={hasActiveFilters ? "default" : "outline"}
-            size="icon"
-            onClick={() => setShowFilters(true)}
-            className="relative"
-            aria-label="Filter"
-          >
-            <Filter className="h-4 w-4" />
-            {hasActiveFilters && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
-            )}
-          </Button>
+          {(!activeClubFilter && (availableClubs?.length || 0) > 1) && (
+            <Button
+              variant={hasActiveFilters ? "default" : "outline"}
+              size="icon"
+              onClick={() => setShowFilters(true)}
+              className="relative"
+              aria-label="Filter"
+            >
+              <Filter className="h-4 w-4" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
+              )}
+            </Button>
+          )}
+
           {hasProAccess && (
             <>
               <CreateActionButton

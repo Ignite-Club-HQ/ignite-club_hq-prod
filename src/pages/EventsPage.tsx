@@ -761,8 +761,8 @@ export default function EventsPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
 
-          {/* Filter button - secondary action, only show if there are filters to display */}
-          {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
+          {/* Filter button - hidden in club theme mode or when user belongs to ≤1 club */}
+          {(!activeClubFilter && (userClubs?.length || 0) > 1) && (
             <Button
               variant={hasActiveFilters ? "default" : "outline"}
               size="icon"
@@ -776,6 +776,7 @@ export default function EventsPage() {
               )}
             </Button>
           )}
+
 
           {/* Primary action: + opens an action menu */}
           <CreateActionButton
