@@ -72,6 +72,42 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
   };
 
+  // Refetch any active queries currently stuck in error state. Built-in
+  // `refetchOnReconnect: "always"` only refires queries with status
+  // `success`; errored queries (offlineFirst + network drop = instant
+  // error) require an explicit invalidate to come back to life.
+  let lastRecoveryAt = 0;
+  const recoverErroredQueries = (reason: string) => {
+    if (!queryClient) return;
+    const now = Date.now();
+    if (now - lastRecoveryAt < 2000) return; // throttle bursty triggers
+    lastRecoveryAt = now;
+    try {
+      const cache = queryClient.getQueryCache();
+      const errored = cache.getAll().filter((q) => {
+        const s = q.state;
+        return (
+          s.status === 'error' ||
+          (s.fetchStatus === 'idle' && s.status !== 'success') ||
+          // Paused queries (networkMode-driven) — kick them too.
+          s.fetchStatus === 'paused'
+        );
+      });
+      if (errored.length === 0) return;
+      console.log(`[NativeAdapter] Recovering ${errored.length} errored queries (${reason})`);
+      errored.forEach((q) => {
+        try {
+          queryClient.invalidateQueries({ queryKey: q.queryKey, exact: true });
+        } catch {
+          /* noop */
+        }
+      });
+    } catch (e) {
+      console.warn('[NativeAdapter] recoverErroredQueries failed:', e);
+    }
+  };
+
+
   const scheduleProbeIfOffline = () => {
     if (onlineManager.isOnline()) {
       clearProbe();
