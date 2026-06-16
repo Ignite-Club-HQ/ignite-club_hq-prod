@@ -50,6 +50,12 @@ interface ClubTeamFilterProps {
   clubLabel?: string;
   teamLabel?: string;
   getSportEmoji?: (sport: string) => string;
+  /**
+   * When true, render the filter as full-width sections (intended for use
+   * inside an existing bottom drawer/sheet on mobile) instead of pill
+   * chips that open nested drawers.
+   */
+  expanded?: boolean;
 }
 
 export function ClubTeamFilter({
