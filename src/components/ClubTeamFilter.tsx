@@ -71,6 +71,7 @@ export function ClubTeamFilter({
   clubLabel = "Club",
   teamLabel = "Team",
   getSportEmoji,
+  expanded = false,
 }: ClubTeamFilterProps) {
   const isMobile = useIsMobile();
   const [clubDrawerOpen, setClubDrawerOpen] = useState(false);
