@@ -203,11 +203,24 @@ export function BottomNav() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 5 * 60 * 1000,
+    retry: 3,
+    placeholderData: (prev) => prev,
   });
+
+  // Sticky Pro access: once we've confirmed Pro within this session, never
+  // downgrade to locked on a transient refetch (auth token expiring during
+  // app resume after inactivity can briefly cause RLS to return zero
+  // subscription rows → false → lock flashes on the Media tab).
+  const stickyProRef = useRef(false);
+  useEffect(() => {
+    if (hasProAccess === true) stickyProRef.current = true;
+  }, [hasProAccess]);
+  const effectiveHasProAccess = stickyProRef.current ? true : hasProAccess;
 
   // Don't show lock while roles or pro access are still loading — assume unlocked to prevent flash
   const isLoadingAccess = isLoadingRoles || (!!userRoles && userRoles.length > 0 && isLoadingProAccess);
-  const showProLock = !isLoadingAccess && hasProAccess === false && !isAppAdmin;
+  const showProLock = !isLoadingAccess && effectiveHasProAccess === false && !isAppAdmin;
+
 
   const isNativePlatform = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
