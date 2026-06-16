@@ -1,36 +1,24 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ChevronLeft, ChevronRight, Loader2, Shield, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
-const PERSONAL = "__personal__";
-
 /**
- * Step before CreateTeamPage when the user enters via the Start chooser.
- * Lets them attach the team to an existing club they admin, or run it
- * under a personal (shell) organiser. Either way we forward to
- * /clubs/:clubId/teams/new which is the real team creation form.
+ * Tap-to-proceed chooser. If the user has zero admin clubs, we auto-route
+ * straight into the personal team flow. If they have exactly one, we auto-route
+ * into that club. Otherwise we show a tappable list — no Continue button.
  */
 export default function StartTeamPage() {
   usePageTitle("Start a team");
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [choice, setChoice] = useState<string>(PERSONAL);
   const [working, setWorking] = useState(false);
+  const autoRoutedRef = useRef(false);
 
   const { data: clubs = [], isLoading } = useQuery({
     queryKey: ["my-admin-clubs-for-team", user?.id],
@@ -48,16 +36,10 @@ export default function StartTeamPage() {
     },
   });
 
-  const handleContinue = async () => {
-    if (!user) return;
+  const goPersonal = async () => {
+    if (!user || working) return;
     setWorking(true);
     try {
-      if (choice !== PERSONAL) {
-        navigate(`/clubs/${choice}/teams/new`);
-        return;
-      }
-
-      // Reuse an existing personal shell club if we already created one.
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, clubs:club_id(id, kind)")
@@ -67,7 +49,7 @@ export default function StartTeamPage() {
         .map((r: any) => r.clubs)
         .find((c: any) => c && c.kind === "shell");
       if (existing?.id) {
-        navigate(`/clubs/${existing.id}/teams/new`);
+        navigate(`/clubs/${existing.id}/teams/new`, { replace: true });
         return;
       }
 
@@ -90,53 +72,97 @@ export default function StartTeamPage() {
         .insert({ user_id: user.id, club_id: shell.id, role: "club_admin" });
       if (roleErr) throw roleErr;
 
-      navigate(`/clubs/${shell.id}/teams/new`);
+      navigate(`/clubs/${shell.id}/teams/new`, { replace: true });
     } catch (err: any) {
+      setWorking(false);
+      autoRoutedRef.current = false;
       toast({
         title: "Couldn't start a team",
         description: err?.message ?? "Please try again",
         variant: "destructive",
       });
-    } finally {
-      setWorking(false);
     }
   };
 
-  return (
-    <div className="container max-w-md mx-auto px-4 py-6">
-      <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/start"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
-      </Button>
+  const goClub = (clubId: string) => {
+    if (working) return;
+    navigate(`/clubs/${clubId}/teams/new`, { replace: true });
+  };
 
-      <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">
-        <Users className="h-6 w-6 text-primary" /> Start a team
-      </h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Attach this team to a club, or run it on its own. You can always link it
-        to a club later.
+  // Auto-skip the chooser when there's only one logical option.
+  useEffect(() => {
+    if (isLoading || autoRoutedRef.current) return;
+    if (clubs.length === 0) {
+      autoRoutedRef.current = true;
+      void goPersonal();
+    } else if (clubs.length === 1) {
+      autoRoutedRef.current = true;
+      goClub(clubs[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, clubs.length]);
+
+  // While we're loading or auto-routing, render a calm spinner instead of flashing the chooser.
+  if (isLoading || autoRoutedRef.current) {
+    return (
+      <div className="container max-w-md mx-auto px-4 pt-16 flex items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container max-w-md mx-auto px-4 pt-4 pb-8">
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/60 active:scale-95 transition-transform"
+          aria-label="Back"
+        >
+          <ChevronLeft className="h-5 w-5 text-foreground" />
+        </button>
+        <h1 className="text-2xl font-bold tracking-tight">Start a Team</h1>
+      </div>
+
+      <p className="text-sm text-muted-foreground max-w-[280px] mb-5 leading-relaxed">
+        Pick where this team belongs. Tap to continue.
       </p>
 
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="club">Club (optional)</Label>
-          <Select value={choice} onValueChange={setChoice}>
-            <SelectTrigger id="club"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={PERSONAL}>No club — just me (personal)</SelectItem>
-              {!isLoading && clubs.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Only clubs where you're an admin appear here.
-          </p>
-        </div>
+      <div className="space-y-2">
+        {clubs.map((c: any) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => goClub(c.id)}
+            disabled={working}
+            className="flex items-center gap-3 w-full min-h-[64px] px-4 rounded-2xl bg-[#FAFAFA] dark:bg-card shadow-sm active:scale-[0.98] transition-transform text-left disabled:opacity-50"
+          >
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+              <Shield className="h-5 w-5" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[15px] font-semibold truncate">{c.name}</span>
+              <span className="block text-xs text-muted-foreground">Club team</span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </button>
+        ))}
 
-        <Button onClick={handleContinue} disabled={working} className="w-full">
-          {working ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Continue
-        </Button>
+        <button
+          type="button"
+          onClick={goPersonal}
+          disabled={working}
+          className="flex items-center gap-3 w-full min-h-[64px] px-4 rounded-2xl bg-[#FAFAFA] dark:bg-card shadow-sm active:scale-[0.98] transition-transform text-left disabled:opacity-50"
+        >
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
+            {working ? <Loader2 className="h-5 w-5 animate-spin" /> : <User className="h-5 w-5" />}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px] font-semibold truncate">Just me</span>
+            <span className="block text-xs text-muted-foreground">Personal team, link a club later</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        </button>
       </div>
     </div>
   );

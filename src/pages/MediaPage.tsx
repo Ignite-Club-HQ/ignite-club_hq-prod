@@ -22,7 +22,13 @@ import { Button } from "@/components/ui/button";
 
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
@@ -1263,18 +1269,16 @@ export default function MediaPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant={hasActiveFilters ? "secondary" : "ghost"}
+            variant={hasActiveFilters ? "default" : "outline"}
             size="icon"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative ${hasActiveFilters ? "text-secondary-foreground hover:text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setShowFilters(true)}
+            className="relative"
             aria-label="Filter"
           >
-            <Filter className="h-5 w-5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline ml-1">Filter</span>
+            <Filter className="h-4 w-4" />
             {hasActiveFilters && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary sm:hidden" />
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
-            {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 px-1.5 hidden sm:inline-flex">!</Badge>}
           </Button>
           {hasProAccess && (
             <>
@@ -1294,43 +1298,50 @@ export default function MediaPage() {
         </div>
       </div>
 
-      {/* Filter Panel */}
-      <Collapsible open={showFilters}>
-        <CollapsibleContent>
-          <Card className="p-4">
-            {/* Check if any filters are available to show */}
-            {(availableClubs?.length || 0) > 1 || (filteredTeams?.length || 0) > 0 ? (
-              <>
-                <ClubTeamFilter
-                  clubs={availableClubs || []}
-                  teams={filteredTeams || []}
-                  selectedClubId={selectedClubId}
-                  selectedTeamId={selectedTeamId}
-                  onClubChange={(value) => {
-                    setSelectedClubId(value);
-                    if (value !== "all") {
-                      setSelectedTeamId("all");
-                    }
-                  }}
-                  onTeamChange={setSelectedTeamId}
-                  showClubFilter={!activeClubFilter && (availableClubs?.length || 0) > 0}
-                  showTeamFilter={(filteredTeams?.length || 0) > 0}
-                />
-                
-                {hasActiveFilters && (
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Showing {photos.length} of {allPhotos.length} photos
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                No filters available
-              </p>
-            )}
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+      {/* Filter Drawer */}
+      <Drawer open={showFilters} onOpenChange={setShowFilters}>
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
+            <DrawerTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filter Media
+            </DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-4">
+              {(availableClubs?.length || 0) > 1 || (filteredTeams?.length || 0) > 0 ? (
+                <>
+                  <ClubTeamFilter
+                    expanded
+                    clubs={availableClubs || []}
+                    teams={filteredTeams || []}
+                    selectedClubId={selectedClubId}
+                    selectedTeamId={selectedTeamId}
+                    onClubChange={(value) => {
+                      setSelectedClubId(value);
+                      if (value !== "all") {
+                        setSelectedTeamId("all");
+                      }
+                    }}
+                    onTeamChange={setSelectedTeamId}
+                    showClubFilter={!activeClubFilter && (availableClubs?.length || 0) > 0}
+                    showTeamFilter={(filteredTeams?.length || 0) > 0}
+                  />
+                  {hasActiveFilters && (
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Showing {photos.length} of {allPhotos.length} photos
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  No filters available
+                </p>
+              )}
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       {isCheckingProAccess ? (
         // Show loading skeletons while checking Pro access - prevents flash of cached photos

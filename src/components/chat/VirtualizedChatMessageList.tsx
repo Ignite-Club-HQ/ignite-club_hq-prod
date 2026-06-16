@@ -2121,29 +2121,44 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     let unmountTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelSettleWait: (() => void) | null = null;
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
+      if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
     };
+    const fadeOut = () => {
+      setIsJumpHydrating(false);
+      if (unmountTimer) clearTimeout(unmountTimer);
+      unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
+    };
     const onEnd = () => {
       if (fadeTimer) clearTimeout(fadeTimer);
-      // Slight delay before fading so the cross-fade reads as intentional
-      // rather than a flash if hydration finishes in <100ms.
-      fadeTimer = setTimeout(() => {
-        setIsJumpHydrating(false);
-        // Unmount after the 260ms opacity transition completes.
-        if (unmountTimer) clearTimeout(unmountTimer);
-        unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
-      }, 120);
+      if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+      // Keep the skeleton up until the visible chat content (images, link
+      // previews, row heights, scroll metrics) actually stops moving. Without
+      // this gate the overlay disappears on a fixed timer while rows are
+      // still re-anchoring, which the user perceives as "messages moving
+      // around before settling".
+      const scroller = scrollerElRef.current;
+      if (scroller) {
+        cancelSettleWait = waitForChatVisualContentSettle(
+          scroller,
+          { quietMs: 450, maxMs: 3500 },
+          () => {
+            cancelSettleWait = null;
+            // Tiny intentional cross-fade so the reveal reads as "settled".
+            fadeTimer = setTimeout(fadeOut, 80);
+          },
+        );
+      } else {
+        fadeTimer = setTimeout(fadeOut, 120);
+      }
     };
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
-    // Also subscribe to the module-level flag so a jump that started
-    // before mount (push-notification deep link) flips the overlay on
-    // as soon as we subscribe, and a jump that ends during this mount
-    // still triggers the fade-out even if the CustomEvent was missed.
     const unsubscribe = subscribeChatJumpActive((value) => {
       if (value) onStart();
       else onEnd();
@@ -2154,6 +2169,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
       if (unmountTimer) clearTimeout(unmountTimer);
+      if (cancelSettleWait) cancelSettleWait();
     };
   }, []);
 

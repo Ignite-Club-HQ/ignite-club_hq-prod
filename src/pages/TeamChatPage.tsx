@@ -689,16 +689,18 @@ export default function TeamChatPage() {
       // floating at the top of an empty viewport until the real fetch lands.
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedTeamMessages(teamId);
-        const prevLen = Array.isArray(prev?.messages) ? prev.messages.length : 0;
-        const cachedHasHistory = cachedMessages.length >= 5 || cachedMessages.length > prevLen;
-        if (cachedMessages.length && cachedHasHistory) {
+        // Require a meaningful history window (>=5). The notification preload
+        // writes a SINGLE message into cache before the chat mounts — using
+        // that as placeholder strands the user with one message at the top.
+        const cachedHasHistory = cachedMessages.length >= 5;
+        if (cachedHasHistory) {
           return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
         }
       }
       if (prev) return prev;
 
       const cachedMessages = getCachedTeamMessages(teamId);
-      if (!cachedMessages.length) return undefined;
+      if (cachedMessages.length < 2) return undefined;
 
       return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
     },
@@ -716,14 +718,20 @@ export default function TeamChatPage() {
     );
   }, [messagesData]);
 
-  // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() =>
-    teamId ? getCachedTeamMessages(teamId) : undefined,
-  );
+  // Local copy used for rendering so optimistic updates are instant.
+  // A 1-item cache is almost certainly a notification preload, not real
+  // history — seeding from it sets showLoading=false and renders one
+  // message stranded at the top of the viewport.
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => {
+    if (!teamId) return undefined;
+    const cached = getCachedTeamMessages(teamId);
+    return cached.length >= 2 ? cached : undefined;
+  });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !(localMessages?.length)) ||
-    (loadingMessages && !messagesData && !(localMessages?.length));
+    (!authReady && !hasMeaningfulLocal) ||
+    (loadingMessages && !messagesData && !hasMeaningfulLocal);
 
   // Defer banner mounts until each banner's data has resolved. Banners
   // (notification nudge, pinned vault, pinned messages) resolve from async
