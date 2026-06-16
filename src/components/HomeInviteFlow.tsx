@@ -471,7 +471,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                         ))}
                     </div>
                   )}
-                  <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+                  <div className="space-y-2 h-[45vh] overflow-y-auto pr-1">
                     {searchedOptions.length === 0 ? (
                       <p className="text-sm text-muted-foreground px-1 py-3">No matches.</p>
                     ) : (
