@@ -1,4 +1,4 @@
-import { onlineManager, focusManager } from '@tanstack/react-query';
+import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
 
 /**
@@ -11,8 +11,16 @@ import { Capacitor } from '@capacitor/core';
  * then suppress further updates for minutes, we also run a lightweight
  * HEAD probe against Supabase (with exponential backoff, foreground-only)
  * to recover from a stuck-offline state, and re-probe on every app resume.
+ *
+ * When `queryClient` is provided, we ALSO actively refetch errored queries
+ * on every offline→online transition and on every app resume. This is the
+ * recovery path for Messages/Schedule/Media on Android: when a query has
+ * already errored out (offlineFirst networkMode), React Query's built-in
+ * `refetchOnReconnect` only refires the queryFn for queries with status
+ * `success` — errored queries stay errored until something invalidates
+ * them. We explicitly invalidate so blank pages recover without a relaunch.
  */
-export function setupReactQueryNativeAdapter() {
+export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   if (!Capacitor.isNativePlatform()) return;
 
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
@@ -52,6 +60,7 @@ export function setupReactQueryNativeAdapter() {
       if (res) {
         onlineManager.setOnline(true);
         clearProbe();
+        recoverErroredQueries('probe-recovered');
         return;
       }
     } finally {
@@ -63,6 +72,42 @@ export function setupReactQueryNativeAdapter() {
       probeTimer = setTimeout(runProbe, probeDelay);
     }
   };
+
+  // Refetch any active queries currently stuck in error state. Built-in
+  // `refetchOnReconnect: "always"` only refires queries with status
+  // `success`; errored queries (offlineFirst + network drop = instant
+  // error) require an explicit invalidate to come back to life.
+  let lastRecoveryAt = 0;
+  const recoverErroredQueries = (reason: string) => {
+    if (!queryClient) return;
+    const now = Date.now();
+    if (now - lastRecoveryAt < 2000) return; // throttle bursty triggers
+    lastRecoveryAt = now;
+    try {
+      const cache = queryClient.getQueryCache();
+      const errored = cache.getAll().filter((q) => {
+        const s = q.state;
+        return (
+          s.status === 'error' ||
+          (s.fetchStatus === 'idle' && s.status !== 'success') ||
+          // Paused queries (networkMode-driven) — kick them too.
+          s.fetchStatus === 'paused'
+        );
+      });
+      if (errored.length === 0) return;
+      console.log(`[NativeAdapter] Recovering ${errored.length} errored queries (${reason})`);
+      errored.forEach((q) => {
+        try {
+          queryClient.invalidateQueries({ queryKey: q.queryKey, exact: true });
+        } catch {
+          /* noop */
+        }
+      });
+    } catch (e) {
+      console.warn('[NativeAdapter] recoverErroredQueries failed:', e);
+    }
+  };
+
 
   const scheduleProbeIfOffline = () => {
     if (onlineManager.isOnline()) {
@@ -82,9 +127,11 @@ export function setupReactQueryNativeAdapter() {
         if (!status.connected) scheduleProbeIfOffline();
       });
       return Network.addListener('networkStatusChange', (status) => {
+        const wasOnline = onlineManager.isOnline();
         setOnline(status.connected);
         if (status.connected) {
           clearProbe();
+          if (!wasOnline) recoverErroredQueries('network-reconnect');
         } else {
           scheduleProbeIfOffline();
         }
@@ -111,6 +158,10 @@ export function setupReactQueryNativeAdapter() {
               if (status.connected) {
                 onlineManager.setOnline(true);
                 clearProbe();
+                // Kick any queries that errored while we were backgrounded.
+                // refetchOnWindowFocus is `false` globally, so the focusManager
+                // path alone won't refire them.
+                recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
                 probeDelay = 5000;
