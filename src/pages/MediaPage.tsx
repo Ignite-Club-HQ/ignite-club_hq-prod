@@ -1312,6 +1312,7 @@ export default function MediaPage() {
               {(availableClubs?.length || 0) > 1 || (filteredTeams?.length || 0) > 0 ? (
                 <>
                   <ClubTeamFilter
+                    expanded
                     clubs={availableClubs || []}
                     teams={filteredTeams || []}
                     selectedClubId={selectedClubId}
