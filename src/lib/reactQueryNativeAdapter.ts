@@ -35,7 +35,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       clearTimeout(probeTimer);
       probeTimer = null;
     }
-    probeDelay = 5000;
+    probeDelay = 1000;
   };
 
   const runProbe = async () => {
@@ -164,7 +164,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
                 recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
-                probeDelay = 5000;
+                probeDelay = 1000;
                 runProbe();
               }
             });
