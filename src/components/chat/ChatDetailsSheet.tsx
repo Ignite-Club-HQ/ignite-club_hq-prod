@@ -290,34 +290,37 @@ export function ChatDetailsSheet({
                 <div className="flex items-center justify-center h-24">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-              ) : sharedMedia.length === 0 ? (
+              ) : sharedMedia.filter((m) => m.kind === "photo").length === 0 ? (
                 <EmptyMedia />
               ) : (
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
-                  {sharedMedia.slice(0, 8).map((item) => {
-                    const isVideo = isVideoUrl(item.image_url);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setActiveMedia(item)}
-                        className="relative shrink-0 h-20 w-20 rounded-lg overflow-hidden bg-muted snap-start active:opacity-80 transition-opacity"
-                      >
-                        <SecureImage
-                          src={item.image_url}
-                          alt="Shared media"
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                        {isVideo && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                            <div className="h-7 w-7 rounded-full bg-black/60 flex items-center justify-center">
-                              <Play className="h-3 w-3 text-white fill-white" />
+                  {sharedMedia
+                    .filter((m) => m.kind === "photo")
+                    .slice(0, 8)
+                    .map((item) => {
+                      const isVideo = isVideoUrl(item.image_url);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setMediaViewerOpen(true)}
+                          className="relative shrink-0 h-20 w-20 rounded-lg overflow-hidden bg-muted snap-start active:opacity-80 transition-opacity"
+                        >
+                          <SecureImage
+                            src={item.image_url}
+                            alt="Shared media"
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                          {isVideo && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                              <div className="h-7 w-7 rounded-full bg-black/60 flex items-center justify-center">
+                                <Play className="h-3 w-3 text-white fill-white" />
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
               )}
             </Section>
