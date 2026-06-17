@@ -87,7 +87,9 @@ export function ChatDetailsSheet({
   const { data: sharedMedia = [], isLoading: mediaLoading } = useChatSharedMedia(
     mediaType,
     chatId,
-    { limit: 12, enabled: open },
+    // Scan a wider window of recent messages so the preview strip can show
+    // up to 8 photos even when recent messages are mostly text/links.
+    { limit: 80, enabled: open },
   );
 
   const close = () => onOpenChange(false);
