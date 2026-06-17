@@ -506,6 +506,31 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Primary team name per member for the role sublabel ("Coach · U12 Boys").
+  // Scope to this chat's club so we don't pull unrelated teams.
+  const teamScopeClubId = resolvedClubId ?? (chatType === "club" ? chatId : clubId) ?? null;
+  const { data: memberTeamNames } = useQuery({
+    queryKey: ["chat-members-team-names", chatType, chatId, teamScopeClubId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {} as Record<string, string>;
+      let q = supabase
+        .from("user_roles")
+        .select("user_id, team_id, teams!inner(name, club_id)")
+        .in("user_id", memberIds)
+        .not("team_id", "is", null);
+      if (teamScopeClubId) q = q.eq("teams.club_id", teamScopeClubId);
+      const { data } = await q;
+      const map: Record<string, string> = {};
+      for (const row of (data || []) as any[]) {
+        if (!map[row.user_id] && row.teams?.name) map[row.user_id] = row.teams.name;
+      }
+      return map;
+    },
+    enabled: enabled && memberIds.length > 0 && chatType !== "team",
+    staleTime: 1000 * 60 * 5,
+  });
+
+
   // Online status: combine realtime presence with DB heartbeat (last 90s).
   const realtimeOnline = useOnlineSet(memberIds);
   const { data: heartbeatOnlineIds } = useQuery({
@@ -655,9 +680,14 @@ export function ChatParticipantsList({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
                     {member.role && (
-                      <p className="text-xs text-muted-foreground">{formatRole(member.role)}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatRole(member.role)}
+                        {memberTeamNames?.[member.id] ? ` · ${memberTeamNames[member.id]}` : ""}
+                      </p>
                     )}
                   </div>
+
+
                   {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   {(pushDisabled || noPushSetup) && (
                     <svg
