@@ -496,6 +496,15 @@ export function ChatParticipantsList({
     return s;
   }, [realtimeOnline, heartbeatOnlineIds]);
 
+  const sortedMembers = useMemo(() => {
+    return [...uniqueMembers].sort((a, b) => {
+      const aOnline = onlineIds.has(a.id) ? 1 : 0;
+      const bOnline = onlineIds.has(b.id) ? 1 : 0;
+      if (aOnline !== bOnline) return bOnline - aOnline;
+      return (a.display_name || "").localeCompare(b.display_name || "");
+    });
+  }, [uniqueMembers, onlineIds]);
+
 
 
   const formatRole = (role: string) =>
@@ -585,7 +594,7 @@ export function ChatParticipantsList({
           <p className="text-sm text-muted-foreground text-center py-4">No participants found</p>
         ) : (
           <div className="space-y-1">
-            {uniqueMembers.map((member) => {
+            {sortedMembers.map((member) => {
               const pushDisabled = notifPrefs ? notifPrefs[member.id] === false : false;
               const noPushSetup = pushReachable ? pushReachable[member.id] === false : false;
               const chatMuted = mutePrefs?.[member.id] ?? false;
