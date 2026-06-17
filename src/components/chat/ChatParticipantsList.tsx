@@ -866,6 +866,21 @@ export function ChatParticipantsList({
         </div>
       )}
 
+      {profileMember && (
+        <ParticipantProfileSheet
+          open={!!profileMember}
+          onOpenChange={(o) => {
+            if (!o) setProfileMember(null);
+          }}
+          displayName={profileMember.display_name || "Unknown"}
+          avatarUrl={profileMember.avatar_url}
+          roles={memberRoleEntries?.[profileMember.id] ?? (profileMember.role
+            ? [{ role: profileMember.role, team_id: null, team_name: null }]
+            : [])}
+          online={onlineIds.has(profileMember.id)}
+        />
+      )}
+
       {selectedMember && effectiveTeamId && (
         <MemberDetailSheet
           open={!!selectedMember}
