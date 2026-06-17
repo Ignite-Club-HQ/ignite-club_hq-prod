@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useOnlineSet } from "@/hooks/useUserPresence";
 
 interface ChatParticipantsListProps {
-  chatType: "team" | "club" | "group";
+  chatType: "team" | "club" | "group" | "club_admin";
   chatId: string;
   chatName: string;
   teamId?: string;
@@ -33,6 +33,8 @@ interface ChatParticipantsListProps {
   groupAllowedRoles?: string[];
   groupCreatedBy?: string | null;
   groupMembershipMode?: string | null;
+  /** Club-admin thread: include this member alongside the club admins. */
+  clubAdminMemberUserId?: string;
   enabled?: boolean;
   /** Called when a tap navigates away (so caller can close its sheet) */
   onBeforeNavigate?: () => void;
@@ -70,6 +72,7 @@ export function ChatParticipantsList({
   groupAllowedRoles,
   groupCreatedBy,
   groupMembershipMode,
+  clubAdminMemberUserId,
   enabled = true,
   onBeforeNavigate,
   className,
@@ -214,8 +217,38 @@ export function ChatParticipantsList({
   });
 
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, effectiveGroupMembershipMode],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, clubAdminMemberUserId, effectiveGroupMembershipMode],
     queryFn: async () => {
+      // Club-admin conversation: all club admins + the member
+      if (chatType === "club_admin" && clubId) {
+        const { data: admins } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("club_id", clubId)
+          .eq("role", "club_admin");
+        const roleMap = new Map<string, string>();
+        for (const a of admins || []) roleMap.set(a.user_id, "club_admin");
+        if (clubAdminMemberUserId && !roleMap.has(clubAdminMemberUserId)) {
+          roleMap.set(clubAdminMemberUserId, "member");
+        }
+        const userIds = Array.from(roleMap.keys());
+        if (userIds.length === 0) return [] as Member[];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+        return userIds.map((id) => {
+          const p = profileMap.get(id);
+          return {
+            id,
+            display_name: p?.display_name || null,
+            avatar_url: p?.avatar_url || null,
+            role: roleMap.get(id),
+          } as Member;
+        });
+      }
+
       // Mini-league chat: union of league admins, per-league grants, and parents of players
       if (chatType === "group" && miniLeagueId) {
         const [leagueRow, perLeagueAdmins, players] = await Promise.all([
@@ -469,7 +502,7 @@ export function ChatParticipantsList({
       }
       return map;
     },
-    enabled: enabled && memberIds.length > 0,
+    enabled: enabled && memberIds.length > 0 && chatType !== "club_admin",
     staleTime: 1000 * 60 * 2,
   });
 
