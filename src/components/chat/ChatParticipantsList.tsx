@@ -724,13 +724,32 @@ export function ChatParticipantsList({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
-                    {member.role && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {formatRole(member.role)}
-                        {memberTeamNames?.[member.id] ? ` · ${memberTeamNames[member.id]}` : ""}
-                      </p>
-                    )}
+                    {(() => {
+                      const roles = memberAllRoles?.[member.id] ?? (member.role ? [member.role] : []);
+                      if (roles.length === 0) return null;
+                      return (
+                        <div className="mt-0.5 flex items-center gap-1 flex-wrap min-w-0">
+                          {roles.map((r) => (
+                            <span
+                              key={r}
+                              className={cn(
+                                "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md border",
+                                ROLE_BADGE_CLASS[r as MemberRole] ?? "bg-muted text-muted-foreground border-border",
+                              )}
+                            >
+                              {formatRole(r)}
+                            </span>
+                          ))}
+                          {memberTeamNames?.[member.id] && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              · {memberTeamNames[member.id]}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
+
 
 
                   {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
