@@ -76,40 +76,15 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Get unread count
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["team-chat-unread", teamId, user?.id],
-    queryFn: async (): Promise<number> => {
-      if (!user?.id) return 0;
-
-      // Get IDs of messages in this team that the user has already read
-      const { data: readMessages } = await supabase
-        .from("message_reads")
-        .select("team_message_id")
-        .eq("user_id", user.id)
-        .not("team_message_id", "is", null);
-
-      const readIds = (readMessages || []).map(r => r.team_message_id).filter(Boolean) as string[];
-
-      // Count unread messages: messages in this team, not by current user, not in read list
-      let query = supabase
-        .from("team_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("team_id", teamId)
-        .is("deleted_at", null)
-        .neq("author_id", user.id);
-
-      if (readIds.length > 0) {
-        // Exclude already-read messages
-        query = query.not("id", "in", `(${readIds.join(",")})`);
-      }
-
-      const { count } = await query;
-      return (count as number) || 0;
-    },
+  // Unread count: derived from the shared `unread-message-counts` cache so this
+  // badge inherits the bell's realtime push (via useAuth's notifications
+  // channel) AND the optimistic decrement in markChatScopeNotificationsRead.
+  // Previously this component ran its own message_reads + team_messages scan
+  // with a 60s poll and no realtime, causing up to 60s of lag while every
+  // other unread indicator updated instantly.
+  const { data: unreadCount = 0 } = useUnreadMessageCounts(user?.id, {
     enabled: !!teamId && !!user?.id,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    select: (counts) => counts.teams[teamId] ?? 0,
   });
 
   return (
