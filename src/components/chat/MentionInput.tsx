@@ -656,11 +656,19 @@ export function MentionInput({
 
     if (newDisplay === displayValue) return;
 
-    // While the IME (e.g. Gboard) has an active composition, do NOT push a
-    // reconstructed value back into the textarea — doing so cancels the
-    // pending autocorrect/suggestion before the user can commit it. We re-run
-    // this handler on compositionend below.
-    if (isComposingRef.current) return;
+    // NOTE: we deliberately do NOT early-return while `isComposingRef.current`
+    // is true. Android Gboard fires `compositionstart` on essentially every
+    // keystroke, and skipping `onChange` here causes the controlled
+    // `displayValue` to lag the textarea — React then re-renders with the
+    // stale `value` and wipes the in-flight characters, making typing appear
+    // impossible to the user (reported by real users: "I can't type, I have
+    // to send an image"). The original autocorrect-clobber bug this gate
+    // tried to fix actually came from `adjustHeight` thrashing layout during
+    // composition; that's still gated inside `adjustHeight` itself.
+    // Reconstruction of the raw value is safe here because for plain-text
+    // edits (no mention overlap) the result equals the new display string,
+    // so React performs no DOM write and Gboard's pending suggestion is
+    // preserved.
 
     // Reconstruct raw value from display edit
     const newRaw = reconstructRawFromDisplayEdit(segments, displayValue, newDisplay, cursorPos);
@@ -671,6 +679,7 @@ export function MentionInput({
     // Check for mention trigger
     checkForMentionTrigger(newDisplay, cursorPos);
   }, [segments, displayValue, onChange, adjustHeight, checkForMentionTrigger]);
+
 
   const handleCompositionStart = useCallback(() => {
     isComposingRef.current = true;
