@@ -680,9 +680,12 @@ export function ChatParticipantsList({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
                     {member.role && (
-                      <p className="text-xs text-muted-foreground">{formatRole(member.role)}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatRole(member.role)}
+                        {memberTeamNames?.[member.id] ? ` · ${memberTeamNames[member.id]}` : ""}
+                      </p>
                     )}
-                  </div>
+
                   {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   {(pushDisabled || noPushSetup) && (
                     <svg
