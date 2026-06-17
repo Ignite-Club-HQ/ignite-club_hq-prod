@@ -594,7 +594,7 @@ export function ChatParticipantsList({
           <p className="text-sm text-muted-foreground text-center py-4">No participants found</p>
         ) : (
           <div className="space-y-1">
-            {uniqueMembers.map((member) => {
+            {sortedMembers.map((member) => {
               const pushDisabled = notifPrefs ? notifPrefs[member.id] === false : false;
               const noPushSetup = pushReachable ? pushReachable[member.id] === false : false;
               const chatMuted = mutePrefs?.[member.id] ?? false;
