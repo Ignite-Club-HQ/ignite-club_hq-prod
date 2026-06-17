@@ -100,7 +100,6 @@ export function ChatMediaViewer({
           className={cn(
             "flex flex-col gap-0 p-0 bg-background",
             "h-[100dvh] max-h-[100dvh] w-screen max-w-none rounded-none border-0",
-            "z-[100001]",
           )}
           data-lock-keyboard-scroll="true"
           data-allow-scroll
