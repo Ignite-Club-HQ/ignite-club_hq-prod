@@ -616,8 +616,6 @@ export function ChatParticipantsList({
 
 
 
-  const formatRole = (role: string) =>
-    role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
   const handleMemberTap = async (member: Member) => {
     if (!isCurrentUserAdmin || !effectiveTeamId) return;
