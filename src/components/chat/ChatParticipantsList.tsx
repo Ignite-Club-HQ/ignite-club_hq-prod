@@ -416,6 +416,15 @@ export function ChatParticipantsList({
       return acc;
     }, [] as Member[]) || [];
 
+  const sortedMembers = useMemo(() => {
+    return [...uniqueMembers].sort((a, b) => {
+      const aOnline = onlineIds.has(a.id) ? 1 : 0;
+      const bOnline = onlineIds.has(b.id) ? 1 : 0;
+      if (aOnline !== bOnline) return bOnline - aOnline;
+      return (a.display_name || "").localeCompare(b.display_name || "");
+    });
+  }, [uniqueMembers, onlineIds]);
+
   const memberIds = useMemo(() => uniqueMembers.map((m) => m.id), [uniqueMembers]);
 
   const { data: notifPrefs } = useQuery({
