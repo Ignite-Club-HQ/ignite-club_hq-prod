@@ -1036,6 +1036,59 @@ export default function ClubAdminChatPage() {
           />
         )}
       </div>
+      {conversationId && conversation?.club_id && (
+        <Sheet open={participantsOpen} onOpenChange={setParticipantsOpen}>
+          <SheetContent
+            side={isMobile ? "bottom" : "right"}
+            className={cn(
+              "flex min-h-0 flex-col overflow-hidden p-0 gap-0",
+              isMobile ? "h-[85vh] max-h-[85vh] rounded-t-2xl" : "w-[400px] sm:max-w-md",
+            )}
+            hideCloseButton
+            enableDragToClose={isMobile}
+            data-lock-keyboard-scroll="true"
+            data-allow-scroll
+            style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+          >
+            <SheetTitle className="sr-only">{chatTitle} participants</SheetTitle>
+            <SheetDescription className="sr-only">
+              People who can see this club admin conversation.
+            </SheetDescription>
+            <div className="relative px-5 pt-5 pb-3 border-b">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-3 top-3 h-9 w-9"
+                onClick={() => setParticipantsOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <div className="text-center">
+                <h2 className="text-lg font-bold tracking-tight">{chatTitle}</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{chatSubtitle}</p>
+              </div>
+            </div>
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 pt-3"
+              data-chat-scroll-lock="true"
+              style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+            >
+              <ChatParticipantsList
+                chatType="club_admin"
+                chatId={conversationId}
+                chatName={chatTitle}
+                clubId={conversation.club_id}
+                clubAdminMemberUserId={conversation.member_user_id || undefined}
+                enabled={participantsOpen}
+                onBeforeNavigate={() => setParticipantsOpen(false)}
+                inline
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+      </div>
     </div>
   );
 }
