@@ -1088,7 +1088,6 @@ export default function ClubAdminChatPage() {
           </SheetContent>
         </Sheet>
       )}
-      </div>
     </div>
   );
 }
