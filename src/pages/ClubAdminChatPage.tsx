@@ -134,6 +134,8 @@ export default function ClubAdminChatPage() {
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
