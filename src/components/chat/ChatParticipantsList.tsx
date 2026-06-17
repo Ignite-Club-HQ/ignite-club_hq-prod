@@ -125,6 +125,7 @@ export function ChatParticipantsList({
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [profileMember, setProfileMember] = useState<Member | null>(null);
 
   const { data: groupMeta } = useQuery({
     queryKey: ["chat-group-meta", chatId],
