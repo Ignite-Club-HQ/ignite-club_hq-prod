@@ -20,9 +20,38 @@ import { toast } from "sonner";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import { ParticipantProfileSheet, type ParticipantRoleEntry } from "@/components/chat/ParticipantProfileSheet";
 import { cn } from "@/lib/utils";
-import { ROLE_BADGE_CLASS, type MemberRole } from "@/lib/memberIdentity";
 import { useOnlineSet } from "@/hooks/useUserPresence";
+
+// Highest-privilege first. App admin sinks to the end (internal-only).
+const ROLE_PRIORITY: string[] = [
+  "club_admin",
+  "league_admin",
+  "committee_member",
+  "team_admin",
+  "coach",
+  "parent",
+  "player",
+  "basic_user",
+  "app_admin",
+];
+
+const ROLE_LABEL_SHORT: Record<string, string> = {
+  app_admin: "App Admin",
+  club_admin: "Club Admin",
+  league_admin: "League Admin",
+  committee_member: "Committee",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  parent: "Parent",
+  player: "Player",
+  basic_user: "Member",
+};
+
+function shortRoleLabel(role: string) {
+  return ROLE_LABEL_SHORT[role] ?? role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
 
 interface ChatParticipantsListProps {
