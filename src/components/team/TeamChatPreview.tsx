@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Badge } from "@/components/ui/badge";
 
 import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
