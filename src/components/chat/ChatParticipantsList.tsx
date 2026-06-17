@@ -707,58 +707,82 @@ export function ChatParticipantsList({
               const pushDisabled = notifPrefs ? notifPrefs[member.id] === false : false;
               const noPushSetup = pushReachable ? pushReachable[member.id] === false : false;
               const chatMuted = mutePrefs?.[member.id] ?? false;
-              const canTap = isCurrentUserAdmin && !!effectiveTeamId;
+              const canAdminTap = isCurrentUserAdmin && !!effectiveTeamId;
+
+              // Pick the highest-priority role to show inline. In team chats,
+              // prefer roles tied to this team (or club-wide), de-prioritising
+              // unrelated team roles.
+              const entries = memberRoleEntries?.[member.id] ?? [];
+              const scored = entries.map((e) => {
+                const priorityIdx = ROLE_PRIORITY.indexOf(e.role);
+                const pri = priorityIdx < 0 ? 999 : priorityIdx;
+                const teamRelevance =
+                  chatType === "team" && effectiveTeamId
+                    ? e.team_id === effectiveTeamId
+                      ? 0
+                      : e.team_id == null
+                      ? 1
+                      : 2
+                    : e.team_id == null
+                    ? 0
+                    : 1;
+                return { entry: e, pri, teamRelevance };
+              });
+              scored.sort((a, b) => a.teamRelevance - b.teamRelevance || a.pri - b.pri);
+
+              const primary = scored[0]?.entry ?? (member.role
+                ? ({ role: member.role, team_id: null, team_name: null } as ParticipantRoleEntry)
+                : null);
+
+              // Count unique additional roles (by role name) beyond primary
+              const otherRoleNames = new Set<string>();
+              for (const s of scored) {
+                if (s.entry.role !== primary?.role) otherRoleNames.add(s.entry.role);
+              }
+              const extraCount = otherRoleNames.size;
+
               return (
                 <div
                   key={member.id}
-                  className={`flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 ${
-                    canTap ? "cursor-pointer active:bg-muted" : ""
-                  }`}
-                  onClick={canTap ? () => handleMemberTap(member) : undefined}
+                  className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-muted/50 cursor-pointer active:bg-muted"
+                  onClick={() => {
+                    if (canAdminTap) {
+                      handleMemberTap(member);
+                    } else {
+                      setProfileMember(member);
+                    }
+                  }}
                 >
                   <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9">
+                    <Avatar className="h-8 w-8">
                       <AvatarImage src={member.avatar_url || undefined} />
-                      <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                      <AvatarFallback className="text-xs">
+                        {member.display_name?.[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
                     </Avatar>
                     {onlineIds.has(member.id) && (
                       <span
-                        className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
+                        className="absolute bottom-0 right-0 block h-2 w-2 rounded-full bg-green-500 ring-2 ring-background"
                         aria-label="Online"
                       />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
-                    {(() => {
-                      const roles = memberAllRoles?.[member.id] ?? (member.role ? [member.role] : []);
-                      if (roles.length === 0) return null;
-                      return (
-                        <div className="mt-0.5 flex items-center gap-1 flex-wrap min-w-0">
-                          {roles.map((r) => (
-                            <span
-                              key={r}
-                              className={cn(
-                                "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md border",
-                                ROLE_BADGE_CLASS[r as MemberRole] ?? "bg-muted text-muted-foreground border-border",
-                              )}
-                            >
-                              {formatRole(r)}
-                            </span>
-                          ))}
-                          {memberTeamNames?.[member.id] && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              · {memberTeamNames[member.id]}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <p className="text-sm font-medium truncate">
+                      {member.display_name || "Unknown"}
+                    </p>
+                    {primary && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        <span className="font-medium text-foreground/70">
+                          {shortRoleLabel(primary.role)}
+                        </span>
+                        {primary.team_name ? ` · ${primary.team_name}` : ""}
+                        {extraCount > 0 ? ` · +${extraCount} role${extraCount > 1 ? "s" : ""}` : ""}
+                      </p>
+                    )}
                   </div>
 
-
-
-                  {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  {canAdminTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   {(pushDisabled || noPushSetup) && (
                     <svg
                       style={{ marginLeft: 4, flexShrink: 0 }}
