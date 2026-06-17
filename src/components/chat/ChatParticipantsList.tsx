@@ -540,70 +540,46 @@ export function ChatParticipantsList({
   // Primary team name per member for the role sublabel ("Coach · U12 Boys").
   // Scope to this chat's club so we don't pull unrelated teams.
   const teamScopeClubId = resolvedClubId ?? (chatType === "club" ? chatId : clubId) ?? null;
-  const { data: memberTeamNames } = useQuery({
-    queryKey: ["chat-members-team-names", chatType, chatId, teamScopeClubId, memberIds],
+  // All roles per member, with team_id + team name. Powers both the compact row
+  // (primary role + "+N roles") and the profile sheet (grouped by team).
+  const { data: memberRoleEntries } = useQuery({
+    queryKey: ["chat-members-role-entries", chatType, chatId, teamScopeClubId, memberIds],
     queryFn: async () => {
-      if (memberIds.length === 0) return {} as Record<string, string>;
+      if (memberIds.length === 0) return {} as Record<string, ParticipantRoleEntry[]>;
       let q = supabase
         .from("user_roles")
-        .select("user_id, team_id, teams!inner(name, club_id)")
-        .in("user_id", memberIds)
-        .not("team_id", "is", null);
-      if (teamScopeClubId) q = q.eq("teams.club_id", teamScopeClubId);
-      const { data } = await q;
-      const map: Record<string, string> = {};
-      for (const row of (data || []) as any[]) {
-        if (!map[row.user_id] && row.teams?.name) map[row.user_id] = row.teams.name;
-      }
-      return map;
-    },
-    enabled: enabled && memberIds.length > 0 && chatType !== "team",
-    staleTime: 1000 * 60 * 5,
-  });
-
-  // All roles per member within the chat's club scope, for multi-role badges.
-  const { data: memberAllRoles } = useQuery({
-    queryKey: ["chat-members-all-roles", chatType, chatId, teamScopeClubId, memberIds],
-    queryFn: async () => {
-      if (memberIds.length === 0) return {} as Record<string, string[]>;
-      let q = supabase
-        .from("user_roles")
-        .select("user_id, role, club_id, team_id")
+        .select("user_id, role, club_id, team_id, teams(name, club_id)")
         .in("user_id", memberIds);
       if (teamScopeClubId) {
         q = q.or(`club_id.eq.${teamScopeClubId},team_id.not.is.null`);
       }
       const { data } = await q;
-      const map: Record<string, Set<string>> = {};
+      const map: Record<string, ParticipantRoleEntry[]> = {};
+      const seen: Record<string, Set<string>> = {};
       for (const row of (data || []) as any[]) {
-        if (!map[row.user_id]) map[row.user_id] = new Set();
-        map[row.user_id].add(row.role);
+        // Filter: only keep team rows whose team belongs to our club scope (if scoped).
+        if (row.team_id && teamScopeClubId && row.teams?.club_id && row.teams.club_id !== teamScopeClubId) {
+          continue;
+        }
+        const uid = row.user_id;
+        if (!map[uid]) {
+          map[uid] = [];
+          seen[uid] = new Set();
+        }
+        const dedupeKey = `${row.role}::${row.team_id ?? ""}`;
+        if (seen[uid].has(dedupeKey)) continue;
+        seen[uid].add(dedupeKey);
+        map[uid].push({
+          role: row.role,
+          team_id: row.team_id ?? null,
+          team_name: row.teams?.name ?? null,
+        });
       }
-      const priority = [
-        "app_admin",
-        "club_admin",
-        "committee_member",
-        "league_admin",
-        "team_admin",
-        "coach",
-        "player",
-        "parent",
-        "basic_user",
-      ];
-      const out: Record<string, string[]> = {};
-      for (const [uid, set] of Object.entries(map)) {
-        out[uid] = Array.from(set).sort(
-          (a, b) => priority.indexOf(a) - priority.indexOf(b),
-        );
-      }
-      return out;
+      return map;
     },
     enabled: enabled && memberIds.length > 0,
     staleTime: 1000 * 60 * 5,
   });
-
-
-
 
   // Online status: combine realtime presence with DB heartbeat (last 90s).
   const realtimeOnline = useOnlineSet(memberIds);
