@@ -685,6 +685,8 @@ export function ChatParticipantsList({
                         {memberTeamNames?.[member.id] ? ` · ${memberTeamNames[member.id]}` : ""}
                       </p>
                     )}
+                  </div>
+
 
                   {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   {(pushDisabled || noPushSetup) && (
