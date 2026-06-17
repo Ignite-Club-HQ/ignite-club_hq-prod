@@ -217,8 +217,38 @@ export function ChatParticipantsList({
   });
 
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, effectiveGroupMembershipMode],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, clubAdminMemberUserId, effectiveGroupMembershipMode],
     queryFn: async () => {
+      // Club-admin conversation: all club admins + the member
+      if (chatType === "club_admin" && clubId) {
+        const { data: admins } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("club_id", clubId)
+          .eq("role", "club_admin");
+        const roleMap = new Map<string, string>();
+        for (const a of admins || []) roleMap.set(a.user_id, "club_admin");
+        if (clubAdminMemberUserId && !roleMap.has(clubAdminMemberUserId)) {
+          roleMap.set(clubAdminMemberUserId, "member");
+        }
+        const userIds = Array.from(roleMap.keys());
+        if (userIds.length === 0) return [] as Member[];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+        return userIds.map((id) => {
+          const p = profileMap.get(id);
+          return {
+            id,
+            display_name: p?.display_name || null,
+            avatar_url: p?.avatar_url || null,
+            role: roleMap.get(id),
+          } as Member;
+        });
+      }
+
       // Mini-league chat: union of league admins, per-league grants, and parents of players
       if (chatType === "group" && miniLeagueId) {
         const [leagueRow, perLeagueAdmins, players] = await Promise.all([
