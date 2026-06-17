@@ -721,10 +721,37 @@ export function AppHeader() {
           break;
         }
 
+        case "club_admin_message": {
+          // related_id is the club_admin_messages.id — resolve the conversation
+          // and deep-link to the club-admin thread anchored on this message.
+          const { data: caMsg } = await supabase
+            .from("club_admin_messages")
+            .select("conversation_id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (caMsg?.conversation_id) {
+            setPendingChatJump("club_admin", caMsg.conversation_id, relatedId);
+            navigateWithFreshJump(`/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
+            return;
+          }
+          // Backward-compat: older rows stored conversation_id as related_id.
+          const { data: caConv } = await supabase
+            .from("club_admin_conversations")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (caConv) {
+            navigate(`/messages/club-admin/${relatedId}`);
+            return;
+          }
+          navigate("/messages");
+          return;
+        }
         case "broadcast":
           setPendingChatJump("broadcast", null, relatedId);
           navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
           return;
+
         case "direct_message": {
           const opened = await openDirectMessageNotification(relatedId, notification.created_at);
           if (!opened) navigate("/messages");
