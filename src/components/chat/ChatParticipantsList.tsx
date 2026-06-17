@@ -502,7 +502,7 @@ export function ChatParticipantsList({
       }
       return map;
     },
-    enabled: enabled && memberIds.length > 0,
+    enabled: enabled && memberIds.length > 0 && chatType !== "club_admin",
     staleTime: 1000 * 60 * 2,
   });
 
