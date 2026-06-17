@@ -48,6 +48,7 @@ import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache"
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useMessageReads } from "@/hooks/useMessageReads";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
