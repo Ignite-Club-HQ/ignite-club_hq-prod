@@ -973,6 +973,9 @@ export default function ClubAdminChatPage() {
                         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
                       }}
                       onEdit={handleEdit}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      isLastMessage={index === arr.length - 1}
                       groupedWithPrev={groupedWithPrev}
                       groupedWithNext={groupedWithNext}
                     />
