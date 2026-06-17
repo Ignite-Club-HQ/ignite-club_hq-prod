@@ -1036,7 +1036,7 @@ export default function ClubAdminChatPage() {
           />
         )}
       </div>
-      {conversationId && conversation?.club_id && (
+      {conversationId && (
         <Sheet open={participantsOpen} onOpenChange={setParticipantsOpen}>
           <SheetContent
             side={isMobile ? "bottom" : "right"}
@@ -1074,16 +1074,22 @@ export default function ClubAdminChatPage() {
               data-chat-scroll-lock="true"
               style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
             >
-              <ChatParticipantsList
-                chatType="club_admin"
-                chatId={conversationId}
-                chatName={chatTitle}
-                clubId={conversation.club_id}
-                clubAdminMemberUserId={conversation.member_user_id || undefined}
-                enabled={participantsOpen}
-                onBeforeNavigate={() => setParticipantsOpen(false)}
-                inline
-              />
+              {conversation?.club_id ? (
+                <ChatParticipantsList
+                  chatType="club_admin"
+                  chatId={conversationId}
+                  chatName={chatTitle}
+                  clubId={conversation.club_id}
+                  clubAdminMemberUserId={conversation.member_user_id || undefined}
+                  enabled={participantsOpen}
+                  onBeforeNavigate={() => setParticipantsOpen(false)}
+                  inline
+                />
+              ) : (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </div>
           </SheetContent>
         </Sheet>
