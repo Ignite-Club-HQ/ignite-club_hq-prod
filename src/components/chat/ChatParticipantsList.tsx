@@ -530,6 +530,49 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 5,
   });
 
+  // All roles per member within the chat's club scope, for multi-role badges.
+  const { data: memberAllRoles } = useQuery({
+    queryKey: ["chat-members-all-roles", chatType, chatId, teamScopeClubId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {} as Record<string, string[]>;
+      let q = supabase
+        .from("user_roles")
+        .select("user_id, role, club_id, team_id")
+        .in("user_id", memberIds);
+      if (teamScopeClubId) {
+        q = q.or(`club_id.eq.${teamScopeClubId},team_id.not.is.null`);
+      }
+      const { data } = await q;
+      const map: Record<string, Set<string>> = {};
+      for (const row of (data || []) as any[]) {
+        if (!map[row.user_id]) map[row.user_id] = new Set();
+        map[row.user_id].add(row.role);
+      }
+      const priority = [
+        "app_admin",
+        "club_admin",
+        "committee_member",
+        "league_admin",
+        "team_admin",
+        "coach",
+        "player",
+        "parent",
+        "basic_user",
+      ];
+      const out: Record<string, string[]> = {};
+      for (const [uid, set] of Object.entries(map)) {
+        out[uid] = Array.from(set).sort(
+          (a, b) => priority.indexOf(a) - priority.indexOf(b),
+        );
+      }
+      return out;
+    },
+    enabled: enabled && memberIds.length > 0,
+    staleTime: 1000 * 60 * 5,
+  });
+
+
+
 
   // Online status: combine realtime presence with DB heartbeat (last 90s).
   const realtimeOnline = useOnlineSet(memberIds);
