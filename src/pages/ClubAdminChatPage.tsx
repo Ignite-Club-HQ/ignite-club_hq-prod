@@ -847,19 +847,26 @@ export default function ClubAdminChatPage() {
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <ChatBackButton />
-          <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <h1 className="font-semibold flex items-center gap-2 truncate">
-              {chatTitle}
-              <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-            </h1>
-            <p className="text-xs text-muted-foreground truncate">{chatSubtitle}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen(true)}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left active:opacity-70 transition-opacity touch-manipulation"
+            aria-label="View participants"
+          >
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h1 className="font-semibold flex items-center gap-2 truncate">
+                {chatTitle}
+                <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+              </h1>
+              <p className="text-xs text-muted-foreground truncate">{chatSubtitle}</p>
+            </div>
+          </button>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
