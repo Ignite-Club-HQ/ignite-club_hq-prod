@@ -72,6 +72,7 @@ export function ChatParticipantsList({
   groupAllowedRoles,
   groupCreatedBy,
   groupMembershipMode,
+  clubAdminMemberUserId,
   enabled = true,
   onBeforeNavigate,
   className,
