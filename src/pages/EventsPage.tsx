@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, onlineManager } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw, Crown } from "lucide-react";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 import { exportEventsIcs } from "@/lib/icsExport";
@@ -378,7 +378,7 @@ export default function EventsPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
-    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || onlineManager.isOnline()),
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
@@ -761,8 +761,8 @@ export default function EventsPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
 
-          {/* Filter button - secondary action, only show if there are filters to display */}
-          {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
+          {/* Filter button - hidden in club theme mode or when user belongs to ≤1 club */}
+          {(!activeClubFilter && (userClubs?.length || 0) > 1) && (
             <Button
               variant={hasActiveFilters ? "default" : "outline"}
               size="icon"
@@ -776,6 +776,7 @@ export default function EventsPage() {
               )}
             </Button>
           )}
+
 
           {/* Primary action: + opens an action menu */}
           <CreateActionButton

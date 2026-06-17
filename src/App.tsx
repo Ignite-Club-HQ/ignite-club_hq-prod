@@ -146,15 +146,19 @@ import { setupAndroidWebViewWake } from "@/lib/androidWebViewWake";
 // `retry: 1` + exponential backoff catches transient mobile-network blips
 // (paired with the 15s PostgREST GET abort in supabaseAuthRetry.ts). One
 // silent retry, then surface the error so cached data / retry UI can show.
-// `refetchOnReconnect: true` so the moment Capacitor Network reports the
-// device back online we re-pull stale chat/events lists automatically.
+// `refetchOnReconnect: "always"` (not `true`) so the moment Capacitor Network
+// reports the device back online we re-pull EVERY active query — including
+// ones whose data is still within its staleTime window. With plain `true`,
+// queries that succeeded just before a brief network drop are considered
+// fresh at reconnect and skip the refetch, which left Messages/Schedule/Media
+// blank on Android until the app was killed (see audit 2026-06).
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       networkMode: "offlineFirst",
       retry: 1,
       retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
-      refetchOnReconnect: true,
+      refetchOnReconnect: "always",
       // Tighter defaults to reduce redundant refetches; per-query overrides
       // (e.g. staleTime: 0, refetchOnWindowFocus: true) still win where declared.
       staleTime: 30_000,
@@ -167,7 +171,7 @@ const queryClient = new QueryClient({
 
 
 // Configure React Query to refetch on reconnect/resume in native apps
-setupReactQueryNativeAdapter();
+setupReactQueryNativeAdapter(queryClient);
 // Force Android WebView to repaint on resume (compositor pauses in background)
 setupAndroidWebViewWake();
 

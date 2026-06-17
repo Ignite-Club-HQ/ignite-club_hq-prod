@@ -23,6 +23,11 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -129,6 +134,8 @@ export default function ClubAdminChatPage() {
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -840,19 +847,26 @@ export default function ClubAdminChatPage() {
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <ChatBackButton />
-          <Avatar className="h-10 w-10 shrink-0">
-            <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <h1 className="font-semibold flex items-center gap-2 truncate">
-              {chatTitle}
-              <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-            </h1>
-            <p className="text-xs text-muted-foreground truncate">{chatSubtitle}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen(true)}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left active:opacity-70 transition-opacity touch-manipulation"
+            aria-label="View participants"
+          >
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarImage src={isMember ? (club?.logo_url || undefined) : (resolvedMemberAvatar || undefined)} />
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {(isMember ? club?.name : resolvedMemberName)?.charAt(0).toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h1 className="font-semibold flex items-center gap-2 truncate">
+                {chatTitle}
+                <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+              </h1>
+              <p className="text-xs text-muted-foreground truncate">{chatSubtitle}</p>
+            </div>
+          </button>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
@@ -1022,6 +1036,64 @@ export default function ClubAdminChatPage() {
           />
         )}
       </div>
+      {conversationId && (
+        <Sheet open={participantsOpen} onOpenChange={setParticipantsOpen}>
+          <SheetContent
+            side={isMobile ? "bottom" : "right"}
+            className={cn(
+              "flex min-h-0 flex-col overflow-hidden p-0 gap-0",
+              isMobile ? "h-[85vh] max-h-[85vh] rounded-t-2xl" : "w-[400px] sm:max-w-md",
+            )}
+            hideCloseButton
+            enableDragToClose={isMobile}
+            data-lock-keyboard-scroll="true"
+            data-allow-scroll
+            style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+          >
+            <SheetTitle className="sr-only">{chatTitle} participants</SheetTitle>
+            <SheetDescription className="sr-only">
+              People who can see this club admin conversation.
+            </SheetDescription>
+            <div className="relative px-5 pt-5 pb-3 border-b">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-3 top-3 h-9 w-9"
+                onClick={() => setParticipantsOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <div className="text-center">
+                <h2 className="text-lg font-bold tracking-tight">{chatTitle}</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{chatSubtitle}</p>
+              </div>
+            </div>
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 pt-3"
+              data-chat-scroll-lock="true"
+              style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+            >
+              {conversation?.club_id ? (
+                <ChatParticipantsList
+                  chatType="club_admin"
+                  chatId={conversationId}
+                  chatName={chatTitle}
+                  clubId={conversation.club_id}
+                  clubAdminMemberUserId={conversation.member_user_id || undefined}
+                  enabled={participantsOpen}
+                  onBeforeNavigate={() => setParticipantsOpen(false)}
+                  inline
+                />
+              ) : (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

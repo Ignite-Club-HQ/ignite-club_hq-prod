@@ -919,7 +919,9 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   return (
     <section className="space-y-2.5">
-      <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
+      <h2 className="text-xl font-bold px-1 tracking-tight">
+        {competitionItems.length > 0 ? "My Teams & Competitions" : "My Teams"}
+      </h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
           {competitionItems.map((item) => (
