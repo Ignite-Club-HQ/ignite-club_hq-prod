@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useOnlineSet } from "@/hooks/useUserPresence";
 
 interface ChatParticipantsListProps {
-  chatType: "team" | "club" | "group";
+  chatType: "team" | "club" | "group" | "club_admin";
   chatId: string;
   chatName: string;
   teamId?: string;
@@ -33,6 +33,8 @@ interface ChatParticipantsListProps {
   groupAllowedRoles?: string[];
   groupCreatedBy?: string | null;
   groupMembershipMode?: string | null;
+  /** Club-admin thread: include this member alongside the club admins. */
+  clubAdminMemberUserId?: string;
   enabled?: boolean;
   /** Called when a tap navigates away (so caller can close its sheet) */
   onBeforeNavigate?: () => void;
