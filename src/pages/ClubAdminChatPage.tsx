@@ -593,6 +593,30 @@ export default function ClubAdminChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  // Read receipts: mirror Club/Team chat wiring so admins can see which other
+  // admins have opened a member's Contact Club message.
+  const messageIds = useMemo(
+    () => (filteredMessages ?? []).map((m) => m.id).filter((id) => !id.startsWith("temp-") && !id.startsWith("queued-")),
+    [filteredMessages]
+  );
+  const { readCounts, readFrontier, markMessagesAsRead } = useMessageReads(
+    "club_admin",
+    conversationId || "",
+    messageIds,
+    user?.id
+  );
+  const markedAsReadRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!filteredMessages?.length || !user?.id) return;
+    const toMark = filteredMessages
+      .filter((m) => m.author_id !== user.id && !m.id.startsWith("temp-") && !m.id.startsWith("queued-") && !markedAsReadRef.current.has(m.id))
+      .map((m) => m.id);
+    if (toMark.length > 0) {
+      toMark.forEach((id) => markedAsReadRef.current.add(id));
+      markMessagesAsRead(toMark);
+    }
+  }, [filteredMessages, user?.id, markMessagesAsRead]);
+
   const firstMatchId = searchQuery.trim() ? filteredMessages?.[0]?.id ?? null : null;
   const lastCenteredKeyRef = useRef<string | null>(null);
   useEffect(() => {
