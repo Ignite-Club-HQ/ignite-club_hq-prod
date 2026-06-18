@@ -2620,11 +2620,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     setSelectedFormation(defaultFormationIndex);
     
-    // Reset players - clear minutes and re-place on pitch with default formation
-    const resetPlayers = players.map(p => ({
-      ...p,
-      minutesPlayed: 0,
-    }));
+    // Reset players - remove temporary fill-ins, clear minutes, and re-place
+    // regular roster players with the default formation. Fill-ins are per-game
+    // only and must not survive Reset Game / Set up game.
+    const resetPlayers = players
+      .filter(p => !p.isFillIn)
+      .map(p => ({
+        ...p,
+        minutesPlayed: 0,
+      }));
     
     // Re-place players using default formation
     const placedPlayers = autoPlacePlayersOnPitch(resetPlayers, defaultTeamSize, defaultFormationIndex);
@@ -2658,7 +2662,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         description: "All player minutes and settings have been reset to defaults.",
       });
     }
-  }, [players, autoPlacePlayersOnPitch, toast]);
+  }, [players, autoPlacePlayersOnPitch, teamId, toast]);
 
   // Helper: if the game is at full time, silently reset before showing lineup picker
   const handleSetupGame = useCallback(() => {
