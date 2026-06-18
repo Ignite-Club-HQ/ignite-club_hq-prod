@@ -1637,6 +1637,7 @@ export default function ClubChatPage() {
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       isLastMessage={index === arr.length - 1}
+                      isLastOwnMessage={msg.author_id === user?.id && !arr.slice(index + 1).some((m: any) => m.author_id === user?.id)}
                       isPending={msg.id.startsWith("queued-")}
                       contextId={clubId || ""}
                       isPinned={pinnedMessageIds.has(msg.id)}
