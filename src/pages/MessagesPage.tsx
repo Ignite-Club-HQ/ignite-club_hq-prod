@@ -2824,9 +2824,6 @@ export default function MessagesPage() {
                     return (
                       <div className="flex items-center gap-2 pb-1.5 mb-2">
                         <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
-                        <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
-                          {row.count}
-                        </span>
                       </div>
                     );
                   }
@@ -2868,9 +2865,6 @@ export default function MessagesPage() {
                 <>
                   <div className="flex items-center gap-2 pb-1.5">
                     <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
-                    <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
-                      {unreadItems.length}
-                    </span>
                   </div>
                   {unreadItems.map(renderConversationCard)}
                 </>
