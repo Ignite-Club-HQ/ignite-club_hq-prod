@@ -824,7 +824,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [members, teamPlayerPositions, miniLeagueTeams, shouldFilterByGoing, goingAttendeeIds]);
 
 
-  const savedPlayers = savedState?.players || [];
+  // Fill-in purge gate: when the saved state belongs to a DIFFERENT event than
+  // the one we're opening, drop fill-ins (they were ad-hoc for the prior match).
+  // Same-event resume (phone-lock case) is untouched; no-event ad-hoc games
+  // (no linkedEventId on either side) are untouched.
+  const savedStateIsForDifferentEvent =
+    !!savedState &&
+    !!savedState.linkedEventId &&
+    !!initialLinkedEventId &&
+    savedState.linkedEventId !== initialLinkedEventId;
+  const savedPlayers = savedStateIsForDifferentEvent
+    ? (savedState?.players || []).filter((p) => !p.isFillIn)
+    : (savedState?.players || []);
+  const savedAutoSubPlan = savedStateIsForDifferentEvent
+    ? (savedState?.autoSubPlan || []).filter((step: any) =>
+        savedPlayers.some((p) => p.id === step.playerId)
+      )
+    : (savedState?.autoSubPlan || []);
   const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
   const strictMatchRosterPlayerIds = useMemo(
     () => new Set(realPlayers.map((player) => player.id)),
@@ -1149,13 +1165,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize())
         : autoPlacePlayersOnPitch(realPlayers, getInitialTeamSize(), getInitialFormationIndex(getInitialTeamSize()));
     }
-    if (savedState?.players && savedState.players.length > 0) {
-      console.log("[PitchState] useState init - using saved players");
+    if (savedPlayers.length > 0) {
+      console.log("[PitchState] useState init - using saved players", savedStateIsForDifferentEvent ? "(fill-ins stripped: different event)" : "");
       // For mini-league mode, we need to check if saved state has proper two-team layout
       // If Team B players are not on the top half (y < 50), re-place all players
       if (miniLeagueTeams) {
         // Apply teamSide to saved players first
-        const playersWithTeamSide = savedState.players.map(p => {
+        const playersWithTeamSide = savedPlayers.map(p => {
           let teamSide: "a" | "b" | undefined;
           if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
             teamSide = "a";
@@ -1183,7 +1199,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // source of truth for minute tracking. The catchup here was adding minutes
       // that handleTimerUpdate would ALSO add via its delta calculation, causing
       // double-counted player minutes (e.g. showing 15 min at 7 min game time).
-      return applyStrictMatchRoster(savedState.players);
+      return applyStrictMatchRoster(savedPlayers);
     }
     if (savedState && !savedState.mockMode && realPlayers.length > 0) {
       console.log("[PitchState] useState init - ignoring stale empty saved state and using real players");
@@ -1349,7 +1365,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     checkHalftimeSubs,
     skipCooldownRef,
   } = useAutoSubs({
-    initialPlan: savedState?.autoSubPlan || [],
+    initialPlan: savedAutoSubPlan,
     initialActive: savedState?.autoSubActive || false,
     initialPaused: savedState?.autoSubPaused || false,
     gameTimerRef,
