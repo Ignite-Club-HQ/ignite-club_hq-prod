@@ -2612,50 +2612,87 @@ export default function MessagesPage() {
           Teams → Groups → DMs appearing one-by-one as each query finishes. */}
       {((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError)) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
+        const unread = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
-          if (c.type === 'team' || c.type === 'league') counts.teams++;
-          else if (c.type === 'group' || c.type === 'club') counts.groupish++;
-          else if (c.type === 'dm') counts.dms++;
+          const u = c.unreadCount || 0;
+          if (c.type === 'team' || c.type === 'league') { counts.teams++; unread.teams += u; }
+          else if (c.type === 'group' || c.type === 'club' || c.type === 'admin_group') { counts.groupish++; unread.groupish += u; }
+          else if (c.type === 'dm') { counts.dms++; unread.dms += u; }
         });
-        const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
-          { id: 'all', label: 'All', visible: true },
-          { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team' },
-          { id: 'groups', label: 'Groups', visible: counts.groupish > 0, type: 'group' },
-          { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
+        const totalUnread = unread.teams + unread.groupish + unread.dms;
+        const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string; unread: number }[] = [
+          { id: 'all', label: 'All', visible: true, unread: totalUnread },
+          { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team', unread: unread.teams },
+          { id: 'groups', label: 'Groups', visible: counts.groupish > 0, type: 'group', unread: unread.groupish },
+          { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm', unread: unread.dms },
         ];
         const shown = chips.filter(c => c.visible);
-        // Only show filter chips for power users with more than 6 threads —
-        // keeps the inbox clean for regular sports parents.
-        if (unifiedConversations.length <= 6) return null;
+        // Show chips for power users (>6 threads) OR whenever there are
+        // unread messages anywhere — so users can instantly see where the
+        // unread badge they saw on the tab is hiding.
+        if (totalUnread === 0 && unifiedConversations.length <= 6) return null;
         if (shown.length <= 2) return null;
+
+        // Contextual nudge: current filter is empty of unread but another
+        // bucket has some — point the user there.
+        const currentUnread = chips.find(c => c.id === typeFilter)?.unread ?? 0;
+        const elsewhere = chips
+          .filter(c => c.id !== 'all' && c.id !== typeFilter && c.unread > 0)
+          .sort((a, b) => b.unread - a.unread);
+        const showBanner = typeFilter !== 'all' && currentUnread === 0 && elsewhere.length > 0;
+        const banner = showBanner ? elsewhere[0] : null;
+
         return (
-          <div className="-mx-4 px-4 mt-1 mb-1 overflow-x-auto scrollbar-none">
-            <div className="flex items-center gap-2 py-1">
-              {shown.map((chip) => {
-                const active = typeFilter === chip.id;
-                const accent = chip.type ? TYPE_ACCENT_HSL[chip.type] : undefined;
-                const activeStyle: React.CSSProperties | undefined = active && accent
-                  ? { backgroundColor: `hsl(${accent} / 0.14)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.45)` }
-                  : undefined;
-                return (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    onClick={() => setTypeFilter(chip.id)}
-                    style={activeStyle}
-                    aria-pressed={active}
-                    className={`shrink-0 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
-                      active
-                        ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
-                        : 'font-medium bg-background text-muted-foreground border-border hover:text-foreground'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                );
-              })}
+          <>
+            <div className="-mx-4 px-4 mt-1 mb-1 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-2 py-1">
+                {shown.map((chip) => {
+                  const active = typeFilter === chip.id;
+                  const accent = chip.type ? TYPE_ACCENT_HSL[chip.type] : undefined;
+                  const activeStyle: React.CSSProperties | undefined = active && accent
+                    ? { backgroundColor: `hsl(${accent} / 0.14)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.45)` }
+                    : undefined;
+                  const showCount = chip.unread > 0;
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => setTypeFilter(chip.id)}
+                      style={activeStyle}
+                      aria-pressed={active}
+                      aria-label={showCount ? `${chip.label}, ${chip.unread} unread` : chip.label}
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
+                        active
+                          ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
+                          : `${showCount ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'} bg-background border-border hover:text-foreground`
+                      }`}
+                    >
+                      <span>{chip.label}</span>
+                      {showCount && (
+                        <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+                          {chip.unread > 99 ? '99+' : chip.unread}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+            {banner && (
+              <button
+                type="button"
+                onClick={() => setTypeFilter(banner.id)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-left touch-manipulation"
+              >
+                <span className="text-[13px] text-foreground">
+                  You have <span className="font-semibold">{banner.unread}</span> unread message{banner.unread === 1 ? '' : 's'} in <span className="font-semibold">{banner.label}</span>
+                </span>
+                <span className="shrink-0 text-[12px] font-semibold text-destructive">
+                  View {banner.label} →
+                </span>
+              </button>
+            )}
+          </>
         );
       })()}
 
