@@ -1148,7 +1148,7 @@ function ChatMessageInner({
               // Committee, Competition, Group). The standalone reader-avatar
               // block below only renders when there are real avatars to show
               // for the chat tail, replacing the "Sent" label entirely.
-              isLastMessage
+              isLastOwnMessage
                 ? (readFrontierReaders.length === 0
                     ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
                     : null)
@@ -1162,7 +1162,7 @@ function ChatMessageInner({
             )}
           </p>
         )}
-        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
+        {!isPending && isLastOwnMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
           messageType === "dm"
             ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
             : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
@@ -1173,7 +1173,7 @@ function ChatMessageInner({
           <ReadReceiptSheet
             open={showReadReceipts}
             onOpenChange={setShowReadReceipts}
-            readers={isLastMessage ? readFrontierReaders : []}
+            readers={isLastOwnMessage ? readFrontierReaders : []}
             messageId={id}
             messageType={messageType}
             contextId={contextId || ""}
