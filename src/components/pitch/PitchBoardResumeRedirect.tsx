@@ -50,6 +50,21 @@ export default function PitchBoardResumeRedirect() {
     // If PitchBoard is already mounted in this JS context, nothing to do —
     // avoid yanking the URL and forcing an unmount/remount loop.
     if ((window as any).__pitchBoardMounted === true) return;
+
+    // Suppress warm-resume restores when the board was never opened in this
+    // JS session — the persisted PITCH_BOARD_OPEN_KEY is stale (left over
+    // from a previous run or a never-cleared crash path). Cold starts get
+    // an 8s grace window so the original kill-and-restore use case still
+    // works (iOS WKWebView eviction on long lock).
+    const wasMountedThisSession =
+      (window as any).__pitchBoardMountedThisSession === true;
+    const isColdStart = performance.now() < 8000;
+    if (!wasMountedThisSession && !isColdStart) {
+      // Self-heal: clear the stale flag so we don't keep re-checking.
+      clearPitchBoardOpenFlag();
+      return;
+    }
+
     try {
       if (localStorage.getItem(PITCH_BOARD_OPEN_KEY) !== "true") return;
       const storedPath = localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY);
