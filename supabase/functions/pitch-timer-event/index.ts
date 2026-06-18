@@ -249,8 +249,9 @@ Deno.serve(async (req) => {
 
     // Merge any incoming pitch_state patch on top of existing pitch_state
     // (so we don't drop fields the client didn't include).
-    const basePitchState: Record<string, unknown> =
-      (existing?.pitch_state as Record<string, unknown> | null) ?? { sport: "soccer", autoSubActive: true };
+    const basePitchState: Record<string, unknown> = event === "reset"
+      ? { sport: "soccer", autoSubActive: false, autoSubPlan: [], players: [] }
+      : ((existing?.pitch_state as Record<string, unknown> | null) ?? { sport: "soccer", autoSubActive: true });
     const mergedPitchState: Record<string, unknown> = { ...basePitchState };
     if (incomingAutoSubPlan !== null) mergedPitchState.autoSubPlan = incomingAutoSubPlan;
     if (incomingAutoSubActive !== null) mergedPitchState.autoSubActive = incomingAutoSubActive;
