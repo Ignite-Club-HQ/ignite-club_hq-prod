@@ -161,7 +161,6 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
                       <span className="font-semibold text-sm">
                         {k.profiles?.display_name || k.children?.name}
                       </span>
-                      {k.child_id && <Badge variant="outline" className="text-xs">Child</Badge>}
                     </div>
                   </div>
                   {isAdmin && (

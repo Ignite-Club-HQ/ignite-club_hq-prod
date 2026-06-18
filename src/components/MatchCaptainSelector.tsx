@@ -170,9 +170,6 @@ export default function MatchCaptainSelector({
                   <span className="font-semibold">
                     {captain.profiles?.display_name || captain.children?.name}
                   </span>
-                  {captain.child_id && (
-                    <Badge variant="outline" className="text-xs">Child</Badge>
-                  )}
                 </div>
               </div>
               {isAdmin && (
