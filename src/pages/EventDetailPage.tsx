@@ -93,6 +93,16 @@ import { EventNoteSection } from "@/components/event/EventNoteSection";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
 const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
+
+// Close handler used by all game-board variants. Clears both the React modal
+// state AND the persisted "open" flag so PitchBoardResumeRedirect won't
+// re-open the board after a phone lock/unlock once the user has explicitly
+// closed it from the event page.
+const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
+  setShow(false);
+  clearPitchBoardOpenFlag();
+};
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 
 type EventType = "game" | "training" | "social";
@@ -3786,7 +3796,7 @@ export default function EventDetailPage() {
               role: m.role,
               profiles: m.profiles
             }))}
-            onClose={() => setShowPitchBoard(false)}
+            onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             disableAutoSubs={teamSubscription?.disable_auto_subs || false}
             initialRotationSpeed={teamSubscription?.rotation_speed || 1}
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
@@ -3825,7 +3835,7 @@ export default function EventDetailPage() {
                 role: m.role,
                 profiles: m.profiles
               }))}
-              onClose={() => setShowPitchBoard(false)}
+              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             />
           </div>
         </Suspense>,
@@ -3850,7 +3860,7 @@ export default function EventDetailPage() {
                 role: m.role,
                 profiles: m.profiles
               }))}
-              onClose={() => setShowPitchBoard(false)}
+              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             />
           </div>
         </Suspense>,
