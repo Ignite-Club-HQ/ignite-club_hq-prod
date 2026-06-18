@@ -77,6 +77,10 @@ export interface ChatMessageProps {
   readCount?: number;
   readerName?: string | null;
   isLastMessage?: boolean;
+  /** True when this is the current user's most recent own message in the
+   *  thread. Drives the "Sent / Seen by …" read-receipt frontier so it
+   *  follows the sender's tail even after replies arrive. */
+  isLastOwnMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
   isClubAnnouncement?: boolean;
