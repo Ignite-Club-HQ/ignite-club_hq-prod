@@ -124,13 +124,19 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
     // running so a paused / backgrounded live game is never wiped.
     const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
     const timerState = loadTimerStateForMinutes(teamId);
-    const isGameRunning = timerState?.isRunning === true;
-    if (
-      !isGameRunning &&
-      state.lastUpdateTime &&
-      Date.now() - state.lastUpdateTime > TWELVE_HOURS_MS
-    ) {
-      console.log("[PitchState] Stale pitch state (>12h, no running timer) — clearing for fresh game setup");
+    // A timer is only "really" running if it claims isRunning AND its own
+    // lastUpdateTime is recent. Users often close the app without pausing,
+    // leaving isRunning=true forever — we must not treat that as a live game,
+    // otherwise stale state from weeks ago would persist into a new setup.
+    const timerFresh =
+      !!timerState?.lastUpdateTime &&
+      Date.now() - timerState.lastUpdateTime <= TWELVE_HOURS_MS;
+    const isGameRunning = timerState?.isRunning === true && timerFresh;
+    const pitchStateStale =
+      !!state.lastUpdateTime &&
+      Date.now() - state.lastUpdateTime > TWELVE_HOURS_MS;
+    if (!isGameRunning && pitchStateStale) {
+      console.log("[PitchState] Stale pitch state (>12h, no live timer) — clearing for fresh game setup");
       localStorage.removeItem(getPitchStateKey(teamId));
       const active = localStorage.getItem(PITCH_STATE_KEY);
       if (active) {
@@ -139,6 +145,15 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
           if (activeState.teamId === teamId) localStorage.removeItem(PITCH_STATE_KEY);
         } catch { /* ignore */ }
       }
+      // Also clear the stale timer so widgets/home don't show a phantom live game.
+      try {
+        localStorage.removeItem(getTeamTimerStorageKey(teamId));
+        const activeTimer = localStorage.getItem(ACTIVE_TIMER_KEY);
+        if (activeTimer) {
+          const t = JSON.parse(activeTimer) as TimerState;
+          if (t.teamId === teamId) localStorage.removeItem(ACTIVE_TIMER_KEY);
+        }
+      } catch { /* ignore */ }
       return null;
     }
 
