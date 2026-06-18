@@ -9,8 +9,8 @@ const isFreshActiveGameRow = (row: { updated_at?: string | null; timer_state?: u
   const updatedAt = new Date(row.updated_at).getTime();
   if (!Number.isFinite(updatedAt) || Date.now() - updatedAt > TWELVE_HOURS_MS) return false;
 
-  const timer = (row.timer_state ?? {}) as { is_running?: boolean; isRunning?: boolean; last_event_at?: string; lastUpdateTime?: number };
-  if (timer.is_running !== true && timer.isRunning !== true) return false;
+  const timer = (row.timer_state ?? {}) as { is_game_finished?: boolean; isGameFinished?: boolean; last_event_at?: string; lastUpdateTime?: number };
+  if (timer.is_game_finished === true || timer.isGameFinished === true) return false;
 
   const timerUpdatedAt = typeof timer.last_event_at === "string"
     ? new Date(timer.last_event_at).getTime()
