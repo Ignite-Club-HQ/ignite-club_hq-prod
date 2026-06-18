@@ -104,16 +104,15 @@ function ConversationRowImpl({
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
                 <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                <div className="flex items-center gap-0.5 shrink-0">
+                <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
                   {item.lastMessage?.created_at && (
-                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                    <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                   )}
                   {hasUnread && (
                     <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                       {item.unreadCount > 9 ? "9+" : item.unreadCount}
                     </span>
                   )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
               <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
@@ -231,16 +230,15 @@ function ConversationRowImpl({
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-0.5 shrink-0">
+                <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
                   {item.lastMessage?.created_at && (
-                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                    <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                   )}
                   {hasUnread && (
                     <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                       {item.unreadCount > 9 ? "9+" : item.unreadCount}
                     </span>
                   )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
               <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
@@ -355,16 +353,15 @@ function ConversationRowImpl({
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
+              <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
                 {item.lastMessage?.created_at && (
-                  <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                  <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                 )}
                 {hasUnread && (
                   <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                     {item.unreadCount > 9 ? "9+" : item.unreadCount}
                   </span>
                 )}
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </div>
             <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
@@ -424,16 +421,15 @@ function ConversationRowImpl({
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
+              <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
                 {item.lastMessage?.created_at && (
-                  <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                  <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                 )}
                 {hasUnread && (
                   <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                     {item.unreadCount > 9 ? "9+" : item.unreadCount}
                   </span>
                 )}
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </div>
             <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
