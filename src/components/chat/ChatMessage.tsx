@@ -77,6 +77,10 @@ export interface ChatMessageProps {
   readCount?: number;
   readerName?: string | null;
   isLastMessage?: boolean;
+  /** True when this is the current user's most recent own message in the
+   *  thread. Drives the "Sent / Seen by …" read-receipt frontier so it
+   *  follows the sender's tail even after replies arrive. */
+  isLastOwnMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
   isClubAnnouncement?: boolean;
@@ -129,6 +133,7 @@ function ChatMessageInner({
   readCount = 0,
   readerName,
   isLastMessage = false,
+  isLastOwnMessage = false,
   isPending = false,
   isSystemMessage = false,
   isClubAnnouncement = false,
@@ -1143,7 +1148,7 @@ function ChatMessageInner({
               // Committee, Competition, Group). The standalone reader-avatar
               // block below only renders when there are real avatars to show
               // for the chat tail, replacing the "Sent" label entirely.
-              isLastMessage
+              isLastOwnMessage
                 ? (readFrontierReaders.length === 0
                     ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
                     : null)
@@ -1157,7 +1162,7 @@ function ChatMessageInner({
             )}
           </p>
         )}
-        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
+        {!isPending && isLastOwnMessage && isOwn && !isClubAnnouncement && readFrontierReaders.length > 0 && (
           messageType === "dm"
             ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
             : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
@@ -1168,7 +1173,7 @@ function ChatMessageInner({
           <ReadReceiptSheet
             open={showReadReceipts}
             onOpenChange={setShowReadReceipts}
-            readers={isLastMessage ? readFrontierReaders : []}
+            readers={isLastOwnMessage ? readFrontierReaders : []}
             messageId={id}
             messageType={messageType}
             contextId={contextId || ""}
@@ -1259,6 +1264,7 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.readCount !== next.readCount ||
     prev.readerName !== next.readerName ||
     prev.isLastMessage !== next.isLastMessage ||
+    prev.isLastOwnMessage !== next.isLastOwnMessage ||
     prev.isPending !== next.isPending ||
     prev.isSystemMessage !== next.isSystemMessage ||
     prev.isClubAnnouncement !== next.isClubAnnouncement ||

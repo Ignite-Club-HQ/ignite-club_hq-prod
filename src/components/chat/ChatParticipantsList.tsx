@@ -20,8 +20,39 @@ import { toast } from "sonner";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import { ParticipantProfileSheet, type ParticipantRoleEntry } from "@/components/chat/ParticipantProfileSheet";
 import { cn } from "@/lib/utils";
 import { useOnlineSet } from "@/hooks/useUserPresence";
+
+// Highest-privilege first. App admin sinks to the end (internal-only).
+const ROLE_PRIORITY: string[] = [
+  "club_admin",
+  "league_admin",
+  "committee_member",
+  "team_admin",
+  "coach",
+  "parent",
+  "player",
+  "basic_user",
+  "app_admin",
+];
+
+const ROLE_LABEL_SHORT: Record<string, string> = {
+  app_admin: "App Admin",
+  club_admin: "Club Admin",
+  league_admin: "League Admin",
+  committee_member: "Committee",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  parent: "Parent",
+  player: "Player",
+  basic_user: "Member",
+};
+
+function shortRoleLabel(role: string) {
+  return ROLE_LABEL_SHORT[role] ?? role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 
 interface ChatParticipantsListProps {
   chatType: "team" | "club" | "group" | "club_admin";
@@ -94,6 +125,7 @@ export function ChatParticipantsList({
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [profileMember, setProfileMember] = useState<Member | null>(null);
 
   const { data: groupMeta } = useQuery({
     queryKey: ["chat-group-meta", chatId],
@@ -506,6 +538,50 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Primary team name per member for the role sublabel ("Coach · U12 Boys").
+  // Scope to this chat's club so we don't pull unrelated teams.
+  const teamScopeClubId = resolvedClubId ?? (chatType === "club" ? chatId : clubId) ?? null;
+  // All roles per member, with team_id + team name. Powers both the compact row
+  // (primary role + "+N roles") and the profile sheet (grouped by team).
+  const { data: memberRoleEntries } = useQuery({
+    queryKey: ["chat-members-role-entries", chatType, chatId, teamScopeClubId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {} as Record<string, ParticipantRoleEntry[]>;
+      let q = supabase
+        .from("user_roles")
+        .select("user_id, role, club_id, team_id, teams(name, club_id)")
+        .in("user_id", memberIds);
+      if (teamScopeClubId) {
+        q = q.or(`club_id.eq.${teamScopeClubId},team_id.not.is.null`);
+      }
+      const { data } = await q;
+      const map: Record<string, ParticipantRoleEntry[]> = {};
+      const seen: Record<string, Set<string>> = {};
+      for (const row of (data || []) as any[]) {
+        // Filter: only keep team rows whose team belongs to our club scope (if scoped).
+        if (row.team_id && teamScopeClubId && row.teams?.club_id && row.teams.club_id !== teamScopeClubId) {
+          continue;
+        }
+        const uid = row.user_id;
+        if (!map[uid]) {
+          map[uid] = [];
+          seen[uid] = new Set();
+        }
+        const dedupeKey = `${row.role}::${row.team_id ?? ""}`;
+        if (seen[uid].has(dedupeKey)) continue;
+        seen[uid].add(dedupeKey);
+        map[uid].push({
+          role: row.role,
+          team_id: row.team_id ?? null,
+          team_name: row.teams?.name ?? null,
+        });
+      }
+      return map;
+    },
+    enabled: enabled && memberIds.length > 0,
+    staleTime: 1000 * 60 * 5,
+  });
+
   // Online status: combine realtime presence with DB heartbeat (last 90s).
   const realtimeOnline = useOnlineSet(memberIds);
   const { data: heartbeatOnlineIds } = useQuery({
@@ -540,8 +616,6 @@ export function ChatParticipantsList({
 
 
 
-  const formatRole = (role: string) =>
-    role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
   const handleMemberTap = async (member: Member) => {
     if (!isCurrentUserAdmin || !effectiveTeamId) return;
@@ -631,34 +705,82 @@ export function ChatParticipantsList({
               const pushDisabled = notifPrefs ? notifPrefs[member.id] === false : false;
               const noPushSetup = pushReachable ? pushReachable[member.id] === false : false;
               const chatMuted = mutePrefs?.[member.id] ?? false;
-              const canTap = isCurrentUserAdmin && !!effectiveTeamId;
+              const canAdminTap = isCurrentUserAdmin && !!effectiveTeamId;
+
+              // Pick the highest-priority role to show inline. In team chats,
+              // prefer roles tied to this team (or club-wide), de-prioritising
+              // unrelated team roles.
+              const entries = memberRoleEntries?.[member.id] ?? [];
+              const scored = entries.map((e) => {
+                const priorityIdx = ROLE_PRIORITY.indexOf(e.role);
+                const pri = priorityIdx < 0 ? 999 : priorityIdx;
+                const teamRelevance =
+                  chatType === "team" && effectiveTeamId
+                    ? e.team_id === effectiveTeamId
+                      ? 0
+                      : e.team_id == null
+                      ? 1
+                      : 2
+                    : e.team_id == null
+                    ? 0
+                    : 1;
+                return { entry: e, pri, teamRelevance };
+              });
+              scored.sort((a, b) => a.teamRelevance - b.teamRelevance || a.pri - b.pri);
+
+              const primary = scored[0]?.entry ?? (member.role
+                ? ({ role: member.role, team_id: null, team_name: null } as ParticipantRoleEntry)
+                : null);
+
+              // Count unique additional roles (by role name) beyond primary
+              const otherRoleNames = new Set<string>();
+              for (const s of scored) {
+                if (s.entry.role !== primary?.role) otherRoleNames.add(s.entry.role);
+              }
+              const extraCount = otherRoleNames.size;
+
               return (
                 <div
                   key={member.id}
-                  className={`flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 ${
-                    canTap ? "cursor-pointer active:bg-muted" : ""
-                  }`}
-                  onClick={canTap ? () => handleMemberTap(member) : undefined}
+                  className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-muted/50 cursor-pointer active:bg-muted"
+                  onClick={() => {
+                    if (canAdminTap) {
+                      handleMemberTap(member);
+                    } else {
+                      setProfileMember(member);
+                    }
+                  }}
                 >
                   <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9">
+                    <Avatar className="h-8 w-8">
                       <AvatarImage src={member.avatar_url || undefined} />
-                      <AvatarFallback>{member.display_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                      <AvatarFallback className="text-xs">
+                        {member.display_name?.[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
                     </Avatar>
                     {onlineIds.has(member.id) && (
                       <span
-                        className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
+                        className="absolute bottom-0 right-0 block h-2 w-2 rounded-full bg-green-500 ring-2 ring-background"
                         aria-label="Online"
                       />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
-                    {member.role && (
-                      <p className="text-xs text-muted-foreground">{formatRole(member.role)}</p>
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <p className="text-sm font-medium truncate">
+                      {member.display_name || "Unknown"}
+                    </p>
+                    {primary && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        <span className="font-medium text-foreground/70">
+                          {shortRoleLabel(primary.role)}
+                        </span>
+                        {primary.team_name ? ` · ${primary.team_name}` : ""}
+                        {extraCount > 0 ? ` · +${extraCount} role${extraCount > 1 ? "s" : ""}` : ""}
+                      </p>
                     )}
                   </div>
-                  {canTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+
+                  {canAdminTap && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   {(pushDisabled || noPushSetup) && (
                     <svg
                       style={{ marginLeft: 4, flexShrink: 0 }}
@@ -740,6 +862,21 @@ export function ChatParticipantsList({
             Leave group
           </Button>
         </div>
+      )}
+
+      {profileMember && (
+        <ParticipantProfileSheet
+          open={!!profileMember}
+          onOpenChange={(o) => {
+            if (!o) setProfileMember(null);
+          }}
+          displayName={profileMember.display_name || "Unknown"}
+          avatarUrl={profileMember.avatar_url}
+          roles={memberRoleEntries?.[profileMember.id] ?? (profileMember.role
+            ? [{ role: profileMember.role, team_id: null, team_name: null }]
+            : [])}
+          online={onlineIds.has(profileMember.id)}
+        />
       )}
 
       {selectedMember && effectiveTeamId && (
