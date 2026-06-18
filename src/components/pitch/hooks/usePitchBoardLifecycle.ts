@@ -66,6 +66,10 @@ export function usePitchBoardLifecycle({
       /* ignore */
     }
     (window as any).__pitchBoardMounted = true;
+    // Sticky "was ever mounted in this JS session" flag. Used by
+    // PitchBoardResumeRedirect to suppress warm-resume restores when the
+    // board was never opened this session (stale localStorage flag).
+    (window as any).__pitchBoardMountedThisSession = true;
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       // Only flip the in-memory mounted marker so PitchBoardResumeRedirect
