@@ -1264,6 +1264,7 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.readCount !== next.readCount ||
     prev.readerName !== next.readerName ||
     prev.isLastMessage !== next.isLastMessage ||
+    prev.isLastOwnMessage !== next.isLastOwnMessage ||
     prev.isPending !== next.isPending ||
     prev.isSystemMessage !== next.isSystemMessage ||
     prev.isClubAnnouncement !== next.isClubAnnouncement ||
