@@ -1516,6 +1516,7 @@ export default function DirectMessagePage() {
                       readCount={readCounts[msg.id] || 0}
                       readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
                       isLastMessage={index === arr.length - 1}
+                      isLastOwnMessage={msg.author_id === user?.id && !arr.slice(index + 1).some((m: any) => m.author_id === user?.id)}
                       queryKey={dmQueryKey}
                       contextId={conversationId || ""}
                       replyToMessage={
