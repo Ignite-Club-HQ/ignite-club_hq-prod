@@ -276,6 +276,15 @@ Deno.serve(async (req) => {
       event === "set_minutes";
 
     let rowId = existing?.id;
+    if (!rowId && event === "reset") {
+      return new Response(JSON.stringify({
+        ok: true,
+        row_id: "",
+        timer_state: next,
+        elapsed_seconds: deriveElapsedSeconds(next),
+        server_now: nowIso(),
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     if (!rowId) {
       // Create a new active_games row so server-side cron / spectators see it.
       const { data: created, error: insErr } = await admin
@@ -302,7 +311,7 @@ Deno.serve(async (req) => {
         timer_state: next as unknown,
         pitch_state: mergedPitchState as unknown,
         updated_at: nowIso(),
-        is_active: !next.is_game_finished,
+        is_active: event === "reset" ? false : !next.is_game_finished,
       };
       if (isFreshStart) updatePayload.last_sub_check_time = 0;
       await admin.from("active_games")
