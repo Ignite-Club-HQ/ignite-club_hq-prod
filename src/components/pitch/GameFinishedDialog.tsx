@@ -221,6 +221,13 @@ export default function GameFinishedDialog({
         pitchState.autoSubActive = false;
         pitchState.autoSubPaused = false;
         pitchState.linkedEventId = null;
+        // Strip fill-ins so they don't carry into the next match on this team.
+        // Fill-ins are ad-hoc for the finished match only; the next event's
+        // real roster will repopulate. Also drop any plan steps referencing them
+        // (defensive — autoSubPlan was already cleared above).
+        if (Array.isArray(pitchState.players)) {
+          pitchState.players = pitchState.players.filter((p: any) => !p?.isFillIn);
+        }
         const json = JSON.stringify(pitchState);
         if (teamId) localStorage.setItem(getPitchStateKeyForTeam(teamId), json);
         const activeRaw = localStorage.getItem(PITCH_STATE_KEY);
