@@ -2661,7 +2661,7 @@ export default function MessagesPage() {
                       style={activeStyle}
                       aria-pressed={active}
                       aria-label={showCount ? `${chip.label}, ${chip.unread} unread` : chip.label}
-                      className={`shrink-0 inline-flex items-center gap-1.5 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
+                      className={`shrink-0 inline-flex items-center gap-2 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
                         active
                           ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
                           : `${showCount ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'} bg-background border-border hover:text-foreground`
@@ -2669,9 +2669,13 @@ export default function MessagesPage() {
                     >
                       <span>{chip.label}</span>
                       {showCount && (
-                        <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center leading-none">
-                          {chip.unread > 99 ? '99+' : chip.unread}
-                        </span>
+                        chip.unread === 1 ? (
+                          <span className="h-2 w-2 rounded-full bg-destructive" />
+                        ) : (
+                          <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+                            {chip.unread > 99 ? '99+' : chip.unread}
+                          </span>
+                        )
                       )}
                     </button>
                   );
