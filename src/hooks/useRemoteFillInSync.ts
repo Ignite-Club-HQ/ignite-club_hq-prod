@@ -52,7 +52,11 @@ export function useRemoteFillInSync(teamId: string | null | undefined, enabled: 
     let cancelled = false;
 
     const applyRow = (row: { pitch_state: unknown; timer_state?: unknown; updated_at?: string | null } | null | undefined) => {
-      if (!row || cancelled) return;
+      if (cancelled) return;
+      if (!row) {
+        setRemoteFillIns([]);
+        return;
+      }
       if (!isFreshActiveGameRow(row)) {
         setRemoteFillIns([]);
         return;
@@ -90,6 +94,8 @@ export function useRemoteFillInSync(teamId: string | null | undefined, enabled: 
           const row = (payload.new ?? payload.old) as { pitch_state?: unknown; timer_state?: unknown; updated_at?: string | null; is_active?: boolean } | null;
           if (row && row.is_active !== false) {
             applyRow(row as { pitch_state: unknown; timer_state?: unknown; updated_at?: string | null });
+          } else {
+            setRemoteFillIns([]);
           }
         }
       )
