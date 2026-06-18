@@ -116,14 +116,37 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
       return null;
     }
     const state = JSON.parse(saved) as PitchBoardState;
-    
+
+    // Auto-expire whole pitch state after 12 hours of inactivity (no running
+    // timer). Without this, fill-in players, sub plans, on-pitch assignments
+    // and minutes from a game played days/weeks ago would carry into the next
+    // game's Starting Lineup setup. We only clear when the timer isn't
+    // running so a paused / backgrounded live game is never wiped.
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    const timerState = loadTimerStateForMinutes(teamId);
+    const isGameRunning = timerState?.isRunning === true;
+    if (
+      !isGameRunning &&
+      state.lastUpdateTime &&
+      Date.now() - state.lastUpdateTime > TWELVE_HOURS_MS
+    ) {
+      console.log("[PitchState] Stale pitch state (>12h, no running timer) — clearing for fresh game setup");
+      localStorage.removeItem(getPitchStateKey(teamId));
+      const active = localStorage.getItem(PITCH_STATE_KEY);
+      if (active) {
+        try {
+          const activeState = JSON.parse(active) as PitchBoardState;
+          if (activeState.teamId === teamId) localStorage.removeItem(PITCH_STATE_KEY);
+        } catch { /* ignore */ }
+      }
+      return null;
+    }
+
     // Auto-expire stale auto-sub plans after 2 hours of inactivity
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
     if (state.autoSubActive && state.lastUpdateTime) {
       const timeSinceLastUpdate = Date.now() - state.lastUpdateTime;
-      const timerState = loadTimerStateForMinutes(teamId);
-      const isGameRunning = timerState?.isRunning === true;
-      
+
       if (!isGameRunning && timeSinceLastUpdate > TWO_HOURS_MS) {
         console.log("[PitchState] Auto-sub plan expired after 2 hours of inactivity, clearing");
         state.autoSubPlan = [];
@@ -135,6 +158,7 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
         localStorage.setItem(PITCH_STATE_KEY, cleanedState);
       }
     }
+
     
     // NOTE: minutesPlayed catchup removed — handleTimerUpdate in PitchBoard is
     // the single source of truth for player minute tracking. The old catchup
