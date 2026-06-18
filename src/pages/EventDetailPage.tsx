@@ -3796,7 +3796,7 @@ export default function EventDetailPage() {
               role: m.role,
               profiles: m.profiles
             }))}
-            onClose={() => setShowPitchBoard(false)}
+            onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             disableAutoSubs={teamSubscription?.disable_auto_subs || false}
             initialRotationSpeed={teamSubscription?.rotation_speed || 1}
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
@@ -3835,7 +3835,7 @@ export default function EventDetailPage() {
                 role: m.role,
                 profiles: m.profiles
               }))}
-              onClose={() => setShowPitchBoard(false)}
+              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             />
           </div>
         </Suspense>,
@@ -3860,7 +3860,7 @@ export default function EventDetailPage() {
                 role: m.role,
                 profiles: m.profiles
               }))}
-              onClose={() => setShowPitchBoard(false)}
+              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
             />
           </div>
         </Suspense>,
