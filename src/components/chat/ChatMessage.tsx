@@ -133,6 +133,7 @@ function ChatMessageInner({
   readCount = 0,
   readerName,
   isLastMessage = false,
+  isLastOwnMessage = false,
   isPending = false,
   isSystemMessage = false,
   isClubAnnouncement = false,
