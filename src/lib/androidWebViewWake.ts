@@ -33,11 +33,19 @@ export function setupWebViewWake() {
   const kick = () => {
     try {
       const html = document.documentElement;
-      const prev = html.style.transform;
+      const body = document.body;
+      const prevTransform = html.style.transform;
+      // Most reliable Android WebView repaint trigger: briefly hide the body
+      // then restore it. This forces the compositor to discard its cached
+      // surface and produce a fresh frame, which a transform toggle alone
+      // does not always do after a long suspend.
+      const prevVisibility = body?.style.visibility ?? "";
+      if (body) body.style.visibility = "hidden";
       html.style.transform = "translateZ(0)";
       void html.offsetHeight; // reflow
       requestAnimationFrame(() => {
-        html.style.transform = prev;
+        if (body) body.style.visibility = prevVisibility;
+        html.style.transform = prevTransform;
         try { window.scrollBy(0, 0); } catch { /* ignore */ }
         try { window.dispatchEvent(new Event("resize")); } catch { /* ignore */ }
       });
