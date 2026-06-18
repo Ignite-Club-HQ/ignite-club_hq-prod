@@ -353,7 +353,7 @@ function ConversationRowImpl({
                   </Badge>
                 )}
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
+              <div className="flex items-center gap-1.5 shrink-0 min-w-0">
                 {item.lastMessage?.created_at && (
                   <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                 )}
