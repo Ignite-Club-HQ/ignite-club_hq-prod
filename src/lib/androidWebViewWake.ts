@@ -30,27 +30,35 @@ export function setupWebViewWake() {
 
   const isNative = Capacitor.isNativePlatform();
 
+  let kickScheduled = false;
+
   const kick = () => {
+    // Coalesce overlapping resume signals (appStateChange + visibilitychange
+    // + pageshow + focus all fire within the same tick on warm resume).
+    // Without this gate, two kicks can race: kick #2 snapshots the
+    // mid-flight "hidden" visibility from kick #1 and then "restores" the
+    // page to hidden — leaving a black, unresponsive screen until cold start.
+    if (kickScheduled) return;
+    kickScheduled = true;
+
     try {
       const html = document.documentElement;
       const body = document.body;
-      const prevTransform = html.style.transform;
-      // Most reliable Android WebView repaint trigger: briefly hide the body
-      // then restore it. This forces the compositor to discard its cached
-      // surface and produce a fresh frame, which a transform toggle alone
-      // does not always do after a long suspend.
-      const prevVisibility = body?.style.visibility ?? "";
+      // Set inline 'hidden' then REMOVE the inline property in rAF.
+      // Removing (vs restoring a captured snapshot) is reentrancy-safe:
+      // any overlapping kicks converge to "no inline visibility" = visible.
       if (body) body.style.visibility = "hidden";
       html.style.transform = "translateZ(0)";
       void html.offsetHeight; // reflow
       requestAnimationFrame(() => {
-        if (body) body.style.visibility = prevVisibility;
-        html.style.transform = prevTransform;
+        if (body) body.style.removeProperty("visibility");
+        html.style.removeProperty("transform");
         try { window.scrollBy(0, 0); } catch { /* ignore */ }
         try { window.dispatchEvent(new Event("resize")); } catch { /* ignore */ }
+        kickScheduled = false;
       });
     } catch {
-      /* ignore */
+      kickScheduled = false;
     }
     [60, 200, 600, 1500].forEach((d) => {
       setTimeout(() => {
@@ -59,15 +67,15 @@ export function setupWebViewWake() {
     });
     // Second compositor invalidation later in the resume window — iOS in
     // particular sometimes needs a second nudge once WKWebView finishes
-    // rehydrating the layer tree.
+    // rehydrating the layer tree. Use removeProperty here too so an
+    // overlapping kick can't strand a stale inline transform.
     setTimeout(() => {
       try {
         const html = document.documentElement;
-        const prev = html.style.transform;
         html.style.transform = "translateZ(0.0001px)";
         void html.offsetHeight;
         requestAnimationFrame(() => {
-          html.style.transform = prev;
+          html.style.removeProperty("transform");
         });
       } catch {
         /* ignore */
