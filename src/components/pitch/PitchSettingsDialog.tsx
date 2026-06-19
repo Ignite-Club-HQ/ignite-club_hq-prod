@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 import { exportTimerAuditLog } from "@/lib/timerAuditLog";
 import { toast } from "@/hooks/use-toast";
+import { PitchBoardNotifyRoleToggles } from "./PitchBoardNotifyRoleToggles";
+
 
 interface Formation {
   name: string;
