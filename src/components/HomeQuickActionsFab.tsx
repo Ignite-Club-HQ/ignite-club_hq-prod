@@ -27,6 +27,7 @@ interface HomeQuickActionsFabProps {
   onJoinTeam: () => void;
   hasTeams: boolean;
   canCreateTeam?: boolean;
+  canCreateEvent?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
