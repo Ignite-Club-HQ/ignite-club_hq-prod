@@ -1929,6 +1929,37 @@ export default function HomePage() {
     },
   });
 
+  // Dedicated mutation for "Request additional access" buttons on a team the
+  // user is already part of. Reuses the same role_requests workflow.
+  const requestAdditionalAccessMutation = useMutation({
+    mutationFn: async (role: TeamRole) => {
+      if (!user || !selectedTeam) throw new Error("Missing data");
+      if (userRoles?.some(r => r.team_id === selectedTeam && r.role === role)) {
+        throw new Error(`You already have the ${teamRoleLabel(role)} role on this team`);
+      }
+      const team = teams?.find((t) => t.id === selectedTeam);
+      const { error } = await supabase.from("role_requests").insert({
+        user_id: user.id,
+        team_id: selectedTeam,
+        club_id: team?.club_id,
+        role,
+        status: "pending",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: (_data, role) => {
+      toast({
+        title: "Request sent",
+        description: `Your ${teamRoleLabel(role)} access request has been sent to the team admins.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam] });
+      queryClient.invalidateQueries({ queryKey: ["role-requests"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Don't block entire page on events loading - show skeleton/loading state inline instead
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
