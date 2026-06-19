@@ -47,9 +47,11 @@ export async function loadPitchNotifyFlags(
 }
 
 /** Build the role list to pass to `user_roles` queries based on flags. */
-export function enabledRoleListFromFlags(flags: PitchNotifyFlags): string[] {
-  const roles: string[] = [];
+export type PitchNotifyRole = "team_admin" | "coach";
+export function enabledRoleListFromFlags(flags: PitchNotifyFlags): PitchNotifyRole[] {
+  const roles: PitchNotifyRole[] = [];
   if (flags.team_admin) roles.push("team_admin");
   if (flags.coach) roles.push("coach");
   return roles;
 }
+
