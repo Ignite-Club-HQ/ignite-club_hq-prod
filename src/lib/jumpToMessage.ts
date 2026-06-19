@@ -101,6 +101,19 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
   let settleTimers: ReturnType<typeof setTimeout>[] = [];
   let landedOnParent = false;
+  // ResizeObserver on the focused row: late hydration (reactions pill,
+  // read-frontier strip, image decode, mention/link previews) can grow the
+  // row AFTER the final settle pass / tail release. Without a re-pin, the
+  // newly grown bottom slides underneath the fixed composer — the
+  // "bottom obscured" symptom on long target messages from notification
+  // taps. We observe the row for ~6s and re-apply the exact-DOM "end"
+  // correction whenever its height changes.
+  let rowObserver: ResizeObserver | null = null;
+  let rowObserverTimer: ReturnType<typeof setTimeout> | null = null;
+  const tearDownRowObserver = () => {
+    if (rowObserver) { rowObserver.disconnect(); rowObserver = null; }
+    if (rowObserverTimer) { clearTimeout(rowObserverTimer); rowObserverTimer = null; }
+  };
 
   const clearSettleTimers = () => {
     settleTimers.forEach((timer) => clearTimeout(timer));
