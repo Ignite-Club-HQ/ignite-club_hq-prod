@@ -521,7 +521,13 @@ export function PitchSettingsDialog({
                   </div>
                 )}
 
+                {/* Per-role pitch board notification toggles */}
+                {!readOnly && teamId && (
+                  <PitchBoardNotifyRoleToggles teamId={teamId} readOnly={readOnly} />
+                )}
+
                 {/* Export timer audit log */}
+
                 <button
                   type="button"
                   className="w-full flex items-center gap-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
