@@ -73,7 +73,7 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
     },
     {
-      label: "Post Media",
+      label: "Post Photo/Video",
       icon: ImagePlus,
       onClick: () => go("/media?upload=1"),
     },
