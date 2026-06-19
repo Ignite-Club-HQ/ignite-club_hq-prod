@@ -1396,9 +1396,20 @@ export default function EventDetailPage() {
           child_id: childId,
           status,
           source: "user",
-        }).select("id").single();
+        }).select("id").maybeSingle();
         if (error) throw error;
-        rsvpId = newRsvp?.id || null;
+        // If trigger redirected insert→update on duplicate, look up the canonical row.
+        if (newRsvp?.id) {
+          rsvpId = newRsvp.id;
+        } else {
+          const { data: existing } = await supabase
+            .from("rsvps")
+            .select("id")
+            .eq("event_id", id!)
+            .eq("child_id", childId)
+            .maybeSingle();
+          rsvpId = existing?.id ?? null;
+        }
       }
 
       // Fire-and-forget: award early RSVP points for child

@@ -12,6 +12,8 @@ import {
   ChevronRight,
   ChevronLeft,
   SlidersHorizontal,
+  ImagePlus,
+  Folder,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -26,12 +28,16 @@ interface HomeQuickActionsFabProps {
   onInvite: () => void;
   onJoinTeam: () => void;
   hasTeams: boolean;
+  canCreateTeam?: boolean;
+  canCreateEvent?: boolean;
+  canAccessVault?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
 
 type ActionItem = {
   label: string;
+  description?: string;
   icon: typeof Plus;
   onClick: () => void;
 };
@@ -40,9 +46,13 @@ export function HomeQuickActionsFab({
   onInvite,
   onJoinTeam,
   hasTeams,
+  canCreateTeam = false,
+  canCreateEvent = false,
+  canAccessVault = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
+
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
   const navigate = useNavigate();
@@ -61,15 +71,24 @@ export function HomeQuickActionsFab({
   // Primary — 5 highest-frequency actions
   const primary: ActionItem[] = [
     {
-      label: "New Message",
+      label: "Start Chat",
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
     },
     {
-      label: "New Event",
-      icon: Calendar,
-      onClick: () => go("/events/new"),
+      label: "Post Photo/Video",
+      icon: ImagePlus,
+      onClick: () => go("/media?upload=1"),
     },
+    ...(canCreateEvent
+      ? [
+          {
+            label: "New Event",
+            icon: Calendar,
+            onClick: () => go("/events/new"),
+          } as ActionItem,
+        ]
+      : []),
     ...(hasTeams
       ? [
           {
@@ -83,19 +102,25 @@ export function HomeQuickActionsFab({
         ]
       : []),
     {
-      label: "Join Team",
+      label: "Join or Request Team Role",
+      description: "Join a team or request Coach / Admin access",
       icon: Users,
       onClick: () => {
         close();
         onJoinTeam();
       },
     },
-    {
-      label: "Create Team",
-      icon: Users2,
-      onClick: () => go("/teams/new"),
-    },
+    ...(canCreateTeam
+      ? [
+          {
+            label: "Create Team",
+            icon: Users2,
+            onClick: () => go("/teams/new"),
+          } as ActionItem,
+        ]
+      : []),
   ];
+
 
   // More — low-frequency administrative actions
   const more: ActionItem[] = [
@@ -104,11 +129,24 @@ export function HomeQuickActionsFab({
       icon: Trophy,
       onClick: () => go("/competitions/new"),
     },
-    {
-      label: "Create Association",
-      icon: Building2,
-      onClick: () => go("/associations/new"),
-    },
+    ...(!activeClubFilter
+      ? [
+          {
+            label: "Create Association",
+            icon: Building2,
+            onClick: () => go("/associations/new"),
+          } as ActionItem,
+        ]
+      : []),
+    ...(canAccessVault
+      ? [
+          {
+            label: "File Vault",
+            icon: Folder,
+            onClick: () => go("/vault"),
+          } as ActionItem,
+        ]
+      : []),
   ];
 
   const PrimaryRow = ({ item }: { item: ActionItem }) => (
@@ -116,13 +154,20 @@ export function HomeQuickActionsFab({
       key={item.label}
       type="button"
       onClick={item.onClick}
-      className="flex items-center gap-3 w-full min-h-[48px] px-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
+      className="flex items-center gap-3 w-full min-h-[48px] px-3 py-2 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
     >
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
         <item.icon className="h-[18px] w-[18px]" />
       </span>
-      <span className="text-[15px] font-semibold text-foreground truncate">
-        {item.label}
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] font-semibold text-foreground truncate">
+          {item.label}
+        </span>
+        {item.description && (
+          <span className="block text-[12px] text-muted-foreground truncate">
+            {item.description}
+          </span>
+        )}
       </span>
     </button>
   );
