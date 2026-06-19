@@ -556,7 +556,9 @@ export default function PitchBoardLandscapeLayout() {
                   )}
                 </div>
                 <PitchSettingsDialog
+                  teamId={teamId}
                   selectedFormation={selectedFormation}
+
                   onFormationChange={handleFormationChange}
                   formations={FORMATIONS[teamSize]}
                   teamSize={teamSize}
