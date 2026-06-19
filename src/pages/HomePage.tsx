@@ -1816,10 +1816,41 @@ export default function HomePage() {
 
   // Check if user already has the SPECIFIC role they're requesting in the selected team/league
   const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
-  
+
   // Check if user already has the league role (league roles are stored with club_id)
   const selectedLeagueData = actualLeagueId ? miniLeagues?.find(l => l.id === actualLeagueId) : null;
   const hasExistingLeagueRole = isLeagueSelected && actualLeagueId && selectedLeagueRole && userRoles?.some(r => r.club_id === selectedLeagueData?.club_id && r.role === selectedLeagueRole);
+
+  // Existing roles the user already holds on the selected team — drives the
+  // "already a member" UX so we don't ask them to re-join just to add Coach / Team Admin.
+  const existingTeamRoles: TeamRole[] = (!isLeagueSelected && selectedTeam && userRoles)
+    ? Array.from(new Set(
+        userRoles
+          .filter(r => r.team_id === selectedTeam)
+          .map(r => r.role as TeamRole)
+      ))
+    : [];
+  const isAlreadyTeamMember = existingTeamRoles.length > 0;
+
+  // Pending elevated-access requests so buttons reflect state instead of re-submitting.
+  const { data: pendingTeamRequests } = useQuery({
+    queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("role_requests")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("team_id", selectedTeam)
+        .eq("status", "pending");
+      if (error) throw error;
+      return (data || []).map(r => r.role as TeamRole);
+    },
+    enabled: !!user?.id && !!selectedTeam && isAlreadyTeamMember,
+    staleTime: 30_000,
+  });
+
+  const teamRoleLabel = (r: TeamRole) =>
+    r === "team_admin" ? "Team Admin" : r === "coach" ? "Coach" : r === "player" ? "Player" : "Parent";
 
   const teamRequestMutation = useMutation({
     mutationFn: async () => {
