@@ -72,6 +72,11 @@ export function HomeQuickActionsFab({
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
     },
+    {
+      label: "Post Media",
+      icon: ImagePlus,
+      onClick: () => go("/media?upload=1"),
+    },
     ...(canCreateEvent
       ? [
           {
