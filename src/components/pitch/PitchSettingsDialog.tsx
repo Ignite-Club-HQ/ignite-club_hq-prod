@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 import { exportTimerAuditLog } from "@/lib/timerAuditLog";
 import { toast } from "@/hooks/use-toast";
+import { PitchBoardNotifyRoleToggles } from "./PitchBoardNotifyRoleToggles";
+
 
 interface Formation {
   name: string;
@@ -122,7 +124,11 @@ interface PitchSettingsDialogProps {
   onPitchBoardModeChange?: (mode: "match" | "training") => void;
   // When false, the Match/Training toggle is hidden (Training is gated to club admins).
   canUseTrainingMode?: boolean;
+
+  // Team id — used for per-role pitch board notification toggles.
+  teamId?: string;
 }
+
 
 export function PitchSettingsDialog({
   selectedFormation,
@@ -171,7 +177,9 @@ export function PitchSettingsDialog({
   pitchBoardMode,
   onPitchBoardModeChange,
   canUseTrainingMode = true,
+  teamId,
 }: PitchSettingsDialogProps) {
+
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
@@ -513,7 +521,13 @@ export function PitchSettingsDialog({
                   </div>
                 )}
 
+                {/* Per-role pitch board notification toggles */}
+                {!readOnly && teamId && (
+                  <PitchBoardNotifyRoleToggles teamId={teamId} readOnly={readOnly} />
+                )}
+
                 {/* Export timer audit log */}
+
                 <button
                   type="button"
                   className="w-full flex items-center gap-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

@@ -14,6 +14,8 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
+  Settings,
+  Shield,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -31,6 +33,7 @@ interface HomeQuickActionsFabProps {
   canCreateTeam?: boolean;
   canCreateEvent?: boolean;
   canAccessVault?: boolean;
+  isAppAdmin?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
@@ -49,6 +52,7 @@ export function HomeQuickActionsFab({
   canCreateTeam = false,
   canCreateEvent = false,
   canAccessVault = false,
+  isAppAdmin = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
@@ -68,13 +72,8 @@ export function HomeQuickActionsFab({
     if (isOpen) setView("main");
   };
 
-  // Primary — 5 highest-frequency actions
+  // Primary — highest-frequency actions (weekly / monthly use)
   const primary: ActionItem[] = [
-    {
-      label: "Start Chat",
-      icon: MessageCircle,
-      onClick: () => go("/messages?new=picker"),
-    },
     {
       label: "Post Photo/Video",
       icon: ImagePlus,
@@ -102,14 +101,23 @@ export function HomeQuickActionsFab({
         ]
       : []),
     {
-      label: "Join or Request Team Role",
-      description: "Join a team or request Coach / Admin access",
+      label: "Join Team / Request Access",
+      description: "Request Coach or Admin access",
       icon: Users,
       onClick: () => {
         close();
         onJoinTeam();
       },
     },
+    {
+      label: "New Thread",
+      icon: MessageCircle,
+      onClick: () => go("/messages?new=picker"),
+    },
+  ];
+
+  // More — low-frequency administrative actions
+  const more: ActionItem[] = [
     ...(canCreateTeam
       ? [
           {
@@ -119,11 +127,6 @@ export function HomeQuickActionsFab({
           } as ActionItem,
         ]
       : []),
-  ];
-
-
-  // More — low-frequency administrative actions
-  const more: ActionItem[] = [
     {
       label: "Create Competition",
       icon: Trophy,
@@ -132,9 +135,18 @@ export function HomeQuickActionsFab({
     ...(!activeClubFilter
       ? [
           {
-            label: "Create Association",
+            label: "Create Organisation",
             icon: Building2,
             onClick: () => go("/associations/new"),
+          } as ActionItem,
+        ]
+      : []),
+    ...(activeClubFilter && canCreateTeam
+      ? [
+          {
+            label: "Club Settings",
+            icon: Settings,
+            onClick: () => go(`/clubs/${activeClubFilter}/edit`),
           } as ActionItem,
         ]
       : []),
@@ -144,6 +156,15 @@ export function HomeQuickActionsFab({
             label: "File Vault",
             icon: Folder,
             onClick: () => go("/vault"),
+          } as ActionItem,
+        ]
+      : []),
+    ...(isAppAdmin
+      ? [
+          {
+            label: "Admin Tools",
+            icon: Shield,
+            onClick: () => go("/admin"),
           } as ActionItem,
         ]
       : []),
