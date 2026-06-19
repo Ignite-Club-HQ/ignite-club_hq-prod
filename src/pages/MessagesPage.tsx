@@ -2463,7 +2463,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="py-4 space-y-4">
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
