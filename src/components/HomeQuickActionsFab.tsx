@@ -95,12 +95,17 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    {
-      label: "Create Team",
-      icon: Users2,
-      onClick: () => go("/teams/new"),
-    },
+    ...(canCreateTeam
+      ? [
+          {
+            label: "Create Team",
+            icon: Users2,
+            onClick: () => go("/teams/new"),
+          } as ActionItem,
+        ]
+      : []),
   ];
+
 
   // More — low-frequency administrative actions
   const more: ActionItem[] = [
