@@ -1816,10 +1816,41 @@ export default function HomePage() {
 
   // Check if user already has the SPECIFIC role they're requesting in the selected team/league
   const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
-  
+
   // Check if user already has the league role (league roles are stored with club_id)
   const selectedLeagueData = actualLeagueId ? miniLeagues?.find(l => l.id === actualLeagueId) : null;
   const hasExistingLeagueRole = isLeagueSelected && actualLeagueId && selectedLeagueRole && userRoles?.some(r => r.club_id === selectedLeagueData?.club_id && r.role === selectedLeagueRole);
+
+  // Existing roles the user already holds on the selected team — drives the
+  // "already a member" UX so we don't ask them to re-join just to add Coach / Team Admin.
+  const existingTeamRoles: TeamRole[] = (!isLeagueSelected && selectedTeam && userRoles)
+    ? Array.from(new Set(
+        userRoles
+          .filter(r => r.team_id === selectedTeam)
+          .map(r => r.role as TeamRole)
+      ))
+    : [];
+  const isAlreadyTeamMember = existingTeamRoles.length > 0;
+
+  // Pending elevated-access requests so buttons reflect state instead of re-submitting.
+  const { data: pendingTeamRequests } = useQuery({
+    queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("role_requests")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("team_id", selectedTeam)
+        .eq("status", "pending");
+      if (error) throw error;
+      return (data || []).map(r => r.role as TeamRole);
+    },
+    enabled: !!user?.id && !!selectedTeam && isAlreadyTeamMember,
+    staleTime: 30_000,
+  });
+
+  const teamRoleLabel = (r: TeamRole) =>
+    r === "team_admin" ? "Team Admin" : r === "coach" ? "Coach" : r === "player" ? "Player" : "Parent";
 
   const teamRequestMutation = useMutation({
     mutationFn: async () => {
@@ -1895,6 +1926,37 @@ export default function HomePage() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Dedicated mutation for "Request additional access" buttons on a team the
+  // user is already part of. Reuses the same role_requests workflow.
+  const requestAdditionalAccessMutation = useMutation({
+    mutationFn: async (role: TeamRole) => {
+      if (!user || !selectedTeam) throw new Error("Missing data");
+      if (userRoles?.some(r => r.team_id === selectedTeam && r.role === role)) {
+        throw new Error(`You already have the ${teamRoleLabel(role)} role on this team`);
+      }
+      const team = teams?.find((t) => t.id === selectedTeam);
+      const { error } = await supabase.from("role_requests").insert({
+        user_id: user.id,
+        team_id: selectedTeam,
+        club_id: team?.club_id,
+        role,
+        status: "pending",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: (_data, role) => {
+      toast({
+        title: "Request sent",
+        description: `Your ${teamRoleLabel(role)} access request has been sent to the team admins.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam] });
+      queryClient.invalidateQueries({ queryKey: ["role-requests"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2211,81 +2273,153 @@ export default function HomePage() {
               searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
               emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
             />
-            {isLeagueSelected ? (
-              <MobileCardSelect
-                value={selectedLeagueRole}
-                onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
-                options={leagueRoleOptions}
-                label="Select Role"
-                placeholder="Choose a role..."
-              />
-            ) : (
-              <MobileCardSelect
-                value={selectedTeamRole}
-                onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
-                options={teamRoleOptions}
-                label="Select Role"
-                placeholder="Choose a role..."
-              />
-            )}
-            {/* Required child linking when parent role selected */}
-            {showChildLinker && (
-              <>
-                <MobileCardSelect
-                  value={selectedChildForLink || (teamChildren && teamChildren.length > 0 ? "" : "__new__")}
-                  onValueChange={(v) => setSelectedChildForLink(v)}
-                  options={[
-                    ...((teamChildren || []).map((child) => ({
-                      value: child.id,
-                      label: child.name,
-                    }))),
-                    { value: "__new__", label: "➕ Add new child" },
-                  ]}
-                  label="Link to Your Child"
-                  placeholder="Select your child..."
-                  searchable
-                  searchPlaceholder="Search children..."
-                  emptyMessage="No existing children — add one below."
-                />
-                {(selectedChildForLink === "__new__" || (!selectedChildForLink && (!teamChildren || teamChildren.length === 0))) && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Child's name</label>
-                    <input
-                      type="text"
-                      value={newChildName}
-                      onChange={(e) => setNewChildName(e.target.value)}
-                      placeholder="Enter your child's full name"
-                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+            {isAlreadyTeamMember && !isLeagueSelected ? (
+              <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">You're already on this team</p>
                   </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {existingTeamRoles.map((r) => (
+                      <Badge key={r} variant="secondary" className="text-xs">{teamRoleLabel(r)}</Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    No need to rejoin. Request elevated access below and a team admin will review it.
+                  </p>
+                </div>
+
+                {(["coach", "team_admin"] as TeamRole[])
+                  .filter((r) => !existingTeamRoles.includes(r))
+                  .map((r) => {
+                    const isPending = pendingTeamRequests?.includes(r);
+                    const isSubmitting = requestAdditionalAccessMutation.isPending && requestAdditionalAccessMutation.variables === r;
+                    return (
+                      <div key={r} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">Request {teamRoleLabel(r)} Access</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r === "coach"
+                              ? "Manage training, line-ups and player performance."
+                              : "Manage roster, events and team settings."}
+                          </p>
+                        </div>
+                        {isPending ? (
+                          <Badge variant="outline" className="shrink-0">Pending</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={() => requestAdditionalAccessMutation.mutate(r)}
+                            disabled={isSubmitting}
+                          >
+                            {isSubmitting ? "Sending…" : "Request"}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                {(["coach", "team_admin"] as TeamRole[]).every((r) => existingTeamRoles.includes(r)) && (
+                  <p className="text-xs text-muted-foreground">
+                    You already have the highest-level access available on this team.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                {isLeagueSelected ? (
+                  <MobileCardSelect
+                    value={selectedLeagueRole}
+                    onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
+                    options={leagueRoleOptions}
+                    label="Select Role"
+                    placeholder="Choose a role..."
+                  />
+                ) : (
+                  <MobileCardSelect
+                    value={selectedTeamRole}
+                    onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
+                    options={teamRoleOptions}
+                    label="Select Role"
+                    placeholder="Choose a role..."
+                  />
+                )}
+                {/* Required child linking when parent role selected */}
+                {showChildLinker && (
+                  <>
+                    <MobileCardSelect
+                      value={selectedChildForLink || (teamChildren && teamChildren.length > 0 ? "" : "__new__")}
+                      onValueChange={(v) => setSelectedChildForLink(v)}
+                      options={[
+                        ...((teamChildren || []).map((child) => ({
+                          value: child.id,
+                          label: child.name,
+                        }))),
+                        { value: "__new__", label: "➕ Add new child" },
+                      ]}
+                      label="Link to Your Child"
+                      placeholder="Select your child..."
+                      searchable
+                      searchPlaceholder="Search children..."
+                      emptyMessage="No existing children — add one below."
+                    />
+                    {(selectedChildForLink === "__new__" || (!selectedChildForLink && (!teamChildren || teamChildren.length === 0))) && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">Child's name</label>
+                        <input
+                          type="text"
+                          value={newChildName}
+                          onChange={(e) => setNewChildName(e.target.value)}
+                          placeholder="Enter your child's full name"
+                          className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
           </div>
           <ResponsiveDialogFooter>
-            {(hasExistingTeamRole || hasExistingLeagueRole) && (
-              <p className="text-sm text-destructive mb-2">
-                You already have this role in this {isLeagueSelected ? "league" : "team"}
-              </p>
+            {isAlreadyTeamMember && !isLeagueSelected ? (
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => setTeamDialogOpen(false)}
+              >
+                Done
+              </Button>
+            ) : (
+              <>
+                {(hasExistingTeamRole || hasExistingLeagueRole) && (
+                  <p className="text-sm text-destructive mb-2">
+                    You already have this role in this {isLeagueSelected ? "league" : "team"}
+                  </p>
+                )}
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={() => teamRequestMutation.mutate()}
+                  disabled={
+                    !selectedTeam ||
+                    teamRequestMutation.isPending ||
+                    hasExistingTeamRole ||
+                    hasExistingLeagueRole ||
+                    (showChildLinker && (
+                      (selectedChildForLink === "__new__" || !selectedChildForLink)
+                        ? !newChildName.trim()
+                        : false
+                    ))
+                  }
+                >
+                  {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
+                </Button>
+              </>
             )}
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => teamRequestMutation.mutate()}
-              disabled={
-                !selectedTeam ||
-                teamRequestMutation.isPending ||
-                hasExistingTeamRole ||
-                hasExistingLeagueRole ||
-                (showChildLinker && (
-                  (selectedChildForLink === "__new__" || !selectedChildForLink)
-                    ? !newChildName.trim()
-                    : false
-                ))
-              }
-            >
-              {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
-            </Button>
           </ResponsiveDialogFooter>
+
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
