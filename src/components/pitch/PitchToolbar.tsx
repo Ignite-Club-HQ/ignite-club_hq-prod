@@ -610,7 +610,9 @@ function PitchToolbar({
             )}
             {/* Settings gear - opens PitchSettingsDialog */}
             <PitchSettingsDialog
+              teamId={teamId}
               selectedFormation={selectedFormation}
+
               onFormationChange={onFormationChange}
               formations={formations}
               teamSize={teamSize}
