@@ -531,7 +531,9 @@ export default function PitchBoardPortraitLayout() {
             </div>
             {!readOnly && (
               <PitchSettingsDialog
+                teamId={teamId}
                 selectedFormation={selectedFormation}
+
                 onFormationChange={handleFormationChange}
                 formations={FORMATIONS[teamSize]}
                 teamSize={teamSize}
