@@ -26,6 +26,7 @@ interface HomeQuickActionsFabProps {
   onInvite: () => void;
   onJoinTeam: () => void;
   hasTeams: boolean;
+  canCreateTeam?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
@@ -41,9 +42,11 @@ export function HomeQuickActionsFab({
   onInvite,
   onJoinTeam,
   hasTeams,
+  canCreateTeam = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
+
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
   const navigate = useNavigate();
@@ -92,12 +95,17 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    {
-      label: "Create Team",
-      icon: Users2,
-      onClick: () => go("/teams/new"),
-    },
+    ...(canCreateTeam
+      ? [
+          {
+            label: "Create Team",
+            icon: Users2,
+            onClick: () => go("/teams/new"),
+          } as ActionItem,
+        ]
+      : []),
   ];
+
 
   // More — low-frequency administrative actions
   const more: ActionItem[] = [
