@@ -348,6 +348,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     cancelled = true;
     if (nextTickTimer) clearTimeout(nextTickTimer);
     clearSettleTimers();
+    tearDownRowObserver();
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     endHydration();
     if (activeCancel === cancel) activeCancel = null;
