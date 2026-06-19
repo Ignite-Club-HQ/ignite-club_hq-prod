@@ -1,5 +1,10 @@
 import { useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  enabledRoleListFromFlags,
+  loadPitchNotifyFlags,
+} from "@/components/pitch/pitchBoardNotifyFlags";
+
 
 interface AutoSubNotifyArgs {
   teamId: string;
@@ -68,24 +73,29 @@ export function useAutoSubNotify(
             });
           }
         } else {
-          // Team admins AND coaches receive auto-sub execution pushes.
-          // The Subs Manager duty assignee is added below.
-          const { data: roles, error } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("team_id", teamId)
-            .in("role", ["team_admin", "coach"]);
-          if (error) {
-            console.error("[AutoSubNotify] role lookup failed:", error);
-          } else {
-            (roles ?? []).forEach((r) => {
-              if (r.user_id) recipientIds.add(r.user_id as string);
-            });
+          // Honour per-team pitch-board notification role flags. Admins can
+          // mute Coaches / Team Admins / Subs Manager individually.
+          const flags = await loadPitchNotifyFlags(teamId);
+          const enabledRoles = enabledRoleListFromFlags(flags);
+
+          if (enabledRoles.length > 0) {
+            const { data: roles, error } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("team_id", teamId)
+              .in("role", enabledRoles);
+            if (error) {
+              console.error("[AutoSubNotify] role lookup failed:", error);
+            } else {
+              (roles ?? []).forEach((r) => {
+                if (r.user_id) recipientIds.add(r.user_id as string);
+              });
+            }
           }
 
           // Include anyone with the "Subs Manager" duty for the linked event —
           // they're effectively running the board today even without a coach role.
-          if (linkedEventId) {
+          if (linkedEventId && flags.subs_manager) {
             const { data: subsManagers, error: dutyErr } = await supabase
               .from("duties")
               .select("assigned_to")
@@ -101,6 +111,7 @@ export function useAutoSubNotify(
             }
           }
         }
+
 
         const userIds = Array.from(recipientIds);
         if (userIds.length === 0) return;

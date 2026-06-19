@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  enabledRoleListFromFlags,
+  loadPitchNotifyFlags,
+} from "@/components/pitch/pitchBoardNotifyFlags";
+
 
 interface UsePitchBoardEventLinkArgs {
   initialLinkedEventId?: string | null;
@@ -59,28 +64,35 @@ export function usePitchBoardEventLink({
             .map((d: any) => d.assigned_to as string)
             .filter((uid) => uid && uid !== userId);
         } else {
-          // Regular team: notify coaches/admins + Subs Manager for the linked event
-          const { data: teamAdmins } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("team_id", teamId)
-            .in("role", ["team_admin", "coach"]);
+          // Honour per-team pitch-board notification role flags.
+          const flags = await loadPitchNotifyFlags(teamId);
+          const enabledRoles = enabledRoleListFromFlags(flags);
+          const ids = new Set<string>();
 
-          const ids = new Set<string>(
+          if (enabledRoles.length > 0) {
+            const { data: teamAdmins } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("team_id", teamId)
+              .in("role", enabledRoles);
+
             (teamAdmins || [])
               .map((r: any) => r.user_id as string)
               .filter((uid) => uid && uid !== userId)
-          );
+              .forEach((uid) => ids.add(uid));
+          }
 
-          const { data: subsManagers } = await supabase
-            .from("duties")
-            .select("assigned_to")
-            .eq("event_id", eventId)
-            .eq("name", "Subs Manager")
-            .not("assigned_to", "is", null);
-          (subsManagers || []).forEach((d: any) => {
-            if (d.assigned_to && d.assigned_to !== userId) ids.add(d.assigned_to as string);
-          });
+          if (flags.subs_manager) {
+            const { data: subsManagers } = await supabase
+              .from("duties")
+              .select("assigned_to")
+              .eq("event_id", eventId)
+              .eq("name", "Subs Manager")
+              .not("assigned_to", "is", null);
+            (subsManagers || []).forEach((d: any) => {
+              if (d.assigned_to && d.assigned_to !== userId) ids.add(d.assigned_to as string);
+            });
+          }
 
           recipientUserIds = Array.from(ids);
         }
@@ -88,6 +100,7 @@ export function usePitchBoardEventLink({
         if (recipientUserIds.length === 0) return;
 
         const { data: eventData } = await supabase
+
           .from("events")
           .select("title")
           .eq("id", eventId)
