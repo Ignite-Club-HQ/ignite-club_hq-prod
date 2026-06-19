@@ -33,6 +33,7 @@ interface HomeQuickActionsFabProps {
   canCreateTeam?: boolean;
   canCreateEvent?: boolean;
   canAccessVault?: boolean;
+  isAppAdmin?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
@@ -51,6 +52,7 @@ export function HomeQuickActionsFab({
   canCreateTeam = false,
   canCreateEvent = false,
   canAccessVault = false,
+  isAppAdmin = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
