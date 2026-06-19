@@ -972,7 +972,9 @@ function PitchToolbar({
         <div className="flex items-center gap-1 shrink-0">
           <SyncStatusIndicator />
           <PitchSettingsDialog
+            teamId={teamId}
             selectedFormation={selectedFormation}
+
             onFormationChange={onFormationChange}
             formations={formations}
             teamSize={teamSize}
