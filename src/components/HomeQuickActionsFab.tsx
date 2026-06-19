@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronLeft,
   SlidersHorizontal,
+  ImagePlus,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -70,6 +71,11 @@ export function HomeQuickActionsFab({
       label: "New Message",
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
+    },
+    {
+      label: "Post Media",
+      icon: ImagePlus,
+      onClick: () => go("/media?upload=1"),
     },
     ...(canCreateEvent
       ? [
