@@ -68,28 +68,56 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
 
     console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} duty assignee(s) found`);
   } else {
+    // Load per-team role filters. Admins can disable pitch-board pushes for
+    // specific roles (coach / team_admin / subs_manager) from the pitch board
+    // settings dialog. Defaults to ON for any column that's missing or null
+    // so existing teams keep their current behaviour.
+    let notifyCoach = true;
+    let notifyTeamAdmin = true;
+    let notifySubsManager = true;
     if (teamId) {
-      // Team admins AND coaches receive pitch-board pushes (pending sub,
-      // half time, full time). The Subs Manager duty assignee is appended below.
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('user_id')
+      const { data: subRow } = await supabase
+        .from('team_subscriptions')
+        .select('pitch_notify_coach, pitch_notify_team_admin, pitch_notify_subs_manager')
         .eq('team_id', teamId)
-        .in('role', ['team_admin', 'coach']);
+        .maybeSingle();
+      if (subRow) {
+        notifyCoach = subRow.pitch_notify_coach !== false;
+        notifyTeamAdmin = subRow.pitch_notify_team_admin !== false;
+        notifySubsManager = subRow.pitch_notify_subs_manager !== false;
+      }
+    }
 
-      if (error) {
-        console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
-      } else {
-        data?.forEach((r: any) => userIds.add(r.user_id as string));
+    if (teamId) {
+      const enabledRoles: string[] = [];
+      if (notifyTeamAdmin) enabledRoles.push('team_admin');
+      if (notifyCoach) enabledRoles.push('coach');
+
+      if (enabledRoles.length > 0) {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('team_id', teamId)
+          .in('role', enabledRoles);
+
+        if (error) {
+          console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
+        } else {
+          data?.forEach((r: any) => userIds.add(r.user_id as string));
+        }
       }
     }
 
     if (linkedEventId) {
+      // Subs Manager (gated by notifySubsManager) and Referee (always on)
+      const dutyNames: string[] = ['Referee'];
+      if (notifySubsManager) dutyNames.push('Subs Manager');
+
       const { data: dutyAssignees } = await supabase
         .from('duties')
         .select('assigned_to')
         .eq('event_id', linkedEventId)
-        .in('name', ['Subs Manager', 'Referee'])
+        .in('name', dutyNames)
         .not('assigned_to', 'is', null);
 
       dutyAssignees?.forEach((d: any) => {
@@ -97,6 +125,7 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
       });
     }
   }
+
 
   return [...userIds];
 }
