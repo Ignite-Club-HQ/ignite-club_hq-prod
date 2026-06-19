@@ -591,10 +591,20 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
             status,
           })
           .select("id")
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
-        rsvpId = newRsvp?.id || null;
+        if (newRsvp?.id) {
+          rsvpId = newRsvp.id;
+        } else {
+          const { data: existingRow } = await supabase
+            .from("rsvps")
+            .select("id")
+            .eq("event_id", event.id)
+            .eq("child_id", childId)
+            .maybeSingle();
+          rsvpId = existingRow?.id ?? null;
+        }
       }
 
       // Fire-and-forget: award early RSVP points for child

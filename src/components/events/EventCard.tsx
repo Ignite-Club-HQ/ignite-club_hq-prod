@@ -413,9 +413,19 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           .from("rsvps")
           .insert({ event_id: event.id, user_id: user!.id, child_id: childId, status })
           .select("id")
-          .single();
+          .maybeSingle();
         if (error) throw error;
-        rsvpId = data?.id || null;
+        if (data?.id) {
+          rsvpId = data.id;
+        } else {
+          const { data: existingRow } = await supabase
+            .from("rsvps")
+            .select("id")
+            .eq("event_id", event.id)
+            .eq("child_id", childId)
+            .maybeSingle();
+          rsvpId = existingRow?.id ?? null;
+        }
       }
       if (status === "going" && rsvpId) {
         awardEarlyRsvpPoints({
