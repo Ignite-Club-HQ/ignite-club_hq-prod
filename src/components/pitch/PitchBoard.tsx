@@ -846,7 +846,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     () => new Set(realPlayers.map((player) => player.id)),
     [realPlayers]
   );
+  // Guard: don't compare saved vs real roster until the RSVP-going filter has
+  // resolved. On reopen, `goingAttendeeIds` is briefly undefined, so
+  // `realPlayers` momentarily contains ALL team members instead of just the
+  // RSVP'd-going subset. Without this gate, `shouldRebuildFromRealRoster`
+  // fires, clears localStorage, and auto-places everyone — wiping the lineup
+  // the user just set. See PreGameLineupScreen save path.
+  const rsvpFilterReady = !linkedEventId || miniLeagueTeams || !!goingAttendeeIds;
   const savedRosterMissingCurrentPlayers =
+    rsvpFilterReady &&
     savedPlayers.length > 0 && realPlayers.some((player) => !savedPlayers.some((savedPlayer) => savedPlayer.id === player.id));
   const savedRosterHasPlayersOutsideCurrentRoster =
     isStrictMatchEventRoster &&
