@@ -8156,6 +8156,9 @@ export type Database = {
           is_trial: boolean | null
           max_spread_minutes: number
           minutes_per_half: number | null
+          pitch_notify_coach: boolean
+          pitch_notify_subs_manager: boolean
+          pitch_notify_team_admin: boolean
           rotate_gk_at_halftime: boolean | null
           rotation_speed: number | null
           show_lineup_picker: boolean
@@ -8187,6 +8190,9 @@ export type Database = {
           is_trial?: boolean | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
+          pitch_notify_coach?: boolean
+          pitch_notify_subs_manager?: boolean
+          pitch_notify_team_admin?: boolean
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
           show_lineup_picker?: boolean
@@ -8218,6 +8224,9 @@ export type Database = {
           is_trial?: boolean | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
+          pitch_notify_coach?: boolean
+          pitch_notify_subs_manager?: boolean
+          pitch_notify_team_admin?: boolean
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
           show_lineup_picker?: boolean
