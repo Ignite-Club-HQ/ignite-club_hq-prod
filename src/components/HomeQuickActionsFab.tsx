@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   SlidersHorizontal,
   ImagePlus,
+  Folder,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -29,6 +30,7 @@ interface HomeQuickActionsFabProps {
   hasTeams: boolean;
   canCreateTeam?: boolean;
   canCreateEvent?: boolean;
+  canAccessVault?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
@@ -46,6 +48,7 @@ export function HomeQuickActionsFab({
   hasTeams,
   canCreateTeam = false,
   canCreateEvent = false,
+  canAccessVault = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
@@ -132,6 +135,15 @@ export function HomeQuickActionsFab({
             label: "Create Association",
             icon: Building2,
             onClick: () => go("/associations/new"),
+          } as ActionItem,
+        ]
+      : []),
+    ...(canAccessVault
+      ? [
+          {
+            label: "File Vault",
+            icon: Folder,
+            onClick: () => go("/vault"),
           } as ActionItem,
         ]
       : []),
