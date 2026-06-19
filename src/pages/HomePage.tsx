@@ -2034,6 +2034,7 @@ export default function HomePage() {
           canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
           canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
           canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+          isAppAdmin={isAppAdmin}
           activeClubFilter={activeClubFilter}
           activeClubName={activeClubName}
         />
