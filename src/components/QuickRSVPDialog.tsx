@@ -266,9 +266,19 @@ export function QuickRSVPDialog({
           user_id: user!.id,
           child_id: childId,
           status,
-        }).select("id").single();
+        }).select("id").maybeSingle();
         if (error) throw error;
-        rsvpId = newRsvp?.id || null;
+        if (newRsvp?.id) {
+          rsvpId = newRsvp.id;
+        } else {
+          const { data: existing } = await supabase
+            .from("rsvps")
+            .select("id")
+            .eq("event_id", eventId)
+            .eq("child_id", childId)
+            .maybeSingle();
+          rsvpId = existing?.id ?? null;
+        }
       }
 
       // Fire-and-forget: award early RSVP points for child
