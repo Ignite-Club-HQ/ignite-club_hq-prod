@@ -71,7 +71,7 @@ export function HomeQuickActionsFab({
   // Primary — 5 highest-frequency actions
   const primary: ActionItem[] = [
     {
-      label: "New Message",
+      label: "Start Chat",
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
     },
