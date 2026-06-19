@@ -32,6 +32,7 @@ interface HomeQuickActionsFabProps {
 
 type ActionItem = {
   label: string;
+  description?: string;
   icon: typeof Plus;
   onClick: () => void;
 };
