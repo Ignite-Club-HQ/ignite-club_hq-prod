@@ -124,7 +124,11 @@ interface PitchSettingsDialogProps {
   onPitchBoardModeChange?: (mode: "match" | "training") => void;
   // When false, the Match/Training toggle is hidden (Training is gated to club admins).
   canUseTrainingMode?: boolean;
+
+  // Team id — used for per-role pitch board notification toggles.
+  teamId?: string;
 }
+
 
 export function PitchSettingsDialog({
   selectedFormation,
