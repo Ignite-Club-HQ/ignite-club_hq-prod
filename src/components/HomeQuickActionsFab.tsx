@@ -14,6 +14,8 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
+  Settings,
+  Shield,
 } from "lucide-react";
 import {
   ResponsiveDialog,
