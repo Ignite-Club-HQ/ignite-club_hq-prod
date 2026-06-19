@@ -233,33 +233,63 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   const installRowGrowthObserver = (id: string) => {
     if (typeof ResizeObserver === "undefined" || typeof document === "undefined") return;
     tearDownRowObserver();
-    // CSS.escape support is broad; fall back to attribute-safe replace.
     const escId = (typeof CSS !== "undefined" && (CSS as any).escape)
       ? (CSS as any).escape(id)
       : id.replace(/"/g, '\\"');
     const row = document.querySelector<HTMLElement>(`[data-row-id="${escId}"]`);
     if (!row) return;
+    // Find nearest scrollable ancestor so we can read the actual visible
+    // viewport bottom (the chat scroller) — NOT window innerHeight, which
+    // would ignore the fixed composer overlay.
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller) {
+      const oy = getComputedStyle(scroller).overflowY;
+      if ((oy === "auto" || oy === "scroll") && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
     let lastHeight = row.getBoundingClientRect().height;
+    let userMoved = false;
+    let lastScrollTop = scroller?.scrollTop ?? 0;
+    const onScroll = () => {
+      if (!scroller) return;
+      // If the user has scrolled by more than a tiny amount since install,
+      // permanently disable re-pinning — they've taken control of the view.
+      if (Math.abs(scroller.scrollTop - lastScrollTop) > 8) userMoved = true;
+      lastScrollTop = scroller.scrollTop;
+    };
+    if (scroller) {
+      lastScrollTop = scroller.scrollTop;
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
+    const origTeardown = tearDownRowObserver;
+    // Augment teardown to remove scroll listener too.
+    rowObserverTimer = setTimeout(() => {
+      if (scroller) scroller.removeEventListener("scroll", onScroll);
+      origTeardown();
+    }, 6000);
+
     rowObserver = new ResizeObserver(() => {
-      if (cancelled) return;
+      if (cancelled || userMoved) return;
       const h = getHandle();
-      if (!h) return;
+      if (!h || !scroller) return;
       const newHeight = row.getBoundingClientRect().height;
-      // Only re-pin on growth (>1px). Shrink doesn't push bottom under
-      // composer, so we ignore it to avoid fighting user scroll.
-      if (newHeight - lastHeight > 1) {
-        lastHeight = newHeight;
-        h.scrollToMessageId?.(id, "end");
-      } else {
-        lastHeight = newHeight;
-      }
+      const grew = newHeight - lastHeight > 1;
+      lastHeight = newHeight;
+      if (!grew) return;
+      // ONLY re-pin if the row's bottom is currently clipped past the
+      // scroller's visible bottom (i.e. behind the fixed composer). If the
+      // bottom is already on-screen, do nothing — moving an already-visible
+      // bubble after the skeleton has revealed would be jarring.
+      const rowRect = row.getBoundingClientRect();
+      const scRect = scroller.getBoundingClientRect();
+      const composerOverlapClipped = rowRect.bottom > scRect.bottom - 8;
+      if (!composerOverlapClipped) return;
+      h.scrollToMessageId?.(id, "end");
+      lastScrollTop = scroller.scrollTop; // resync so our own write isn't read as user scroll
     });
     rowObserver.observe(row);
-    // Bound the observer lifetime: 6s covers reactions hydration, read
-    // frontier, link-preview late fetch, and image decode without trapping
-    // resources after the user scrolls away.
-    rowObserverTimer = setTimeout(() => tearDownRowObserver(), 6000);
   };
+
 
 
 
