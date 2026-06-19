@@ -177,7 +177,9 @@ export function PitchSettingsDialog({
   pitchBoardMode,
   onPitchBoardModeChange,
   canUseTrainingMode = true,
+  teamId,
 }: PitchSettingsDialogProps) {
+
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
