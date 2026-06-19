@@ -71,11 +71,15 @@ export function HomeQuickActionsFab({
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
     },
-    {
-      label: "New Event",
-      icon: Calendar,
-      onClick: () => go("/events/new"),
-    },
+    ...(canCreateEvent
+      ? [
+          {
+            label: "New Event",
+            icon: Calendar,
+            onClick: () => go("/events/new"),
+          } as ActionItem,
+        ]
+      : []),
     ...(hasTeams
       ? [
           {
