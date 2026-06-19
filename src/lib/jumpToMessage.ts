@@ -101,6 +101,19 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
   let settleTimers: ReturnType<typeof setTimeout>[] = [];
   let landedOnParent = false;
+  // ResizeObserver on the focused row: late hydration (reactions pill,
+  // read-frontier strip, image decode, mention/link previews) can grow the
+  // row AFTER the final settle pass / tail release. Without a re-pin, the
+  // newly grown bottom slides underneath the fixed composer — the
+  // "bottom obscured" symptom on long target messages from notification
+  // taps. We observe the row for ~6s and re-apply the exact-DOM "end"
+  // correction whenever its height changes.
+  let rowObserver: ResizeObserver | null = null;
+  let rowObserverTimer: ReturnType<typeof setTimeout> | null = null;
+  const tearDownRowObserver = () => {
+    if (rowObserver) { rowObserver.disconnect(); rowObserver = null; }
+    if (rowObserverTimer) { clearTimeout(rowObserverTimer); rowObserverTimer = null; }
+  };
 
   const clearSettleTimers = () => {
     settleTimers.forEach((timer) => clearTimeout(timer));
@@ -204,6 +217,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     settleTimers.push(setTimeout(() => {
       recenter();
       endHydration();
+      // After release, watch the row itself for any further growth (late
+      // reactions, read-frontier, image decode, link-preview hydrate that
+      // wasn't deferred). Re-apply the exact-DOM end alignment so the
+      // grown bottom stays visible above the composer.
+      installRowGrowthObserver(id);
     }, TAIL_RELEASE_MS));
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
@@ -211,6 +229,38 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       setHighlightedMessageId(null);
     }, highlightDurationMs);
   };
+
+  const installRowGrowthObserver = (id: string) => {
+    if (typeof ResizeObserver === "undefined" || typeof document === "undefined") return;
+    tearDownRowObserver();
+    // CSS.escape support is broad; fall back to attribute-safe replace.
+    const escId = (typeof CSS !== "undefined" && (CSS as any).escape)
+      ? (CSS as any).escape(id)
+      : id.replace(/"/g, '\\"');
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${escId}"]`);
+    if (!row) return;
+    let lastHeight = row.getBoundingClientRect().height;
+    rowObserver = new ResizeObserver(() => {
+      if (cancelled) return;
+      const h = getHandle();
+      if (!h) return;
+      const newHeight = row.getBoundingClientRect().height;
+      // Only re-pin on growth (>1px). Shrink doesn't push bottom under
+      // composer, so we ignore it to avoid fighting user scroll.
+      if (newHeight - lastHeight > 1) {
+        lastHeight = newHeight;
+        h.scrollToMessageId?.(id, "end");
+      } else {
+        lastHeight = newHeight;
+      }
+    });
+    rowObserver.observe(row);
+    // Bound the observer lifetime: 6s covers reactions hydration, read
+    // frontier, link-preview late fetch, and image decode without trapping
+    // resources after the user scrolls away.
+    rowObserverTimer = setTimeout(() => tearDownRowObserver(), 6000);
+  };
+
 
 
 
@@ -298,6 +348,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     cancelled = true;
     if (nextTickTimer) clearTimeout(nextTickTimer);
     clearSettleTimers();
+    tearDownRowObserver();
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     endHydration();
     if (activeCancel === cancel) activeCancel = null;
