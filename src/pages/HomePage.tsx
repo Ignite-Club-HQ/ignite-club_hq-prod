@@ -2031,9 +2031,11 @@ export default function HomePage() {
           onInvite={() => setMemberInviteOpen(true)}
           onJoinTeam={() => setTeamDialogOpen(true)}
           hasTeams={!!userRoles?.some(r => r.team_id)}
+          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
           activeClubFilter={activeClubFilter}
           activeClubName={activeClubName}
         />
+
       </div>
 
       <div className="relative">
