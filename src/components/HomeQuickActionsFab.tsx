@@ -84,7 +84,8 @@ export function HomeQuickActionsFab({
         ]
       : []),
     {
-      label: "Join Team",
+      label: "Join or Request Team Role",
+      description: "Join a team or request Coach / Admin access",
       icon: Users,
       onClick: () => {
         close();
