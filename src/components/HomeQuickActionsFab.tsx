@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronLeft,
   SlidersHorizontal,
+  ImagePlus,
 } from "lucide-react";
 import {
   ResponsiveDialog,
