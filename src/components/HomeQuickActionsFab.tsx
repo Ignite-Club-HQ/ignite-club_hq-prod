@@ -44,6 +44,7 @@ export function HomeQuickActionsFab({
   onJoinTeam,
   hasTeams,
   canCreateTeam = false,
+  canCreateEvent = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
