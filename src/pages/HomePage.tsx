@@ -2032,6 +2032,7 @@ export default function HomePage() {
           onJoinTeam={() => setTeamDialogOpen(true)}
           hasTeams={!!userRoles?.some(r => r.team_id)}
           canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
           activeClubFilter={activeClubFilter}
           activeClubName={activeClubName}
         />

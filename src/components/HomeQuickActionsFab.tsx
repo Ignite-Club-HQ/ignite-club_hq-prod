@@ -27,6 +27,7 @@ interface HomeQuickActionsFabProps {
   onJoinTeam: () => void;
   hasTeams: boolean;
   canCreateTeam?: boolean;
+  canCreateEvent?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
 }
@@ -43,6 +44,7 @@ export function HomeQuickActionsFab({
   onJoinTeam,
   hasTeams,
   canCreateTeam = false,
+  canCreateEvent = false,
   activeClubFilter,
   activeClubName,
 }: HomeQuickActionsFabProps) {
@@ -69,11 +71,15 @@ export function HomeQuickActionsFab({
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
     },
-    {
-      label: "New Event",
-      icon: Calendar,
-      onClick: () => go("/events/new"),
-    },
+    ...(canCreateEvent
+      ? [
+          {
+            label: "New Event",
+            icon: Calendar,
+            onClick: () => go("/events/new"),
+          } as ActionItem,
+        ]
+      : []),
     ...(hasTeams
       ? [
           {
