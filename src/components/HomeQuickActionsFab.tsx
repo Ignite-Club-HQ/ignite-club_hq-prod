@@ -120,11 +120,15 @@ export function HomeQuickActionsFab({
       icon: Trophy,
       onClick: () => go("/competitions/new"),
     },
-    {
-      label: "Create Association",
-      icon: Building2,
-      onClick: () => go("/associations/new"),
-    },
+    ...(!activeClubFilter
+      ? [
+          {
+            label: "Create Association",
+            icon: Building2,
+            onClick: () => go("/associations/new"),
+          } as ActionItem,
+        ]
+      : []),
   ];
 
   const PrimaryRow = ({ item }: { item: ActionItem }) => (
