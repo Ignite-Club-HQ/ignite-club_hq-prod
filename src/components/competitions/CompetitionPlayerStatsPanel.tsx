@@ -390,6 +390,8 @@ export default function CompetitionPlayerStatsPanel({
           </tbody>
         </table>
       </div>
+      )}
+
 
       <p className="text-[11px] text-muted-foreground">
         Stats sourced from PlayHQ. Claim a player to link their PlayHQ record to your
