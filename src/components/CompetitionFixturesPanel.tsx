@@ -1061,6 +1061,7 @@ function FixturesFilterAndList({
               competitionId={competitionId}
               entries={entries}
               divisions={divisions}
+              source={source}
             />
           ))}
         </div>
