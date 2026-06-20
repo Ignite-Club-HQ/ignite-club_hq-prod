@@ -147,6 +147,10 @@ export default function AssociationDetailPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="playhq" className="space-y-3">
+          <PlayHQPanel associationId={id!} isAdmin={isAdmin} />
+        </TabsContent>
+
         {isAdmin && (
           <TabsContent value="broadcasts" className="space-y-3">
             <BroadcastsPanel associationId={id!} clubs={clubs} />
