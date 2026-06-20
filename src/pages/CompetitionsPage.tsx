@@ -48,7 +48,7 @@ export default function CompetitionsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
+        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, source, last_synced_at, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -171,9 +171,16 @@ export default function CompetitionsPage() {
                       <Trophy className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{c.name}</div>
+                      <div className="font-medium truncate flex items-center gap-2">
+                        <span className="truncate">{c.name}</span>
+                        {c.source && c.source !== "manual" && (
+                          <span className="shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-400">
+                            {c.source}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {[c.sport, c.season, c.clubs?.name].filter(Boolean).join(" · ")}
+                        {[c.sport, c.season, c.clubs?.name, c.last_synced_at ? `synced ${new Date(c.last_synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : null].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                     <Badge variant={c.status === "active" ? "default" : "secondary"} className="capitalize">
