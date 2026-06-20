@@ -897,6 +897,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         entries={entries}
         isAdmin={isAdmin}
         competitionId={competitionId}
+        source={source}
       />
     </div>
   );
