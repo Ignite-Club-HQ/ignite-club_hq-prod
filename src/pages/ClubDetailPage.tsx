@@ -2093,6 +2093,8 @@ export default function ClubDetailPage() {
                   </CardContent>
                 </Card>
               </Link>
+
+              <PlayHQClubSyncCard clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
