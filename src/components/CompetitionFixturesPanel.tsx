@@ -93,9 +93,10 @@ interface Props {
   isAdmin: boolean;
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
+  source?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
