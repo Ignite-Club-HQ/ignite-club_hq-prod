@@ -1440,7 +1440,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
         {/* 4. Admin actions — compact, flush to bottom */}
-        {isAdmin && !editing && (
+        {isAdmin && !editing && source !== "playhq" && (
           <div className="flex items-center justify-between gap-2">
             <Button
               size="sm"
