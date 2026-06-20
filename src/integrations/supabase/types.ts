@@ -8646,6 +8646,7 @@ export type Database = {
           logo_url: string | null
           name: string
           playhq_auto_create_events: boolean
+          playhq_competition_id: string | null
           playhq_grade_id: string | null
           playhq_season_id: string | null
           playhq_team_id: string | null
@@ -8700,6 +8701,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           playhq_auto_create_events?: boolean
+          playhq_competition_id?: string | null
           playhq_grade_id?: string | null
           playhq_season_id?: string | null
           playhq_team_id?: string | null
@@ -8754,6 +8756,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           playhq_auto_create_events?: boolean
+          playhq_competition_id?: string | null
           playhq_grade_id?: string | null
           playhq_season_id?: string | null
           playhq_team_id?: string | null
@@ -8793,6 +8796,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "team_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_playhq_competition_id_fkey"
+            columns: ["playhq_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {

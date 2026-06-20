@@ -254,6 +254,25 @@ Deno.serve(async (req) => {
     error = err instanceof Error ? err.message : String(err);
   }
 
+  // 5. Fan out: materialise events for any Ignite teams linked to this comp.
+  if (status === "ok" && competitionId) {
+    try {
+      const { data: linkedTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("playhq_competition_id", competitionId)
+        .eq("playhq_auto_create_events", true)
+        .limit(200);
+      for (const t of linkedTeams ?? []) {
+        try {
+          await supabase.functions.invoke("playhq-materialise-team-events", {
+            body: { team_id: t.id },
+          });
+        } catch (_) { /* per-team errors are non-fatal */ }
+      }
+    } catch (_) { /* fan-out is best-effort */ }
+  }
+
   await supabase.from("playhq_sync_log").insert({
     playhq_grade_id: body.grade_id,
     tenant: body.tenant,
