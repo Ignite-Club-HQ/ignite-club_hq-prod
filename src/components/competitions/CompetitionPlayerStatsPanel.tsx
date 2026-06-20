@@ -163,6 +163,30 @@ export default function CompetitionPlayerStatsPanel({
     [teamNameById]
   );
 
+  // PlayHQ game id → grade/division name
+  const gradeByGameId = useMemo(() => {
+    const m = new Map<string, { divisionId: string; name: string }>();
+    for (const row of matches) {
+      if (row.external_id && row.division_id) {
+        m.set(row.external_id, {
+          divisionId: row.division_id,
+          name: row.competition_divisions?.name ?? "Unknown grade",
+        });
+      }
+    }
+    return m;
+  }, [matches]);
+
+  const gradeOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const { divisionId, name } of gradeByGameId.values()) {
+      seen.set(divisionId, name);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [gradeByGameId]);
+
   const clubOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const { clubId, clubName } of clubByExternalTeam.values()) {
