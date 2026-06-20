@@ -48,7 +48,7 @@ export default function CompetitionsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
+        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, source, last_synced_at, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
