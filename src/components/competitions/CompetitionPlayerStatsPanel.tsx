@@ -51,7 +51,7 @@ export default function CompetitionPlayerStatsPanel({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competition_matches")
-        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name")
+        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name, division_id, competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .eq("source", "playhq")
         .not("external_id", "is", null);
@@ -62,6 +62,8 @@ export default function CompetitionPlayerStatsPanel({
         external_away_team_id: string | null;
         home_team_name: string | null;
         away_team_name: string | null;
+        division_id: string | null;
+        competition_divisions: { name: string | null } | null;
       }[];
     },
   });
@@ -146,10 +148,12 @@ export default function CompetitionPlayerStatsPanel({
     return m;
   }, [links, user?.id]);
 
-  // Team / Club filters
+  // Team / Club / Grade filters
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
+  const [filterGradeId, setFilterGradeId] = useState<string>("_all");
   const [teamSheetOpen, setTeamSheetOpen] = useState(false);
+  const [gradeSheetOpen, setGradeSheetOpen] = useState(false);
 
   const teamOptions = useMemo(
     () =>
@@ -158,6 +162,30 @@ export default function CompetitionPlayerStatsPanel({
         .sort((a, b) => a.name.localeCompare(b.name)),
     [teamNameById]
   );
+
+  // PlayHQ game id → grade/division name
+  const gradeByGameId = useMemo(() => {
+    const m = new Map<string, { divisionId: string; name: string }>();
+    for (const row of matches) {
+      if (row.external_id && row.division_id) {
+        m.set(row.external_id, {
+          divisionId: row.division_id,
+          name: row.competition_divisions?.name ?? "Unknown grade",
+        });
+      }
+    }
+    return m;
+  }, [matches]);
+
+  const gradeOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const { divisionId, name } of gradeByGameId.values()) {
+      seen.set(divisionId, name);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [gradeByGameId]);
 
   const clubOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -177,9 +205,13 @@ export default function CompetitionPlayerStatsPanel({
         const club = r.playhq_team_id ? clubByExternalTeam.get(r.playhq_team_id) : null;
         if (club?.clubId !== filterClubId) return false;
       }
+      if (filterGradeId !== "_all") {
+        const grade = r.playhq_game_id ? gradeByGameId.get(r.playhq_game_id) : null;
+        if (grade?.divisionId !== filterGradeId) return false;
+      }
       return true;
     });
-  }, [rows, filterTeamId, filterClubId, clubByExternalTeam]);
+  }, [rows, filterTeamId, filterClubId, filterGradeId, clubByExternalTeam, gradeByGameId]);
 
   // 4. Aggregate
   const aggregates: Aggregate[] = useMemo(() => {
@@ -271,6 +303,7 @@ export default function CompetitionPlayerStatsPanel({
 
   const showTeamFilter = teamOptions.length > 1;
   const showClubFilter = clubOptions.length > 1;
+  const showGradeFilter = gradeOptions.length > 1;
 
   return (
     <div className="space-y-3">
@@ -338,6 +371,59 @@ export default function CompetitionPlayerStatsPanel({
                         >
                           <span>{t.name}</span>
                           {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
+          {showGradeFilter && (
+            <>
+              <button
+                type="button"
+                onClick={() => setGradeSheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {filterGradeId === "_all"
+                  ? "All grades"
+                  : gradeOptions.find((g) => g.id === filterGradeId)?.name ?? "All grades"}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={gradeSheetOpen} onOpenChange={setGradeSheetOpen}>
+                <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Filter by grade</SheetTitle>
+                  </SheetHeader>
+                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterGradeId("_all");
+                          setGradeSheetOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                      >
+                        <span>All grades</span>
+                        {filterGradeId === "_all" && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {gradeOptions.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => {
+                            setFilterGradeId(g.id);
+                            setGradeSheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                        >
+                          <span>{g.name}</span>
+                          {filterGradeId === g.id && <Check className="h-4 w-4 text-primary" />}
                         </button>
                       ))}
                     </div>
