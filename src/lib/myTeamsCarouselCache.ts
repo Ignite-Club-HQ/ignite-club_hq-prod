@@ -2,7 +2,7 @@
 // Keyed by user + active club filter so each context restores its own snapshot.
 // Cold opens render real cards instantly; React Query revalidates in background.
 
-const PREFIX = "ignite_my_teams_carousel_";
+const PREFIX = "ignite_my_teams_carousel_v2_";
 const TTL_MS = 24 * 60 * 60 * 1000; // 24h — stale entries are still useful as a placeholder
 
 interface Entry<T> {
