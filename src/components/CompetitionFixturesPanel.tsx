@@ -1080,17 +1080,57 @@ function FixturesFilterAndList({
             </Select>
           )}
           {showTeamFilter && (
-            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder="All teams" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All teams</SelectItem>
-                {teamOptions.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <button
+                type="button"
+                onClick={() => setTeamSheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {filterTeamId === "_all"
+                  ? "All teams"
+                  : teamOptions.find((t) => t.id === filterTeamId)?.name ?? "All teams"}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={teamSheetOpen} onOpenChange={setTeamSheetOpen}>
+                <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Filter by team</SheetTitle>
+                  </SheetHeader>
+                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterTeamId("_all");
+                          setTeamSheetOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                      >
+                        <span>All teams</span>
+                        {filterTeamId === "_all" && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {teamOptions.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setFilterTeamId(t.id);
+                            setTeamSheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                        >
+                          <span>{t.name}</span>
+                          {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
           )}
           {showClubFilter && (
             <Select value={filterClubId} onValueChange={setFilterClubId}>
