@@ -596,6 +596,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       if (managedPlayhqCompsRes.data && managedPlayhqCompsRes.data.length > 0) {
         for (const comp of managedPlayhqCompsRes.data as ManagedPlayhqCompetitionRow[]) {
           const organizer = Array.isArray(comp.clubs) ? comp.clubs[0] : comp.clubs;
+          const showInActiveClub =
+            !activeClubFilter ||
+            comp.organizer_club_id === activeClubFilter ||
+            roles.some((r) => r.team_id && r.club_id === activeClubFilter);
+          if (!showInActiveClub) continue;
           result.push({
             id: comp.id,
             name: comp.name,
