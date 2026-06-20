@@ -372,6 +372,39 @@ export default function CompleteProfilePage() {
           const { data: existingRole } = await roleQuery.maybeSingle();
 
           if (!existingRole) {
+            // Pre-link mini-league / child relationships BEFORE inserting the
+            // user_roles row so that notify_admins_new_member can detect the
+            // correct context (mini-league name) instead of falling back to
+            // a generic "joined the club" message. See mem note: trigger reads
+            // mini_league_players.parent_user_id + child_guardians/children.parent_id.
+            if (invite.role === "parent" && invite.metadata?.child_id) {
+              const preChildId = invite.metadata.child_id as string;
+              const preMiniLeagueId = invite.metadata.mini_league_id as string | undefined;
+              try {
+                await supabase
+                  .from("children")
+                  .update({ parent_id: user.id })
+                  .eq("id", preChildId);
+
+                if (preMiniLeagueId) {
+                  if (invite.metadata.player_id) {
+                    await supabase
+                      .from("mini_league_players")
+                      .update({ parent_user_id: user.id })
+                      .eq("id", invite.metadata.player_id);
+                  } else {
+                    await supabase
+                      .from("mini_league_players")
+                      .update({ parent_user_id: user.id })
+                      .eq("child_id", preChildId)
+                      .eq("mini_league_id", preMiniLeagueId);
+                  }
+                }
+              } catch (preLinkErr) {
+                console.warn("[CompleteProfile] Pre-link before role insert failed (non-fatal):", preLinkErr);
+              }
+            }
+
             // Insert the role
             const { error: roleError } = await supabase
               .from("user_roles")
