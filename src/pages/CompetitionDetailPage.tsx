@@ -168,7 +168,7 @@ export default function CompetitionDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
-          {isAdmin && (
+          {isAdmin && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button
