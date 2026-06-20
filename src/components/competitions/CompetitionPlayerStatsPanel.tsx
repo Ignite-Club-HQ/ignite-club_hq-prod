@@ -39,10 +39,28 @@ const NUMERIC = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v
 
 export default function CompetitionPlayerStatsPanel({
   competitionId,
+  sport,
 }: {
   competitionId: string;
+  sport?: string | null;
 }) {
   const { user } = useAuth();
+  const isCricket = (sport ?? "").toLowerCase() === "cricket";
+
+  // Cricket stat key categorisation (matches common PlayHQ keys, case-insensitive substring)
+  const CRICKET_CATEGORIES: Record<"batting" | "bowling" | "fielding", string[]> = {
+    batting: ["run", "ball_faced", "balls_faced", "four", "six", "strike_rate", "not_out", "batting", "fifty", "hundred", "duck", "high_score", "highest"],
+    bowling: ["over", "maiden", "wicket", "runs_conceded", "economy", "bowling", "wide", "no_ball", "dot_ball", "best_bowl"],
+    fielding: ["catch", "run_out", "stumping", "fielding", "dismissal"],
+  };
+  const categoriseStatKey = (key: string): "batting" | "bowling" | "fielding" | "other" => {
+    const k = key.toLowerCase();
+    // Bowling/fielding first so "runs_conceded" doesn't get tagged as batting via "run"
+    if (CRICKET_CATEGORIES.bowling.some((m) => k.includes(m))) return "bowling";
+    if (CRICKET_CATEGORIES.fielding.some((m) => k.includes(m))) return "fielding";
+    if (CRICKET_CATEGORIES.batting.some((m) => k.includes(m))) return "batting";
+    return "other";
+  };
 
   // 1. Match list for this competition (need external_ids to filter stats,
   //    and team names + external team ids to power the filters below).
@@ -152,8 +170,10 @@ export default function CompetitionPlayerStatsPanel({
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
   const [filterGradeId, setFilterGradeId] = useState<string>("_all");
+  const [cricketCategory, setCricketCategory] = useState<"batting" | "bowling" | "fielding">("batting");
   const [teamSheetOpen, setTeamSheetOpen] = useState(false);
   const [gradeSheetOpen, setGradeSheetOpen] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
 
   const teamOptions = useMemo(
     () =>
@@ -240,8 +260,12 @@ export default function CompetitionPlayerStatsPanel({
   const statKeys = useMemo(() => {
     const set = new Set<string>();
     aggregates.forEach((a) => Object.keys(a.totals).forEach((k) => set.add(k)));
-    return Array.from(set);
-  }, [aggregates]);
+    let keys = Array.from(set);
+    if (isCricket) {
+      keys = keys.filter((k) => categoriseStatKey(k) === cricketCategory);
+    }
+    return keys;
+  }, [aggregates, isCricket, cricketCategory]);
 
   const [sortBy, setSortBy] = useState<string>("");
   const sortKey = sortBy || statKeys[0] || "";
@@ -313,6 +337,47 @@ export default function CompetitionPlayerStatsPanel({
           {aggregates.length} players · {gameIds.length} matches
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isCricket && (
+            <>
+              <button
+                type="button"
+                onClick={() => setCategorySheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium capitalize shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {cricketCategory}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={categorySheetOpen} onOpenChange={setCategorySheetOpen}>
+                <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Stat category</SheetTitle>
+                  </SheetHeader>
+                  <div className="px-4 pb-6">
+                    <div className="space-y-1">
+                      {(["batting", "bowling", "fielding"] as const).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setCricketCategory(c);
+                            setSortBy("");
+                            setCategorySheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm capitalize hover:bg-accent"
+                        >
+                          <span>{c}</span>
+                          {cricketCategory === c && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
           {showClubFilter && (
             <Select value={filterClubId} onValueChange={setFilterClubId}>
               <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">

@@ -259,7 +259,7 @@ export default function CompetitionDetailPage() {
 
         {competition.source === "playhq" && (
           <TabsContent value="stats" className="space-y-2 mt-2">
-            <CompetitionPlayerStatsPanel competitionId={id!} />
+            <CompetitionPlayerStatsPanel competitionId={id!} sport={competition.sport} />
           </TabsContent>
         )}
 
