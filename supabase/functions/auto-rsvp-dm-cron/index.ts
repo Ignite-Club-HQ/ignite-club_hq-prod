@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         .select(`
           id, title, event_date, start_time, type, team_id, club_id, rsvp_audience,
           teams!inner (name, auto_rsvp_dm_enabled, auto_rsvp_dm_cadences, auto_rsvp_dm_event_types, default_rsvp_audience),
-          clubs (name, logo_url, bot_user_id)
+          clubs!events_club_id_fkey (name, logo_url, bot_user_id)
         `)
 
         .gte("event_date", lo)

@@ -69,7 +69,7 @@ serve(async (req) => {
         id, title, event_date, type, address, suburb, start_time,
         team_id, club_id, mini_league_id,
         teams (name),
-        clubs (name, logo_url)
+        clubs!events_club_id_fkey (name, logo_url)
       `)
       .eq("id", eventId)
       .single();

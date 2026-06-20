@@ -88,7 +88,7 @@ serve(async (req) => {
         type,
         teams (
           name,
-          clubs (
+          clubs!events_club_id_fkey (
             name,
             logo_url
           )
@@ -261,7 +261,7 @@ serve(async (req) => {
         type,
         teams (
           name,
-          clubs (
+          clubs!events_club_id_fkey (
             name,
             points_display_name
           )
@@ -361,7 +361,7 @@ serve(async (req) => {
         type,
         teams (
           name,
-          clubs (
+          clubs!events_club_id_fkey (
             name,
             logo_url
           )
