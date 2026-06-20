@@ -112,6 +112,7 @@ export default function AssociationDetailPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clubs">Member clubs</TabsTrigger>
           <TabsTrigger value="playhq">PlayHQ</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
         </TabsList>
 
@@ -149,6 +150,10 @@ export default function AssociationDetailPage() {
 
         <TabsContent value="playhq" className="space-y-3">
           <PlayHQPanel associationId={id!} isAdmin={isAdmin} />
+        </TabsContent>
+
+        <TabsContent value="events" className="space-y-3">
+          <AssociationEventsPanel associationId={id!} isAdmin={isAdmin} clubs={clubs} />
         </TabsContent>
 
         {isAdmin && (
