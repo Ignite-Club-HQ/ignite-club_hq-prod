@@ -140,10 +140,44 @@ export default function CompetitionPlayerStatsPanel({
     return m;
   }, [links, user?.id]);
 
+  // Team / Club filters
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [filterClubId, setFilterClubId] = useState<string>("_all");
+
+  const teamOptions = useMemo(
+    () =>
+      Array.from(teamNameById.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [teamNameById]
+  );
+
+  const clubOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const { clubId, clubName } of clubByExternalTeam.values()) {
+      seen.set(clubId, clubName);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clubByExternalTeam]);
+
+  // Apply filters to stat rows before aggregation
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterTeamId !== "_all" && r.playhq_team_id !== filterTeamId) return false;
+      if (filterClubId !== "_all") {
+        const club = r.playhq_team_id ? clubByExternalTeam.get(r.playhq_team_id) : null;
+        if (club?.clubId !== filterClubId) return false;
+      }
+      return true;
+    });
+  }, [rows, filterTeamId, filterClubId, clubByExternalTeam]);
+
   // 4. Aggregate
   const aggregates: Aggregate[] = useMemo(() => {
     const map = new Map<string, Aggregate>();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const key = r.playhq_player_id;
       if (!key) continue;
       let agg = map.get(key);
@@ -162,7 +196,7 @@ export default function CompetitionPlayerStatsPanel({
       }
     }
     return Array.from(map.values());
-  }, [rows]);
+  }, [filteredRows]);
 
   const statKeys = useMemo(() => {
     const set = new Set<string>();
