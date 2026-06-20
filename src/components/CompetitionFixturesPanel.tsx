@@ -910,12 +910,14 @@ function FixturesFilterAndList({
   entries,
   isAdmin,
   competitionId,
+  source,
 }: {
   matches: any[];
   divisions: any[];
   entries: any[];
   isAdmin: boolean;
   competitionId: string;
+  source?: string;
 }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
