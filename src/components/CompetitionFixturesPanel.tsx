@@ -1260,16 +1260,29 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       // Clearing scores reverts an auto-completed match back to scheduled.
       nextStatus = "scheduled";
     }
+    // PlayHQ-sourced rows are sync-locked. The first local edit stamps
+    // manually_overridden_at, which the DB trigger uses to release the row
+    // from future sync overwrites.
+    const isExternal = match.source && match.source !== "manual";
+    const payload: Record<string, unknown> = { home_score: homeN, away_score: awayN, status: nextStatus };
+    if (isExternal && !match.manually_overridden_at) {
+      payload.manually_overridden_at = new Date().toISOString();
+    }
     const { error } = await supabase
       .from("competition_matches")
-      .update({ home_score: homeN, away_score: awayN, status: nextStatus })
+      .update(payload)
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
     }
     setStatus(nextStatus);
-    toast({ title: "Match updated" });
+    toast({
+      title: "Match updated",
+      description: isExternal && !match.manually_overridden_at
+        ? "This match is now locally overridden — future PlayHQ syncs won't change it."
+        : undefined,
+    });
     setEditing(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
