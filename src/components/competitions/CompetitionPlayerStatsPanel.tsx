@@ -379,6 +379,59 @@ export default function CompetitionPlayerStatsPanel({
               </Sheet>
             </>
           )}
+          {showGradeFilter && (
+            <>
+              <button
+                type="button"
+                onClick={() => setGradeSheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {filterGradeId === "_all"
+                  ? "All grades"
+                  : gradeOptions.find((g) => g.id === filterGradeId)?.name ?? "All grades"}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={gradeSheetOpen} onOpenChange={setGradeSheetOpen}>
+                <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Filter by grade</SheetTitle>
+                  </SheetHeader>
+                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterGradeId("_all");
+                          setGradeSheetOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                      >
+                        <span>All grades</span>
+                        {filterGradeId === "_all" && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {gradeOptions.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => {
+                            setFilterGradeId(g.id);
+                            setGradeSheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                        >
+                          <span>{g.name}</span>
+                          {filterGradeId === g.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
         </div>
       </div>
 
