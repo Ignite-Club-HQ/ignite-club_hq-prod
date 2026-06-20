@@ -456,11 +456,15 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // Defer non-critical queries (photos) until after first paint to free up the main thread
   const [deferredReady, setDeferredReady] = useState(false);
   useEffect(() => {
-    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    const w = window as Window & {
+      requestIdleCallback?: RequestIdleCallback;
+      cancelIdleCallback?: CancelIdleCallback;
+    };
+    const ric = w.requestIdleCallback;
     if (ric) {
       const handle = ric(() => setDeferredReady(true), { timeout: 1500 });
       return () => {
-        const cic = (window as any).cancelIdleCallback;
+        const cic = w.cancelIdleCallback;
         if (cic) cic(handle);
       };
     }
@@ -506,7 +510,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("teams")
               .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as TeamQueryRow[] }),
         supabase
           .from("mini_league_players")
           .select("mini_league_id")
@@ -516,7 +520,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("mini_leagues")
               .select("id, club_id")
               .in("club_id", leagueAdminClubIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as AdminLeagueRow[] }),
         visibleManagedCompetitionClubIds.length > 0
           ? supabase
               .from("competitions")
@@ -524,7 +528,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .eq("source", "playhq")
               .eq("status", "active")
               .in("organizer_club_id", visibleManagedCompetitionClubIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as ManagedPlayhqCompetitionRow[] }),
       ]);
 
       const result: TeamOrLeague[] = [];
@@ -567,8 +571,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       }
 
       // Mini leagues — combine player + league-admin memberships, then fetch full rows
-      const leagueIds = new Set(playerLeaguesRes.data?.map((p: any) => p.mini_league_id) || []);
-      adminLeaguesRes.data?.forEach((l: any) => leagueIds.add(l.id));
+      const leagueIds = new Set((playerLeaguesRes.data as MiniLeaguePlayerRow[] | null)?.map((p) => p.mini_league_id).filter(Boolean) || []);
+      (adminLeaguesRes.data as AdminLeagueRow[] | null)?.forEach((l) => leagueIds.add(l.id));
 
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
@@ -594,7 +598,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       }
 
       if (managedPlayhqCompsRes.data && managedPlayhqCompsRes.data.length > 0) {
-        for (const comp of managedPlayhqCompsRes.data as any[]) {
+        for (const comp of managedPlayhqCompsRes.data as ManagedPlayhqCompetitionRow[]) {
           const organizer = Array.isArray(comp.clubs) ? comp.clubs[0] : comp.clubs;
           result.push({
             id: comp.id,
