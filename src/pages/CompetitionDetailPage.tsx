@@ -54,7 +54,7 @@ export default function CompetitionDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("*, clubs:organizer_club_id(id, name)")
+        .select("*, clubs:organizer_club_id(id, name, kind)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw error;
@@ -168,7 +168,7 @@ export default function CompetitionDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
-          {isAdmin && (
+          {isAdmin && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button
