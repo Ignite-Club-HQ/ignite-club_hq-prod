@@ -50,22 +50,17 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
     },
   });
 
-  // PlayHQ comps visible to the team's club (organiser or association)
+  // PlayHQ comps the user can see (RLS already scopes by membership/visibility).
+  // We don't pre-filter by organiser here so that comps run by a parent
+  // association — or by a sister club the user belongs to — also surface,
+  // even if `parent_org_id` hasn't been wired up on this club yet.
   const { data: comps } = useQuery({
     queryKey: ["playhq-comps-for-team", clubId],
     queryFn: async () => {
-      // Allow comps organised by the team's club OR by the club's parent association.
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("id, parent_org_id")
-        .eq("id", clubId)
-        .maybeSingle();
-      const orgIds = [clubId, club?.parent_org_id].filter(Boolean) as string[];
       const { data, error } = await supabase
         .from("competitions")
         .select("id, name, season")
         .eq("source", "playhq")
-        .in("organizer_club_id", orgIds)
         .order("name");
       if (error) throw error;
       return (data ?? []) as Competition[];
