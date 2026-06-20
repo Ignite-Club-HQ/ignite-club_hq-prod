@@ -499,10 +499,6 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           .filter(r => r.club_id && ["club_admin", "league_admin", "app_admin"].includes(r.role))
           .map(r => r.club_id),
       )] as string[];
-      const visibleManagedCompetitionClubIds = activeClubFilter
-        ? managedCompetitionClubIds.filter(id => id === activeClubFilter)
-        : managedCompetitionClubIds;
-
       // Parallel: teams, player-league memberships, and league-admin clubs all depend only on `roles`
       const [teamsRes, playerLeaguesRes, adminLeaguesRes, managedPlayhqCompsRes] = await Promise.all([
         teamIds.length > 0
@@ -521,13 +517,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .select("id, club_id")
               .in("club_id", leagueAdminClubIds)
           : Promise.resolve({ data: [] as AdminLeagueRow[] }),
-        visibleManagedCompetitionClubIds.length > 0
+        managedCompetitionClubIds.length > 0
           ? supabase
               .from("competitions")
               .select("id, name, logo_url, sport, organizer_club_id, clubs:organizer_club_id(name, logo_url, sport)")
               .eq("source", "playhq")
               .eq("status", "active")
-              .in("organizer_club_id", visibleManagedCompetitionClubIds)
+              .in("organizer_club_id", managedCompetitionClubIds)
           : Promise.resolve({ data: [] as ManagedPlayhqCompetitionRow[] }),
       ]);
 
