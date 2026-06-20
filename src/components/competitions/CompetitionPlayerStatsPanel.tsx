@@ -303,6 +303,7 @@ export default function CompetitionPlayerStatsPanel({
 
   const showTeamFilter = teamOptions.length > 1;
   const showClubFilter = clubOptions.length > 1;
+  const showGradeFilter = gradeOptions.length > 1;
 
   return (
     <div className="space-y-3">
