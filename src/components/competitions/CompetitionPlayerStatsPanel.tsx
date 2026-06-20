@@ -337,6 +337,47 @@ export default function CompetitionPlayerStatsPanel({
           {aggregates.length} players · {gameIds.length} matches
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isCricket && (
+            <>
+              <button
+                type="button"
+                onClick={() => setCategorySheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium capitalize shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {cricketCategory}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={categorySheetOpen} onOpenChange={setCategorySheetOpen}>
+                <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Stat category</SheetTitle>
+                  </SheetHeader>
+                  <div className="px-4 pb-6">
+                    <div className="space-y-1">
+                      {(["batting", "bowling", "fielding"] as const).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setCricketCategory(c);
+                            setSortBy("");
+                            setCategorySheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm capitalize hover:bg-accent"
+                        >
+                          <span>{c}</span>
+                          {cricketCategory === c && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
           {showClubFilter && (
             <Select value={filterClubId} onValueChange={setFilterClubId}>
               <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
