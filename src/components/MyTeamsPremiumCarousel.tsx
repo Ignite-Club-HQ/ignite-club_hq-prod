@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
-import { getCachedCarousel, setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
+import { setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
@@ -434,7 +434,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // Fetch teams & leagues
   const { data: items = snapshot?.items ?? [], isLoading, isFetching } = useQuery({
-    queryKey: ["my-teams-premium", user?.id, activeClubFilter],
+    queryKey: ["my-teams-premium-v2", user?.id, activeClubFilter],
     retry: 3,
     initialData: snapshot?.items,
     initialDataUpdatedAt: snapshotWithTs?.timestamp,
