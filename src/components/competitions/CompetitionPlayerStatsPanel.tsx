@@ -254,7 +254,7 @@ export default function CompetitionPlayerStatsPanel({
     );
   }
 
-  if (aggregates.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground text-center">
         Matches synced, but no per-player stats have been published by PlayHQ yet.
@@ -262,8 +262,65 @@ export default function CompetitionPlayerStatsPanel({
     );
   }
 
+  const showTeamFilter = teamOptions.length > 1;
+  const showClubFilter = clubOptions.length > 1;
+
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Trophy className="h-4 w-4" />
+          {aggregates.length} players · {gameIds.length} matches
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {showClubFilter && (
+            <Select value={filterClubId} onValueChange={setFilterClubId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All clubs</SelectItem>
+                {clubOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {statKeys.length > 0 && (
+            <Select value={sortKey} onValueChange={setSortBy}>
+              <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {statKeys.map((k) => (
+                  <SelectItem key={k} value={k} className="capitalize text-xs">
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
+      {aggregates.length === 0 && (
+        <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground text-center">
+          No players match the current filter.
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Trophy className="h-4 w-4" />
