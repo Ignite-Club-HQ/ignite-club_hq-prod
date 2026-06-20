@@ -1223,7 +1223,7 @@ function RoundSection({
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
         {items.map((m: any) => (
-          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} source={source} hideRoundBadge />
         ))}
       </CollapsibleContent>
     </Collapsible>
