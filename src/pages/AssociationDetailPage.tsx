@@ -111,6 +111,7 @@ export default function AssociationDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clubs">Member clubs</TabsTrigger>
+          <TabsTrigger value="playhq">PlayHQ</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
         </TabsList>
 
