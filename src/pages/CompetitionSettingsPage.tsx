@@ -154,6 +154,7 @@ export default function CompetitionSettingsPage() {
   }
 
   const publicLinkOn = visibility === "public";
+  const isPlayHqReadOnly = (competition as any).source === "playhq" && (competition as any).clubs?.kind !== "association";
 
   return (
     <div className="container max-w-3xl mx-auto px-4 py-6 pb-32 space-y-5">
