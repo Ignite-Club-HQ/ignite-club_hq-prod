@@ -2338,6 +2338,7 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
 function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisions: any[]; isAdmin?: boolean }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
   const hiddenDivisionIds = useMemo(
     () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
