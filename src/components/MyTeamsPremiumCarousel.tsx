@@ -596,11 +596,10 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       if (managedPlayhqCompsRes.data && managedPlayhqCompsRes.data.length > 0) {
         for (const comp of managedPlayhqCompsRes.data as ManagedPlayhqCompetitionRow[]) {
           const organizer = Array.isArray(comp.clubs) ? comp.clubs[0] : comp.clubs;
-          const showInActiveClub =
-            !activeClubFilter ||
-            comp.organizer_club_id === activeClubFilter ||
-            roles.some((r) => r.team_id && r.club_id === activeClubFilter);
-          if (!showInActiveClub) continue;
+          // Only show a managed PlayHQ competition under the club that
+          // actually organises it — never bleed it into other clubs the
+          // user is a member of via the header club filter.
+          if (activeClubFilter && comp.organizer_club_id !== activeClubFilter) continue;
           result.push({
             id: comp.id,
             name: comp.name,
