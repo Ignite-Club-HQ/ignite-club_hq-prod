@@ -22,7 +22,7 @@ export function getCachedCarousel<T>(userId: string | undefined, activeClubFilte
     if (!raw) return null;
     const entry: Entry<T> = JSON.parse(raw);
     if (Date.now() - entry.timestamp > TTL_MS) {
-      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch {}
+      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch { /* ignore storage cleanup errors */ }
       return null;
     }
     return entry.data;
@@ -59,7 +59,7 @@ export function getCachedCarouselWithTs<T>(
     if (!raw) return null;
     const entry: Entry<T> = JSON.parse(raw);
     if (Date.now() - entry.timestamp > TTL_MS) {
-      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch {}
+      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch { /* ignore storage cleanup errors */ }
       return null;
     }
     return { data: entry.data, timestamp: entry.timestamp };
