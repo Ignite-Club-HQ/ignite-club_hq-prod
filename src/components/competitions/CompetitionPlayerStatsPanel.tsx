@@ -39,10 +39,28 @@ const NUMERIC = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v
 
 export default function CompetitionPlayerStatsPanel({
   competitionId,
+  sport,
 }: {
   competitionId: string;
+  sport?: string | null;
 }) {
   const { user } = useAuth();
+  const isCricket = (sport ?? "").toLowerCase() === "cricket";
+
+  // Cricket stat key categorisation (matches common PlayHQ keys, case-insensitive substring)
+  const CRICKET_CATEGORIES: Record<"batting" | "bowling" | "fielding", string[]> = {
+    batting: ["run", "ball_faced", "balls_faced", "four", "six", "strike_rate", "not_out", "batting", "fifty", "hundred", "duck", "high_score", "highest"],
+    bowling: ["over", "maiden", "wicket", "runs_conceded", "economy", "bowling", "wide", "no_ball", "dot_ball", "best_bowl"],
+    fielding: ["catch", "run_out", "stumping", "fielding", "dismissal"],
+  };
+  const categoriseStatKey = (key: string): "batting" | "bowling" | "fielding" | "other" => {
+    const k = key.toLowerCase();
+    // Bowling/fielding first so "runs_conceded" doesn't get tagged as batting via "run"
+    if (CRICKET_CATEGORIES.bowling.some((m) => k.includes(m))) return "bowling";
+    if (CRICKET_CATEGORIES.fielding.some((m) => k.includes(m))) return "fielding";
+    if (CRICKET_CATEGORIES.batting.some((m) => k.includes(m))) return "batting";
+    return "other";
+  };
 
   // 1. Match list for this competition (need external_ids to filter stats,
   //    and team names + external team ids to power the filters below).
