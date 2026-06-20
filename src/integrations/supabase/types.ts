@@ -3865,6 +3865,8 @@ export type Database = {
           allow_guests: boolean | null
           amount: number | null
           arrival_minutes_before: number | null
+          association_event_id: string | null
+          association_id: string | null
           chat_cancel_post_handled: boolean
           chat_post_message_id: string | null
           club_id: string
@@ -3916,6 +3918,8 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          association_event_id?: string | null
+          association_id?: string | null
           chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id: string
@@ -3967,6 +3971,8 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          association_event_id?: string | null
+          association_id?: string | null
           chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id?: string
@@ -4014,6 +4020,27 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_association_event_id_fkey"
+            columns: ["association_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_club_id_fkey"
             columns: ["club_id"]
