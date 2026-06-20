@@ -265,32 +265,36 @@ export default function CompetitionDetailPage() {
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-2 mt-2">
-            {/* Primary actions — equal-weight recruitment CTAs */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <InviteTeamForm
-                  competitionId={id!}
-                  divisions={divisions}
-                  defaultOpen={inviteFromUrl}
-                  onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
-                />
-              </div>
-              <div className="flex-1">
-                <CompetitionShareJoinLink
-                  competitionId={id!}
-                  competitionName={competition.name}
-                  triggerVariant="default"
-                  triggerClassName="w-full"
-                />
-              </div>
-            </div>
-            {/* Secondary action — competition setup */}
-            <div className="flex">
-              <AddDivisionForm
-                competitionId={id!}
-                onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
-              />
-            </div>
+            {competition.source !== "playhq" && (
+              <>
+                {/* Primary actions — equal-weight recruitment CTAs */}
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <InviteTeamForm
+                      competitionId={id!}
+                      divisions={divisions}
+                      defaultOpen={inviteFromUrl}
+                      onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <CompetitionShareJoinLink
+                      competitionId={id!}
+                      competitionName={competition.name}
+                      triggerVariant="default"
+                      triggerClassName="w-full"
+                    />
+                  </div>
+                </div>
+                {/* Secondary action — competition setup */}
+                <div className="flex">
+                  <AddDivisionForm
+                    competitionId={id!}
+                    onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
+                  />
+                </div>
+              </>
+            )}
 
             <TeamsByDivision
               competitionId={id!}
