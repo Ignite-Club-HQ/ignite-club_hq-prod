@@ -1090,6 +1090,19 @@ function FixturesFilterAndList({
               </SelectContent>
             </Select>
           )}
+          {showClubFilter && (
+            <Select value={filterClubId} onValueChange={setFilterClubId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All clubs</SelectItem>
+                {clubOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
