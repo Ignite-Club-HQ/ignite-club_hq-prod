@@ -170,8 +170,10 @@ export default function CompetitionPlayerStatsPanel({
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
   const [filterGradeId, setFilterGradeId] = useState<string>("_all");
+  const [cricketCategory, setCricketCategory] = useState<"batting" | "bowling" | "fielding">("batting");
   const [teamSheetOpen, setTeamSheetOpen] = useState(false);
   const [gradeSheetOpen, setGradeSheetOpen] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
 
   const teamOptions = useMemo(
     () =>
