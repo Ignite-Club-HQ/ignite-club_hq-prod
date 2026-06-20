@@ -1344,6 +1344,16 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
+            {match.source && match.source !== "manual" && (
+              <span
+                className="shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-400"
+                title={match.manually_overridden_at
+                  ? `Synced from ${match.source} · locally overridden`
+                  : `Synced from ${match.source}`}
+              >
+                {match.manually_overridden_at ? `${match.source} · local` : match.source}
+              </span>
+            )}
             {!isScheduled && (
               <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
                 {statusLabel}
