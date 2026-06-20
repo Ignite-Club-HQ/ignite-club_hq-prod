@@ -2038,6 +2038,8 @@ export type Database = {
           notify_committee: boolean
           notify_committee_chat: boolean
           parent_org_id: string | null
+          playhq_org_id: string | null
+          playhq_tenant: string | null
           points_display_name: string | null
           points_icon_url: string | null
           primary_sponsor_id: string | null
@@ -2109,6 +2111,8 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           parent_org_id?: string | null
+          playhq_org_id?: string | null
+          playhq_tenant?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -2180,6 +2184,8 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           parent_org_id?: string | null
+          playhq_org_id?: string | null
+          playhq_tenant?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -6372,6 +6378,237 @@ export type Database = {
           },
         ]
       }
+      playhq_fixtures: {
+        Row: {
+          away_playhq_team_id: string | null
+          away_score: number | null
+          away_team_name: string | null
+          court: string | null
+          created_at: string
+          home_playhq_team_id: string | null
+          home_score: number | null
+          home_team_name: string | null
+          id: string
+          playhq_game_id: string
+          playhq_grade_id: string
+          raw: Json | null
+          round: string | null
+          scheduled_at: string | null
+          status: string | null
+          updated_at: string
+          venue_address: string | null
+          venue_name: string | null
+        }
+        Insert: {
+          away_playhq_team_id?: string | null
+          away_score?: number | null
+          away_team_name?: string | null
+          court?: string | null
+          created_at?: string
+          home_playhq_team_id?: string | null
+          home_score?: number | null
+          home_team_name?: string | null
+          id?: string
+          playhq_game_id: string
+          playhq_grade_id: string
+          raw?: Json | null
+          round?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Update: {
+          away_playhq_team_id?: string | null
+          away_score?: number | null
+          away_team_name?: string | null
+          court?: string | null
+          created_at?: string
+          home_playhq_team_id?: string | null
+          home_score?: number | null
+          home_team_name?: string | null
+          id?: string
+          playhq_game_id?: string
+          playhq_grade_id?: string
+          raw?: Json | null
+          round?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Relationships: []
+      }
+      playhq_grades: {
+        Row: {
+          created_at: string
+          id: string
+          last_synced_at: string | null
+          name: string
+          playhq_competition_id: string | null
+          playhq_grade_id: string
+          playhq_season_id: string | null
+          raw: Json | null
+          sport: string | null
+          tenant: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          playhq_competition_id?: string | null
+          playhq_grade_id: string
+          playhq_season_id?: string | null
+          raw?: Json | null
+          sport?: string | null
+          tenant: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          playhq_competition_id?: string | null
+          playhq_grade_id?: string
+          playhq_season_id?: string | null
+          raw?: Json | null
+          sport?: string | null
+          tenant?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      playhq_ladder: {
+        Row: {
+          draws: number
+          id: string
+          losses: number
+          played: number
+          playhq_grade_id: string
+          playhq_team_id: string
+          points: number
+          points_against: number
+          points_diff: number
+          points_for: number
+          position: number | null
+          raw: Json | null
+          snapshot_at: string
+          team_name: string
+          wins: number
+        }
+        Insert: {
+          draws?: number
+          id?: string
+          losses?: number
+          played?: number
+          playhq_grade_id: string
+          playhq_team_id: string
+          points?: number
+          points_against?: number
+          points_diff?: number
+          points_for?: number
+          position?: number | null
+          raw?: Json | null
+          snapshot_at?: string
+          team_name: string
+          wins?: number
+        }
+        Update: {
+          draws?: number
+          id?: string
+          losses?: number
+          played?: number
+          playhq_grade_id?: string
+          playhq_team_id?: string
+          points?: number
+          points_against?: number
+          points_diff?: number
+          points_for?: number
+          position?: number | null
+          raw?: Json | null
+          snapshot_at?: string
+          team_name?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      playhq_player_stats: {
+        Row: {
+          id: string
+          player_name: string | null
+          playhq_game_id: string
+          playhq_player_id: string
+          playhq_team_id: string
+          raw: Json | null
+          stats: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          player_name?: string | null
+          playhq_game_id: string
+          playhq_player_id: string
+          playhq_team_id: string
+          raw?: Json | null
+          stats?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          player_name?: string | null
+          playhq_game_id?: string
+          playhq_player_id?: string
+          playhq_team_id?: string
+          raw?: Json | null
+          stats?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      playhq_sync_log: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          fixtures_synced: number
+          id: string
+          ladder_rows: number
+          playhq_grade_id: string
+          started_at: string
+          stat_rows: number
+          status: string
+          tenant: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          fixtures_synced?: number
+          id?: string
+          ladder_rows?: number
+          playhq_grade_id: string
+          started_at?: string
+          stat_rows?: number
+          status: string
+          tenant: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          fixtures_synced?: number
+          id?: string
+          ladder_rows?: number
+          playhq_grade_id?: string
+          started_at?: string
+          stat_rows?: number
+          status?: string
+          tenant?: string
+        }
+        Relationships: []
+      }
       points_cooldowns: {
         Row: {
           action_type: string
@@ -8322,6 +8559,10 @@ export type Database = {
           lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
           name: string
+          playhq_auto_create_events: boolean
+          playhq_grade_id: string | null
+          playhq_season_id: string | null
+          playhq_team_id: string | null
           pro_activated_at: string | null
           pro_expires_at: string | null
           season_id: string | null
@@ -8372,6 +8613,10 @@ export type Database = {
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name: string
+          playhq_auto_create_events?: boolean
+          playhq_grade_id?: string | null
+          playhq_season_id?: string | null
+          playhq_team_id?: string | null
           pro_activated_at?: string | null
           pro_expires_at?: string | null
           season_id?: string | null
@@ -8422,6 +8667,10 @@ export type Database = {
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name?: string
+          playhq_auto_create_events?: boolean
+          playhq_grade_id?: string | null
+          playhq_season_id?: string | null
+          playhq_team_id?: string | null
           pro_activated_at?: string | null
           pro_expires_at?: string | null
           season_id?: string | null
