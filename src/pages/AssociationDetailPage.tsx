@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Network, Loader2, Building2, Users, CalendarDays, Megaphone, Send, Plus, X } from "lucide-react";
+import { ArrowLeft, Network, Loader2, Building2, Users, CalendarDays, Megaphone, Send, Plus, X, Trophy, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
