@@ -2100,6 +2100,10 @@ export default function TeamDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* PlayHQ Link */}
+                  <PlayHQTeamLinkCard teamId={id!} clubId={team.club_id} />
+          
           
                   <Link to={`/teams/${id}/roles`}>
             <Card className="hover:border-primary/50 transition-colors">
