@@ -404,6 +404,42 @@ interface MyTeamsPremiumCarouselProps {
   onReadyChange?: (ready: boolean) => void;
 }
 
+type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+type CancelIdleCallback = (handle: number) => void;
+
+interface UserRoleRow {
+  team_id: string | null;
+  club_id: string | null;
+  role: string;
+}
+
+interface TeamQueryRow {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  club_id: string;
+  is_pro: boolean | null;
+  pro_expires_at: string | null;
+}
+
+interface MiniLeaguePlayerRow {
+  mini_league_id: string | null;
+}
+
+interface AdminLeagueRow {
+  id: string;
+  club_id: string;
+}
+
+interface ManagedPlayhqCompetitionRow {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  sport: string | null;
+  organizer_club_id: string;
+  clubs: { name: string | null; logo_url: string | null; sport: string | null } | { name: string | null; logo_url: string | null; sport: string | null }[] | null;
+}
+
 export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarouselProps = {}) {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
