@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info, Check } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -93,9 +93,10 @@ interface Props {
   isAdmin: boolean;
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
+  source?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -459,7 +460,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       className="space-y-3 box-border"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
     >
-      {isAdmin && (
+      {isAdmin && source !== "playhq" && (
         <div className="space-y-2">
           {!genOpen ? (
             <div className="flex items-center justify-end gap-2">
@@ -896,6 +897,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         entries={entries}
         isAdmin={isAdmin}
         competitionId={competitionId}
+        source={source}
       />
     </div>
   );
@@ -908,36 +910,109 @@ function FixturesFilterAndList({
   entries,
   isAdmin,
   competitionId,
+  source,
 }: {
   matches: any[];
   divisions: any[];
   entries: any[];
   isAdmin: boolean;
   competitionId: string;
+  source?: string;
 }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [filterClubId, setFilterClubId] = useState<string>("_all");
+  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
-  // Teams visible in the current division filter
+  // For PlayHQ comps, fetch any Ignite teams that link to PlayHQ team ids
+  // appearing in this comp's matches — this gives us a real club_id per
+  // external team so we can offer a Club filter alongside the Team filter.
+  const externalTeamIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of matches) {
+      if (m.external_home_team_id) s.add(m.external_home_team_id);
+      if (m.external_away_team_id) s.add(m.external_away_team_id);
+    }
+    return Array.from(s);
+  }, [matches]);
+
+  const { data: linkedTeams = [] } = useQuery({
+    queryKey: ["competition-linked-teams", competitionId, externalTeamIds.length],
+    enabled: externalTeamIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name, playhq_team_id, club_id, clubs:club_id(id, name)")
+        .in("playhq_team_id", externalTeamIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Map external (PlayHQ) team id → { clubId, clubName }
+  const clubByExternalTeam = useMemo(() => {
+    const m = new Map<string, { clubId: string; clubName: string }>();
+    for (const t of linkedTeams as any[]) {
+      if (t.playhq_team_id && t.clubs?.id) {
+        m.set(t.playhq_team_id, { clubId: t.clubs.id, clubName: t.clubs.name });
+      }
+    }
+    return m;
+  }, [linkedTeams]);
+
+  // Build the team option list. Each entry is { id, name } where id is either
+  // an Ignite team id or `ext:<external_team_id>` for unlinked PlayHQ teams.
   const teamOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of matches) {
       if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
       if (m.home?.id) seen.set(m.home.id, m.home.name);
+      else if (m.external_home_team_id) seen.set(`ext:${m.external_home_team_id}`, m.home_team_name ?? "Unknown team");
       if (m.away?.id) seen.set(m.away.id, m.away.name);
+      else if (m.external_away_team_id) seen.set(`ext:${m.external_away_team_id}`, m.away_team_name ?? "Unknown team");
     }
     return Array.from(seen.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [matches, filterDivisionId]);
 
+  const clubOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
+      if (m.external_home_team_id) {
+        const c = clubByExternalTeam.get(m.external_home_team_id);
+        if (c) seen.set(c.clubId, c.clubName);
+      }
+      if (m.external_away_team_id) {
+        const c = clubByExternalTeam.get(m.external_away_team_id);
+        if (c) seen.set(c.clubId, c.clubName);
+      }
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches, filterDivisionId, clubByExternalTeam]);
+
   const filteredMatches = useMemo(() => {
     return matches.filter((m: any) => {
       if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
-      if (filterTeamId !== "_all" && m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) return false;
+      if (filterTeamId !== "_all") {
+        if (filterTeamId.startsWith("ext:")) {
+          const ext = filterTeamId.slice(4);
+          if (m.external_home_team_id !== ext && m.external_away_team_id !== ext) return false;
+        } else if (m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) {
+          return false;
+        }
+      }
+      if (filterClubId !== "_all") {
+        const homeClub = m.external_home_team_id ? clubByExternalTeam.get(m.external_home_team_id)?.clubId : null;
+        const awayClub = m.external_away_team_id ? clubByExternalTeam.get(m.external_away_team_id)?.clubId : null;
+        if (homeClub !== filterClubId && awayClub !== filterClubId) return false;
+      }
       return true;
     });
-  }, [matches, filterDivisionId, filterTeamId]);
+  }, [matches, filterDivisionId, filterTeamId, filterClubId, clubByExternalTeam]);
 
   // Reset team filter if not in current division scope
   useEffect(() => {
@@ -945,9 +1020,16 @@ function FixturesFilterAndList({
       setFilterTeamId("_all");
     }
   }, [filterTeamId, teamOptions]);
+  useEffect(() => {
+    if (filterClubId !== "_all" && !clubOptions.some((c) => c.id === filterClubId)) {
+      setFilterClubId("_all");
+    }
+  }, [filterClubId, clubOptions]);
 
   const showDivisionFilter = divisions.length > 1;
   const showTeamFilter = teamOptions.length > 1;
+  const showClubFilter = clubOptions.length > 1;
+  const divisionLabel = source === "playhq" ? "Grade" : "Division";
 
   if (matches.length === 0) {
     return (
@@ -987,10 +1069,10 @@ function FixturesFilterAndList({
           {showDivisionFilter && (
             <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
               <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder="All divisions" />
+                <SelectValue placeholder={`All ${divisionLabel.toLowerCase()}s`} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_all">All divisions</SelectItem>
+                <SelectItem value="_all">All {divisionLabel.toLowerCase()}s</SelectItem>
                 {divisions.map((d: any) => (
                   <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                 ))}
@@ -998,14 +1080,67 @@ function FixturesFilterAndList({
             </Select>
           )}
           {showTeamFilter && (
-            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+            <>
+              <button
+                type="button"
+                onClick={() => setTeamSheetOpen(true)}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {filterTeamId === "_all"
+                  ? "All teams"
+                  : teamOptions.find((t) => t.id === filterTeamId)?.name ?? "All teams"}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={teamSheetOpen} onOpenChange={setTeamSheetOpen}>
+                <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Filter by team</SheetTitle>
+                  </SheetHeader>
+                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterTeamId("_all");
+                          setTeamSheetOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                      >
+                        <span>All teams</span>
+                        {filterTeamId === "_all" && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {teamOptions.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setFilterTeamId(t.id);
+                            setTeamSheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                        >
+                          <span>{t.name}</span>
+                          {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
+          {showClubFilter && (
+            <Select value={filterClubId} onValueChange={setFilterClubId}>
               <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder="All teams" />
+                <SelectValue placeholder="All clubs" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_all">All teams</SelectItem>
-                {teamOptions.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                <SelectItem value="_all">All clubs</SelectItem>
+                {clubOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1057,6 +1192,7 @@ function FixturesFilterAndList({
               competitionId={competitionId}
               entries={entries}
               divisions={divisions}
+              source={source}
             />
           ))}
         </div>
@@ -1174,6 +1310,7 @@ function RoundSection({
   competitionId,
   entries,
   divisions,
+  source,
 }: {
   label: string;
   items: any[];
@@ -1181,6 +1318,7 @@ function RoundSection({
   competitionId: string;
   entries: any[];
   divisions: any[];
+  source?: string;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -1216,7 +1354,7 @@ function RoundSection({
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
         {items.map((m: any) => (
-          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} source={source} hideRoundBadge />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -1226,7 +1364,7 @@ function RoundSection({
 
 
 
-function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
+function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false, source }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean; source?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -1260,16 +1398,29 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       // Clearing scores reverts an auto-completed match back to scheduled.
       nextStatus = "scheduled";
     }
+    // PlayHQ-sourced rows are sync-locked. The first local edit stamps
+    // manually_overridden_at, which the DB trigger uses to release the row
+    // from future sync overwrites.
+    const isExternal = match.source && match.source !== "manual";
+    const payload: Record<string, unknown> = { home_score: homeN, away_score: awayN, status: nextStatus };
+    if (isExternal && !match.manually_overridden_at) {
+      payload.manually_overridden_at = new Date().toISOString();
+    }
     const { error } = await supabase
       .from("competition_matches")
-      .update({ home_score: homeN, away_score: awayN, status: nextStatus })
+      .update(payload)
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
     }
     setStatus(nextStatus);
-    toast({ title: "Match updated" });
+    toast({
+      title: "Match updated",
+      description: isExternal && !match.manually_overridden_at
+        ? "This match is now locally overridden — future PlayHQ syncs won't change it."
+        : undefined,
+    });
     setEditing(false);
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
@@ -1331,6 +1482,16 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
+            {match.source && match.source !== "manual" && (
+              <span
+                className="shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-400"
+                title={match.manually_overridden_at
+                  ? `Synced from ${match.source} · locally overridden`
+                  : `Synced from ${match.source}`}
+              >
+                {match.manually_overridden_at ? `${match.source} · local` : match.source}
+              </span>
+            )}
             {!isScheduled && (
               <span className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider ${statusPillClass}`}>
                 {statusLabel}
@@ -1410,7 +1571,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
         {/* 4. Admin actions — compact, flush to bottom */}
-        {isAdmin && !editing && (
+        {isAdmin && !editing && source !== "playhq" && (
           <div className="flex items-center justify-between gap-2">
             <Button
               size="sm"
@@ -2177,6 +2338,7 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
 function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisions: any[]; isAdmin?: boolean }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
   const hiddenDivisionIds = useMemo(
     () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
@@ -2292,17 +2454,57 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
             </Select>
           )}
           {showTeamFilter && (
-            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
-                <SelectValue placeholder="All teams" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All teams</SelectItem>
-                {teamOptions.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <button
+                type="button"
+                onClick={() => setTeamSheetOpen(true)}
+                className="inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                {filterTeamId === "_all"
+                  ? "All teams"
+                  : teamOptions.find((t) => t.id === filterTeamId)?.name ?? "All teams"}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+              <Sheet open={teamSheetOpen} onOpenChange={setTeamSheetOpen}>
+                <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl p-0">
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+                  </div>
+                  <SheetHeader className="px-4 pb-2 text-left">
+                    <SheetTitle className="text-base">Filter by team</SheetTitle>
+                  </SheetHeader>
+                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterTeamId("_all");
+                          setTeamSheetOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                      >
+                        <span>All teams</span>
+                        {filterTeamId === "_all" && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {teamOptions.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setFilterTeamId(t.id);
+                            setTeamSheetOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
+                        >
+                          <span>{t.name}</span>
+                          {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
           )}
         </div>
       )}

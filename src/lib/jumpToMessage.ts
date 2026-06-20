@@ -101,6 +101,19 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
   let settleTimers: ReturnType<typeof setTimeout>[] = [];
   let landedOnParent = false;
+  // ResizeObserver on the focused row: late hydration (reactions pill,
+  // read-frontier strip, image decode, mention/link previews) can grow the
+  // row AFTER the final settle pass / tail release. Without a re-pin, the
+  // newly grown bottom slides underneath the fixed composer — the
+  // "bottom obscured" symptom on long target messages from notification
+  // taps. We observe the row for ~6s and re-apply the exact-DOM "end"
+  // correction whenever its height changes.
+  let rowObserver: ResizeObserver | null = null;
+  let rowObserverTimer: ReturnType<typeof setTimeout> | null = null;
+  const tearDownRowObserver = () => {
+    if (rowObserver) { rowObserver.disconnect(); rowObserver = null; }
+    if (rowObserverTimer) { clearTimeout(rowObserverTimer); rowObserverTimer = null; }
+  };
 
   const clearSettleTimers = () => {
     settleTimers.forEach((timer) => clearTimeout(timer));
@@ -204,6 +217,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     settleTimers.push(setTimeout(() => {
       recenter();
       endHydration();
+      // After release, watch the row itself for any further growth (late
+      // reactions, read-frontier, image decode, link-preview hydrate that
+      // wasn't deferred). Re-apply the exact-DOM end alignment so the
+      // grown bottom stays visible above the composer.
+      installRowGrowthObserver(id);
     }, TAIL_RELEASE_MS));
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
@@ -211,6 +229,68 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       setHighlightedMessageId(null);
     }, highlightDurationMs);
   };
+
+  const installRowGrowthObserver = (id: string) => {
+    if (typeof ResizeObserver === "undefined" || typeof document === "undefined") return;
+    tearDownRowObserver();
+    const escId = (typeof CSS !== "undefined" && (CSS as any).escape)
+      ? (CSS as any).escape(id)
+      : id.replace(/"/g, '\\"');
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${escId}"]`);
+    if (!row) return;
+    // Find nearest scrollable ancestor so we can read the actual visible
+    // viewport bottom (the chat scroller) — NOT window innerHeight, which
+    // would ignore the fixed composer overlay.
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller) {
+      const oy = getComputedStyle(scroller).overflowY;
+      if ((oy === "auto" || oy === "scroll") && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    let lastHeight = row.getBoundingClientRect().height;
+    let userMoved = false;
+    let lastScrollTop = scroller?.scrollTop ?? 0;
+    const onScroll = () => {
+      if (!scroller) return;
+      // If the user has scrolled by more than a tiny amount since install,
+      // permanently disable re-pinning — they've taken control of the view.
+      if (Math.abs(scroller.scrollTop - lastScrollTop) > 8) userMoved = true;
+      lastScrollTop = scroller.scrollTop;
+    };
+    if (scroller) {
+      lastScrollTop = scroller.scrollTop;
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
+    const origTeardown = tearDownRowObserver;
+    // Augment teardown to remove scroll listener too.
+    rowObserverTimer = setTimeout(() => {
+      if (scroller) scroller.removeEventListener("scroll", onScroll);
+      origTeardown();
+    }, 6000);
+
+    rowObserver = new ResizeObserver(() => {
+      if (cancelled || userMoved) return;
+      const h = getHandle();
+      if (!h || !scroller) return;
+      const newHeight = row.getBoundingClientRect().height;
+      const grew = newHeight - lastHeight > 1;
+      lastHeight = newHeight;
+      if (!grew) return;
+      // ONLY re-pin if the row's bottom is currently clipped past the
+      // scroller's visible bottom (i.e. behind the fixed composer). If the
+      // bottom is already on-screen, do nothing — moving an already-visible
+      // bubble after the skeleton has revealed would be jarring.
+      const rowRect = row.getBoundingClientRect();
+      const scRect = scroller.getBoundingClientRect();
+      const composerOverlapClipped = rowRect.bottom > scRect.bottom - 8;
+      if (!composerOverlapClipped) return;
+      h.scrollToMessageId?.(id, "end");
+      lastScrollTop = scroller.scrollTop; // resync so our own write isn't read as user scroll
+    });
+    rowObserver.observe(row);
+  };
+
+
 
 
 
@@ -298,6 +378,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     cancelled = true;
     if (nextTickTimer) clearTimeout(nextTickTimer);
     clearSettleTimers();
+    tearDownRowObserver();
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     endHydration();
     if (activeCancel === cancel) activeCancel = null;

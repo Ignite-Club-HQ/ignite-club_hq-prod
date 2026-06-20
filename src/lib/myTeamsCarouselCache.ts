@@ -2,7 +2,7 @@
 // Keyed by user + active club filter so each context restores its own snapshot.
 // Cold opens render real cards instantly; React Query revalidates in background.
 
-const PREFIX = "ignite_my_teams_carousel_";
+const PREFIX = "ignite_my_teams_carousel_v2_";
 const TTL_MS = 24 * 60 * 60 * 1000; // 24h — stale entries are still useful as a placeholder
 
 interface Entry<T> {
@@ -22,7 +22,7 @@ export function getCachedCarousel<T>(userId: string | undefined, activeClubFilte
     if (!raw) return null;
     const entry: Entry<T> = JSON.parse(raw);
     if (Date.now() - entry.timestamp > TTL_MS) {
-      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch {}
+      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch { /* ignore storage cleanup errors */ }
       return null;
     }
     return entry.data;
@@ -59,7 +59,7 @@ export function getCachedCarouselWithTs<T>(
     if (!raw) return null;
     const entry: Entry<T> = JSON.parse(raw);
     if (Date.now() - entry.timestamp > TTL_MS) {
-      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch {}
+      try { localStorage.removeItem(key(userId, activeClubFilter)); } catch { /* ignore storage cleanup errors */ }
       return null;
     }
     return { data: entry.data, timestamp: entry.timestamp };

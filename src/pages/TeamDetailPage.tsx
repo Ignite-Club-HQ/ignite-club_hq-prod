@@ -95,6 +95,7 @@ import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
+import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2099,6 +2100,10 @@ export default function TeamDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* PlayHQ Link */}
+                  <PlayHQTeamLinkCard teamId={id!} clubId={team.club_id} />
+          
           
                   <Link to={`/teams/${id}/roles`}>
             <Card className="hover:border-primary/50 transition-colors">

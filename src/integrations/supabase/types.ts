@@ -2038,6 +2038,8 @@ export type Database = {
           notify_committee: boolean
           notify_committee_chat: boolean
           parent_org_id: string | null
+          playhq_org_id: string | null
+          playhq_tenant: string | null
           points_display_name: string | null
           points_icon_url: string | null
           primary_sponsor_id: string | null
@@ -2109,6 +2111,8 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           parent_org_id?: string | null
+          playhq_org_id?: string | null
+          playhq_tenant?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -2180,6 +2184,8 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           parent_org_id?: string | null
+          playhq_org_id?: string | null
+          playhq_tenant?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -2348,6 +2354,7 @@ export type Database = {
           created_at: string
           day_end_time: string
           day_start_time: string
+          external_id: string | null
           gender: string | null
           hide_ladder: boolean
           id: string
@@ -2356,6 +2363,7 @@ export type Database = {
           play_weekdays: number[] | null
           skill_level: string | null
           sort_order: number
+          source: string
           updated_at: string
         }
         Insert: {
@@ -2364,6 +2372,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
           id?: string
@@ -2372,6 +2381,7 @@ export type Database = {
           play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
+          source?: string
           updated_at?: string
         }
         Update: {
@@ -2380,6 +2390,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
           id?: string
@@ -2388,6 +2399,7 @@ export type Database = {
           play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
+          source?: string
           updated_at?: string
         }
         Relationships: [
@@ -2470,19 +2482,27 @@ export type Database = {
           away_event_id: string | null
           away_score: number | null
           away_team_id: string | null
+          away_team_name: string | null
           competition_id: string
           created_at: string
           created_by: string | null
           division_id: string | null
           duration_minutes: number | null
+          external_away_team_id: string | null
+          external_home_team_id: string | null
+          external_id: string | null
           home_event_id: string | null
           home_score: number | null
           home_team_id: string | null
+          home_team_name: string | null
           id: string
+          last_synced_at: string | null
+          manually_overridden_at: string | null
           notes: string | null
           pitch_number: string | null
           round_number: number | null
           scheduled_at: string | null
+          source: string
           status: string
           updated_at: string
           venue: string | null
@@ -2492,19 +2512,27 @@ export type Database = {
           away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string | null
+          away_team_name?: string | null
           competition_id: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
           duration_minutes?: number | null
+          external_away_team_id?: string | null
+          external_home_team_id?: string | null
+          external_id?: string | null
           home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string | null
+          home_team_name?: string | null
           id?: string
+          last_synced_at?: string | null
+          manually_overridden_at?: string | null
           notes?: string | null
           pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
+          source?: string
           status?: string
           updated_at?: string
           venue?: string | null
@@ -2514,19 +2542,27 @@ export type Database = {
           away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string | null
+          away_team_name?: string | null
           competition_id?: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
           duration_minutes?: number | null
+          external_away_team_id?: string | null
+          external_home_team_id?: string | null
+          external_id?: string | null
           home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string | null
+          home_team_name?: string | null
           id?: string
+          last_synced_at?: string | null
+          manually_overridden_at?: string | null
           notes?: string | null
           pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
+          source?: string
           status?: string
           updated_at?: string
           venue?: string | null
@@ -2615,9 +2651,12 @@ export type Database = {
           created_by: string
           description: string | null
           ends_on: string | null
+          external_id: string | null
+          external_tenant: string | null
           id: string
           join_token: string | null
           join_token_enabled: boolean
+          last_synced_at: string | null
           logo_url: string | null
           name: string
           organizer_club_id: string
@@ -2626,6 +2665,7 @@ export type Database = {
           points_win: number
           season: string | null
           slug: string | null
+          source: string
           sport: string | null
           starts_on: string | null
           status: string
@@ -2638,9 +2678,12 @@ export type Database = {
           created_by: string
           description?: string | null
           ends_on?: string | null
+          external_id?: string | null
+          external_tenant?: string | null
           id?: string
           join_token?: string | null
           join_token_enabled?: boolean
+          last_synced_at?: string | null
           logo_url?: string | null
           name: string
           organizer_club_id: string
@@ -2649,6 +2692,7 @@ export type Database = {
           points_win?: number
           season?: string | null
           slug?: string | null
+          source?: string
           sport?: string | null
           starts_on?: string | null
           status?: string
@@ -2661,9 +2705,12 @@ export type Database = {
           created_by?: string
           description?: string | null
           ends_on?: string | null
+          external_id?: string | null
+          external_tenant?: string | null
           id?: string
           join_token?: string | null
           join_token_enabled?: boolean
+          last_synced_at?: string | null
           logo_url?: string | null
           name?: string
           organizer_club_id?: string
@@ -2672,6 +2719,7 @@ export type Database = {
           points_win?: number
           season?: string | null
           slug?: string | null
+          source?: string
           sport?: string | null
           starts_on?: string | null
           status?: string
@@ -3817,6 +3865,8 @@ export type Database = {
           allow_guests: boolean | null
           amount: number | null
           arrival_minutes_before: number | null
+          association_event_id: string | null
+          association_id: string | null
           chat_cancel_post_handled: boolean
           chat_post_message_id: string | null
           club_id: string
@@ -3868,6 +3918,8 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          association_event_id?: string | null
+          association_id?: string | null
           chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id: string
@@ -3919,6 +3971,8 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          association_event_id?: string | null
+          association_id?: string | null
           chat_cancel_post_handled?: boolean
           chat_post_message_id?: string | null
           club_id?: string
@@ -3966,6 +4020,27 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_association_event_id_fkey"
+            columns: ["association_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_club_id_fkey"
             columns: ["club_id"]
@@ -6372,6 +6447,281 @@ export type Database = {
           },
         ]
       }
+      playhq_fixtures: {
+        Row: {
+          away_playhq_team_id: string | null
+          away_score: number | null
+          away_team_name: string | null
+          court: string | null
+          created_at: string
+          home_playhq_team_id: string | null
+          home_score: number | null
+          home_team_name: string | null
+          id: string
+          playhq_game_id: string
+          playhq_grade_id: string
+          raw: Json | null
+          round: string | null
+          scheduled_at: string | null
+          status: string | null
+          updated_at: string
+          venue_address: string | null
+          venue_name: string | null
+        }
+        Insert: {
+          away_playhq_team_id?: string | null
+          away_score?: number | null
+          away_team_name?: string | null
+          court?: string | null
+          created_at?: string
+          home_playhq_team_id?: string | null
+          home_score?: number | null
+          home_team_name?: string | null
+          id?: string
+          playhq_game_id: string
+          playhq_grade_id: string
+          raw?: Json | null
+          round?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Update: {
+          away_playhq_team_id?: string | null
+          away_score?: number | null
+          away_team_name?: string | null
+          court?: string | null
+          created_at?: string
+          home_playhq_team_id?: string | null
+          home_score?: number | null
+          home_team_name?: string | null
+          id?: string
+          playhq_game_id?: string
+          playhq_grade_id?: string
+          raw?: Json | null
+          round?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Relationships: []
+      }
+      playhq_grades: {
+        Row: {
+          created_at: string
+          id: string
+          last_synced_at: string | null
+          name: string
+          playhq_competition_id: string | null
+          playhq_grade_id: string
+          playhq_season_id: string | null
+          raw: Json | null
+          sport: string | null
+          tenant: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          playhq_competition_id?: string | null
+          playhq_grade_id: string
+          playhq_season_id?: string | null
+          raw?: Json | null
+          sport?: string | null
+          tenant: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          playhq_competition_id?: string | null
+          playhq_grade_id?: string
+          playhq_season_id?: string | null
+          raw?: Json | null
+          sport?: string | null
+          tenant?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      playhq_ladder: {
+        Row: {
+          draws: number
+          id: string
+          losses: number
+          played: number
+          playhq_grade_id: string
+          playhq_team_id: string
+          points: number
+          points_against: number
+          points_diff: number
+          points_for: number
+          position: number | null
+          raw: Json | null
+          snapshot_at: string
+          team_name: string
+          wins: number
+        }
+        Insert: {
+          draws?: number
+          id?: string
+          losses?: number
+          played?: number
+          playhq_grade_id: string
+          playhq_team_id: string
+          points?: number
+          points_against?: number
+          points_diff?: number
+          points_for?: number
+          position?: number | null
+          raw?: Json | null
+          snapshot_at?: string
+          team_name: string
+          wins?: number
+        }
+        Update: {
+          draws?: number
+          id?: string
+          losses?: number
+          played?: number
+          playhq_grade_id?: string
+          playhq_team_id?: string
+          points?: number
+          points_against?: number
+          points_diff?: number
+          points_for?: number
+          position?: number | null
+          raw?: Json | null
+          snapshot_at?: string
+          team_name?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      playhq_player_links: {
+        Row: {
+          child_id: string | null
+          claimed_by: string
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          playhq_player_id: string
+          tenant: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          claimed_by: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          playhq_player_id: string
+          tenant: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          claimed_by?: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          playhq_player_id?: string
+          tenant?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playhq_player_links_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playhq_player_stats: {
+        Row: {
+          id: string
+          player_name: string | null
+          playhq_game_id: string
+          playhq_player_id: string
+          playhq_team_id: string
+          raw: Json | null
+          stats: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          player_name?: string | null
+          playhq_game_id: string
+          playhq_player_id: string
+          playhq_team_id: string
+          raw?: Json | null
+          stats?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          player_name?: string | null
+          playhq_game_id?: string
+          playhq_player_id?: string
+          playhq_team_id?: string
+          raw?: Json | null
+          stats?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      playhq_sync_log: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          fixtures_synced: number
+          id: string
+          ladder_rows: number
+          playhq_grade_id: string
+          started_at: string
+          stat_rows: number
+          status: string
+          tenant: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          fixtures_synced?: number
+          id?: string
+          ladder_rows?: number
+          playhq_grade_id: string
+          started_at?: string
+          stat_rows?: number
+          status: string
+          tenant: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          fixtures_synced?: number
+          id?: string
+          ladder_rows?: number
+          playhq_grade_id?: string
+          started_at?: string
+          stat_rows?: number
+          status?: string
+          tenant?: string
+        }
+        Relationships: []
+      }
       points_cooldowns: {
         Row: {
           action_type: string
@@ -8322,6 +8672,11 @@ export type Database = {
           lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
           name: string
+          playhq_auto_create_events: boolean
+          playhq_competition_id: string | null
+          playhq_grade_id: string | null
+          playhq_season_id: string | null
+          playhq_team_id: string | null
           pro_activated_at: string | null
           pro_expires_at: string | null
           season_id: string | null
@@ -8372,6 +8727,11 @@ export type Database = {
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name: string
+          playhq_auto_create_events?: boolean
+          playhq_competition_id?: string | null
+          playhq_grade_id?: string | null
+          playhq_season_id?: string | null
+          playhq_team_id?: string | null
           pro_activated_at?: string | null
           pro_expires_at?: string | null
           season_id?: string | null
@@ -8422,6 +8782,11 @@ export type Database = {
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name?: string
+          playhq_auto_create_events?: boolean
+          playhq_competition_id?: string | null
+          playhq_grade_id?: string | null
+          playhq_season_id?: string | null
+          playhq_team_id?: string | null
           pro_activated_at?: string | null
           pro_expires_at?: string | null
           season_id?: string | null
@@ -8458,6 +8823,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "team_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_playhq_competition_id_fkey"
+            columns: ["playhq_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {

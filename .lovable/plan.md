@@ -1,48 +1,58 @@
-## What we're adding
+## Goal
+Let a team admin pick which PlayHQ team in a linked PlayHQ competition is "their" team. Once linked, every fixture for that PlayHQ team becomes a match event on the team's schedule, and stays in sync as PlayHQ updates (times, venue, scores, cancellations).
 
-Round-robin generation today asks for a single match day, kickoff time and pitch count, then drops every round on the same weekday. We're extending it so each division can have its own play days and daily time window, while all divisions share one pitch pool (so generation never books more simultaneous matches than the venue has pitches).
+## How it fits today
+- PlayHQ comps already live in `competitions` (`source='playhq'`) and fixtures in `competition_matches` with `external_home_team_id` / `external_away_team_id` (PlayHQ team ids) plus `home_team_name` / `away_team_name`.
+- `competition_matches` already has `home_team_id` / `away_team_id` (Ignite UUIDs) and `home_event_id` / `away_event_id` (links to a row in `events`). Nothing populates these for PlayHQ rows yet.
+- `playhq-sync` cron is already running, so we just need to (a) capture the team↔PlayHQ link and (b) materialise events from matching `competition_matches` rows.
 
 ## Changes
 
-### 1. Per-division settings (new schema)
-Add three columns to `competition_divisions`:
-- `play_weekdays int[]` — e.g. `{0,6}` for Sun + Sat. Empty/null = "any day".
-- `day_start_time time` — earliest kickoff, default `09:00`.
-- `day_end_time time` — latest kickoff, default `16:00`.
+### 1. Schema
+Add to `teams`:
+- `playhq_team_id text` — the PlayHQ team UUID this Ignite team is mirroring
+- `playhq_competition_id uuid references competitions(id)` — the linked PlayHQ comp (so we know which grade to scope to)
+- `playhq_auto_create_events boolean default true` — kill-switch per team
 
-Edit/create division dialogs get fields for these. They become the *defaults* the fixture generator pre-fills when that division is selected.
+(No new tables. `competition_matches.home_event_id`/`away_event_id` already give us idempotency.)
 
-### 2. Fixture generator (`CompetitionFixturesPanel`)
-- Replace the single "Match day" picker with a weekday multi-select (chips for Sun…Sat). Defaults to `division.play_weekdays`.
-- Replace the single "Kickoff time" with **Earliest** and **Latest kickoff** fields. Defaults to division's start/end.
-- Pitch count is unchanged in input, but now treated as the **shared venue pool** for the whole competition on that date.
-- New scheduling pass:
-  1. Walk forward from the start date one day at a time, only stopping on allowed weekdays.
-  2. For each candidate day, fetch existing `competition_matches` in the same comp scheduled that day and subtract their pitch usage from the pool (per timeslot).
-  3. Fill the day from `day_start_time` toward `day_end_time` in `duration` minute slots, using all free pitches per slot, until the day's matches for that round are placed.
-  4. If a round doesn't fit in a single day, overflow rolls to the next allowed weekday (still part of that round).
-  5. End date still caps the season.
+### 2. Edge function: `playhq-materialise-team-events`
+Inputs: `team_id`.
+For the linked team:
+1. Load team + `playhq_team_id` + `playhq_competition_id`.
+2. Select all `competition_matches` where `competition_id = playhq_competition_id` AND (`external_home_team_id = playhq_team_id` OR `external_away_team_id = playhq_team_id`).
+3. For each match:
+   - Determine `isHome`; set `home_team_id` / `away_team_id` to the Ignite team id if not already.
+   - If the corresponding `home_event_id` / `away_event_id` is null:
+     - Insert into `events`: `team_id`, `club_id` (from team), `event_type='match'`, `title` = `"vs " + opponentName`, `start_at = scheduled_at`, `venue = match.venue`, `source='playhq'`, `external_id = match.external_id`, `created_by = team admin / system bot`.
+     - Write the new event id back into the right `home_event_id` / `away_event_id`.
+   - If the event exists, update its `start_at`, `venue`, `status` (cancel if match.status='cancelled') to keep it in sync.
+4. Return counts: created / updated / cancelled.
 
-The preview table groups by date (not just round) and shows pitch + time per match.
+### 3. Hook into the existing PlayHQ cron
+After `playhq-sync` finishes a grade, look up any teams with `playhq_competition_id = <synced comp>` and call `playhq-materialise-team-events` for each (capped, sequential, ignore errors per team). Keeps future fixture changes flowing into events without a manual click.
 
-### 3. Per-round date override (in preview)
-`FixturePreviewEditor` gains a "Move round" date picker on each round header. Admins can shove a round to a different specific date before saving — useful for one-off conflicts (Easter, public holiday).
+### 4. UI
 
-### 4. Shared-pool conflict checking
-When the generator places a slot it queries existing matches for `competition_id` on that date and excludes pitches already taken in the same `[time, time+duration)` window. This handles the case where another division has already been scheduled into the same day.
+**Team Settings → "PlayHQ link" card** (visible to team admins):
+- "Link to PlayHQ competition" — Select from PlayHQ comps the team's club / parent association organises (`competitions where source='playhq'`).
+- After picking a comp, fetch its `competition_matches` and derive the unique PlayHQ teams (external_home_team_id + external_away_team_id, with the readable name). Show a second Select: "Which team is yours?"
+- Auto-create events toggle (writes `playhq_auto_create_events`).
+- "Import fixtures now" button → calls the edge function. Shows toast with created/updated counts.
+- "Unlink" — clears all three columns. Existing events stay (they're just events at that point).
 
-### 5. Friendly capacity messaging
-The existing "Round 1 needs X matches but only Y pitches" notice gets reworded to "This round needs N days — will run Sat + Sun" when overflow is in effect.
+**TeamDetailPage**: small "PlayHQ" badge near header when linked, and the auto-created match events appear in the normal schedule like any other event (no special rendering needed).
 
-## Technical notes
+### 5. Guardrails
+- Only team admins (or club admins of the team's club, or admins of the association that organises the comp) can link/unlink.
+- Auto-created events get `source='playhq'` so admins can tell them apart. Editing such an event locally sets `manually_overridden_at` (mirroring the pattern already used on `competition_matches`) so future syncs don't overwrite their changes.
+- Cancellation in PlayHQ → event `status` flipped to `cancelled` (we don't hard-delete, in case people RSVP'd).
+- Idempotent everywhere: re-running the import never creates duplicate events because we key off `competition_matches.home_event_id` / `away_event_id`.
 
-- Schema migration adds the three columns with sane defaults; backfills `day_start_time=09:00`, `day_end_time=16:00`, `play_weekdays=NULL` (treated as "any day").
-- No backend RPC — generator runs client-side as today; conflict check is a single `select scheduled_at, duration_minutes, pitch_number from competition_matches where competition_id=… and scheduled_at::date in (…)` before save and again in the preview pass.
-- Database stays the source of truth; nothing about per-round overrides needs new columns — they're just edits to `scheduled_at` per row before insert.
-- Out of scope for this round: cross-competition pitch sharing, lunch-break gaps, ref/duty allocation.
+## Out of scope this round
+- Auto-RSVP / push when a new fixture lands (can layer on later; they'll flow through the existing new-event notification path anyway).
+- Roster mapping (PlayHQ player → Ignite child).
+- Reverse sync (Ignite changes pushed back to PlayHQ).
 
-## File touchpoints
-- `supabase/migrations/<new>.sql` — add columns + GRANT (already on the table)
-- `src/components/CompetitionFixturesPanel.tsx` — generator UI + scheduling pass
-- `src/components/FixturePreviewEditor.tsx` — per-round date override
-- Division create/edit dialog (likely `CreateCompetitionPage` / a division form component) — new settings fields
+## Open question
+Where do you want the link UI to live — **Team Settings** (admin-only, tucked away) or as a card on **Team Detail** under the header (more discoverable, but visible to all members)? My default is Team Settings.

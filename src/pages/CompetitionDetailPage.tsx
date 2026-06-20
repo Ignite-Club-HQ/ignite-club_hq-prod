@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
+import CompetitionPlayerStatsPanel from "@/components/competitions/CompetitionPlayerStatsPanel";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 
 export default function CompetitionDetailPage() {
@@ -53,7 +54,7 @@ export default function CompetitionDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("*, clubs:organizer_club_id(id, name)")
+        .select("*, clubs:organizer_club_id(id, name, kind)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw error;
@@ -167,7 +168,7 @@ export default function CompetitionDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
-          {isAdmin && (
+          {isAdmin && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -236,6 +237,9 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
+          {competition.source === "playhq" && (
+            <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="teams" className="flex-1">
               Teams{entries.length > 0 ? ` (${entries.length})` : ""}
@@ -244,7 +248,7 @@ export default function CompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} source={competition.source} />
         </TabsContent>
 
         {canViewLadder && (
@@ -253,34 +257,44 @@ export default function CompetitionDetailPage() {
           </TabsContent>
         )}
 
+        {competition.source === "playhq" && (
+          <TabsContent value="stats" className="space-y-2 mt-2">
+            <CompetitionPlayerStatsPanel competitionId={id!} sport={competition.sport} />
+          </TabsContent>
+        )}
+
         {isAdmin && (
           <TabsContent value="teams" className="space-y-2 mt-2">
-            {/* Primary actions — equal-weight recruitment CTAs */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <InviteTeamForm
-                  competitionId={id!}
-                  divisions={divisions}
-                  defaultOpen={inviteFromUrl}
-                  onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
-                />
-              </div>
-              <div className="flex-1">
-                <CompetitionShareJoinLink
-                  competitionId={id!}
-                  competitionName={competition.name}
-                  triggerVariant="default"
-                  triggerClassName="w-full"
-                />
-              </div>
-            </div>
-            {/* Secondary action — competition setup */}
-            <div className="flex">
-              <AddDivisionForm
-                competitionId={id!}
-                onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
-              />
-            </div>
+            {competition.source !== "playhq" && (
+              <>
+                {/* Primary actions — equal-weight recruitment CTAs */}
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <InviteTeamForm
+                      competitionId={id!}
+                      divisions={divisions}
+                      defaultOpen={inviteFromUrl}
+                      onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <CompetitionShareJoinLink
+                      competitionId={id!}
+                      competitionName={competition.name}
+                      triggerVariant="default"
+                      triggerClassName="w-full"
+                    />
+                  </div>
+                </div>
+                {/* Secondary action — competition setup */}
+                <div className="flex">
+                  <AddDivisionForm
+                    competitionId={id!}
+                    onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
+                  />
+                </div>
+              </>
+            )}
 
             <TeamsByDivision
               competitionId={id!}

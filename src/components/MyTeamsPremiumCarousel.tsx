@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
-import { getCachedCarousel, setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
+import { setCachedCarousel, getCachedCarouselWithTs } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 // Render Supabase storage URLs through the image-transform endpoint at a tiny
@@ -404,6 +404,42 @@ interface MyTeamsPremiumCarouselProps {
   onReadyChange?: (ready: boolean) => void;
 }
 
+type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+type CancelIdleCallback = (handle: number) => void;
+
+interface UserRoleRow {
+  team_id: string | null;
+  club_id: string | null;
+  role: string;
+}
+
+interface TeamQueryRow {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  club_id: string;
+  is_pro: boolean | null;
+  pro_expires_at: string | null;
+}
+
+interface MiniLeaguePlayerRow {
+  mini_league_id: string | null;
+}
+
+interface AdminLeagueRow {
+  id: string;
+  club_id: string;
+}
+
+interface ManagedPlayhqCompetitionRow {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  sport: string | null;
+  organizer_club_id: string;
+  clubs: { name: string | null; logo_url: string | null; sport: string | null } | { name: string | null; logo_url: string | null; sport: string | null }[] | null;
+}
+
 export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarouselProps = {}) {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
@@ -420,11 +456,15 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // Defer non-critical queries (photos) until after first paint to free up the main thread
   const [deferredReady, setDeferredReady] = useState(false);
   useEffect(() => {
-    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    const w = window as Window & {
+      requestIdleCallback?: RequestIdleCallback;
+      cancelIdleCallback?: CancelIdleCallback;
+    };
+    const ric = w.requestIdleCallback;
     if (ric) {
       const handle = ric(() => setDeferredReady(true), { timeout: 1500 });
       return () => {
-        const cic = (window as any).cancelIdleCallback;
+        const cic = w.cancelIdleCallback;
         if (cic) cic(handle);
       };
     }
@@ -434,7 +474,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   // Fetch teams & leagues
   const { data: items = snapshot?.items ?? [], isLoading, isFetching } = useQuery({
-    queryKey: ["my-teams-premium", user?.id, activeClubFilter],
+    queryKey: ["my-teams-premium-v2", user?.id, activeClubFilter],
     retry: 3,
     initialData: snapshot?.items,
     initialDataUpdatedAt: snapshotWithTs?.timestamp,
@@ -454,15 +494,19 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       const leagueAdminClubIds = roles
         .filter(r => r.club_id && r.role === "league_admin")
         .map(r => r.club_id) as string[];
-
+      const managedCompetitionClubIds = [...new Set(
+        roles
+          .filter(r => r.club_id && ["club_admin", "league_admin", "app_admin"].includes(r.role))
+          .map(r => r.club_id),
+      )] as string[];
       // Parallel: teams, player-league memberships, and league-admin clubs all depend only on `roles`
-      const [teamsRes, playerLeaguesRes, adminLeaguesRes] = await Promise.all([
+      const [teamsRes, playerLeaguesRes, adminLeaguesRes, managedPlayhqCompsRes] = await Promise.all([
         teamIds.length > 0
           ? supabase
               .from("teams")
               .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as TeamQueryRow[] }),
         supabase
           .from("mini_league_players")
           .select("mini_league_id")
@@ -472,7 +516,15 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("mini_leagues")
               .select("id, club_id")
               .in("club_id", leagueAdminClubIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as AdminLeagueRow[] }),
+        managedCompetitionClubIds.length > 0
+          ? supabase
+              .from("competitions")
+              .select("id, name, logo_url, sport, organizer_club_id, clubs:organizer_club_id(name, logo_url, sport)")
+              .eq("source", "playhq")
+              .eq("status", "active")
+              .in("organizer_club_id", managedCompetitionClubIds)
+          : Promise.resolve({ data: [] as ManagedPlayhqCompetitionRow[] }),
       ]);
 
       const result: TeamOrLeague[] = [];
@@ -515,8 +567,8 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       }
 
       // Mini leagues — combine player + league-admin memberships, then fetch full rows
-      const leagueIds = new Set(playerLeaguesRes.data?.map((p: any) => p.mini_league_id) || []);
-      adminLeaguesRes.data?.forEach((l: any) => leagueIds.add(l.id));
+      const leagueIds = new Set((playerLeaguesRes.data as MiniLeaguePlayerRow[] | null)?.map((p) => p.mini_league_id).filter(Boolean) || []);
+      (adminLeaguesRes.data as AdminLeagueRow[] | null)?.forEach((l) => leagueIds.add(l.id));
 
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
@@ -538,6 +590,29 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               club_id: league.club_id, canManage,
             });
           }
+        }
+      }
+
+      if (managedPlayhqCompsRes.data && managedPlayhqCompsRes.data.length > 0) {
+        for (const comp of managedPlayhqCompsRes.data as ManagedPlayhqCompetitionRow[]) {
+          const organizer = Array.isArray(comp.clubs) ? comp.clubs[0] : comp.clubs;
+          const showInActiveClub =
+            !activeClubFilter ||
+            comp.organizer_club_id === activeClubFilter ||
+            roles.some((r) => r.team_id && r.club_id === activeClubFilter);
+          if (!showInActiveClub) continue;
+          result.push({
+            id: comp.id,
+            name: comp.name,
+            logo_url: comp.logo_url || null,
+            club_logo_url: organizer?.logo_url || null,
+            type: "competition",
+            club_name: organizer?.name || "PlayHQ",
+            sport: comp.sport || organizer?.sport || null,
+            club_id: comp.organizer_club_id,
+            canManage: true,
+            competitionTeamsLabel: "Managed competition",
+          });
         }
       }
 
@@ -594,7 +669,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
-                title: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
+                title: buildLabel(event.type, event.opponent, event.title, !!event.is_bye),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
                 eventDate: event.event_date,
@@ -618,7 +693,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
-                title: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
+                title: buildLabel(event.type, event.opponent, event.title, !!event.is_bye),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
                 eventDate: event.event_date,
@@ -717,7 +792,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     competition_sport: string | null;
   };
   const { data: competitionRows = [] as CompetitionRow[] } = useQuery({
-    queryKey: ["team-competitions-premium-v2", teamIds],
+    queryKey: ["team-competitions-premium-v3", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return [] as CompetitionRow[];
       const { data, error } = await supabase.rpc("get_team_competition_names", {
@@ -903,8 +978,15 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     </Card>
   ) : null;
 
+  const renderedCompetitionItems = [
+    ...competitionItems,
+    ...items.filter((item) =>
+      item.type === "competition" && !competitionItems.some((c) => c.id === item.id),
+    ),
+  ];
+
   // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
-  const sortedItems = [...items].sort((a, b) => {
+  const sortedItems = items.filter((item) => item.type !== "competition").sort((a, b) => {
     if (a.canManage && !b.canManage) return -1;
     if (!a.canManage && b.canManage) return 1;
     const aDate = nextEvents[a.id]?.eventDate;
@@ -920,11 +1002,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   return (
     <section className="space-y-2.5">
       <h2 className="text-xl font-bold px-1 tracking-tight">
-        {competitionItems.length > 0 ? "My Teams & Competitions" : "My Teams"}
+        {renderedCompetitionItems.length > 0 ? "My Teams & Competitions" : "My Teams"}
       </h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
-          {competitionItems.map((item) => (
+          {renderedCompetitionItems.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}

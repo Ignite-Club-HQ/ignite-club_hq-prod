@@ -352,15 +352,17 @@ export function MatchScoreCard({
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6 gap-3 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col top-[max(1rem,env(safe-area-inset-top))] translate-y-0 sm:top-1/2 sm:-translate-y-1/2"
+        >
           <DialogHeader>
-            <DialogTitle>{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3 py-2">
-              <div>
-                <Label htmlFor="home-score" className="text-xs text-muted-foreground">
+          <ScrollArea className="flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3 py-2">
+              <div className="min-w-0">
+                <Label htmlFor="home-score" className="text-xs text-muted-foreground truncate block">
                   {labelHome}
                 </Label>
                 <Input
@@ -371,13 +373,13 @@ export function MatchScoreCard({
                   max={999}
                   value={homeScore}
                   onChange={(e) => setHomeScore(e.target.value)}
-                  className="text-center text-2xl font-bold h-14 mt-1"
+                  className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
                   placeholder="0"
                 />
               </div>
-              <div className="pb-4 text-xl font-bold text-muted-foreground">–</div>
-              <div>
-                <Label htmlFor="away-score" className="text-xs text-muted-foreground">
+              <div className="pb-3 text-lg sm:text-xl font-bold text-muted-foreground">–</div>
+              <div className="min-w-0">
+                <Label htmlFor="away-score" className="text-xs text-muted-foreground truncate block">
                   {labelAway}
                 </Label>
                 <Input
@@ -388,7 +390,7 @@ export function MatchScoreCard({
                   max={999}
                   value={awayScore}
                   onChange={(e) => setAwayScore(e.target.value)}
-                  className="text-center text-2xl font-bold h-14 mt-1"
+                  className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
                   placeholder="0"
                 />
               </div>
@@ -507,11 +509,11 @@ export function MatchScoreCard({
             </div>
           </ScrollArea>
 
-          <DialogFooter className="pt-3">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+          <DialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving} className="flex-1 sm:flex-none">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || overAttributed}>
+            <Button onClick={handleSave} disabled={saving || overAttributed} className="flex-1 sm:flex-none">
               {saving ? "Saving…" : "Save score"}
             </Button>
           </DialogFooter>
