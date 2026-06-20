@@ -717,7 +717,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     competition_sport: string | null;
   };
   const { data: competitionRows = [] as CompetitionRow[] } = useQuery({
-    queryKey: ["team-competitions-premium-v2", teamIds],
+    queryKey: ["team-competitions-premium-v3", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return [] as CompetitionRow[];
       const { data, error } = await supabase.rpc("get_team_competition_names", {
