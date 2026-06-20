@@ -352,9 +352,11 @@ export function MatchScoreCard({
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6 gap-3 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col top-[max(1rem,env(safe-area-inset-top))] translate-y-0 sm:top-1/2 sm:-translate-y-1/2"
+        >
           <DialogHeader>
-            <DialogTitle>{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
           </DialogHeader>
 
           <ScrollArea className="flex-1 -mx-6 px-6">
