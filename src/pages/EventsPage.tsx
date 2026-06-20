@@ -483,7 +483,26 @@ export default function EventsPage() {
       if (selectedMiniLeagueId) query = query.eq("mini_league_id", selectedMiniLeagueId);
 
       const queryStart = performance.now();
-      const { data, error } = await query;
+      let data: any[] | null = null;
+      let error: any = null;
+      try {
+        const res = await query;
+        data = res.data as any[] | null;
+        error = res.error;
+      } catch (e: any) {
+        // Treat fetch aborts (e.g. user changed the filter mid-flight, or the
+        // 25s REST timeout fired on a flaky network) as a non-error: don't
+        // surface the red "Couldn't load schedule" banner just because the
+        // previous in-flight request was cancelled when the filter changed.
+        const name = e?.name || "";
+        const msg = String(e?.message || "");
+        if (name === "AbortError" || /aborted|abort/i.test(msg)) {
+          diagLog("events:query-aborted", { ms: Math.round(performance.now() - queryStart) });
+          const cached = getCachedEventsList(eventsScopeKey);
+          return (cached as Event[]) || [];
+        }
+        throw e;
+      }
       diagLog("events:query-resolved", { ms: Math.round(performance.now() - queryStart), rows: data?.length ?? null, error: error?.message });
       if (error) {
         // Network failed — try cache as fallback
@@ -492,6 +511,7 @@ export default function EventsPage() {
         if (cached) return cached as Event[];
         throw error;
       }
+
 
       const cutoffTime = subHours(new Date(), 48);
       let filteredData = (data as (Event & { updated_at: string; mini_league_id: string | null })[]).filter(event => {
@@ -827,7 +847,7 @@ export default function EventsPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={eventsIsError}
+        hasError={eventsIsError && !isFetching}
         onRetry={async () => {
           await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
         }}
