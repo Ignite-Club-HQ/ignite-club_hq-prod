@@ -248,7 +248,7 @@ export default function CompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} source={competition.source} />
         </TabsContent>
 
         {canViewLadder && (
