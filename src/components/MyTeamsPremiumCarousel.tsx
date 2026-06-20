@@ -668,7 +668,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
-                title: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
+                title: buildLabel(event.type, event.opponent, event.title, !!event.is_bye),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
                 eventDate: event.event_date,
@@ -692,7 +692,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
-                title: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
+                title: buildLabel(event.type, event.opponent, event.title, !!event.is_bye),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
                 eventDate: event.event_date,
