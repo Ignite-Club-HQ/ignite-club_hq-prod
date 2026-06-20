@@ -454,9 +454,17 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       const leagueAdminClubIds = roles
         .filter(r => r.club_id && r.role === "league_admin")
         .map(r => r.club_id) as string[];
+      const managedCompetitionClubIds = [...new Set(
+        roles
+          .filter(r => r.club_id && ["club_admin", "league_admin", "app_admin"].includes(r.role))
+          .map(r => r.club_id),
+      )] as string[];
+      const visibleManagedCompetitionClubIds = activeClubFilter
+        ? managedCompetitionClubIds.filter(id => id === activeClubFilter)
+        : managedCompetitionClubIds;
 
       // Parallel: teams, player-league memberships, and league-admin clubs all depend only on `roles`
-      const [teamsRes, playerLeaguesRes, adminLeaguesRes] = await Promise.all([
+      const [teamsRes, playerLeaguesRes, adminLeaguesRes, managedPlayhqCompsRes] = await Promise.all([
         teamIds.length > 0
           ? supabase
               .from("teams")
@@ -472,6 +480,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("mini_leagues")
               .select("id, club_id")
               .in("club_id", leagueAdminClubIds)
+          : Promise.resolve({ data: [] as any[] }),
+        visibleManagedCompetitionClubIds.length > 0
+          ? supabase
+              .from("competitions")
+              .select("id, name, logo_url, sport, organizer_club_id, clubs:organizer_club_id(name, logo_url, sport)")
+              .eq("source", "playhq")
+              .eq("status", "active")
+              .in("organizer_club_id", visibleManagedCompetitionClubIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
@@ -538,6 +554,24 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               club_id: league.club_id, canManage,
             });
           }
+        }
+      }
+
+      if (managedPlayhqCompsRes.data && managedPlayhqCompsRes.data.length > 0) {
+        for (const comp of managedPlayhqCompsRes.data as any[]) {
+          const organizer = Array.isArray(comp.clubs) ? comp.clubs[0] : comp.clubs;
+          result.push({
+            id: comp.id,
+            name: comp.name,
+            logo_url: comp.logo_url || null,
+            club_logo_url: organizer?.logo_url || null,
+            type: "competition",
+            club_name: organizer?.name || "PlayHQ",
+            sport: comp.sport || organizer?.sport || null,
+            club_id: comp.organizer_club_id,
+            canManage: true,
+            competitionTeamsLabel: "Managed competition",
+          });
         }
       }
 
