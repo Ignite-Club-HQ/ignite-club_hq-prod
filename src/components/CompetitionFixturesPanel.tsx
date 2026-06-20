@@ -921,27 +921,97 @@ function FixturesFilterAndList({
 }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [filterClubId, setFilterClubId] = useState<string>("_all");
 
-  // Teams visible in the current division filter
+  // For PlayHQ comps, fetch any Ignite teams that link to PlayHQ team ids
+  // appearing in this comp's matches — this gives us a real club_id per
+  // external team so we can offer a Club filter alongside the Team filter.
+  const externalTeamIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of matches) {
+      if (m.external_home_team_id) s.add(m.external_home_team_id);
+      if (m.external_away_team_id) s.add(m.external_away_team_id);
+    }
+    return Array.from(s);
+  }, [matches]);
+
+  const { data: linkedTeams = [] } = useQuery({
+    queryKey: ["competition-linked-teams", competitionId, externalTeamIds.length],
+    enabled: externalTeamIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name, playhq_team_id, club_id, clubs:club_id(id, name)")
+        .in("playhq_team_id", externalTeamIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Map external (PlayHQ) team id → { clubId, clubName }
+  const clubByExternalTeam = useMemo(() => {
+    const m = new Map<string, { clubId: string; clubName: string }>();
+    for (const t of linkedTeams as any[]) {
+      if (t.playhq_team_id && t.clubs?.id) {
+        m.set(t.playhq_team_id, { clubId: t.clubs.id, clubName: t.clubs.name });
+      }
+    }
+    return m;
+  }, [linkedTeams]);
+
+  // Build the team option list. Each entry is { id, name } where id is either
+  // an Ignite team id or `ext:<external_team_id>` for unlinked PlayHQ teams.
   const teamOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of matches) {
       if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
       if (m.home?.id) seen.set(m.home.id, m.home.name);
+      else if (m.external_home_team_id) seen.set(`ext:${m.external_home_team_id}`, m.home_team_name ?? "Unknown team");
       if (m.away?.id) seen.set(m.away.id, m.away.name);
+      else if (m.external_away_team_id) seen.set(`ext:${m.external_away_team_id}`, m.away_team_name ?? "Unknown team");
     }
     return Array.from(seen.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [matches, filterDivisionId]);
 
+  const clubOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
+      if (m.external_home_team_id) {
+        const c = clubByExternalTeam.get(m.external_home_team_id);
+        if (c) seen.set(c.clubId, c.clubName);
+      }
+      if (m.external_away_team_id) {
+        const c = clubByExternalTeam.get(m.external_away_team_id);
+        if (c) seen.set(c.clubId, c.clubName);
+      }
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [matches, filterDivisionId, clubByExternalTeam]);
+
   const filteredMatches = useMemo(() => {
     return matches.filter((m: any) => {
       if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
-      if (filterTeamId !== "_all" && m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) return false;
+      if (filterTeamId !== "_all") {
+        if (filterTeamId.startsWith("ext:")) {
+          const ext = filterTeamId.slice(4);
+          if (m.external_home_team_id !== ext && m.external_away_team_id !== ext) return false;
+        } else if (m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) {
+          return false;
+        }
+      }
+      if (filterClubId !== "_all") {
+        const homeClub = m.external_home_team_id ? clubByExternalTeam.get(m.external_home_team_id)?.clubId : null;
+        const awayClub = m.external_away_team_id ? clubByExternalTeam.get(m.external_away_team_id)?.clubId : null;
+        if (homeClub !== filterClubId && awayClub !== filterClubId) return false;
+      }
       return true;
     });
-  }, [matches, filterDivisionId, filterTeamId]);
+  }, [matches, filterDivisionId, filterTeamId, filterClubId, clubByExternalTeam]);
 
   // Reset team filter if not in current division scope
   useEffect(() => {
@@ -949,9 +1019,15 @@ function FixturesFilterAndList({
       setFilterTeamId("_all");
     }
   }, [filterTeamId, teamOptions]);
+  useEffect(() => {
+    if (filterClubId !== "_all" && !clubOptions.some((c) => c.id === filterClubId)) {
+      setFilterClubId("_all");
+    }
+  }, [filterClubId, clubOptions]);
 
   const showDivisionFilter = divisions.length > 1;
   const showTeamFilter = teamOptions.length > 1;
+  const showClubFilter = clubOptions.length > 1;
 
   if (matches.length === 0) {
     return (
@@ -1010,6 +1086,19 @@ function FixturesFilterAndList({
                 <SelectItem value="_all">All teams</SelectItem>
                 {teamOptions.map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showClubFilter && (
+            <Select value={filterClubId} onValueChange={setFilterClubId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All clubs</SelectItem>
+                {clubOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

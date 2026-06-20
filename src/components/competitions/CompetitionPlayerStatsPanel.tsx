@@ -38,18 +38,25 @@ export default function CompetitionPlayerStatsPanel({
 }) {
   const { user } = useAuth();
 
-  // 1. Match list for this competition (need external_ids to filter stats)
+  // 1. Match list for this competition (need external_ids to filter stats,
+  //    and team names + external team ids to power the filters below).
   const { data: matches = [], isLoading: matchesLoading } = useQuery({
     queryKey: ["competition-playhq-match-ids", competitionId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competition_matches")
-        .select("external_id")
+        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name")
         .eq("competition_id", competitionId)
         .eq("source", "playhq")
         .not("external_id", "is", null);
       if (error) throw error;
-      return (data ?? []) as { external_id: string }[];
+      return (data ?? []) as {
+        external_id: string;
+        external_home_team_id: string | null;
+        external_away_team_id: string | null;
+        home_team_name: string | null;
+        away_team_name: string | null;
+      }[];
     },
   });
 
@@ -57,6 +64,42 @@ export default function CompetitionPlayerStatsPanel({
     () => Array.from(new Set(matches.map((m) => m.external_id).filter(Boolean))),
     [matches]
   );
+
+  // PlayHQ team id → display name (from match rows)
+  const teamNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of matches) {
+      if (row.external_home_team_id) m.set(row.external_home_team_id, row.home_team_name ?? row.external_home_team_id);
+      if (row.external_away_team_id) m.set(row.external_away_team_id, row.away_team_name ?? row.external_away_team_id);
+    }
+    return m;
+  }, [matches]);
+
+  const externalTeamIds = useMemo(() => Array.from(teamNameById.keys()), [teamNameById]);
+
+  // Resolve PlayHQ team id → owning Ignite club (when a team has been linked).
+  const { data: linkedTeams = [] } = useQuery({
+    queryKey: ["competition-stats-linked-teams", competitionId, externalTeamIds.length],
+    enabled: externalTeamIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("playhq_team_id, clubs:club_id(id, name)")
+        .in("playhq_team_id", externalTeamIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const clubByExternalTeam = useMemo(() => {
+    const m = new Map<string, { clubId: string; clubName: string }>();
+    for (const t of linkedTeams as any[]) {
+      if (t.playhq_team_id && t.clubs?.id) {
+        m.set(t.playhq_team_id, { clubId: t.clubs.id, clubName: t.clubs.name });
+      }
+    }
+    return m;
+  }, [linkedTeams]);
 
   // 2. Player stats joined by game id
   const { data: rows = [], isLoading: statsLoading } = useQuery({
@@ -97,10 +140,44 @@ export default function CompetitionPlayerStatsPanel({
     return m;
   }, [links, user?.id]);
 
+  // Team / Club filters
+  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
+  const [filterClubId, setFilterClubId] = useState<string>("_all");
+
+  const teamOptions = useMemo(
+    () =>
+      Array.from(teamNameById.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [teamNameById]
+  );
+
+  const clubOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const { clubId, clubName } of clubByExternalTeam.values()) {
+      seen.set(clubId, clubName);
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clubByExternalTeam]);
+
+  // Apply filters to stat rows before aggregation
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterTeamId !== "_all" && r.playhq_team_id !== filterTeamId) return false;
+      if (filterClubId !== "_all") {
+        const club = r.playhq_team_id ? clubByExternalTeam.get(r.playhq_team_id) : null;
+        if (club?.clubId !== filterClubId) return false;
+      }
+      return true;
+    });
+  }, [rows, filterTeamId, filterClubId, clubByExternalTeam]);
+
   // 4. Aggregate
   const aggregates: Aggregate[] = useMemo(() => {
     const map = new Map<string, Aggregate>();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const key = r.playhq_player_id;
       if (!key) continue;
       let agg = map.get(key);
@@ -119,7 +196,7 @@ export default function CompetitionPlayerStatsPanel({
       }
     }
     return Array.from(map.values());
-  }, [rows]);
+  }, [filteredRows]);
 
   const statKeys = useMemo(() => {
     const set = new Set<string>();
@@ -177,7 +254,7 @@ export default function CompetitionPlayerStatsPanel({
     );
   }
 
-  if (aggregates.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground text-center">
         Matches synced, but no per-player stats have been published by PlayHQ yet.
@@ -185,29 +262,67 @@ export default function CompetitionPlayerStatsPanel({
     );
   }
 
+  const showTeamFilter = teamOptions.length > 1;
+  const showClubFilter = clubOptions.length > 1;
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Trophy className="h-4 w-4" />
           {aggregates.length} players · {gameIds.length} matches
         </div>
-        {statKeys.length > 0 && (
-          <Select value={sortKey} onValueChange={setSortBy}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              {statKeys.map((k) => (
-                <SelectItem key={k} value={k} className="capitalize text-xs">
-                  {k}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {showClubFilter && (
+            <Select value={filterClubId} onValueChange={setFilterClubId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All clubs</SelectItem>
+                {clubOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showTeamFilter && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {statKeys.length > 0 && (
+            <Select value={sortKey} onValueChange={setSortBy}>
+              <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {statKeys.map((k) => (
+                  <SelectItem key={k} value={k} className="capitalize text-xs">
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
+      {aggregates.length === 0 && (
+        <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground text-center">
+          No players match the current filter.
+        </div>
+      )}
+
+      {aggregates.length > 0 && (
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
@@ -275,6 +390,8 @@ export default function CompetitionPlayerStatsPanel({
           </tbody>
         </table>
       </div>
+      )}
+
 
       <p className="text-[11px] text-muted-foreground">
         Stats sourced from PlayHQ. Claim a player to link their PlayHQ record to your
