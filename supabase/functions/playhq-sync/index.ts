@@ -1,11 +1,15 @@
-// PlayHQ sync edge function.
-// Pulls fixtures, ladder, and player stats for a given PlayHQ grade and upserts
-// into the mirror tables (playhq_fixtures / playhq_ladder / playhq_player_stats).
+// PlayHQ sync edge function (Option D — Hybrid).
+//
+// Syncs a PlayHQ grade into Ignite's canonical competitions tables:
+//   - competitions       (source='playhq', external_id=<grade_id>)
+//   - competition_matches (source='playhq', external_id=<game_id>)
+//   - playhq_player_stats (kept separate; identity-matching is Phase 2)
+//
+// Ladder is auto-computed from competition_matches via the competition_ladder view.
 //
 // Modes:
-//  - Real:  uses PLAYHQ_API_KEY_<TENANT> + tenant header to call https://api.playhq.com/v1
-//  - Mock:  no API key yet, or `mock: true` in the request body → returns deterministic
-//           sample data so the UI is end-to-end testable before the key arrives.
+//  - Real:  uses PLAYHQ_API_KEY_<TENANT> + x-phq-tenant header to call https://api.playhq.com/v1
+//  - Mock:  no API key configured, or `mock: true` → deterministic sample data.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -13,44 +17,27 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const PLAYHQ_BASE = "https://api.playhq.com/v1";
 
 interface SyncRequest {
-  grade_id: string;       // PlayHQ grade id
-  tenant: string;         // e.g. "bv", "netball"
-  season_id?: string;
+  grade_id: string;            // PlayHQ grade id (external_id of the competition)
+  tenant: string;              // e.g. "bv", "netball-au"
+  organizer_club_id: string;   // Ignite club that owns the competition shell
+  competition_name?: string;   // used on first sync if competition doesn't exist
+  sport?: string;
+  season?: string;
   mock?: boolean;
 }
 
-interface FixtureRow {
-  playhq_game_id: string;
-  playhq_grade_id: string;
+interface MappedGame {
+  external_id: string;
   scheduled_at: string | null;
-  status: string | null;
-  round: string | null;
-  venue_name: string | null;
-  venue_address: string | null;
-  court: string | null;
-  home_playhq_team_id: string | null;
+  status: string;              // 'scheduled' | 'completed' | 'cancelled'
+  round_number: number | null;
+  venue: string | null;
+  external_home_team_id: string | null;
   home_team_name: string | null;
   home_score: number | null;
-  away_playhq_team_id: string | null;
+  external_away_team_id: string | null;
   away_team_name: string | null;
   away_score: number | null;
-  raw: unknown;
-}
-
-interface LadderRow {
-  playhq_grade_id: string;
-  playhq_team_id: string;
-  team_name: string;
-  position: number | null;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  points: number;
-  points_for: number;
-  points_against: number;
-  points_diff: number;
-  raw: unknown;
 }
 
 interface StatRow {
@@ -62,11 +49,7 @@ interface StatRow {
   raw: unknown;
 }
 
-function mockData(gradeId: string): {
-  fixtures: FixtureRow[];
-  ladder: LadderRow[];
-  stats: StatRow[];
-} {
+function mockGames(gradeId: string): MappedGame[] {
   const teams = [
     { id: "mock-team-a", name: "Northside Hawks" },
     { id: "mock-team-b", name: "Eastvale Tigers" },
@@ -74,84 +57,52 @@ function mockData(gradeId: string): {
     { id: "mock-team-d", name: "Westfield Wolves" },
   ];
   const now = Date.now();
-  const fixtures: FixtureRow[] = [];
-  for (let i = 0; i < 6; i++) {
+  return Array.from({ length: 6 }).map((_, i) => {
     const h = teams[i % teams.length];
     const a = teams[(i + 1) % teams.length];
     const played = i < 3;
-    fixtures.push({
-      playhq_game_id: `mock-${gradeId}-game-${i}`,
-      playhq_grade_id: gradeId,
-      scheduled_at: new Date(now + (i - 3) * 7 * 86400_000).toISOString(),
-      status: played ? "FINAL" : "UPCOMING",
-      round: `Round ${i + 1}`,
-      venue_name: "Sample Stadium",
-      venue_address: "1 Sample St",
-      court: `Court ${1 + (i % 2)}`,
-      home_playhq_team_id: h.id,
+    return {
+      external_id: `mock-${gradeId}-game-${i}`,
+      scheduled_at: new Date(now + (i - 3) * 7 * 86_400_000).toISOString(),
+      status: played ? "completed" : "scheduled",
+      round_number: i + 1,
+      venue: "Sample Stadium",
+      external_home_team_id: h.id,
       home_team_name: h.name,
       home_score: played ? 40 + i * 3 : null,
-      away_playhq_team_id: a.id,
+      external_away_team_id: a.id,
       away_team_name: a.name,
       away_score: played ? 35 + i * 2 : null,
-      raw: { mock: true },
-    });
-  }
-  const ladder: LadderRow[] = teams.map((t, idx) => ({
-    playhq_grade_id: gradeId,
-    playhq_team_id: t.id,
-    team_name: t.name,
-    position: idx + 1,
-    played: 3,
-    wins: 3 - idx,
-    draws: 0,
-    losses: idx,
-    points: (3 - idx) * 2,
-    points_for: 120 - idx * 8,
-    points_against: 80 + idx * 6,
-    points_diff: 40 - idx * 14,
-    raw: { mock: true },
-  }));
-  const stats: StatRow[] = fixtures
-    .filter((f) => f.status === "FINAL")
-    .flatMap((f) =>
-      Array.from({ length: 3 }).map((_, i) => ({
-        playhq_game_id: f.playhq_game_id,
-        playhq_team_id: f.home_playhq_team_id!,
-        playhq_player_id: `${f.playhq_game_id}-p${i}`,
-        player_name: `Player ${i + 1}`,
-        stats: { points: 8 + i * 4, rebounds: 3 + i, assists: 2 + i },
-        raw: { mock: true },
-      })),
-    );
-  return { fixtures, ladder, stats };
+    };
+  });
 }
 
-async function playhqGet(
-  path: string,
-  apiKey: string,
-  tenant: string,
-): Promise<any> {
-  const url = `${PLAYHQ_BASE}${path}`;
-  const res = await fetch(url, {
+function mockStats(gradeId: string): StatRow[] {
+  return Array.from({ length: 3 }).map((_, i) => ({
+    playhq_game_id: `mock-${gradeId}-game-0`,
+    playhq_team_id: "mock-team-a",
+    playhq_player_id: `mock-${gradeId}-p${i}`,
+    player_name: `Player ${i + 1}`,
+    stats: { points: 8 + i * 4, rebounds: 3 + i, assists: 2 + i },
+    raw: { mock: true },
+  }));
+}
+
+async function playhqGet(path: string, apiKey: string, tenant: string) {
+  const res = await fetch(`${PLAYHQ_BASE}${path}`, {
     headers: {
       "x-api-key": apiKey,
       "x-phq-tenant": tenant,
-      "accept": "application/json",
+      accept: "application/json",
     },
   });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`PlayHQ ${res.status} on ${path}: ${body}`);
+    throw new Error(`PlayHQ ${res.status} on ${path}: ${await res.text()}`);
   }
   return res.json();
 }
 
-async function fetchAllPages(
-  path: string,
-  apiKey: string,
-  tenant: string,
-): Promise<any[]> {
+async function fetchAllPages(path: string, apiKey: string, tenant: string) {
   const items: any[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < 50; i++) {
@@ -165,41 +116,26 @@ async function fetchAllPages(
   return items;
 }
 
-function mapPlayhqGame(grade_id: string, g: any): FixtureRow {
-  return {
-    playhq_game_id: g.id,
-    playhq_grade_id: grade_id,
-    scheduled_at: g.schedule?.date ?? g.startsAt ?? null,
-    status: g.status ?? null,
-    round: g.round?.name ?? null,
-    venue_name: g.venue?.name ?? null,
-    venue_address: g.venue?.address ?? null,
-    court: g.court?.name ?? null,
-    home_playhq_team_id: g.teams?.home?.id ?? null,
-    home_team_name: g.teams?.home?.name ?? null,
-    home_score: g.score?.home ?? null,
-    away_playhq_team_id: g.teams?.away?.id ?? null,
-    away_team_name: g.teams?.away?.name ?? null,
-    away_score: g.score?.away ?? null,
-    raw: g,
-  };
+function normaliseStatus(s: string | null | undefined): string {
+  const v = String(s ?? "").toUpperCase();
+  if (/FINAL|COMPLETE|FT/.test(v)) return "completed";
+  if (/CANCEL|FORFEIT|WASH/.test(v)) return "cancelled";
+  return "scheduled";
 }
 
-function mapPlayhqLadder(grade_id: string, row: any, idx: number): LadderRow {
+function mapPlayhqGame(g: any): MappedGame {
   return {
-    playhq_grade_id: grade_id,
-    playhq_team_id: row.team?.id ?? row.teamId,
-    team_name: row.team?.name ?? "Unknown",
-    position: row.position ?? idx + 1,
-    played: row.played ?? 0,
-    wins: row.wins ?? 0,
-    draws: row.draws ?? 0,
-    losses: row.losses ?? 0,
-    points: row.points ?? 0,
-    points_for: row.pointsFor ?? 0,
-    points_against: row.pointsAgainst ?? 0,
-    points_diff: (row.pointsFor ?? 0) - (row.pointsAgainst ?? 0),
-    raw: row,
+    external_id: g.id,
+    scheduled_at: g.schedule?.date ?? g.startsAt ?? null,
+    status: normaliseStatus(g.status),
+    round_number: Number(g.round?.number ?? g.round?.name?.match?.(/\d+/)?.[0]) || null,
+    venue: g.venue?.name ?? null,
+    external_home_team_id: g.teams?.home?.id ?? null,
+    home_team_name: g.teams?.home?.name ?? null,
+    home_score: g.score?.home ?? null,
+    external_away_team_id: g.teams?.away?.id ?? null,
+    away_team_name: g.teams?.away?.name ?? null,
+    away_score: g.score?.away ?? null,
   };
 }
 
@@ -212,9 +148,9 @@ Deno.serve(async (req) => {
   );
 
   const body = (await req.json().catch(() => ({}))) as SyncRequest;
-  if (!body.grade_id || !body.tenant) {
+  if (!body.grade_id || !body.tenant || !body.organizer_club_id) {
     return new Response(
-      JSON.stringify({ error: "grade_id and tenant are required" }),
+      JSON.stringify({ error: "grade_id, tenant and organizer_club_id are required" }),
       { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } },
     );
   }
@@ -224,49 +160,52 @@ Deno.serve(async (req) => {
   const useMock = body.mock === true || !apiKey;
 
   const startedAt = new Date().toISOString();
-  let fixtures: FixtureRow[] = [];
-  let ladder: LadderRow[] = [];
+  let games: MappedGame[] = [];
   let stats: StatRow[] = [];
   let status = "ok";
   let error: string | null = null;
+  let competitionId: string | null = null;
+  let matchesUpserted = 0;
 
   try {
+    // 1. Upsert competition shell (source='playhq', external_id=grade_id)
+    const { data: comp, error: compErr } = await supabase
+      .from("competitions")
+      .upsert(
+        {
+          source: "playhq",
+          external_id: body.grade_id,
+          external_tenant: body.tenant,
+          organizer_club_id: body.organizer_club_id,
+          name: body.competition_name ?? `PlayHQ Grade ${body.grade_id}`,
+          sport: body.sport ?? "basketball",
+          season: body.season ?? null,
+          status: "active",
+          visibility: "public",
+          last_synced_at: new Date().toISOString(),
+        },
+        { onConflict: "source,external_id" },
+      )
+      .select("id")
+      .single();
+    if (compErr) throw compErr;
+    competitionId = comp.id;
+
+    // 2. Pull games (real or mock)
     if (useMock) {
-      const m = mockData(body.grade_id);
-      fixtures = m.fixtures;
-      ladder = m.ladder;
-      stats = m.stats;
+      games = mockGames(body.grade_id);
+      stats = mockStats(body.grade_id);
     } else {
-      // Real PlayHQ calls
-      const games = await fetchAllPages(
-        `/grades/${body.grade_id}/fixture`,
-        apiKey!,
-        body.tenant,
-      );
-      fixtures = games.map((g) => mapPlayhqGame(body.grade_id, g));
+      const raw = await fetchAllPages(`/grades/${body.grade_id}/fixture`, apiKey!, body.tenant);
+      games = raw.map(mapPlayhqGame);
 
-      const ladderRes = await playhqGet(
-        `/grades/${body.grade_id}/ladder`,
-        apiKey!,
-        body.tenant,
-      );
-      const ladderRows = Array.isArray(ladderRes?.data) ? ladderRes.data : [];
-      ladder = ladderRows.map((r: any, i: number) =>
-        mapPlayhqLadder(body.grade_id, r, i),
-      );
-
-      // Stats per finished game (best-effort; PlayHQ stat endpoint varies by sport)
-      for (const f of fixtures.filter((f) => f.status && /FINAL|COMPLETE/i.test(f.status))) {
+      for (const g of games.filter((g) => g.status === "completed")) {
         try {
-          const sRes = await playhqGet(
-            `/games/${f.playhq_game_id}/statistics`,
-            apiKey!,
-            body.tenant,
-          );
+          const sRes = await playhqGet(`/games/${g.external_id}/statistics`, apiKey!, body.tenant);
           const rows = Array.isArray(sRes?.data) ? sRes.data : [];
           for (const r of rows) {
             stats.push({
-              playhq_game_id: f.playhq_game_id,
+              playhq_game_id: g.external_id,
               playhq_team_id: r.team?.id ?? r.teamId ?? "",
               playhq_player_id: r.player?.id ?? r.playerId ?? "",
               player_name: r.player?.name ?? null,
@@ -274,28 +213,41 @@ Deno.serve(async (req) => {
               raw: r,
             });
           }
-        } catch (_) { /* stats are optional */ }
+        } catch (_) { /* stats are best-effort */ }
       }
     }
 
-    // Upserts
-    if (fixtures.length) {
-      const { error: e } = await supabase
-        .from("playhq_fixtures")
-        .upsert(fixtures, { onConflict: "playhq_game_id" });
-      if (e) throw e;
+    // 3. Upsert matches into competition_matches
+    if (games.length) {
+      const rows = games.map((g) => ({
+        source: "playhq",
+        external_id: g.external_id,
+        competition_id: competitionId!,
+        scheduled_at: g.scheduled_at,
+        status: g.status,
+        round_number: g.round_number,
+        venue: g.venue,
+        external_home_team_id: g.external_home_team_id,
+        home_team_name: g.home_team_name,
+        home_score: g.home_score,
+        external_away_team_id: g.external_away_team_id,
+        away_team_name: g.away_team_name,
+        away_score: g.away_score,
+        last_synced_at: new Date().toISOString(),
+      }));
+      const { error: mErr } = await supabase
+        .from("competition_matches")
+        .upsert(rows, { onConflict: "source,external_id" });
+      if (mErr) throw mErr;
+      matchesUpserted = rows.length;
     }
-    if (ladder.length) {
-      // wipe-and-reload keeps positions accurate after demotions/withdrawals
-      await supabase.from("playhq_ladder").delete().eq("playhq_grade_id", body.grade_id);
-      const { error: e } = await supabase.from("playhq_ladder").insert(ladder);
-      if (e) throw e;
-    }
+
+    // 4. Player stats stay in their dedicated table (claim flow is Phase 2)
     if (stats.length) {
-      const { error: e } = await supabase
+      const { error: sErr } = await supabase
         .from("playhq_player_stats")
         .upsert(stats, { onConflict: "playhq_game_id,playhq_player_id" });
-      if (e) throw e;
+      if (sErr) throw sErr;
     }
   } catch (err) {
     status = "error";
@@ -306,8 +258,8 @@ Deno.serve(async (req) => {
     playhq_grade_id: body.grade_id,
     tenant: body.tenant,
     status,
-    fixtures_synced: fixtures.length,
-    ladder_rows: ladder.length,
+    fixtures_synced: matchesUpserted,
+    ladder_rows: 0,
     stat_rows: stats.length,
     error,
     started_at: startedAt,
@@ -318,8 +270,8 @@ Deno.serve(async (req) => {
     JSON.stringify({
       ok: status === "ok",
       mock: useMock,
-      fixtures: fixtures.length,
-      ladder: ladder.length,
+      competition_id: competitionId,
+      matches: matchesUpserted,
       stats: stats.length,
       error,
     }),

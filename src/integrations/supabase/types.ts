@@ -2354,6 +2354,7 @@ export type Database = {
           created_at: string
           day_end_time: string
           day_start_time: string
+          external_id: string | null
           gender: string | null
           hide_ladder: boolean
           id: string
@@ -2362,6 +2363,7 @@ export type Database = {
           play_weekdays: number[] | null
           skill_level: string | null
           sort_order: number
+          source: string
           updated_at: string
         }
         Insert: {
@@ -2370,6 +2372,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
           id?: string
@@ -2378,6 +2381,7 @@ export type Database = {
           play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
+          source?: string
           updated_at?: string
         }
         Update: {
@@ -2386,6 +2390,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
           id?: string
@@ -2394,6 +2399,7 @@ export type Database = {
           play_weekdays?: number[] | null
           skill_level?: string | null
           sort_order?: number
+          source?: string
           updated_at?: string
         }
         Relationships: [
@@ -2476,19 +2482,27 @@ export type Database = {
           away_event_id: string | null
           away_score: number | null
           away_team_id: string | null
+          away_team_name: string | null
           competition_id: string
           created_at: string
           created_by: string | null
           division_id: string | null
           duration_minutes: number | null
+          external_away_team_id: string | null
+          external_home_team_id: string | null
+          external_id: string | null
           home_event_id: string | null
           home_score: number | null
           home_team_id: string | null
+          home_team_name: string | null
           id: string
+          last_synced_at: string | null
+          manually_overridden_at: string | null
           notes: string | null
           pitch_number: string | null
           round_number: number | null
           scheduled_at: string | null
+          source: string
           status: string
           updated_at: string
           venue: string | null
@@ -2498,19 +2512,27 @@ export type Database = {
           away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string | null
+          away_team_name?: string | null
           competition_id: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
           duration_minutes?: number | null
+          external_away_team_id?: string | null
+          external_home_team_id?: string | null
+          external_id?: string | null
           home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string | null
+          home_team_name?: string | null
           id?: string
+          last_synced_at?: string | null
+          manually_overridden_at?: string | null
           notes?: string | null
           pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
+          source?: string
           status?: string
           updated_at?: string
           venue?: string | null
@@ -2520,19 +2542,27 @@ export type Database = {
           away_event_id?: string | null
           away_score?: number | null
           away_team_id?: string | null
+          away_team_name?: string | null
           competition_id?: string
           created_at?: string
           created_by?: string | null
           division_id?: string | null
           duration_minutes?: number | null
+          external_away_team_id?: string | null
+          external_home_team_id?: string | null
+          external_id?: string | null
           home_event_id?: string | null
           home_score?: number | null
           home_team_id?: string | null
+          home_team_name?: string | null
           id?: string
+          last_synced_at?: string | null
+          manually_overridden_at?: string | null
           notes?: string | null
           pitch_number?: string | null
           round_number?: number | null
           scheduled_at?: string | null
+          source?: string
           status?: string
           updated_at?: string
           venue?: string | null
@@ -2621,9 +2651,12 @@ export type Database = {
           created_by: string
           description: string | null
           ends_on: string | null
+          external_id: string | null
+          external_tenant: string | null
           id: string
           join_token: string | null
           join_token_enabled: boolean
+          last_synced_at: string | null
           logo_url: string | null
           name: string
           organizer_club_id: string
@@ -2632,6 +2665,7 @@ export type Database = {
           points_win: number
           season: string | null
           slug: string | null
+          source: string
           sport: string | null
           starts_on: string | null
           status: string
@@ -2644,9 +2678,12 @@ export type Database = {
           created_by: string
           description?: string | null
           ends_on?: string | null
+          external_id?: string | null
+          external_tenant?: string | null
           id?: string
           join_token?: string | null
           join_token_enabled?: boolean
+          last_synced_at?: string | null
           logo_url?: string | null
           name: string
           organizer_club_id: string
@@ -2655,6 +2692,7 @@ export type Database = {
           points_win?: number
           season?: string | null
           slug?: string | null
+          source?: string
           sport?: string | null
           starts_on?: string | null
           status?: string
@@ -2667,9 +2705,12 @@ export type Database = {
           created_by?: string
           description?: string | null
           ends_on?: string | null
+          external_id?: string | null
+          external_tenant?: string | null
           id?: string
           join_token?: string | null
           join_token_enabled?: boolean
+          last_synced_at?: string | null
           logo_url?: string | null
           name?: string
           organizer_club_id?: string
@@ -2678,6 +2719,7 @@ export type Database = {
           points_win?: number
           season?: string | null
           slug?: string | null
+          source?: string
           sport?: string | null
           starts_on?: string | null
           status?: string
