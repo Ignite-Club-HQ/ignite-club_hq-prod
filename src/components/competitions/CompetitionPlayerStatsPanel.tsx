@@ -260,8 +260,12 @@ export default function CompetitionPlayerStatsPanel({
   const statKeys = useMemo(() => {
     const set = new Set<string>();
     aggregates.forEach((a) => Object.keys(a.totals).forEach((k) => set.add(k)));
-    return Array.from(set);
-  }, [aggregates]);
+    let keys = Array.from(set);
+    if (isCricket) {
+      keys = keys.filter((k) => categoriseStatKey(k) === cricketCategory);
+    }
+    return keys;
+  }, [aggregates, isCricket, cricketCategory]);
 
   const [sortBy, setSortBy] = useState<string>("");
   const sortKey = sortBy || statKeys[0] || "";
