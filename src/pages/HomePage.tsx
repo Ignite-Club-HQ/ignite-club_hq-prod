@@ -433,7 +433,7 @@ export default function HomePage() {
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
         supabase
           .from("events")
-          .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
+          .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
           // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
           // today's local-morning fixtures are stored as YESTERDAY's UTC date
           // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
@@ -642,7 +642,7 @@ export default function HomePage() {
           status,
           redeemed_at,
           club_rewards (id, name, description, points_required, qr_code_url, show_qr_code),
-          clubs (name)
+          clubs!club_id (name)
         `)
         .eq("user_id", user!.id)
         .eq("status", "pending")
@@ -1287,7 +1287,7 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs (name, sport)")
+        .select("id, name, club_id, clubs!club_id (name, sport)")
         .order("name");
       if (error) throw error;
       return data as Team[];
@@ -1302,7 +1302,7 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, club_id, clubs (name, sport)")
+        .select("id, name, club_id, clubs!club_id (name, sport)")
         .order("name");
       if (error) throw error;
       return data as MiniLeague[];

@@ -464,7 +464,7 @@ export default function EventsPage() {
           rsvp_audience,
           updated_at,
           teams (name, default_match_arrival_minutes, default_rsvp_audience),
-          clubs (name, sport)
+          clubs!club_id (name, sport)
 
         `)
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
