@@ -304,11 +304,6 @@ export default function EventDetailPage() {
   const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
     queryKey: ["event", id],
     queryFn: async () => {
-      // Use `maybeSingle()` so a genuine "no row visible" returns null instead
-      // of throwing PGRST116. This lets us distinguish RLS-deny / not-found
-      // (data === null, no error) from transient network/token-rotation
-      // failures (error set), so we don't show "Event Not Available" to a
-      // member whose query just hit a resume-race or 5xx.
       const { data, error } = await supabase
         .from("events")
         .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs!club_id (name, is_pro, sport)`)
@@ -318,10 +313,21 @@ export default function EventDetailPage() {
       return data;
     },
     enabled: !!id,
-    // Transient errors (token rotation on app resume, brief 5xx) used to land
-    // members on the "Event Not Available" screen even though RLS would have
-    // allowed them. Retry a few times with quick backoff before giving up.
-    retry: 3,
+    retry: (failureCount, err: any) => {
+      // Telemetry: log every retry so we can quantify how often the transient
+      // failure path (resume-race / 5xx / token rotation) is hit in the wild.
+      try {
+        console.warn("[EventDetailPage] event fetch retry", {
+          eventId: id,
+          userId: user?.id,
+          attempt: failureCount + 1,
+          code: err?.code,
+          status: err?.status,
+          message: err?.message,
+        });
+      } catch {}
+      return failureCount < 3;
+    },
     retryDelay: (attempt) => Math.min(500 * attempt, 2000),
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
