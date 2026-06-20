@@ -93,9 +93,10 @@ interface Props {
   isAdmin: boolean;
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
+  source?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -459,7 +460,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       className="space-y-3 box-border"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
     >
-      {isAdmin && (
+      {isAdmin && source !== "playhq" && (
         <div className="space-y-2">
           {!genOpen ? (
             <div className="flex items-center justify-end gap-2">
@@ -896,6 +897,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         entries={entries}
         isAdmin={isAdmin}
         competitionId={competitionId}
+        source={source}
       />
     </div>
   );
@@ -908,12 +910,14 @@ function FixturesFilterAndList({
   entries,
   isAdmin,
   competitionId,
+  source,
 }: {
   matches: any[];
   divisions: any[];
   entries: any[];
   isAdmin: boolean;
   competitionId: string;
+  source?: string;
 }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
@@ -1057,6 +1061,7 @@ function FixturesFilterAndList({
               competitionId={competitionId}
               entries={entries}
               divisions={divisions}
+              source={source}
             />
           ))}
         </div>
@@ -1174,6 +1179,7 @@ function RoundSection({
   competitionId,
   entries,
   divisions,
+  source,
 }: {
   label: string;
   items: any[];
@@ -1181,6 +1187,7 @@ function RoundSection({
   competitionId: string;
   entries: any[];
   divisions: any[];
+  source?: string;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -1216,7 +1223,7 @@ function RoundSection({
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5">
         {items.map((m: any) => (
-          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} hideRoundBadge />
+          <MatchRow key={m.id} match={m} isAdmin={isAdmin} competitionId={competitionId} entries={entries} divisions={divisions} source={source} hideRoundBadge />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -1226,7 +1233,7 @@ function RoundSection({
 
 
 
-function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean }) {
+function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false, source }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean; source?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -1433,7 +1440,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
         {/* 4. Admin actions — compact, flush to bottom */}
-        {isAdmin && !editing && (
+        {isAdmin && !editing && source !== "playhq" && (
           <div className="flex items-center justify-between gap-2">
             <Button
               size="sm"
