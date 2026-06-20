@@ -95,6 +95,7 @@ import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
+import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
