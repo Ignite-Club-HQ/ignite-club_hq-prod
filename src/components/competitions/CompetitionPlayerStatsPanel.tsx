@@ -38,18 +38,25 @@ export default function CompetitionPlayerStatsPanel({
 }) {
   const { user } = useAuth();
 
-  // 1. Match list for this competition (need external_ids to filter stats)
+  // 1. Match list for this competition (need external_ids to filter stats,
+  //    and team names + external team ids to power the filters below).
   const { data: matches = [], isLoading: matchesLoading } = useQuery({
     queryKey: ["competition-playhq-match-ids", competitionId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competition_matches")
-        .select("external_id")
+        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name")
         .eq("competition_id", competitionId)
         .eq("source", "playhq")
         .not("external_id", "is", null);
       if (error) throw error;
-      return (data ?? []) as { external_id: string }[];
+      return (data ?? []) as {
+        external_id: string;
+        external_home_team_id: string | null;
+        external_away_team_id: string | null;
+        home_team_name: string | null;
+        away_team_name: string | null;
+      }[];
     },
   });
 
@@ -57,6 +64,42 @@ export default function CompetitionPlayerStatsPanel({
     () => Array.from(new Set(matches.map((m) => m.external_id).filter(Boolean))),
     [matches]
   );
+
+  // PlayHQ team id → display name (from match rows)
+  const teamNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of matches) {
+      if (row.external_home_team_id) m.set(row.external_home_team_id, row.home_team_name ?? row.external_home_team_id);
+      if (row.external_away_team_id) m.set(row.external_away_team_id, row.away_team_name ?? row.external_away_team_id);
+    }
+    return m;
+  }, [matches]);
+
+  const externalTeamIds = useMemo(() => Array.from(teamNameById.keys()), [teamNameById]);
+
+  // Resolve PlayHQ team id → owning Ignite club (when a team has been linked).
+  const { data: linkedTeams = [] } = useQuery({
+    queryKey: ["competition-stats-linked-teams", competitionId, externalTeamIds.length],
+    enabled: externalTeamIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("playhq_team_id, clubs:club_id(id, name)")
+        .in("playhq_team_id", externalTeamIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const clubByExternalTeam = useMemo(() => {
+    const m = new Map<string, { clubId: string; clubName: string }>();
+    for (const t of linkedTeams as any[]) {
+      if (t.playhq_team_id && t.clubs?.id) {
+        m.set(t.playhq_team_id, { clubId: t.clubs.id, clubName: t.clubs.name });
+      }
+    }
+    return m;
+  }, [linkedTeams]);
 
   // 2. Player stats joined by game id
   const { data: rows = [], isLoading: statsLoading } = useQuery({
