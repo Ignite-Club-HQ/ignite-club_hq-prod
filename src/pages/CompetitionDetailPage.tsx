@@ -54,7 +54,7 @@ export default function CompetitionDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("*, clubs:organizer_club_id(id, name)")
+        .select("*, clubs:organizer_club_id(id, name, kind)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw error;
