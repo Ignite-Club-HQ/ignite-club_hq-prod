@@ -1028,6 +1028,7 @@ function FixturesFilterAndList({
   const showDivisionFilter = divisions.length > 1;
   const showTeamFilter = teamOptions.length > 1;
   const showClubFilter = clubOptions.length > 1;
+  const divisionLabel = source === "playhq" ? "Grade" : "Division";
 
   if (matches.length === 0) {
     return (
