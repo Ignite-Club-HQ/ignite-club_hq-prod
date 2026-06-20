@@ -322,6 +322,7 @@ export default function CompetitionPlayerStatsPanel({
         </div>
       )}
 
+      {aggregates.length > 0 && (
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
