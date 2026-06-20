@@ -205,9 +205,13 @@ export default function CompetitionPlayerStatsPanel({
         const club = r.playhq_team_id ? clubByExternalTeam.get(r.playhq_team_id) : null;
         if (club?.clubId !== filterClubId) return false;
       }
+      if (filterGradeId !== "_all") {
+        const grade = r.playhq_game_id ? gradeByGameId.get(r.playhq_game_id) : null;
+        if (grade?.divisionId !== filterGradeId) return false;
+      }
       return true;
     });
-  }, [rows, filterTeamId, filterClubId, clubByExternalTeam]);
+  }, [rows, filterTeamId, filterClubId, filterGradeId, clubByExternalTeam, gradeByGameId]);
 
   // 4. Aggregate
   const aggregates: Aggregate[] = useMemo(() => {
