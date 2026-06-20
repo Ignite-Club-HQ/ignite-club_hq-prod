@@ -321,26 +321,6 @@ export default function CompetitionPlayerStatsPanel({
           No players match the current filter.
         </div>
       )}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Trophy className="h-4 w-4" />
-          {aggregates.length} players · {gameIds.length} matches
-        </div>
-        {statKeys.length > 0 && (
-          <Select value={sortKey} onValueChange={setSortBy}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              {statKeys.map((k) => (
-                <SelectItem key={k} value={k} className="capitalize text-xs">
-                  {k}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
 
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
