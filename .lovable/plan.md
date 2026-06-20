@@ -1,112 +1,58 @@
 ## Goal
-Pull **ladders, fixtures, and results** from PlayHQ into Ignite so a club / team / competition page can show official PlayHQ data alongside (or instead of) our own competition module.
+Let a team admin pick which PlayHQ team in a linked PlayHQ competition is "their" team. Once linked, every fixture for that PlayHQ team becomes a match event on the team's schedule, and stays in sync as PlayHQ updates (times, venue, scores, cancellations).
 
----
+## How it fits today
+- PlayHQ comps already live in `competitions` (`source='playhq'`) and fixtures in `competition_matches` with `external_home_team_id` / `external_away_team_id` (PlayHQ team ids) plus `home_team_name` / `away_team_name`.
+- `competition_matches` already has `home_team_id` / `away_team_id` (Ignite UUIDs) and `home_event_id` / `away_event_id` (links to a row in `events`). Nothing populates these for PlayHQ rows yet.
+- `playhq-sync` cron is already running, so we just need to (a) capture the team↔PlayHQ link and (b) materialise events from matching `competition_matches` rows.
 
-## 1. What PlayHQ actually exposes
+## Changes
 
-PlayHQ has a public REST API at `https://api.playhq.com/v1`, documented at https://docs.playhq.com/tech.
+### 1. Schema
+Add to `teams`:
+- `playhq_team_id text` — the PlayHQ team UUID this Ignite team is mirroring
+- `playhq_competition_id uuid references competitions(id)` — the linked PlayHQ comp (so we know which grade to scope to)
+- `playhq_auto_create_events boolean default true` — kill-switch per team
 
-**Auth headers on every request** (both required):
-- `x-api-key: <API key>` — issued by PlayHQ per integrator
-- `x-phq-tenant: <tenant>` — e.g. `ca` (Cricket Aus), `bv` (Basketball Vic), `afl`, `netball`, etc. One tenant per sport body.
+(No new tables. `competition_matches.home_event_id`/`away_event_id` already give us idempotency.)
 
-**Key endpoints we'd use:**
-| Need | Endpoint |
-|---|---|
-| Find a club's competitions | `GET /organisations/{orgId}/seasons` |
-| List competitions in a tenant | `GET /competitions?...` |
-| Seasons in a competition | `GET /competitions/{id}/seasons` |
-| Grades/divisions in a season | `GET /seasons/{id}/grades` |
-| **Ladder** | `GET /grades/{gradeId}/ladder` |
-| **Fixtures** | `GET /grades/{gradeId}/fixture` (paged, cursor) |
-| **Single game / results** | `GET /games/{gameId}` |
-| Teams in a grade | `GET /grades/{gradeId}/teams` |
-| A team's fixtures | `GET /teams/{teamId}/fixture` |
+### 2. Edge function: `playhq-materialise-team-events`
+Inputs: `team_id`.
+For the linked team:
+1. Load team + `playhq_team_id` + `playhq_competition_id`.
+2. Select all `competition_matches` where `competition_id = playhq_competition_id` AND (`external_home_team_id = playhq_team_id` OR `external_away_team_id = playhq_team_id`).
+3. For each match:
+   - Determine `isHome`; set `home_team_id` / `away_team_id` to the Ignite team id if not already.
+   - If the corresponding `home_event_id` / `away_event_id` is null:
+     - Insert into `events`: `team_id`, `club_id` (from team), `event_type='match'`, `title` = `"vs " + opponentName`, `start_at = scheduled_at`, `venue = match.venue`, `source='playhq'`, `external_id = match.external_id`, `created_by = team admin / system bot`.
+     - Write the new event id back into the right `home_event_id` / `away_event_id`.
+   - If the event exists, update its `start_at`, `venue`, `status` (cancel if match.status='cancelled') to keep it in sync.
+4. Return counts: created / updated / cancelled.
 
-Rate limit: ~10 req/sec per key, paginated with `cursor`. Webhooks exist for `game.updated`, `ladder.updated` (nice-to-have, requires a public callback URL).
+### 3. Hook into the existing PlayHQ cron
+After `playhq-sync` finishes a grade, look up any teams with `playhq_competition_id = <synced comp>` and call `playhq-materialise-team-events` for each (capped, sequential, ignore errors per team). Keeps future fixture changes flowing into events without a manual click.
 
-**Critical constraint — getting the API key**
-- PlayHQ does **not** self-serve API keys. You apply via https://support.playhq.com → Developer Access. Approval needs the tenant (sport body) to bless your use case. This is the single biggest unknown — could be days or weeks.
-- Until approved we can scaffold against fixture data, but **nothing real ships without that key + tenant pair**. You may need one key per sport (one tenant = one sport body).
+### 4. UI
 
----
+**Team Settings → "PlayHQ link" card** (visible to team admins):
+- "Link to PlayHQ competition" — Select from PlayHQ comps the team's club / parent association organises (`competitions where source='playhq'`).
+- After picking a comp, fetch its `competition_matches` and derive the unique PlayHQ teams (external_home_team_id + external_away_team_id, with the readable name). Show a second Select: "Which team is yours?"
+- Auto-create events toggle (writes `playhq_auto_create_events`).
+- "Import fixtures now" button → calls the edge function. Shows toast with created/updated counts.
+- "Unlink" — clears all three columns. Existing events stay (they're just events at that point).
 
-## 2. How it slots into our app
+**TeamDetailPage**: small "PlayHQ" badge near header when linked, and the auto-created match events appear in the normal schedule like any other event (no special rendering needed).
 
-We already have an internal competitions module (`competitions`, `competition_divisions`, `competition_matches`, `competition_ladder`). PlayHQ data should live **alongside** that, not overwrite it, because:
-- Internal comps are admin-run by clubs in Ignite.
-- PlayHQ comps are owned by the association — we're a read-only mirror.
+### 5. Guardrails
+- Only team admins (or club admins of the team's club, or admins of the association that organises the comp) can link/unlink.
+- Auto-created events get `source='playhq'` so admins can tell them apart. Editing such an event locally sets `manually_overridden_at` (mirroring the pattern already used on `competition_matches`) so future syncs don't overwrite their changes.
+- Cancellation in PlayHQ → event `status` flipped to `cancelled` (we don't hard-delete, in case people RSVP'd).
+- Idempotent everywhere: re-running the import never creates duplicate events because we key off `competition_matches.home_event_id` / `away_event_id`.
 
-So a team/club in Ignite can be **linked** to a PlayHQ grade + team, and we render PlayHQ ladder / fixture / results from a cached mirror.
+## Out of scope this round
+- Auto-RSVP / push when a new fixture lands (can layer on later; they'll flow through the existing new-event notification path anyway).
+- Roster mapping (PlayHQ player → Ignite child).
+- Reverse sync (Ignite changes pushed back to PlayHQ).
 
-### Linking model (new schema)
-- `clubs.playhq_org_id text` — the club's PlayHQ organisation id
-- `clubs.playhq_tenant text` — which tenant (sport body) it belongs to
-- `teams.playhq_team_id text`, `teams.playhq_grade_id text`, `teams.playhq_season_id text`
-- New table `playhq_grades` — mirrored grade metadata (id, season, sport, name, tenant)
-- New table `playhq_fixtures` — one row per game (id, grade_id, scheduled_at, venue, home/away team id + name, scores, status, updated_at)
-- New table `playhq_ladder` — one row per (grade_id, team_id): played/W/D/L/for/against/diff/points/position, snapshot_at
-- All tables: `GRANT SELECT` to `authenticated`, RLS open-read for members of the linked club (we already gate club content this way).
-
-### Sync architecture (edge functions + cron)
-1. **`playhq-sync` edge function** — called per club, per grade. Pages through fixtures + pulls ladder, upserts into the mirror tables. Idempotent on PlayHQ ids.
-2. **`pg_cron` schedule** every 15 min — invokes `playhq-sync-all` which fans out across linked grades. Match-day grades get a faster 2-min cadence; off-season grades fall back to daily.
-3. **Manual "Refresh now" button** for club admins → calls `playhq-sync` for that team's grade. Rate-limited per user.
-4. **Secrets** stored via `add_secret`: `PLAYHQ_API_KEY_<TENANT>` (one per tenant we onboard, e.g. `PLAYHQ_API_KEY_BV`). The function picks the right key from the team's tenant.
-
-### Where it appears in the UI
-- **TeamDetailPage** → new "Ladder & Fixtures" tab (only when `playhq_grade_id` set). Renders mirrored ladder table + upcoming/past fixtures with scores.
-- **Schedule page** → optional "Show PlayHQ fixtures" toggle that overlays read-only fixture rows (not RSVPable, badge = "PlayHQ"). Behind a per-team flag so it doesn't double-up when admins are already creating matching events.
-- **Club page** → "External competitions" section listing all linked grades with mini-ladders.
-- **Admin settings** → "Connect to PlayHQ" wizard on team and club settings: paste a PlayHQ URL (e.g. `playhq.com/.../grade/abc123`), we parse the ids, hit the API to confirm, then store the link.
-
----
-
-## 3. Phased delivery
-
-**Phase 0 — Access (blocks everything real)**
-- Submit PlayHQ developer access request. Capture tenants we need (likely BV / NetballVic / AFL / Cricket — depends on which sports our clubs use).
-- Get one sandbox tenant + key first to unblock dev.
-
-**Phase 1 — Read-only mirror, single grade (1–1.5 weeks)**
-- Schema + GRANTs + RLS.
-- `playhq-sync` edge function for one grade (fixtures + ladder).
-- Settings UI to paste a PlayHQ grade URL and link it to an Ignite team.
-- TeamDetailPage "Ladder & Fixtures" tab using the mirror.
-- Manual refresh button.
-
-**Phase 2 — Automation + multi-grade (3–5 days)**
-- `pg_cron` fanout, match-day cadence, last-sync indicator, error surfacing.
-- Club-level linking (auto-discover grades from `playhq_org_id`).
-- Per-club tenant key selection.
-
-**Phase 3 — Schedule overlay + polish (3–5 days)**
-- Read-only PlayHQ fixtures on the Schedule page behind a toggle.
-- Score updates push a chat-bot message in the team chat (reuse `team_messages` bot pattern).
-- Optional webhooks (`game.updated`) if PlayHQ approves a callback URL — drops cron load and gives near-realtime score updates.
-
-**Out of scope (call out now):**
-- Two-way sync (creating fixtures *in* PlayHQ) — PlayHQ API is read-mostly for non-association integrators.
-- Player registration data — separate API surface, separate approval, privacy-heavy.
-- Auto-creating Ignite events from PlayHQ fixtures (we'd want admins to opt in per team).
-
----
-
-## 4. Technical notes / gotchas
-- **Cursor pagination**, not page numbers. Edge function must loop until `metadata.hasMore=false`.
-- PlayHQ timestamps are UTC ISO strings; venue addresses come as separate fields — render via existing venue formatter.
-- Ladder rows include `team.id` but the team may not yet be in our mirror — upsert teams lazily from fixture/ladder responses.
-- Team ids change between seasons — store `playhq_season_id` alongside `playhq_team_id` and re-link at season rollover (we already have a season concept).
-- 10 req/s rate limit → in the fanout cron, sleep between grades and back off on `429`.
-- Sync writes go through `service_role` inside the edge function; never call the PlayHQ API from the browser (would leak the key).
-- Use `x-phq-tenant` from the *team's* config, not a global default, so a multi-sport club works.
-- Mirror tables should be in `public` schema with `GRANT SELECT ON ... TO authenticated` + RLS gating on `can_access_club(club_id)` (existing helper).
-
----
-
-## 5. Open questions for you
-1. Which sports / associations do your clubs primarily sit under? That decides which PlayHQ **tenants** we need keys for (each is a separate application).
-2. Do you have a PlayHQ developer relationship yet, or do we need to start from the support form? (This sets the realistic start date for Phase 1.)
-3. Should linked PlayHQ fixtures auto-create Ignite events (with RSVP), or stay read-only? My recommendation is **read-only first**, opt-in auto-create later — avoids duplicating events admins already made.
-4. Scope: ladders + fixtures + results only this round, or also include team rosters / player stats?
+## Open question
+Where do you want the link UI to live — **Team Settings** (admin-only, tucked away) or as a card on **Team Detail** under the header (more discoverable, but visible to all members)? My default is Team Settings.
