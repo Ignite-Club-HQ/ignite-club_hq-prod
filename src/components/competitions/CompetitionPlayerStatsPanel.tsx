@@ -149,6 +149,7 @@ export default function CompetitionPlayerStatsPanel({
   // Team / Club filters
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
+  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
   const teamOptions = useMemo(
     () =>
