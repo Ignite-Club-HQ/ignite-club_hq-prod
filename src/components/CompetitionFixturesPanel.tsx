@@ -1179,6 +1179,7 @@ function RoundSection({
   competitionId,
   entries,
   divisions,
+  source,
 }: {
   label: string;
   items: any[];
@@ -1186,6 +1187,7 @@ function RoundSection({
   competitionId: string;
   entries: any[];
   divisions: any[];
+  source?: string;
 }) {
   const [open, setOpen] = useState(true);
 
