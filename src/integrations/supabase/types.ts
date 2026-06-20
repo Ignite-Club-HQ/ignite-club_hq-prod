@@ -4028,20 +4028,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "events_association_id_fkey"
-            columns: ["association_id"]
-            isOneToOne: false
-            referencedRelation: "clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_association_id_fkey"
-            columns: ["association_id"]
-            isOneToOne: false
-            referencedRelation: "public_clubs"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "events_club_id_fkey"
             columns: ["club_id"]
             isOneToOne: false
