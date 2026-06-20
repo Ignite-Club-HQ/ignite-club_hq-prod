@@ -847,7 +847,7 @@ export default function EventsPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={eventsIsError}
+        hasError={eventsIsError && !isFetching}
         onRetry={async () => {
           await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
         }}
