@@ -51,7 +51,7 @@ export default function CompetitionPlayerStatsPanel({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competition_matches")
-        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name")
+        .select("external_id, external_home_team_id, external_away_team_id, home_team_name, away_team_name, division_id, competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .eq("source", "playhq")
         .not("external_id", "is", null);
@@ -62,6 +62,8 @@ export default function CompetitionPlayerStatsPanel({
         external_away_team_id: string | null;
         home_team_name: string | null;
         away_team_name: string | null;
+        division_id: string | null;
+        competition_divisions: { name: string | null } | null;
       }[];
     },
   });
