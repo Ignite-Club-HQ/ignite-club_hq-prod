@@ -1068,10 +1068,10 @@ function FixturesFilterAndList({
           {showDivisionFilter && (
             <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
               <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder="All divisions" />
+                <SelectValue placeholder={`All ${divisionLabel.toLowerCase()}s`} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_all">All divisions</SelectItem>
+                <SelectItem value="_all">All {divisionLabel.toLowerCase()}s</SelectItem>
                 {divisions.map((d: any) => (
                   <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                 ))}
