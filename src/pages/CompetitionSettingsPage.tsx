@@ -192,76 +192,80 @@ export default function CompetitionSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 2. Publishing */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Publishing</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="comp-status">Competition status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger id="comp-status"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 2. Publishing — hidden for read-only PlayHQ comps */}
+      {!isPlayHqReadOnly && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Publishing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-status">Competition status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger id="comp-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* 3. Ladder scoring */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Ladder scoring</CardTitle>
-          <CardDescription>Set the points awarded for each result.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="pts-win" className="text-xs">Win</Label>
-              <Input
-                id="pts-win"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={pointsWin}
-                onChange={(e) => setPointsWin(e.target.value)}
-                onBlur={(e) => setPointsWin(clampPoint(e.target.value))}
-              />
+      {/* 3. Ladder scoring — hidden for read-only PlayHQ comps (PlayHQ controls scoring) */}
+      {!isPlayHqReadOnly && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Ladder scoring</CardTitle>
+            <CardDescription>Set the points awarded for each result.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pts-win" className="text-xs">Win</Label>
+                <Input
+                  id="pts-win"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={pointsWin}
+                  onChange={(e) => setPointsWin(e.target.value)}
+                  onBlur={(e) => setPointsWin(clampPoint(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pts-draw" className="text-xs">Draw</Label>
+                <Input
+                  id="pts-draw"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={pointsDraw}
+                  onChange={(e) => setPointsDraw(e.target.value)}
+                  onBlur={(e) => setPointsDraw(clampPoint(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pts-loss" className="text-xs">Loss</Label>
+                <Input
+                  id="pts-loss"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={pointsLoss}
+                  onChange={(e) => setPointsLoss(e.target.value)}
+                  onBlur={(e) => setPointsLoss(clampPoint(e.target.value))}
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pts-draw" className="text-xs">Draw</Label>
-              <Input
-                id="pts-draw"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={pointsDraw}
-                onChange={(e) => setPointsDraw(e.target.value)}
-                onBlur={(e) => setPointsDraw(clampPoint(e.target.value))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pts-loss" className="text-xs">Loss</Label>
-              <Input
-                id="pts-loss"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={pointsLoss}
-                onChange={(e) => setPointsLoss(e.target.value)}
-                onBlur={(e) => setPointsLoss(clampPoint(e.target.value))}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* 4. Ladder visibility */}
-      <DivisionLadderVisibility competitionId={id!} />
+      {/* 4. Ladder visibility — hidden for read-only PlayHQ comps */}
+      {!isPlayHqReadOnly && <DivisionLadderVisibility competitionId={id!} />}
 
       {/* 5. Coordinators */}
       <CoordinatorsPanel competitionId={id!} />
