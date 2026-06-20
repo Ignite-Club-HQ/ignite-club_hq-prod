@@ -6579,6 +6579,50 @@ export type Database = {
         }
         Relationships: []
       }
+      playhq_player_links: {
+        Row: {
+          child_id: string | null
+          claimed_by: string
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          playhq_player_id: string
+          tenant: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          claimed_by: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          playhq_player_id: string
+          tenant: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          claimed_by?: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          playhq_player_id?: string
+          tenant?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playhq_player_links_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       playhq_player_stats: {
         Row: {
           id: string
