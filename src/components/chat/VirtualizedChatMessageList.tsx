@@ -2198,7 +2198,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={initialTargetIndex >= 0 ? { index: initialTargetIndex, align: "end", behavior: "auto" } : initialBottomPinned ? { index: "LAST", align: "end", behavior: "auto" } : undefined}
+      // When a deep-link target message id is supplied but isn't in the current
+      // message window yet (typical first paint from a push notification — the
+      // parent's jump-window hydration query runs async, or silently fails on
+      // RLS/network), fall back to anchoring at the latest message instead of
+      // leaving Virtuoso unanchored (which can present as a completely blank
+      // viewport on Android WebView). Once the hydration completes, the parent
+      // bumps its scrollerKey and we remount with a valid `initialTargetIndex`.
+      initialTopMostItemIndex={
+        initialTargetIndex >= 0
+          ? { index: initialTargetIndex, align: "end", behavior: "auto" }
+          : (initialBottomPinned || !!initialTargetMessageId)
+            ? { index: "LAST", align: "end", behavior: "auto" }
+            : undefined
+      }
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
       // pins the BOTTOM of the viewport when content grows above the current
