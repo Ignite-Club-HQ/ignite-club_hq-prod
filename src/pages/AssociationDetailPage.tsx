@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Network, Loader2, Building2, Users, CalendarDays, Megaphone, Send, Plus, X } from "lucide-react";
+import { ArrowLeft, Network, Loader2, Building2, Users, CalendarDays, Megaphone, Send, Plus, X, Trophy, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +111,7 @@ export default function AssociationDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clubs">Member clubs</TabsTrigger>
+          <TabsTrigger value="playhq">PlayHQ</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
         </TabsList>
 
@@ -143,6 +145,10 @@ export default function AssociationDetailPage() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="playhq" className="space-y-3">
+          <PlayHQPanel associationId={id!} isAdmin={isAdmin} />
         </TabsContent>
 
         {isAdmin && (
@@ -367,6 +373,166 @@ function BroadcastsPanel({ associationId, clubs }: { associationId: string; club
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function PlayHQPanel({ associationId, isAdmin }: { associationId: string; isAdmin: boolean }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [tenant, setTenant] = useState("");
+  const [sport, setSport] = useState("");
+  const [season, setSeason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { data: comps = [], isLoading } = useQuery({
+    queryKey: ["association-playhq-comps", associationId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competitions")
+        .select("id, name, sport, season, status, external_tenant, last_synced_at")
+        .eq("organizer_club_id", associationId)
+        .eq("source", "playhq")
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  // Extract the last UUID-like or id-like segment from a PlayHQ URL
+  const parseExternalId = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    // Try UUID pattern anywhere in URL
+    const uuid = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (uuid) return uuid[0];
+    // Fallback: last non-empty path segment
+    try {
+      const u = new URL(trimmed);
+      const segs = u.pathname.split("/").filter(Boolean);
+      return segs[segs.length - 1] ?? null;
+    } catch {
+      return trimmed;
+    }
+  };
+
+  const handleLink = async () => {
+    if (!user || !name.trim() || !url.trim() || !tenant.trim()) {
+      toast({ title: "Missing details", description: "Name, PlayHQ URL and tenant are required.", variant: "destructive" });
+      return;
+    }
+    const extId = parseExternalId(url);
+    if (!extId) {
+      toast({ title: "Couldn't read PlayHQ URL", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("competitions")
+      .insert({
+        name: name.trim(),
+        sport: sport.trim() || null,
+        season: season.trim() || null,
+        organizer_club_id: associationId,
+        visibility: "public",
+        status: "active",
+        created_by: user.id,
+        source: "playhq",
+        external_id: extId,
+        external_tenant: tenant.trim().toLowerCase(),
+      })
+      .select("id")
+      .single();
+    setSaving(false);
+    if (error || !data) {
+      toast({ title: "Could not link PlayHQ competition", description: error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "PlayHQ competition linked" });
+    setName(""); setUrl(""); setTenant(""); setSport(""); setSeason(""); setOpen(false);
+    qc.invalidateQueries({ queryKey: ["association-playhq-comps", associationId] });
+    navigate(`/competitions/${data.id}`);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-primary" />
+            <span className="font-medium">PlayHQ competitions</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Link a PlayHQ-sourced competition (ladder, fixtures and results) to this association. Data is read-only and mirrored from PlayHQ.
+          </p>
+          {isAdmin && !open && (
+            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Link PlayHQ competition
+            </Button>
+          )}
+          {isAdmin && open && (
+            <div className="space-y-3 pt-2">
+              <div>
+                <Label>Display name</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. U12 Saturday League 2026" />
+              </div>
+              <div>
+                <Label>PlayHQ URL</Label>
+                <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.playhq.com/.../grade/..." />
+                <p className="text-[11px] text-muted-foreground mt-1">Paste the PlayHQ grade or competition page URL.</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label>Tenant</Label>
+                  <Input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="bv" />
+                </div>
+                <div>
+                  <Label>Sport</Label>
+                  <Input value={sport} onChange={(e) => setSport(e.target.value)} placeholder="Optional" />
+                </div>
+                <div>
+                  <Label>Season</Label>
+                  <Input value={season} onChange={(e) => setSeason(e.target.value)} placeholder="2026" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleLink} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Link"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : comps.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No PlayHQ competitions linked yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {comps.map((c: any) => (
+            <Link key={c.id} to={`/competitions/${c.id}`} className="block">
+              <Card className="hover:border-primary transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{c.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[c.sport, c.season, c.external_tenant && `tenant: ${c.external_tenant}`].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
