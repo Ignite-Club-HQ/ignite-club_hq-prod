@@ -148,10 +148,12 @@ export default function CompetitionPlayerStatsPanel({
     return m;
   }, [links, user?.id]);
 
-  // Team / Club filters
+  // Team / Club / Grade filters
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
+  const [filterGradeId, setFilterGradeId] = useState<string>("_all");
   const [teamSheetOpen, setTeamSheetOpen] = useState(false);
+  const [gradeSheetOpen, setGradeSheetOpen] = useState(false);
 
   const teamOptions = useMemo(
     () =>
