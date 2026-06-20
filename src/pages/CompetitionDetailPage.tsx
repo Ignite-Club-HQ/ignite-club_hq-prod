@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
+import CompetitionPlayerStatsPanel from "@/components/competitions/CompetitionPlayerStatsPanel";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 
 export default function CompetitionDetailPage() {
@@ -236,6 +237,9 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
+          {competition.source === "playhq" && (
+            <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="teams" className="flex-1">
               Teams{entries.length > 0 ? ` (${entries.length})` : ""}
@@ -250,6 +254,12 @@ export default function CompetitionDetailPage() {
         {canViewLadder && (
           <TabsContent value="ladder" className="space-y-2">
             <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
+          </TabsContent>
+        )}
+
+        {competition.source === "playhq" && (
+          <TabsContent value="stats" className="space-y-2 mt-2">
+            <CompetitionPlayerStatsPanel competitionId={id!} />
           </TabsContent>
         )}
 
