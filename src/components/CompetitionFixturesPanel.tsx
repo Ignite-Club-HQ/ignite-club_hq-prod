@@ -460,7 +460,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       className="space-y-3 box-border"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}
     >
-      {isAdmin && (
+      {isAdmin && source !== "playhq" && (
         <div className="space-y-2">
           {!genOpen ? (
             <div className="flex items-center justify-end gap-2">
