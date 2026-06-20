@@ -922,6 +922,7 @@ function FixturesFilterAndList({
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [filterClubId, setFilterClubId] = useState<string>("_all");
+  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
   // For PlayHQ comps, fetch any Ignite teams that link to PlayHQ team ids
   // appearing in this comp's matches — this gives us a real club_id per
