@@ -50,10 +50,9 @@ Deno.serve(async (req) => {
   }
 
   // Authorise: caller must be a club_admin of the association.
-  const { data: isAdmin } = await supabase.rpc("has_club_role", {
+  const { data: isAdmin } = await supabase.rpc("is_club_admin", {
     _user_id: callerId,
     _club_id: body.association_id,
-    _role: "club_admin",
   });
   if (!isAdmin) return json({ error: "only association admins can create club events" }, 403);
 
