@@ -359,10 +359,10 @@ export function MatchScoreCard({
             <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3 py-2">
-              <div>
-                <Label htmlFor="home-score" className="text-xs text-muted-foreground">
+          <ScrollArea className="flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3 py-2">
+              <div className="min-w-0">
+                <Label htmlFor="home-score" className="text-xs text-muted-foreground truncate block">
                   {labelHome}
                 </Label>
                 <Input
@@ -373,13 +373,13 @@ export function MatchScoreCard({
                   max={999}
                   value={homeScore}
                   onChange={(e) => setHomeScore(e.target.value)}
-                  className="text-center text-2xl font-bold h-14 mt-1"
+                  className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
                   placeholder="0"
                 />
               </div>
-              <div className="pb-4 text-xl font-bold text-muted-foreground">–</div>
-              <div>
-                <Label htmlFor="away-score" className="text-xs text-muted-foreground">
+              <div className="pb-3 text-lg sm:text-xl font-bold text-muted-foreground">–</div>
+              <div className="min-w-0">
+                <Label htmlFor="away-score" className="text-xs text-muted-foreground truncate block">
                   {labelAway}
                 </Label>
                 <Input
@@ -390,7 +390,7 @@ export function MatchScoreCard({
                   max={999}
                   value={awayScore}
                   onChange={(e) => setAwayScore(e.target.value)}
-                  className="text-center text-2xl font-bold h-14 mt-1"
+                  className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
                   placeholder="0"
                 />
               </div>
