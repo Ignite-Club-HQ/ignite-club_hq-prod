@@ -99,7 +99,7 @@ export default function AttendanceStatsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name)")
+        .select("*, clubs!teams_club_id_fkey (id, name)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;

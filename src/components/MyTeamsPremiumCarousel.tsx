@@ -573,7 +573,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
           .from("mini_leagues")
-          .select("id, name, club_id, clubs(name, sport, logo_url)")
+          .select("id, name, club_id, clubs!mini_leagues_club_id_fkey(name, sport, logo_url)")
           .in("id", Array.from(leagueIds));
 
         if (leagues) {

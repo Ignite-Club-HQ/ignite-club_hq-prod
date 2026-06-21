@@ -154,7 +154,7 @@ export default function TeamDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name, is_pro, sport, class_mode_enabled, bot_user_id)")
+        .select("*, clubs!teams_club_id_fkey (id, name, is_pro, sport, class_mode_enabled, bot_user_id)")
         .eq("id", id!)
         .single();
       if (error) throw error;

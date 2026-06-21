@@ -153,7 +153,7 @@ export default function UpgradeProPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name, is_pro, sport)")
+        .select("*, clubs!teams_club_id_fkey (id, name, is_pro, sport)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;
