@@ -101,8 +101,7 @@ const SOCCER: SportScoreConfig = {
   scorersHint: "Optional — attribute goals to players to track top scorers.",
   maxScore: 99,
   scoreLayout: "default",
-  optionalSections: ["scorers", "cards", "awards", "notes"],
-  awardLabel: "Player of the match",
+  optionalSections: ["scorers", "cards", "notes"],
 };
 
 const FUTSAL: SportScoreConfig = {
@@ -124,8 +123,7 @@ const NETBALL: SportScoreConfig = {
   scorersHint: "",
   maxScore: 200,
   scoreLayout: "default",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "Best on court",
+  optionalSections: ["notes"],
 };
 
 const BASKETBALL: SportScoreConfig = {
@@ -141,8 +139,7 @@ const BASKETBALL: SportScoreConfig = {
   scorersHint: "",
   maxScore: 300,
   scoreLayout: "default",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "MVP",
+  optionalSections: ["notes"],
 };
 
 const RUGBY: SportScoreConfig = {
@@ -159,8 +156,7 @@ const RUGBY: SportScoreConfig = {
   maxScore: 200,
   secondaryStats: [{ key: "tries", label: "Tries", short: "T", max: 30 }],
   scoreLayout: "default",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "Player of the match",
+  optionalSections: ["notes"],
 };
 
 const AFL: SportScoreConfig = {
@@ -180,8 +176,7 @@ const AFL: SportScoreConfig = {
     { key: "behinds", label: "Behinds", short: "B", max: 40 },
   ],
   scoreLayout: "afl",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "Best on ground",
+  optionalSections: ["notes"],
 };
 
 const CRICKET: SportScoreConfig = {
@@ -201,8 +196,7 @@ const CRICKET: SportScoreConfig = {
     { key: "overs", label: "Overs", short: "O", max: 100 },
   ],
   scoreLayout: "cricket",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "Player of the match",
+  optionalSections: ["notes"],
 };
 
 const HOCKEY: SportScoreConfig = {
@@ -230,8 +224,7 @@ const BASEBALL: SportScoreConfig = {
     { key: "errors", label: "Errors", short: "E", max: 30 },
   ],
   scoreLayout: "default",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "MVP",
+  optionalSections: ["notes"],
 };
 
 const VOLLEYBALL: SportScoreConfig = {
@@ -247,8 +240,7 @@ const VOLLEYBALL: SportScoreConfig = {
   scorersHint: "",
   maxScore: 5,
   scoreLayout: "sets",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "MVP",
+  optionalSections: ["notes"],
 };
 
 const TENNIS: SportScoreConfig = {
@@ -260,7 +252,6 @@ const TENNIS: SportScoreConfig = {
   teamScoreLabel: "Sets won",
   scorersLabel: "",
   supportsScorers: false,
-  awardLabel: "Player of the match",
 };
 
 const HANDBALL: SportScoreConfig = {
@@ -286,8 +277,7 @@ const GENERIC: SportScoreConfig = {
   scorersHint: "",
   maxScore: 999,
   scoreLayout: "default",
-  optionalSections: ["awards", "notes"],
-  awardLabel: "Player of the match",
+  optionalSections: ["notes"],
 };
 
 const lower = (s: string | null | undefined) => (s || "").toLowerCase();
