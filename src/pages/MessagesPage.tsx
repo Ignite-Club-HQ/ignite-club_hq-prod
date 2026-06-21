@@ -3065,7 +3065,7 @@ export default function MessagesPage() {
 
         {/* Discover open-to-club Operations / Volunteers groups */}
         {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
-          <DiscoverGroupsList activeClubFilter={activeClubFilter} />
+          <DiscoverGroupsList activeClubFilter={effectiveClubFilter} />
         )}
 
         {/* Sponsor/Ad Carousel */}
