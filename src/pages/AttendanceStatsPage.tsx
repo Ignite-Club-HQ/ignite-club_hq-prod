@@ -51,8 +51,14 @@ interface PlayerStats {
   attendanceRate: number;
 }
 
-export default function AttendanceStatsPage() {
-  const { teamId } = useParams<{ teamId: string }>();
+interface AttendanceStatsPageProps {
+  teamIdOverride?: string;
+  embedded?: boolean; // when true, hide header/back button (parent renders it)
+}
+
+export default function AttendanceStatsPage({ teamIdOverride, embedded }: AttendanceStatsPageProps = {}) {
+  const params = useParams<{ teamId: string }>();
+  const teamId = teamIdOverride ?? params.teamId;
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
