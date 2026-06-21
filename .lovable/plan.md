@@ -140,3 +140,48 @@ No RLS or grant changes — table already has them. Migration ships with this wo
 - Competition-admin stat configuration UI (stub only)
 - Edit-later workflow beyond what `upsert` already supports
 - Ladder integration ("View ladder" quick action will be added only if a ladder route exists for this event's competition — confirm during build)
+
+---
+
+# Parked: Realtime Scope Fix for message_reactions
+
+## Problem
+
+All `message_reactions` realtime subscriptions are currently table-wide (no filter). Every INSERT/UPDATE/DELETE on `message_reactions` broadcasts to every open chat page across the app, regardless of context. As MAU grows this wastes Supabase Realtime bandwidth and burns client CPU processing irrelevant events.
+
+## Solution
+
+Mirror the existing `message_reads` `scope_key` pattern that was shipped in Phase 5a.
+
+## Database work
+
+One migration:
+
+1. `ALTER TABLE public.message_reactions ADD COLUMN IF NOT EXISTS scope_key text;`
+2. Create `public.message_reactions_compute_scope_key(_row public.message_reactions)` — same 6-branch logic as `message_reads_compute_scope_key` (team_message_id -> team_id, club_message_id -> club_id, group_message_id -> group_id, direct_message_id -> conversation_id, club_admin_message_id -> conversation_id, broadcast_message_id -> 'broadcast').
+3. Create `public.set_message_reactions_scope_key()` BEFORE INSERT trigger that populates `scope_key` via the compute function if NULL.
+4. Backfill existing rows with equivalent UPDATE ... FROM joins for each message type.
+5. `CREATE INDEX IF NOT EXISTS idx_message_reactions_scope_key ON public.message_reactions (scope_key);`
+
+## Frontend work
+
+Update all 18 `message_reactions` `postgres_changes` subscriptions across the chat pages to add `filter: \`scope_key=eq.${scopeKey}\``.
+
+Pages affected:
+- `src/pages/TeamChatPage.tsx` (INSERT / UPDATE / DELETE x 1 channel)
+- `src/pages/ClubChatPage.tsx` (INSERT / UPDATE / DELETE x 1 channel)
+- `src/pages/GroupChatPage.tsx` (INSERT / UPDATE / DELETE x 1 channel)
+- `src/pages/DirectMessagePage.tsx` (INSERT / UPDATE / DELETE x 1 channel)
+- `src/pages/BroadcastChatPage.tsx` (INSERT / UPDATE / DELETE x 1 channel)
+
+The `scopeKey` string is already constructed on each page for the `message_reads` subscription (e.g. `teamId`, `clubId`, `groupId`, `conversationId`, or `'broadcast'`). Reuse the same variable.
+
+Also update `src/integrations/supabase/types.ts` to include `scope_key?: string | null` on the `message_reactions` Row/Insert/Update interfaces.
+
+## Rollout and testing notes
+
+- Deploy the DB migration first. Verify `scope_key` populates correctly for a few reactions of each message type before touching frontend code.
+- Update frontend subscriptions only after the trigger is confirmed working in production.
+- If any chat type's `scope_key` derivation is wrong, live emoji reactions in that context will silently stop updating (payloads are filtered out by the mismatch). Test all 6 contexts before declaring complete.
+- No backfill required for realtime correctness — Realtime only streams new changes, so existing rows do not affect live updates. Backfill is for consistency / potential future query use.
+- Keep old table-wide subscriptions as a fallback behind a feature flag for 24 hours if desired, or test heavily in staging first.
