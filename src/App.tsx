@@ -393,6 +393,7 @@ const App = () => {
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
                   <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
                   <Route path="/clubs/:clubId/attendance" element={<ClubAttendanceStatsPage />} />
+                  <Route path="/clubs/:clubId/engagement" element={<ClubEngagementAnalyticsPage />} />
                   <Route path="/teams/:teamId/publish-chat-photos" element={<PublishChatPhotosPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
