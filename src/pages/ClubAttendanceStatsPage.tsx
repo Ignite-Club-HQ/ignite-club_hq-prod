@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, BarChart3, Lock } from "lucide-react";
+import { ArrowLeft, BarChart3, Lock, ChevronRight } from "lucide-react";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isPast } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -12,17 +14,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import AttendanceStatsPage from "./AttendanceStatsPage";
+
+const ALL_TEAMS = "__all__";
 
 export default function ClubAttendanceStatsPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
 
-  // Admin gate: club_admin for this club OR app_admin
+  // Default last 3 months for the club-wide view
+  const startDate = useMemo(() => startOfMonth(subMonths(new Date(), 3)), []);
+  const endDate = useMemo(() => endOfMonth(new Date()), []);
+
+  // Admin gate
   const { data: isAdmin, isLoading: loadingAdmin } = useQuery({
     queryKey: ["is-club-admin-attendance", user?.id, clubId],
     queryFn: async () => {
@@ -67,7 +83,89 @@ export default function ClubAttendanceStatsPage() {
     enabled: !!clubId,
   });
 
-  const teamOptions = useMemo(() => teams, [teams]);
+  const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
+
+  // Club-wide events (game + training, past, in range)
+  const { data: clubEvents = [], isLoading: clubEventsLoading } = useQuery({
+    queryKey: ["club-events-attendance", clubId, teamIds, startDate, endDate],
+    queryFn: async () => {
+      if (teamIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("events")
+        .select("id, team_id, event_date, type, is_cancelled")
+        .in("team_id", teamIds)
+        .eq("is_cancelled", false)
+        .in("type", ["game", "training"])
+        .gte("event_date", startDate.toISOString())
+        .lte("event_date", endDate.toISOString());
+      if (error) throw error;
+      return (data || []).filter((e) => isPast(parseISO(e.event_date)));
+    },
+    enabled: selectedTeamId === ALL_TEAMS && teamIds.length > 0,
+  });
+
+  const { data: clubRsvps = [], isLoading: clubRsvpsLoading } = useQuery({
+    queryKey: ["club-rsvps-attendance", clubId, clubEvents.map((e) => e.id)],
+    queryFn: async () => {
+      if (clubEvents.length === 0) return [];
+      const eventIds = clubEvents.map((e) => e.id);
+      // Chunk to stay below URL size limits
+      const chunkSize = 200;
+      const results: any[] = [];
+      for (let i = 0; i < eventIds.length; i += chunkSize) {
+        const chunk = eventIds.slice(i, i + chunkSize);
+        const { data, error } = await supabase
+          .from("rsvps")
+          .select("event_id, status")
+          .in("event_id", chunk);
+        if (error) throw error;
+        results.push(...(data || []));
+      }
+      return results;
+    },
+    enabled: selectedTeamId === ALL_TEAMS && clubEvents.length > 0,
+  });
+
+  // Per-team aggregates
+  const teamAggregates = useMemo(() => {
+    const eventsByTeam = new Map<string, string[]>(); // teamId -> eventIds
+    clubEvents.forEach((e) => {
+      const arr = eventsByTeam.get(e.team_id) || [];
+      arr.push(e.id);
+      eventsByTeam.set(e.team_id, arr);
+    });
+
+    const rsvpByEvent = new Map<string, { going: number; total: number }>();
+    clubRsvps.forEach((r: any) => {
+      const cur = rsvpByEvent.get(r.event_id) || { going: 0, total: 0 };
+      cur.total += 1;
+      if (r.status === "going") cur.going += 1;
+      rsvpByEvent.set(r.event_id, cur);
+    });
+
+    return teams.map((t) => {
+      const ids = eventsByTeam.get(t.id) || [];
+      let going = 0;
+      let total = 0;
+      ids.forEach((id) => {
+        const v = rsvpByEvent.get(id);
+        if (v) {
+          going += v.going;
+          total += v.total;
+        }
+      });
+      const rate = total > 0 ? Math.round((going / total) * 100) : 0;
+      return { id: t.id, name: t.name, events: ids.length, going, total, rate };
+    }).sort((a, b) => b.rate - a.rate);
+  }, [teams, clubEvents, clubRsvps]);
+
+  const clubTotals = useMemo(() => {
+    const totalEvents = clubEvents.length;
+    const totalGoing = clubRsvps.filter((r: any) => r.status === "going").length;
+    const totalResponses = clubRsvps.length;
+    const avgRate = totalResponses > 0 ? Math.round((totalGoing / totalResponses) * 100) : 0;
+    return { totalEvents, totalGoing, totalResponses, avgRate, totalTeams: teams.length };
+  }, [clubEvents, clubRsvps, teams]);
 
   if (loadingAdmin || clubLoading) {
     return (
@@ -99,6 +197,8 @@ export default function ClubAttendanceStatsPage() {
     );
   }
 
+  const aggregateLoading = clubEventsLoading || clubRsvpsLoading || teamsLoading;
+
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
@@ -116,40 +216,122 @@ export default function ClubAttendanceStatsPage() {
       {/* Team selector */}
       <Card>
         <CardContent className="p-4 space-y-2">
-          <label className="text-sm font-medium">Team</label>
+          <label className="text-sm font-medium">View</label>
           <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
             <SelectTrigger>
-              <SelectValue
-                placeholder={teamsLoading ? "Loading teams…" : "Select a team"}
-              />
+              <SelectValue placeholder={teamsLoading ? "Loading teams…" : "Select"} />
             </SelectTrigger>
             <SelectContent>
-              {teamOptions.map((t) => (
+              <SelectItem value={ALL_TEAMS}>Overall Club (all teams)</SelectItem>
+              {teams.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {teamOptions.length === 0 && !teamsLoading && (
+          {teams.length === 0 && !teamsLoading && (
             <p className="text-xs text-muted-foreground">No teams in this club.</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Embedded per-team stats */}
-      {selectedTeamId ? (
-        <AttendanceStatsPage
-          key={selectedTeamId}
-          teamIdOverride={selectedTeamId}
-          embedded
-        />
+      {selectedTeamId !== ALL_TEAMS ? (
+        <AttendanceStatsPage key={selectedTeamId} teamIdOverride={selectedTeamId} embedded />
       ) : (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Select a team above to view attendance stats.
-          </CardContent>
-        </Card>
+        <>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Showing games &amp; training from {format(startDate, "dd MMM yyyy")} to{" "}
+            {format(endDate, "dd MMM yyyy")}. Switch to a team for a full per-player breakdown.
+          </p>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-primary">{clubTotals.totalTeams}</p>
+                <p className="text-sm text-muted-foreground">Teams</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-primary">{clubTotals.totalEvents}</p>
+                <p className="text-sm text-muted-foreground">Sessions</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-emerald-500">{clubTotals.avgRate}%</p>
+                <p className="text-sm text-muted-foreground">Avg Attendance</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-primary">{clubTotals.totalResponses}</p>
+                <p className="text-sm text-muted-foreground">Responses</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per team breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Team Breakdown</CardTitle>
+              <CardDescription>
+                Attendance rate = "Going" responses ÷ total responses on games &amp; training.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {aggregateLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : teamAggregates.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No data for the selected period.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Team</TableHead>
+                        <TableHead className="text-center w-20">Sessions</TableHead>
+                        <TableHead className="w-40">Rate</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamAggregates.map((t) => (
+                        <TableRow
+                          key={t.id}
+                          className="cursor-pointer"
+                          onClick={() => setSelectedTeamId(t.id)}
+                        >
+                          <TableCell className="font-medium text-sm">{t.name}</TableCell>
+                          <TableCell className="text-center text-sm">{t.events}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={t.rate} className="h-2 flex-1" />
+                              <span className="text-sm font-medium w-10 text-right">
+                                {t.rate}%
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
