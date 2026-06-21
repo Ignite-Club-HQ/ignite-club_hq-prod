@@ -9818,12 +9818,41 @@ export type Database = {
           user_id: string
         }[]
       }
+      club_engagement_benchmarks: {
+        Args: {
+          _club_id: string
+          _end: string
+          _prev_end: string
+          _prev_start: string
+          _start: string
+        }
+        Returns: Json
+      }
       club_engagement_message_volume: {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {
           club_count: number
           day: string
           team_count: number
+        }[]
+      }
+      club_engagement_sponsor_performance: {
+        Args: {
+          _club_id: string
+          _end: string
+          _prev_end: string
+          _prev_start: string
+          _start: string
+        }
+        Returns: {
+          clicks: number
+          ctr: number
+          prev_clicks: number
+          prev_views: number
+          sponsor_id: string
+          sponsor_name: string
+          unique_reach: number
+          views: number
         }[]
       }
       club_engagement_totals: {
