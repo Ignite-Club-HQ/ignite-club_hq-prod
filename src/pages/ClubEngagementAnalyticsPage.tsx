@@ -20,6 +20,7 @@ import {
   Trophy,
   MousePointerClick,
   RefreshCcw,
+  AlertTriangle,
 } from "lucide-react";
 import {
   format,
@@ -291,7 +292,7 @@ export default function ClubEngagementAnalyticsPage() {
   });
 
   // ---------- Club-wide totals (RPC) — bypasses 1000-row cap & RLS for club admins ----------
-  const { data: totals } = useQuery({
+  const { data: totals, isLoading: totalsLoading, error: totalsError } = useQuery({
     queryKey: ["club-engagement-totals-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_totals", {
@@ -317,7 +318,7 @@ export default function ClubEngagementAnalyticsPage() {
   });
 
   // ---------- Message volume per day (RPC) ----------
-  const { data: msgVolume = [] } = useQuery({
+  const { data: msgVolume = [], error: msgVolumeError } = useQuery({
     queryKey: ["club-engagement-msg-volume-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_message_volume", {
@@ -332,7 +333,7 @@ export default function ClubEngagementAnalyticsPage() {
   });
 
   const msgVolumeChart = useMemo(
-    () => msgVolume.map((r) => ({ day: r.day, Club: Number(r.club_count || 0), Team: Number(r.team_count || 0) })),
+    () => msgVolume.map((r) => ({ day: r.day, Club: Number(r.club_count || 0), "Team / group": Number(r.team_count || 0) })),
     [msgVolume]
   );
 
