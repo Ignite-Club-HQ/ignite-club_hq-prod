@@ -272,7 +272,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             going: 0,
             maybe: 0,
             notGoing: 0,
-            noResponse: 0,
             attendanceRate: 0,
           });
         }
