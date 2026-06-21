@@ -1339,7 +1339,7 @@ export default function HomePage() {
       // Fetch team details
       const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs (id, name, sport)")
+        .select("id, name, club_id, clubs!club_id (id, name, sport)")
         .in("id", coachAdminTeamIds);
       
       if (teamsError) throw teamsError;
