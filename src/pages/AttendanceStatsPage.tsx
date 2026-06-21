@@ -47,7 +47,6 @@ interface PlayerStats {
   going: number;
   maybe: number;
   notGoing: number;
-  noResponse: number;
   attendanceRate: number;
 }
 
@@ -273,7 +272,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             going: 0,
             maybe: 0,
             notGoing: 0,
-            noResponse: 0,
             attendanceRate: 0,
           });
         }
@@ -297,7 +295,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             going: 0,
             maybe: 0,
             notGoing: 0,
-            noResponse: 0,
             attendanceRate: 0,
           });
         }
@@ -329,11 +326,10 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       }
     });
 
-    // Calculate no response and attendance rate
+    // Calculate attendance rate
     stats.forEach((stat) => {
-      stat.noResponse = stat.totalEvents - stat.going - stat.maybe - stat.notGoing;
-      stat.attendanceRate = stat.totalEvents > 0 
-        ? Math.round((stat.going / stat.totalEvents) * 100) 
+      stat.attendanceRate = stat.totalEvents > 0
+        ? Math.round((stat.going / stat.totalEvents) * 100)
         : 0;
     });
 
@@ -347,8 +343,7 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
     const totalGoing = playerStats.reduce((sum, p) => sum + p.going, 0);
     const totalMaybe = playerStats.reduce((sum, p) => sum + p.maybe, 0);
     const totalNotGoing = playerStats.reduce((sum, p) => sum + p.notGoing, 0);
-    const totalNoResponse = playerStats.reduce((sum, p) => sum + p.noResponse, 0);
-    
+
     return {
       totalEvents: events.length,
       totalPlayers: playerStats.length,
@@ -356,12 +351,11 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       totalGoing,
       totalMaybe,
       totalNotGoing,
-      totalNoResponse,
     };
   }, [playerStats, events]);
 
   const exportToCSV = () => {
-    const headers = ["Name", "Type", "Parent", "Total Events", "Going", "Maybe", "Not Going", "No Response", "Attendance Rate"];
+    const headers = ["Name", "Type", "Parent", "Total Events", "Going", "Maybe", "Not Going", "Attendance Rate"];
     const rows = playerStats.map(p => [
       p.displayName,
       p.isChild ? "Child" : "Player",
@@ -370,7 +364,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       p.going,
       p.maybe,
       p.notGoing,
-      p.noResponse,
       `${p.attendanceRate}%`,
     ]);
 
@@ -564,12 +557,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             <p className="text-sm text-muted-foreground">Avg Attendance</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-amber-500">{overallStats.totalNoResponse}</p>
-            <p className="text-sm text-muted-foreground">No Response</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Export Button */}
@@ -625,7 +612,7 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                         <X className="h-4 w-4 text-destructive" />
                       </span>
                     </TableHead>
-                    <TableHead className="text-center w-20">N/A</TableHead>
+                    
                     <TableHead className="w-32">Rate</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -648,9 +635,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                               </p>
                             )}
                           </div>
-                          {player.isChild && (
-                            <Badge variant="outline" className="text-xs">Child</Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -661,9 +645,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-destructive font-medium">{player.notGoing}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="text-muted-foreground">{player.noResponse}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
