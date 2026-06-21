@@ -2131,6 +2131,17 @@ export default function MessagesPage() {
         const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
         if (stillHidden && !query) return false;
       }
+      // When a club filter is active, only show DMs whose other participant
+      // holds a role under the selected club. Always keep Ignite Support
+      // visible regardless of club scope. While the lookup is loading, keep
+      // the conversation visible to avoid a flash of empty state.
+      if (effectiveClubFilter && clubScopedUsersInClub) {
+        const otherId = conv.other_user?.id;
+        const isSupport = isIgniteSupportUser(otherId);
+        if (!isSupport && otherId && !clubScopedUsersInClub.has(otherId)) {
+          return false;
+        }
+      }
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
@@ -2138,7 +2149,8 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query, allDrafts]);
+  }, [dmConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
