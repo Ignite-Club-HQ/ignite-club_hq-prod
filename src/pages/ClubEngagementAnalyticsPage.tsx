@@ -694,6 +694,22 @@ export default function ClubEngagementAnalyticsPage({
         <ScoreCard score={engagementScore} />
       </div>
 
+      {/* Benchmark: Active Member % */}
+      <SectionHeader icon={Users} title="Active Member Rate" description="Members with any meaningful action in this period" />
+      <ActiveMemberCard b={benchmarks} />
+
+      {/* Benchmark: DAU / WAU / MAU */}
+      <SectionHeader icon={Activity} title="Engagement (DAU / WAU / MAU)" description="Industry-standard active-user metrics" />
+      <EngagementBenchmarkCards b={benchmarks} />
+
+      {/* Benchmark: Message Participation */}
+      <SectionHeader icon={MessageSquare} title="Message Participation" description="How members engage with chat" />
+      <MessageParticipationCard b={benchmarks} />
+
+      {/* Benchmark: Read Rates */}
+      <SectionHeader icon={Eye} title="Read Rates" description="Communication effectiveness — viewers within 7 days" />
+      <ReadRatesGrid b={benchmarks} />
+
       {/* Section 2: Member Adoption */}
       <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
       <Card>
