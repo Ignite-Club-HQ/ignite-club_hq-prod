@@ -185,3 +185,33 @@ Also update `src/integrations/supabase/types.ts` to include `scope_key?: string 
 - If any chat type's `scope_key` derivation is wrong, live emoji reactions in that context will silently stop updating (payloads are filtered out by the mismatch). Test all 6 contexts before declaring complete.
 - No backfill required for realtime correctness — Realtime only streams new changes, so existing rows do not affect live updates. Backfill is for consistency / potential future query use.
 - Keep old table-wide subscriptions as a fallback behind a feature flag for 24 hours if desired, or test heavily in staging first.
+
+---
+
+# Tiered Scaling Roadmap — Remaining Actions
+
+## Now → 1,000 MAU
+- Nothing urgent.
+- Optional: ship the **Parked: Realtime Scope Fix for message_reactions** when staging bandwidth is available.
+
+## 1,000 → 5,000 MAU
+- Ship the parked `message_reactions` realtime scope fix (table-wide broadcasts burn client CPU).
+- Scope `photo_views` realtime subscriptions (MED finding from audit) — apply narrow filters if currently table-wide.
+- Add a monthly Realtime usage dashboard check (Supabase → Realtime → Connections / Messages).
+
+## 5,000 → 20,000 MAU
+- Audit remaining table-wide `postgres_changes` subscriptions (typing indicators, presence, `schedule_broadcasts`) — apply `scope_key`-style filtering wherever fanout exceeds intended audience.
+- Move heavy cron jobs off 15-minute cadence or shard by `club_id` if lock overlap is observed (`cron_locks` table).
+- Edge function cold-start review — identify slow boots, reduce bundle size or switch to warmer tiers.
+- Tune autovacuum on hot tables: `message_reactions`, `message_reads`, `events`, `rsvps`.
+
+## 20,000+ MAU
+- Shard Realtime channels by `club_id` to cap per-channel fanout.
+- Read replicas for analytics / leaderboard queries.
+- Push notification batching and deduplication review.
+- Storage cost review: chunk retention, soft-delete cleanup cadence, compression.
+- Consider PgBouncer tier upgrade or connection pooling changes.
+
+## Cross-cutting triggers (act immediately when symptom appears, regardless of tier)
+- **Stuck cron lock** → watchdog query clearing locks older than 2× interval.
+- **Reaction lag / dropped emoji** → ship parked `message_reactions` scope fix immediately, even if below 1,000 MAU.
