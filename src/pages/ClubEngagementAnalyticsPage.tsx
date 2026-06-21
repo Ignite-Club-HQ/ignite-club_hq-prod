@@ -358,14 +358,17 @@ export default function ClubEngagementAnalyticsPage({
   const broadcastsCount = totals?.broadcasts ?? 0;
 
   const rsvpStats = useMemo(() => {
-    const total = totals?.rsvpsTotal ?? 0;
+    // `expected` = sum across events of each event team's eligible roster (children assigned + active adult players).
+    // This is the proper denominator for completion / attendance — rsvps rows alone would give 100% by definition.
+    const expected = totals?.rsvpsTotal ?? 0;
     const responded = totals?.rsvpsResponded ?? 0;
     const going = totals?.rsvpsGoing ?? 0;
+    const clamp = (n: number) => Math.max(0, Math.min(100, n));
     return {
       eventsCreated: totals?.events ?? 0,
-      completionRate: total ? Math.round((responded / total) * 100) : 0,
-      attendanceRate: total ? Math.round((going / total) * 100) : 0,
-      pending: Math.max(0, total - responded),
+      completionRate: expected ? clamp(Math.round((responded / expected) * 100)) : 0,
+      attendanceRate: expected ? clamp(Math.round((going / expected) * 100)) : 0,
+      pending: Math.max(0, expected - responded),
     };
   }, [totals]);
 
