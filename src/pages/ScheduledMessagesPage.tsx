@@ -193,7 +193,7 @@ function useThreadLabels(rows: ScheduledMessageRow[]) {
         tasks.push((async () => {
           const { data } = await supabase
             .from("club_admin_conversations")
-            .select("id, club_id, clubs(name)")
+            .select("id, club_id, clubs!club_id(name)")
             .in("id", adminConvIds);
           (data || []).forEach((c: any) => {
             labels[`club_admin:${c.id}`] = {
