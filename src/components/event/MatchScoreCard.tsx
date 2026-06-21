@@ -79,6 +79,10 @@ export function MatchScoreCard({
   const [scorers, setScorers] = useState<PlayerGoalRow[]>([]);
   const [pendingScorerId, setPendingScorerId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  // Per-team secondary stats keyed by SecondaryStat.key (e.g. cricket wickets).
+  // Stored in game_results.period_scores as { home: {...}, away: {...} }.
+  const [homeMeta, setHomeMeta] = useState<Record<string, string>>({});
+  const [awayMeta, setAwayMeta] = useState<Record<string, string>>({});
 
   const { data: result, isLoading } = useQuery({
     queryKey: ["match-score", eventId],
