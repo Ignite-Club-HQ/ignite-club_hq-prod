@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, BarChart3, Lock, ChevronRight } from "lucide-react";
+import { ArrowLeft, BarChart3, Lock, ChevronRight, Calendar, Filter } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isPast } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
