@@ -166,25 +166,37 @@ export default function AttendanceStatsPage() {
     enabled: !!teamId,
   });
 
-  // Fetch children assigned to this team
+  // Fetch children assigned to this team (use RPC to bypass RLS limits on child_team_assignments)
   const { data: teamChildren = [] } = useQuery({
     queryKey: ["team-children-attendance", teamId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("child_team_assignments")
-        .select(`
-          child_id,
-          children:child_id (
-            id,
-            name,
-            parent_id,
-            profiles:parent_id (id, display_name)
-          )
-        `)
-        .eq("team_id", teamId!);
-      
-      if (error) throw error;
-      return data || [];
+      const { data: rpcChildren, error: rpcError } = await supabase.rpc(
+        "get_team_children_for_pitch_board",
+        { p_team_id: teamId! }
+      );
+      if (rpcError) throw rpcError;
+      const rows = rpcChildren || [];
+      if (rows.length === 0) return [];
+
+      const parentIds = [...new Set(rows.map((r: any) => r.parent_id).filter(Boolean))];
+      let profileMap: Record<string, { id: string; display_name: string | null }> = {};
+      if (parentIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", parentIds);
+        (profiles || []).forEach((p) => { profileMap[p.id] = p; });
+      }
+
+      return rows.map((r: any) => ({
+        child_id: r.child_id,
+        children: {
+          id: r.child_id,
+          name: r.child_name,
+          parent_id: r.parent_id,
+          profiles: r.parent_id ? profileMap[r.parent_id] || null : null,
+        },
+      }));
     },
     enabled: !!teamId,
   });
