@@ -190,7 +190,7 @@ serve(async (req) => {
     if (subscriptionType === 'team') {
       const { data: team, error: teamError } = await supabase
         .from('teams')
-        .select('id, name, club_id, clubs(name)')
+        .select('id, name, club_id, clubs!club_id(name)')
         .eq('id', entityId)
         .single();
 

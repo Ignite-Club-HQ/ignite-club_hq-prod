@@ -164,7 +164,7 @@ serve(async (req: Request): Promise<Response> => {
     } else if (contextType === 'team') {
       const { data: team } = await supabase
         .from('teams')
-        .select('club_id, clubs(logo_url)')
+        .select('club_id, clubs!club_id(logo_url)')
         .eq('id', contextId)
         .single();
       clubLogoUrl = (team?.clubs as any)?.logo_url || undefined;

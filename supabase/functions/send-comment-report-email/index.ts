@@ -64,7 +64,7 @@ serve(async (req) => {
         user_id,
         created_at,
         photo_id,
-        photos:photo_id(id, club_id, team_id, clubs(name), teams(name)),
+        photos:photo_id(id, club_id, team_id, clubs!club_id(name), teams(name)),
         profiles:user_id(display_name)
       `)
       .eq("id", commentId)

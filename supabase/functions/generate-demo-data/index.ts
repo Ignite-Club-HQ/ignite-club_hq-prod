@@ -167,8 +167,8 @@ serve(async (req) => {
           role,
           club_id,
           team_id,
-          clubs(name),
-          teams(name, clubs(name))
+          clubs!club_id(name),
+          teams(name, clubs!club_id(name))
         `)
         .in("user_id", demoUserIds);
       
@@ -517,8 +517,8 @@ serve(async (req) => {
           role,
           club_id,
           team_id,
-          clubs(name),
-          teams(name, clubs(name))
+          clubs!club_id(name),
+          teams(name, clubs!club_id(name))
         `)
         .in("user_id", demoUserIds);
       
@@ -611,7 +611,7 @@ serve(async (req) => {
 
     // DELETE ACTION
     if (action === "delete") {
-      // Delete in order: vaultFiles -> photoEngagement -> messages -> formations -> photos -> events -> users -> teams -> clubs (due to foreign keys)
+      // Delete in order: vaultFiles -> photoEngagement -> messages -> formations -> photos -> events -> users -> teams -> clubs!club_id (due to foreign keys)
       
       if (options.vaultFiles) {
         const { data: demoClubs } = await supabase
