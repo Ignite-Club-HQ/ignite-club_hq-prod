@@ -249,12 +249,9 @@ export function MatchResultSheet({
               goals: Number(p.goals) || 0,
               yellow: Number(p.yellow) || 0,
               red: Number(p.red) || 0,
-              award: p.award ? String(p.award) : undefined,
             }))
         : [];
       setScorers(existing.filter((p) => (p.goals ?? 0) > 0 || p.yellow || p.red));
-      const award = existing.find((p) => p.award === "mvp");
-      setAwardId(award?.id ?? "");
       setNotes((result?.notes as string) || "");
       setDraftRestored(false);
     }
@@ -296,7 +293,7 @@ export function MatchResultSheet({
       } catch {/* quota or json */}
     }, 1500);
     return () => clearTimeout(t);
-  }, [open, eventId, homeScore, awayScore, homeMeta, awayMeta, sets, scorers, awardId, notes]);
+  }, [open, eventId, homeScore, awayScore, homeMeta, awayMeta, sets, scorers, notes]);
 
   // ── Derived ────────────────────────────────────────────────────────
   const labelHome = result?.home_label || teamName;
@@ -1198,32 +1195,6 @@ function CardCounter({
       <span className="w-4 text-center text-xs font-semibold tabular-nums">{value}</span>
       <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={onPlus}>+</Button>
     </div>
-  );
-}
-
-function AwardsSection({
-  label, awardId, setAwardId, roster,
-}: {
-  label: string;
-  awardId: string;
-  setAwardId: (v: string) => void;
-  roster: RosterPlayer[];
-}) {
-  return (
-    <section className="space-y-2">
-      <Label className="flex items-center gap-1.5 text-sm">
-        <Award className="h-4 w-4 text-primary" /> {label}
-      </Label>
-      <Select value={awardId} onValueChange={(v) => setAwardId(v === "__none__" ? "" : v)}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select a player…" />
-        </SelectTrigger>
-        <SelectContent className="max-h-64 z-[1000010]">
-          <SelectItem value="__none__">None</SelectItem>
-          {roster.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </section>
   );
 }
 
