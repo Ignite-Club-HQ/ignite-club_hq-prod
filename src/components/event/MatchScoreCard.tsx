@@ -253,6 +253,21 @@ export function MatchScoreCard({
     }
     setSaving(true);
     try {
+      const toNumMap = (src: Record<string, string>) => {
+        const out: Record<string, number> = {};
+        for (const s of sportConfig.secondaryStats || []) {
+          const raw = (src[s.key] ?? "").trim();
+          if (raw === "") continue;
+          const n = parseInt(raw, 10);
+          if (!isNaN(n) && n >= 0) out[s.key] = Math.min(n, s.max);
+        }
+        return out;
+      };
+      const homeMetaNum = toNumMap(homeMeta);
+      const awayMetaNum = toNumMap(awayMeta);
+      const periodScoresPayload: any = (sportConfig.secondaryStats?.length ?? 0) > 0
+        ? { home: homeMetaNum, away: awayMetaNum }
+        : [];
       const payload = {
         team_id: teamId,
         event_id: eventId,
@@ -261,7 +276,7 @@ export function MatchScoreCard({
         away_label: opponent || "Opponent",
         home_score: h,
         away_score: a,
-        period_scores: [],
+        period_scores: periodScoresPayload,
         player_stats: scorers.map((s) => ({
           id: s.id,
           name: s.name,
