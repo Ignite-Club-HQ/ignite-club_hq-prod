@@ -7,12 +7,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   Select,
   SelectContent,
@@ -413,13 +413,13 @@ export function MatchScoreCard({
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6 gap-3 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col top-[max(1rem,env(safe-area-inset-top))] translate-y-0 sm:top-1/2 sm:-translate-y-1/2"
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent
+          className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6 gap-3 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col sm:top-1/2 sm:-translate-y-1/2"
         >
-          <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} {sportConfig.title}</DialogTitle>
-          </DialogHeader>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} {sportConfig.title}</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
 
           <ScrollArea className="flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3 py-2">
@@ -621,16 +621,16 @@ export function MatchScoreCard({
             )}
           </ScrollArea>
 
-          <DialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
+          <ResponsiveDialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving} className="flex-1 sm:flex-none">
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || overAttributed} className="flex-1 sm:flex-none">
               {saving ? "Saving…" : "Save score"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </>
   );
 }
