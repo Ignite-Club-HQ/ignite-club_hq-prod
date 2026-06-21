@@ -372,14 +372,14 @@ export function MatchScoreCard({
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3 py-2">
               <div className="min-w-0">
                 <Label htmlFor="home-score" className="text-xs text-muted-foreground truncate block">
-                  {labelHome}
+                  {labelHome} <span className="opacity-70">({sportConfig.teamScoreLabel})</span>
                 </Label>
                 <Input
                   id="home-score"
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={999}
+                  max={sportConfig.maxScore}
                   value={homeScore}
                   onChange={(e) => setHomeScore(e.target.value)}
                   className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
@@ -389,14 +389,14 @@ export function MatchScoreCard({
               <div className="pb-3 text-lg sm:text-xl font-bold text-muted-foreground">–</div>
               <div className="min-w-0">
                 <Label htmlFor="away-score" className="text-xs text-muted-foreground truncate block">
-                  {labelAway}
+                  {labelAway} <span className="opacity-70">({sportConfig.teamScoreLabel})</span>
                 </Label>
                 <Input
                   id="away-score"
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={999}
+                  max={sportConfig.maxScore}
                   value={awayScore}
                   onChange={(e) => setAwayScore(e.target.value)}
                   className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
