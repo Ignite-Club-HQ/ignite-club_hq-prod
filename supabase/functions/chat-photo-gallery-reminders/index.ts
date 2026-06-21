@@ -24,6 +24,19 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // Overlap guard: hourly cron with a TTL of 50 min so a slow run can't stack.
+  const LOCK_KEY = "chat-photo-gallery-reminders";
+  const { data: lockAcquired } = await supabase.rpc("try_cron_lock", {
+    p_key: LOCK_KEY,
+    p_ttl_seconds: 50 * 60,
+  });
+  if (!lockAcquired) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: "another run in progress" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     // Load admin-tunable settings (enabled flag + scan window).
     let enabled = true;
