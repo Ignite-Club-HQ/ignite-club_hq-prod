@@ -2078,7 +2078,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap, clubScopedGroupMembers, clubScopedUsersInClub, user?.id]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
