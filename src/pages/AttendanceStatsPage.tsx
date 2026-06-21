@@ -295,7 +295,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             going: 0,
             maybe: 0,
             notGoing: 0,
-            noResponse: 0,
             attendanceRate: 0,
           });
         }
@@ -327,11 +326,10 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       }
     });
 
-    // Calculate no response and attendance rate
+    // Calculate attendance rate
     stats.forEach((stat) => {
-      stat.noResponse = stat.totalEvents - stat.going - stat.maybe - stat.notGoing;
-      stat.attendanceRate = stat.totalEvents > 0 
-        ? Math.round((stat.going / stat.totalEvents) * 100) 
+      stat.attendanceRate = stat.totalEvents > 0
+        ? Math.round((stat.going / stat.totalEvents) * 100)
         : 0;
     });
 
