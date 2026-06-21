@@ -36,9 +36,9 @@ export default function ClubAttendanceStatsPage() {
   const navigate = useNavigate();
   const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
 
-  // Default last 3 months for the club-wide view
-  const startDate = useMemo(() => startOfMonth(subMonths(new Date(), 3)), []);
-  const endDate = useMemo(() => endOfMonth(new Date()), []);
+  // Default last 3 months for the club-wide view (user-adjustable)
+  const [startDate, setStartDate] = useState<Date>(() => startOfMonth(subMonths(new Date(), 3)));
+  const [endDate, setEndDate] = useState<Date>(() => endOfMonth(new Date()));
 
   // Admin gate
   const { data: isAdmin, isLoading: loadingAdmin } = useQuery({
