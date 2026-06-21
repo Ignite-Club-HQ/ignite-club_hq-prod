@@ -147,7 +147,7 @@ export default function MiniLeaguesPage() {
       // Fetch the actual league data
       let query = supabase
         .from("mini_leagues")
-        .select(`*, club:clubs(id, name)`)
+        .select(`*, club:clubs!club_id(id, name)`)
         .in("id", allAccessibleLeagueIds)
         .order("created_at", { ascending: false });
       
