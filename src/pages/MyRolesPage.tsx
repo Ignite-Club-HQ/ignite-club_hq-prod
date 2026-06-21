@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { supabase } from "@/integrations/supabase/client";
 
 const roleLabels: Record<string, string> = {
@@ -34,6 +35,7 @@ const roleColors: Record<string, string> = {
 
 export default function MyRolesPage() {
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
 
   const { data: roles, isLoading } = useQuery({
@@ -47,7 +49,7 @@ export default function MyRolesPage() {
           club_id,
           team_id,
           clubs (id, name, logo_url),
-          teams (id, name, clubs (name))
+          teams (id, name, club_id, clubs (name))
         `)
         .eq("user_id", user!.id);
 
@@ -57,10 +59,21 @@ export default function MyRolesPage() {
     enabled: !!user,
   });
 
+  // Apply active club filter: when a club is selected, only show roles for that club.
+  // App-admin (global) roles are always shown.
+  const filteredRoles = activeClubFilter
+    ? (roles || []).filter((r: any) => {
+        if (r.role === "app_admin") return true;
+        if (r.club_id === activeClubFilter) return true;
+        if (r.team_id && r.teams?.club_id === activeClubFilter) return true;
+        return false;
+      })
+    : roles;
+
   // Group roles by type
-  const appRoles = roles?.filter((r) => r.role === "app_admin") || [];
-  const clubRoles = roles?.filter((r) => r.club_id && !r.team_id) || [];
-  const teamRoles = roles?.filter((r) => r.team_id) || [];
+  const appRoles = filteredRoles?.filter((r) => r.role === "app_admin") || [];
+  const clubRoles = filteredRoles?.filter((r) => r.club_id && !r.team_id) || [];
+  const teamRoles = filteredRoles?.filter((r) => r.team_id) || [];
 
   return (
     <div className="py-6 space-y-6">
