@@ -90,7 +90,7 @@ export function MatchScoreCard({
       const { data } = await supabase
         .from("game_results")
         .select(
-          "id, home_score, away_score, home_label, away_label, saved_by, player_stats"
+          "id, home_score, away_score, home_label, away_label, saved_by, player_stats, period_scores"
         )
         .eq("event_id", eventId)
         .maybeSingle();
