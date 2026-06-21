@@ -488,6 +488,45 @@ export default function ClubEngagementAnalyticsPage({
     return { impressions, clicks, ctr, top };
   }, [sponsorAnalytics, sponsorRows]);
 
+  // ---------- Benchmark metrics (Active%, DAU/WAU/MAU, Message Participation, Read Rates) ----------
+  const { data: benchmarks } = useQuery({
+    queryKey: ["club-engagement-benchmarks", clubId, mode, range.start.toISOString(), range.end.toISOString(), prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_benchmarks", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return data as Record<string, number>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  // ---------- Sponsor performance (unique reach + CTR per sponsor) ----------
+  const { data: sponsorPerf = [] } = useQuery({
+    queryKey: ["club-engagement-sponsor-perf", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_sponsor_performance", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        sponsor_id: string; sponsor_name: string; unique_reach: number;
+        views: number; clicks: number; ctr: number;
+        prev_clicks: number; prev_views: number;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+
 
   // ---------- Engagement score (composite 0-100) ----------
   const engagementScore = useMemo(() => {
@@ -655,6 +694,22 @@ export default function ClubEngagementAnalyticsPage({
         <ScoreCard score={engagementScore} />
       </div>
 
+      {/* Benchmark: Active Member % */}
+      <SectionHeader icon={Users} title="Active Member Rate" description="Members with any meaningful action in this period" />
+      <ActiveMemberCard b={benchmarks} />
+
+      {/* Benchmark: DAU / WAU / MAU */}
+      <SectionHeader icon={Activity} title="Engagement (DAU / WAU / MAU)" description="Industry-standard active-user metrics" />
+      <EngagementBenchmarkCards b={benchmarks} />
+
+      {/* Benchmark: Message Participation */}
+      <SectionHeader icon={MessageSquare} title="Message Participation" description="How members engage with chat" />
+      <MessageParticipationCard b={benchmarks} />
+
+      {/* Benchmark: Read Rates */}
+      <SectionHeader icon={Eye} title="Read Rates" description="Communication effectiveness — viewers within 7 days" />
+      <ReadRatesGrid b={benchmarks} />
+
       {/* Section 2: Member Adoption */}
       <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
       <Card>
@@ -740,31 +795,9 @@ export default function ClubEngagementAnalyticsPage({
         <Metric icon={MessageCircle} label="Comments" value={photoEngagement?.comments ?? 0} />
       </div>
 
-      {/* Section 6: Sponsors */}
-      <SectionHeader icon={Trophy} title="Sponsors" description="Impressions and click-through performance" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={Eye} label="Impressions" value={sponsorStats.impressions} />
-        <Metric icon={MousePointerClick} label="Clicks" value={sponsorStats.clicks} />
-        <Metric icon={TrendingUp} label="CTR" value={`${sponsorStats.ctr}%`} />
-        <Metric icon={Trophy} label="Active sponsors" value={sponsorRows.length} />
-      </div>
-      {sponsorStats.top.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top sponsors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {sponsorStats.top.map((s) => (
-              <div key={s.sponsorId} className="flex items-center justify-between text-sm">
-                <span className="truncate">{s.name}</span>
-                <span className="text-muted-foreground">
-                  {s.clicks} clicks · {s.ctr}% CTR
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* Section 6: Sponsor Performance */}
+      <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
+      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} />
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
@@ -956,5 +989,307 @@ function CompetitionPanel({ competitions, range }: { competitions: { id: string;
       <Metric icon={Trophy} label="Results entered" value={stats?.resultsEntered ?? 0} />
       <Metric icon={Megaphone} label="Comp broadcasts" value={stats?.broadcasts ?? 0} />
     </div>
+  );
+}
+
+// ===================== Benchmark sub-components =====================
+
+type Benchmarks = Record<string, number> | undefined;
+
+function pct(n: number, d: number): number {
+  if (!d) return 0;
+  return Math.max(0, Math.min(100, Math.round((n / d) * 100)));
+}
+
+function TrendBadge({ current, previous, suffix = "%" }: { current: number; previous: number; suffix?: string }) {
+  const delta = pctChange(current, previous);
+  if (delta === null) return <span className="text-[10px] text-muted-foreground">no baseline</span>;
+  const positive = delta > 0;
+  const negative = delta < 0;
+  return (
+    <span className={cn(
+      "text-[11px] flex items-center gap-0.5",
+      positive ? "text-emerald-500" : negative ? "text-destructive" : "text-muted-foreground"
+    )}>
+      {positive ? <TrendingUp className="h-3 w-3" /> : negative ? <TrendingDown className="h-3 w-3" /> : null}
+      {positive ? "+" : ""}{delta}{suffix} vs prev
+    </span>
+  );
+}
+
+function InfoTip({ children }: { children: React.ReactNode }) {
+  return (
+    <span title={typeof children === "string" ? children : undefined} className="text-[10px] text-muted-foreground cursor-help">
+      ⓘ
+    </span>
+  );
+}
+
+function ActiveMemberCard({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  const total = Number(b.total_members || 0);
+  const active = Number(b.active_members || 0);
+  const inactive = Number(b.inactive_members || 0);
+  const rate = pct(active, total);
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-4xl font-bold text-primary">{rate}%</div>
+            <div className="text-xs text-muted-foreground">
+              Active Member Rate <InfoTip>Members with any meaningful action (open, view, message, react, RSVP, upload)</InfoTip>
+            </div>
+          </div>
+          <div className="text-right text-xs space-y-0.5">
+            <div><span className="font-semibold text-foreground">{total.toLocaleString()}</span> total</div>
+            <div className="text-emerald-500">{active.toLocaleString()} active</div>
+            <div className="text-muted-foreground">{inactive.toLocaleString()} inactive</div>
+          </div>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
+          <div className="h-full bg-primary" style={{ width: `${rate}%` }} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EngagementBenchmarkCards({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  const dau = Number(b.dau || 0);
+  const wau = Number(b.wau || 0);
+  const mau = Number(b.mau || 0);
+  const stickiness = pct(wau, mau);
+  const prevStickiness = pct(Number(b.prev_wau || 0), Number(b.prev_mau || 0));
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <Metric icon={Activity} label="DAU" value={dau} hint="last 24h" />
+      <Metric icon={Users} label="WAU" value={wau} hint="last 7d" />
+      <Metric icon={Users} label="MAU" value={mau} hint="last 30d" />
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span>Weekly Engagement</span>
+            <InfoTip>Percentage of monthly users who return weekly (WAU/MAU)</InfoTip>
+          </div>
+          <div className="mt-1 text-xl font-bold text-primary">{stickiness}%</div>
+          <TrendBadge current={stickiness} previous={prevStickiness} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MessageParticipationCard({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-32 w-full" />;
+  const total = Number(b.total_members || 0);
+  const posted = Number(b.posters || 0);
+  const reacted = Number(b.reactors_only || 0);
+  const readOnly = Number(b.readers_only || 0);
+  const inactive = Number(b.inactive_msg || 0);
+  const participation = pct(posted, total);
+  const segments = [
+    { key: "Posted", val: posted, color: "bg-primary" },
+    { key: "Reacted only", val: reacted, color: "bg-emerald-500" },
+    { key: "Read only", val: readOnly, color: "bg-amber-500" },
+    { key: "Inactive", val: inactive, color: "bg-muted-foreground/30" },
+  ];
+  const sum = Math.max(total, segments.reduce((a, s) => a + s.val, 0), 1);
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-3xl font-bold text-primary">{participation}%</div>
+            <div className="text-xs text-muted-foreground">
+              Message Participation Rate <InfoTip>Percentage of members who sent at least one message</InfoTip>
+            </div>
+          </div>
+        </div>
+        <div className="h-3 rounded-full bg-muted overflow-hidden flex">
+          {segments.map((s) => (
+            <div key={s.key} className={cn("h-full", s.color)} style={{ width: `${(s.val / sum) * 100}%` }} />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          {segments.map((s) => (
+            <div key={s.key} className="flex items-center gap-1.5">
+              <span className={cn("h-2 w-2 rounded-sm", s.color)} />
+              <span className="text-muted-foreground">{s.key}:</span>
+              <span className="font-semibold text-foreground">{s.val.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReadRateTile({ title, viewed, possible, prevViewed, prevPossible, emptyLabel }: {
+  title: string; viewed: number; possible: number;
+  prevViewed: number; prevPossible: number; emptyLabel?: string;
+}) {
+  if (possible === 0 && emptyLabel) {
+    return (
+      <Card>
+        <CardContent className="p-3">
+          <div className="text-xs text-muted-foreground">{title}</div>
+          <p className="text-xs text-muted-foreground mt-2">{emptyLabel}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const rate = pct(viewed, possible);
+  const prevRate = pct(prevViewed, prevPossible);
+  const notViewed = Math.max(possible - viewed, 0);
+  return (
+    <Card>
+      <CardContent className="p-3 space-y-1">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          {title} <InfoTip>Percentage of members who viewed this communication within 7 days</InfoTip>
+        </div>
+        <div className="text-2xl font-bold text-primary">{rate}%</div>
+        <div className="text-[11px] text-muted-foreground">
+          {viewed.toLocaleString()} viewed · {notViewed.toLocaleString()} not viewed
+        </div>
+        <TrendBadge current={rate} previous={prevRate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReadRatesGrid({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <ReadRateTile
+        title="Club Messages"
+        viewed={Number(b.club_msg_reads || 0)}
+        possible={Number(b.club_msg_possible || 0)}
+        prevViewed={Number(b.prev_club_msg_reads || 0)}
+        prevPossible={Number(b.prev_club_msg_possible || 0)}
+        emptyLabel="No club messages in this period."
+      />
+      <ReadRateTile
+        title="Broadcasts"
+        viewed={Number(b.bcast_reads || 0)}
+        possible={Number(b.bcast_possible || 0)}
+        prevViewed={Number(b.prev_bcast_reads || 0)}
+        prevPossible={Number(b.prev_bcast_possible || 0)}
+        emptyLabel="No broadcast activity in selected period."
+      />
+      <ReadRateTile
+        title="Event Announcements"
+        viewed={Number(b.ann_views || 0)}
+        possible={Number(b.ann_possible || 0)}
+        prevViewed={Number(b.prev_ann_views || 0)}
+        prevPossible={Number(b.prev_ann_possible || 0)}
+        emptyLabel="No events created in this period."
+      />
+    </div>
+  );
+}
+
+type SponsorPerfRow = {
+  sponsor_id: string; sponsor_name: string; unique_reach: number;
+  views: number; clicks: number; ctr: number;
+  prev_clicks: number; prev_views: number;
+};
+
+function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow[]; totalSponsors: number }) {
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <EmptyState label={totalSponsors === 0 ? "No active sponsors yet." : "No sponsor activity in this period."} />
+        </CardContent>
+      </Card>
+    );
+  }
+  const totalReach = rows.reduce((a, r) => a + r.unique_reach, 0);
+  const totalClicks = rows.reduce((a, r) => a + r.clicks, 0);
+  const totalViews = rows.reduce((a, r) => a + r.views, 0);
+  const avgCtr = totalViews ? Math.round((totalClicks / totalViews) * 1000) / 10 : 0;
+  const highestCtr = [...rows].sort((a, b) => b.ctr - a.ctr)[0];
+  const mostViewed = [...rows].sort((a, b) => b.views - a.views)[0];
+  const mostReach = [...rows].sort((a, b) => b.unique_reach - a.unique_reach)[0];
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={Users} label="Total Unique Reach" value={totalReach} hint="members engaged" />
+        <Metric icon={TrendingUp} label="Avg Sponsor CTR" value={`${avgCtr}%`} />
+        <Metric icon={MousePointerClick} label="Total Clicks" value={totalClicks} />
+        <Metric icon={Trophy} label="Active Sponsors" value={totalSponsors} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <LeaderCard label="Highest CTR" sponsorName={highestCtr?.sponsor_name} value={`${highestCtr?.ctr ?? 0}%`} />
+        <LeaderCard label="Most Viewed" sponsorName={mostViewed?.sponsor_name} value={`${mostViewed?.views ?? 0} views`} />
+        <LeaderCard label="Largest Reach" sponsorName={mostReach?.sponsor_name} value={`${mostReach?.unique_reach ?? 0} members`} />
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Sponsor leaderboard</CardTitle>
+          <CardDescription className="text-xs">Engagement quality, not raw impressions</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {rows.map((r) => {
+            const delta = pctChange(r.clicks, r.prev_clicks);
+            return (
+              <div key={r.sponsor_id} className="border border-border rounded-md p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm truncate">{r.sponsor_name}</span>
+                  {delta !== null && (
+                    <span className={cn(
+                      "text-[10px] flex items-center gap-0.5 shrink-0",
+                      delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                      {delta > 0 ? "+" : ""}{delta}% clicks
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[11px]">
+                  <div>
+                    <div className="text-muted-foreground">Reach</div>
+                    <div className="font-semibold">{r.unique_reach.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Views</div>
+                    <div className="font-semibold">{r.views.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Clicks</div>
+                    <div className="font-semibold">{r.clicks.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">CTR</div>
+                    <div className="font-semibold text-primary">{r.ctr}%</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LeaderCard({ label, sponsorName, value }: { label: string; sponsorName?: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Trophy className="h-3.5 w-3.5 text-amber-500" /> {label}
+        </div>
+        <div className="mt-1 text-sm font-semibold truncate">{sponsorName || "—"}</div>
+        <div className="text-xs text-primary">{value}</div>
+      </CardContent>
+    </Card>
   );
 }

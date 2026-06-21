@@ -34,21 +34,25 @@ export function useSponsorAnalytics() {
       const timeout = setTimeout(async () => {
         viewedSponsors.add(key);
         pendingTracksRef.current.delete(key);
-        
+
+        const { data: { user } } = await supabase.auth.getUser();
         await supabase.from("sponsor_analytics").insert({
           sponsor_id: sponsorId,
           event_type: eventType,
           context,
+          user_id: user?.id ?? null,
         });
       }, 1000);
 
       pendingTracksRef.current.set(key, timeout);
     } else {
       // Clicks are tracked immediately
+      const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("sponsor_analytics").insert({
         sponsor_id: sponsorId,
         event_type: eventType,
         context,
+        user_id: user?.id ?? null,
       });
     }
   }, []);
