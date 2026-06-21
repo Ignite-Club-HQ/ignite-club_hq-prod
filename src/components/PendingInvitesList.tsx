@@ -78,7 +78,7 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
     if (teamId) {
       const { data: tData } = await supabase
         .from("teams")
-        .select("name, club_id, clubs(name, logo_url, contact_email)")
+        .select("name, club_id, clubs!pending_invites_club_id_fkey(name, logo_url, contact_email)")
         .eq("id", teamId)
         .single();
       teamName = tData?.name || "";
