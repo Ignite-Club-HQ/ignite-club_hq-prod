@@ -104,7 +104,7 @@ function ConversationRowImpl({
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
                 <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
+                <div className="flex items-center gap-1.5 shrink-0 min-w-0">
                   {item.lastMessage?.created_at && (
                     <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                   )}
@@ -230,7 +230,7 @@ function ConversationRowImpl({
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0 min-w-0">
+                <div className="flex items-center gap-1.5 shrink-0 min-w-0">
                   {item.lastMessage?.created_at && (
                     <span className="text-[11px] text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
                   )}
