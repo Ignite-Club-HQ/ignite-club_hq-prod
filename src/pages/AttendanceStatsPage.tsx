@@ -47,7 +47,6 @@ interface PlayerStats {
   going: number;
   maybe: number;
   notGoing: number;
-  noResponse: number;
   attendanceRate: number;
 }
 
