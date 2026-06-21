@@ -342,7 +342,7 @@ export default function TeamChatPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (name, id, logo_url)")
+        .select("*, clubs!teams_club_id_fkey (name, id, logo_url)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;
