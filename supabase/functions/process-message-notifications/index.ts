@@ -111,10 +111,10 @@ Deno.serve(async (req) => {
     
     console.log(`[NOTIFY] Processing ${messageType} message ${messageId} from ${authorId}`);
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhYmNmaXVudHdxand2c2NobmppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzI0MjcsImV4cCI6MjA4MzMwODQyN30.ew6qjjYM3BR3S1rYupohNEQmQ_3MeHFFn8zDXhLM4as';
+    const supabaseUrl = SUPABASE_URL;
+    const supabase = supabaseAdmin;
+    const anonKey = ANON_KEY;
+
 
     const hasImage = !!imageUrl;
 
