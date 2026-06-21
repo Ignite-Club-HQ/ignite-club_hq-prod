@@ -241,7 +241,7 @@ export default function ManageUsersPage() {
       
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("id, user_id, role, club_id, team_id, clubs(name), teams(name)")
+        .select("id, user_id, role, club_id, team_id, clubs!club_id(name), teams(name)")
         .in("user_id", userIds);
       
       // Group roles by user
