@@ -97,6 +97,8 @@ const SponsorAnalyticsPage = lazy(() => import("./pages/SponsorAnalyticsPage"));
 const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
+
+const ClubEngagementAnalyticsPage = lazy(() => import("./pages/ClubEngagementAnalyticsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPreferencesPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
@@ -390,6 +392,8 @@ const App = () => {
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
                   <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
+                  <Route path="/clubs/:clubId/attendance" element={<Navigate to="engagement" replace />} />
+                  <Route path="/clubs/:clubId/engagement" element={<ClubEngagementAnalyticsPage />} />
                   <Route path="/teams/:teamId/publish-chat-photos" element={<PublishChatPhotosPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />

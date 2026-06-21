@@ -34,7 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-type EventType = "game" | "training" | "social" | "all";
+type EventType = "game" | "training" | "all";
 
 interface PlayerStats {
   userId: string;
@@ -51,8 +51,14 @@ interface PlayerStats {
   attendanceRate: number;
 }
 
-export default function AttendanceStatsPage() {
-  const { teamId } = useParams<{ teamId: string }>();
+interface AttendanceStatsPageProps {
+  teamIdOverride?: string;
+  embedded?: boolean; // when true, hide header/back button (parent renders it)
+}
+
+export default function AttendanceStatsPage({ teamIdOverride, embedded }: AttendanceStatsPageProps = {}) {
+  const params = useParams<{ teamId: string }>();
+  const teamId = teamIdOverride ?? params.teamId;
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -166,25 +172,37 @@ export default function AttendanceStatsPage() {
     enabled: !!teamId,
   });
 
-  // Fetch children assigned to this team
+  // Fetch children assigned to this team (use RPC to bypass RLS limits on child_team_assignments)
   const { data: teamChildren = [] } = useQuery({
     queryKey: ["team-children-attendance", teamId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("child_team_assignments")
-        .select(`
-          child_id,
-          children:child_id (
-            id,
-            name,
-            parent_id,
-            profiles:parent_id (id, display_name)
-          )
-        `)
-        .eq("team_id", teamId!);
-      
-      if (error) throw error;
-      return data || [];
+      const { data: rpcChildren, error: rpcError } = await supabase.rpc(
+        "get_team_children_for_pitch_board",
+        { p_team_id: teamId! }
+      );
+      if (rpcError) throw rpcError;
+      const rows = rpcChildren || [];
+      if (rows.length === 0) return [];
+
+      const parentIds = [...new Set(rows.map((r: any) => r.parent_id).filter(Boolean))];
+      let profileMap: Record<string, { id: string; display_name: string | null }> = {};
+      if (parentIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", parentIds);
+        (profiles || []).forEach((p) => { profileMap[p.id] = p; });
+      }
+
+      return rows.map((r: any) => ({
+        child_id: r.child_id,
+        children: {
+          id: r.child_id,
+          name: r.child_name,
+          parent_id: r.parent_id,
+          profiles: r.parent_id ? profileMap[r.parent_id] || null : null,
+        },
+      }));
     },
     enabled: !!teamId,
   });
@@ -193,22 +211,23 @@ export default function AttendanceStatsPage() {
   const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ["team-events-attendance", teamId, startDate, endDate, eventTypeFilter],
     queryFn: async () => {
-      let query = supabase
+      // Only game and training events count toward attendance stats
+      const allowedTypes: ("game" | "training")[] = eventTypeFilter === "all"
+        ? ["game", "training"]
+        : [eventTypeFilter as "game" | "training"];
+
+      const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, is_cancelled")
         .eq("team_id", teamId!)
         .eq("is_cancelled", false)
+        .in("type", allowedTypes)
         .gte("event_date", startDate.toISOString())
         .lte("event_date", endDate.toISOString())
         .order("event_date", { ascending: true });
-      
-      if (eventTypeFilter !== "all") {
-        query = query.eq("type", eventTypeFilter);
-      }
-      
-      const { data, error } = await query;
+
       if (error) throw error;
-      
+
       // Only include past events for attendance
       return (data || []).filter(e => isPast(parseISO(e.event_date)));
     },
@@ -440,18 +459,20 @@ export default function AttendanceStatsPage() {
   const isLoading = eventsLoading || rsvpsLoading;
 
   return (
-    <div className="py-6 space-y-6">
+    <div className={embedded ? "space-y-6" : "py-6 space-y-6"}>
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Attendance Stats</h1>
-          <p className="text-sm text-muted-foreground">{team.name}</p>
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Attendance Stats</h1>
+            <p className="text-sm text-muted-foreground">{team.name}</p>
+          </div>
+          <BarChart3 className="h-8 w-8 text-primary" />
         </div>
-        <BarChart3 className="h-8 w-8 text-primary" />
-      </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -513,10 +534,9 @@ export default function AttendanceStatsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Events</SelectItem>
+                  <SelectItem value="all">Games &amp; Training</SelectItem>
                   <SelectItem value="game">Games Only</SelectItem>
                   <SelectItem value="training">Training Only</SelectItem>
-                  <SelectItem value="social">Social Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>

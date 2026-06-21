@@ -1,0 +1,960 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  ArrowLeft,
+  Activity,
+  Users,
+  UserPlus,
+  MessageSquare,
+  Megaphone,
+  CalendarCheck,
+  Image as ImageIcon,
+  Eye,
+  Heart,
+  MessageCircle,
+  TrendingUp,
+  TrendingDown,
+  Filter,
+  Calendar as CalendarIcon,
+  Trophy,
+  MousePointerClick,
+  RefreshCcw,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  format,
+  subDays,
+  startOfDay,
+  endOfDay,
+  differenceInDays,
+  parseISO,
+  isPast,
+} from "date-fns";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+
+const ALL_TEAMS = "__all__";
+const RANGE_PRESETS = [
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+];
+
+type RangeBounds = { start: Date; end: Date };
+
+function bucketByDay(rows: { created_at?: string | null; viewed_at?: string | null }[], start: Date, end: Date, dateKey: "created_at" | "viewed_at" = "created_at") {
+  const days = differenceInDays(end, start) + 1;
+  const buckets = new Map<string, number>();
+  for (let i = 0; i < days; i++) {
+    const d = format(subDays(end, days - 1 - i), "yyyy-MM-dd");
+    buckets.set(d, 0);
+  }
+  for (const r of rows) {
+    const ts = (r as any)[dateKey];
+    if (!ts) continue;
+    const key = format(parseISO(ts), "yyyy-MM-dd");
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+  return Array.from(buckets.entries()).map(([day, count]) => ({ day, count }));
+}
+
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+export default function ClubEngagementAnalyticsPage({
+  mode = "club",
+}: { mode?: "club" | "platform" } = {}) {
+  const params = useParams<{ clubId: string }>();
+  const clubId = mode === "platform" ? null : params.clubId ?? null;
+  const isPlatform = mode === "platform";
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [days, setDays] = useState<number>(30);
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
+
+  const range: RangeBounds = useMemo(() => {
+    if (customStart && customEnd) {
+      return { start: startOfDay(customStart), end: endOfDay(customEnd) };
+    }
+    return { start: startOfDay(subDays(new Date(), days - 1)), end: endOfDay(new Date()) };
+  }, [days, customStart, customEnd]);
+
+  const rangeDays = differenceInDays(range.end, range.start) + 1;
+  const prevRange: RangeBounds = useMemo(() => ({
+    start: startOfDay(subDays(range.start, rangeDays)),
+    end: endOfDay(subDays(range.end, rangeDays)),
+  }), [range, rangeDays]);
+
+  const queryReady = isPlatform || !!clubId;
+
+  // ---------- Access control ----------
+  const { data: access, isLoading: accessLoading } = useQuery({
+    queryKey: ["club-engagement-access", user?.id, clubId, mode],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role, club_id")
+        .eq("user_id", user!.id);
+      if (!data) return { isAdmin: false, isCompAdmin: false };
+      const isAppAdmin = data.some((r) => r.role === "app_admin");
+      if (isPlatform) {
+        return { isAdmin: isAppAdmin, isCompAdmin: isAppAdmin };
+      }
+      const isClubAdmin = data.some((r) => r.role === "club_admin" && r.club_id === clubId);
+      const isCommittee = data.some((r) => r.role === "committee_member" && r.club_id === clubId);
+      const isCompAdmin = data.some((r) => r.role === "competition_admin");
+      return { isAdmin: isAppAdmin || isClubAdmin || isCommittee, isCompAdmin: isAppAdmin || isCompAdmin };
+    },
+    enabled: !!user && queryReady,
+  });
+
+  const { data: club } = useQuery({
+    queryKey: ["club-engagement-meta", clubId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("id, name")
+        .eq("id", clubId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !isPlatform && !!clubId,
+  });
+
+  const { data: teams = [] } = useQuery({
+    queryKey: ["club-engagement-teams", clubId, isPlatform],
+    queryFn: async () => {
+      let q = supabase
+        .from("teams")
+        .select("id, name, is_archived")
+        .eq("is_archived", false)
+        .order("name")
+        .limit(2000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const scopedTeamIds = useMemo(() => {
+    if (selectedTeamId !== ALL_TEAMS) return [selectedTeamId];
+    return teams.map((t) => t.id);
+  }, [teams, selectedTeamId]);
+
+  // ---------- Section 1 + 2: Activity / active users (via SECURITY DEFINER RPC) ----------
+  // Bypasses per-user RLS on user_activity_logs so club admins see club-wide activity.
+  // Passing _club_id=null returns platform-wide aggregate (app_admin only).
+  const { data: activityRows = [], isLoading: actLoading } = useQuery({
+    queryKey: ["club-engagement-activity-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; user_id: string }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const { data: prevActivityRows = [] } = useQuery({
+    queryKey: ["club-engagement-activity-prev-rpc", clubId, mode, prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId as any,
+        _start: prevRange.start.toISOString(),
+        _end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; user_id: string }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const activeMembers = useMemo(() => {
+    const now = new Date();
+    const d7Cutoff = format(subDays(now, 7), "yyyy-MM-dd");
+    const d30Cutoff = format(subDays(now, 30), "yyyy-MM-dd");
+    const s7 = new Set<string>();
+    const s30 = new Set<string>();
+    const sRange = new Set<string>();
+    for (const r of activityRows) {
+      if (!r.user_id) continue;
+      if (r.day >= d7Cutoff) s7.add(r.user_id);
+      if (r.day >= d30Cutoff) s30.add(r.user_id);
+      sRange.add(r.user_id);
+    }
+    const sPrev = new Set<string>();
+    for (const r of prevActivityRows) if (r.user_id) sPrev.add(r.user_id);
+    return { d7: s7.size, d30: s30.size, range: sRange.size, prev: sPrev.size };
+  }, [activityRows, prevActivityRows]);
+
+  // DAU timeline (per day in range)
+  const dauSeries = useMemo(() => {
+    const days = differenceInDays(range.end, range.start) + 1;
+    const byDay = new Map<string, Set<string>>();
+    for (let i = 0; i < days; i++) {
+      byDay.set(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"), new Set());
+    }
+    for (const r of activityRows) {
+      if (!r.user_id || !r.day) continue;
+      byDay.get(r.day)?.add(r.user_id);
+    }
+    return Array.from(byDay.entries()).map(([day, set]) => ({ day, dau: set.size }));
+  }, [activityRows, range]);
+
+  // ---------- New members ----------
+  // Defined as: pending_invites that were accepted within the date range
+  // (team_memberships/club_players are not the source of truth for joins)
+  const { data: newMembers = [] } = useQuery({
+    queryKey: ["club-engagement-new-members", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      let q = supabase
+        .from("pending_invites")
+        .select("id, invited_user_id, accepted_at, club_id")
+        .not("accepted_at", "is", null)
+        .gte("accepted_at", range.start.toISOString())
+        .lte("accepted_at", range.end.toISOString())
+        .limit(5000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const { data: prevNewMembers = [] } = useQuery({
+    queryKey: ["club-engagement-new-members-prev", clubId, mode, prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryFn: async () => {
+      let q = supabase
+        .from("pending_invites")
+        .select("id, accepted_at, club_id")
+        .not("accepted_at", "is", null)
+        .gte("accepted_at", prevRange.start.toISOString())
+        .lte("accepted_at", prevRange.end.toISOString())
+        .limit(5000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+
+  // ---------- Invites ----------
+  const { data: inviteStats } = useQuery({
+    queryKey: ["club-engagement-invites", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      let q = supabase
+        .from("pending_invites")
+        .select("id, accepted_at, created_at, status")
+        .gte("created_at", range.start.toISOString())
+        .lte("created_at", range.end.toISOString())
+        .limit(10000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      const total = (data || []).length;
+      const accepted = (data || []).filter((i) => !!i.accepted_at).length;
+      return { total, accepted, rate: total ? Math.round((accepted / total) * 100) : 0 };
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  // ---------- Club-wide totals (RPC) — bypasses 1000-row cap & RLS for club admins ----------
+  const { data: totals, isLoading: totalsLoading, error: totalsError } = useQuery({
+    queryKey: ["club-engagement-totals-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_totals", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      const row = (data && (data as any[])[0]) || {};
+      return {
+        clubMsgs: Number(row.club_msgs ?? 0),
+        teamMsgs: Number(row.team_msgs ?? 0),
+        reactions: Number(row.reactions ?? 0),
+        broadcasts: Number(row.broadcasts ?? 0),
+        events: Number(row.events ?? 0),
+        rsvpsTotal: Number(row.rsvps_total ?? 0),
+        rsvpsResponded: Number(row.rsvps_responded ?? 0),
+        rsvpsGoing: Number(row.rsvps_going ?? 0),
+        photosUploaded: Number(row.photos_uploaded ?? 0),
+      };
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  // ---------- Message volume per day (RPC) ----------
+  const { data: msgVolume = [], error: msgVolumeError } = useQuery({
+    queryKey: ["club-engagement-msg-volume-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_message_volume", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; club_count: number; team_count: number }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const msgVolumeChart = useMemo(
+    () => msgVolume.map((r) => ({ day: r.day, Club: Number(r.club_count || 0), "Team / group": Number(r.team_count || 0) })),
+    [msgVolume]
+  );
+
+  const clubMsgsCount = totals?.clubMsgs ?? 0;
+  const teamMsgsCount = totals?.teamMsgs ?? 0;
+  const reactionCount = totals?.reactions ?? 0;
+  const broadcastsCount = totals?.broadcasts ?? 0;
+
+  const rsvpStats = useMemo(() => {
+    // `expected` = sum across events of each event team's eligible roster (children assigned + active adult players).
+    // This is the proper denominator for completion / attendance — rsvps rows alone would give 100% by definition.
+    const expected = totals?.rsvpsTotal ?? 0;
+    const responded = totals?.rsvpsResponded ?? 0;
+    const going = totals?.rsvpsGoing ?? 0;
+    const clamp = (n: number) => Math.max(0, Math.min(100, n));
+    return {
+      eventsCreated: totals?.events ?? 0,
+      completionRate: expected ? clamp(Math.round((responded / expected) * 100)) : 0,
+      attendanceRate: expected ? clamp(Math.round((going / expected) * 100)) : 0,
+      pending: Math.max(0, expected - responded),
+    };
+  }, [totals]);
+
+  // ---------- Media: photo uploads (use total) + per-photo engagement (capped sample) ----------
+  const { data: photos = [] } = useQuery({
+    queryKey: ["club-engagement-photos", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      let q = supabase
+        .from("photos")
+        .select("id")
+        .is("deleted_at", null)
+        .gte("created_at", range.start.toISOString())
+        .lte("created_at", range.end.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const { data: photoEngagement } = useQuery({
+    queryKey: ["club-engagement-photo-engagement", photos.map((p) => p.id).slice(0, 300)],
+    queryFn: async () => {
+      const ids = photos.map((p) => p.id);
+      if (ids.length === 0) return { views: 0, reactions: 0, comments: 0 };
+      let views = 0, reactions = 0, comments = 0;
+      const chunk = 100;
+      for (let i = 0; i < ids.length; i += chunk) {
+        const slice = ids.slice(i, i + chunk);
+        const [v, r, c] = await Promise.all([
+          supabase.from("photo_views").select("id", { count: "exact", head: true }).in("photo_id", slice),
+          supabase.from("photo_reactions").select("id", { count: "exact", head: true }).in("photo_id", slice),
+          supabase.from("photo_comments").select("id", { count: "exact", head: true }).in("photo_id", slice),
+        ]);
+        views += v.count || 0;
+        reactions += r.count || 0;
+        comments += c.count || 0;
+      }
+      return { views, reactions, comments };
+    },
+    enabled: !!access?.isAdmin && photos.length > 0,
+  });
+
+  // ---------- Sponsors ----------
+  const { data: sponsorRows = [] } = useQuery({
+    queryKey: ["club-engagement-sponsors", clubId, mode],
+    queryFn: async () => {
+      let q = supabase
+        .from("sponsors")
+        .select("id, name, club_id")
+        .eq("is_active", true)
+        .limit(2000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const { data: sponsorAnalytics = [] } = useQuery({
+    queryKey: ["club-engagement-sponsor-analytics", sponsorRows.map((s) => s.id), range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      if (sponsorRows.length === 0) return [];
+      // Fetch counts per sponsor per event_type to avoid 1000-row cap on raw rows.
+      const out: { sponsor_id: string; event_type: string; n: number }[] = [];
+      for (const s of sponsorRows) {
+        const [v, c] = await Promise.all([
+          supabase.from("sponsor_analytics")
+            .select("id", { count: "exact", head: true })
+            .eq("sponsor_id", s.id)
+            .eq("event_type", "view")
+            .gte("created_at", range.start.toISOString())
+            .lte("created_at", range.end.toISOString()),
+          supabase.from("sponsor_analytics")
+            .select("id", { count: "exact", head: true })
+            .eq("sponsor_id", s.id)
+            .eq("event_type", "click")
+            .gte("created_at", range.start.toISOString())
+            .lte("created_at", range.end.toISOString()),
+        ]);
+        out.push({ sponsor_id: s.id, event_type: "view", n: v.count || 0 });
+        out.push({ sponsor_id: s.id, event_type: "click", n: c.count || 0 });
+      }
+      return out;
+    },
+    enabled: !!access?.isAdmin && sponsorRows.length > 0,
+  });
+
+  const sponsorStats = useMemo(() => {
+    let impressions = 0, clicks = 0;
+    const bySponsor = new Map<string, { impressions: number; clicks: number }>();
+    for (const s of sponsorAnalytics) {
+      const entry = bySponsor.get(s.sponsor_id) || { impressions: 0, clicks: 0 };
+      if (s.event_type === "click") { clicks += s.n; entry.clicks += s.n; }
+      else if (s.event_type === "view") { impressions += s.n; entry.impressions += s.n; }
+      bySponsor.set(s.sponsor_id, entry);
+    }
+    const ctr = impressions ? Math.round((clicks / impressions) * 1000) / 10 : 0;
+    const top = Array.from(bySponsor.entries())
+      .map(([sponsorId, v]) => ({
+        sponsorId,
+        name: sponsorRows.find((s) => s.id === sponsorId)?.name || "Unknown",
+        ...v,
+        ctr: v.impressions ? Math.round((v.clicks / v.impressions) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions))
+      .slice(0, 5);
+    return { impressions, clicks, ctr, top };
+  }, [sponsorAnalytics, sponsorRows]);
+
+
+  // ---------- Engagement score (composite 0-100) ----------
+  const engagementScore = useMemo(() => {
+    // weighted: active members (40), msg+react volume per active user (20),
+    // rsvp completion (20), media activity (10), sponsor ctr (10)
+    const totalMembers = teams.length ? Math.max(scopedTeamIds.length * 12, activeMembers.range) : Math.max(activeMembers.range, 1);
+    const activeRatio = Math.min(activeMembers.d30 / Math.max(totalMembers, 1), 1);
+    const msgPerUser = activeMembers.range
+      ? Math.min((clubMsgsCount + teamMsgsCount + reactionCount) / activeMembers.range / 10, 1)
+      : 0;
+    const rsvp = (rsvpStats.completionRate || 0) / 100;
+    const media = photos.length ? Math.min(((photoEngagement?.views || 0) + (photoEngagement?.reactions || 0)) / Math.max(photos.length * 5, 1), 1) : 0;
+    const sponsor = Math.min(sponsorStats.ctr / 5, 1);
+    const score = Math.round(activeRatio * 40 + msgPerUser * 20 + rsvp * 20 + media * 10 + sponsor * 10);
+    return Math.max(0, Math.min(100, score));
+  }, [teams.length, scopedTeamIds.length, activeMembers, clubMsgsCount, teamMsgsCount, reactionCount, rsvpStats.completionRate, photos.length, photoEngagement, sponsorStats.ctr]);
+
+  // ---------- Competition (admins only) ----------
+  const { data: competitions = [] } = useQuery({
+    queryKey: ["club-engagement-competitions", clubId, mode],
+    queryFn: async () => {
+      if (isPlatform) {
+        const { data } = await supabase
+          .from("competitions")
+          .select("id, name")
+          .limit(500);
+        return data || [];
+      }
+      const { data: entries } = await supabase
+        .from("competition_entries")
+        .select("competition_id, team_id, teams!inner(club_id)")
+        .eq("teams.club_id", clubId!)
+        .limit(500);
+      const compIds = Array.from(new Set((entries || []).map((e: any) => e.competition_id).filter(Boolean)));
+      if (compIds.length === 0) return [] as any[];
+      const { data } = await supabase
+        .from("competitions")
+        .select("id, name")
+        .in("id", compIds);
+      return data || [];
+    },
+    enabled: queryReady && !!access?.isCompAdmin,
+  });
+
+
+  // ---------- UI ----------
+  if (accessLoading) {
+    return (
+      <div className="py-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+
+  if (!access?.isAdmin) {
+    return (
+      <div className="py-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Engagement</h1>
+        </div>
+        <p className="text-muted-foreground text-center py-12">
+          Access denied. Club admin or committee role required.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Engagement Analytics</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
+            {isPlatform
+              ? "All clubs • platform-wide engagement"
+              : `${club?.name ?? "Club"} • how your members are participating`}
+          </p>
+
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-primary" />
+            <CardTitle className="text-base">Filters</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {RANGE_PRESETS.map((p) => (
+              <Button
+                key={p.days}
+                size="sm"
+                variant={!customStart && !customEnd && days === p.days ? "default" : "outline"}
+                onClick={() => {
+                  setCustomStart(null);
+                  setCustomEnd(null);
+                  setDays(p.days);
+                }}
+              >
+                {p.label}
+              </Button>
+            ))}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant={customStart && customEnd ? "default" : "outline"}>
+                  <CalendarIcon className="h-4 w-4 mr-1" />
+                  {customStart && customEnd
+                    ? `${format(customStart, "MMM d")} – ${format(customEnd, "MMM d")}`
+                    : "Custom"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+                <CalendarComponent
+                  mode="range"
+                  selected={{ from: customStart ?? undefined, to: customEnd ?? undefined }}
+                  onSelect={(r) => {
+                    setCustomStart(r?.from ?? null);
+                    setCustomEnd(r?.to ?? null);
+                  }}
+                  className={cn("p-3 pointer-events-auto")}
+                  numberOfMonths={1}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          {!isPlatform && (
+            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TEAMS}>All teams ({teams.length})</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            {format(range.start, "MMM d")} – {format(range.end, "MMM d, yyyy")} · vs previous {rangeDays}d
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Section 1: Club Health Overview */}
+      <SectionHeader icon={Activity} title="Club Health" description="Active participation in the last period" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        <Metric icon={Users} label="Active (7d)" value={activeMembers.d7} loading={actLoading} />
+        <Metric icon={Users} label="Active (30d)" value={activeMembers.d30} loading={actLoading} />
+        <Metric icon={UserPlus} label="New members" value={newMembers.length} delta={pctChange(newMembers.length, prevNewMembers.length)} />
+        <Metric icon={MessageCircle} label="Invite acceptance" value={`${inviteStats?.rate ?? 0}%`} hint={`${inviteStats?.accepted ?? 0}/${inviteStats?.total ?? 0}`} />
+        <Metric icon={TrendingUp} label="Active in range" value={activeMembers.range} delta={pctChange(activeMembers.range, activeMembers.prev)} loading={actLoading} />
+        <ScoreCard score={engagementScore} />
+      </div>
+
+      {/* Section 2: Member Adoption */}
+      <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
+      <Card>
+        <CardContent className="pt-4">
+          {actLoading ? (
+            <Skeleton className="h-56 w-full" />
+          ) : dauSeries.every((d) => d.dau === 0) ? (
+            <EmptyState label="No member activity logged in this period yet." />
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dauSeries}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="dau" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Daily active" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 3: Communication Engagement */}
+      <SectionHeader icon={MessageSquare} title="Communication" description="Messaging & broadcast activity" />
+      {(totalsError || msgVolumeError) && (
+        <Card className="border-destructive/50">
+          <CardContent className="p-3 flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>Message analytics could not load. Try refreshing; if it persists, the admin analytics query is still failing.</span>
+          </CardContent>
+        </Card>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={MessageSquare} label="Club messages" value={clubMsgsCount} loading={totalsLoading} />
+        <Metric icon={MessageSquare} label="Team / group messages" value={teamMsgsCount} loading={totalsLoading} />
+        <Metric icon={Heart} label="Reactions" value={reactionCount} loading={totalsLoading} />
+        <Metric icon={Megaphone} label="Broadcasts" value={broadcastsCount} loading={totalsLoading} />
+      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Message volume</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {totalsLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : clubMsgsCount + teamMsgsCount === 0 ? (
+            <EmptyState label="No messages sent in this period." />
+          ) : (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={msgVolumeChart}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Club" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Team / group" fill="hsl(142 70% 45%)" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 4: RSVP & Attendance */}
+      <SectionHeader icon={CalendarCheck} title="RSVP & Attendance" description="Game & training events in range" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={CalendarCheck} label="Events" value={rsvpStats.eventsCreated} />
+        <Metric icon={TrendingUp} label="RSVP completion" value={`${rsvpStats.completionRate}%`} />
+        <Metric icon={Users} label="Going rate" value={`${rsvpStats.attendanceRate}%`} />
+        <Metric icon={RefreshCcw} label="Pending RSVPs" value={rsvpStats.pending} />
+      </div>
+
+      {/* Section 5: Media Engagement */}
+      <SectionHeader icon={ImageIcon} title="Media" description="Photo uploads & viewer engagement" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={ImageIcon} label="Photos uploaded" value={totals?.photosUploaded ?? photos.length} />
+        <Metric icon={Eye} label="Views" value={photoEngagement?.views ?? 0} />
+        <Metric icon={Heart} label="Reactions" value={photoEngagement?.reactions ?? 0} />
+        <Metric icon={MessageCircle} label="Comments" value={photoEngagement?.comments ?? 0} />
+      </div>
+
+      {/* Section 6: Sponsors */}
+      <SectionHeader icon={Trophy} title="Sponsors" description="Impressions and click-through performance" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={Eye} label="Impressions" value={sponsorStats.impressions} />
+        <Metric icon={MousePointerClick} label="Clicks" value={sponsorStats.clicks} />
+        <Metric icon={TrendingUp} label="CTR" value={`${sponsorStats.ctr}%`} />
+        <Metric icon={Trophy} label="Active sponsors" value={sponsorRows.length} />
+      </div>
+      {sponsorStats.top.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Top sponsors</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {sponsorStats.top.map((s) => (
+              <div key={s.sponsorId} className="flex items-center justify-between text-sm">
+                <span className="truncate">{s.name}</span>
+                <span className="text-muted-foreground">
+                  {s.clicks} clicks · {s.ctr}% CTR
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Section 7: Retention */}
+      <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
+      <RetentionBlock activityRows={activityRows} prevActivityRows={prevActivityRows} />
+
+      {/* Section 8: Competition */}
+      {access.isCompAdmin && (
+        <>
+          <SectionHeader icon={Trophy} title="Competition Engagement" description="For competition admins" />
+          {competitions.length === 0 ? (
+            <Card>
+              <CardContent className="py-6">
+                <EmptyState label="No competitions linked to this club's teams yet." />
+              </CardContent>
+            </Card>
+          ) : (
+            <CompetitionPanel competitions={competitions} range={range} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- helpers ----------
+const tooltipStyle = {
+  background: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 8,
+  fontSize: 12,
+};
+
+function mergeSeries(parts: { name: string; rows: { day: string; count: number }[] }[]) {
+  const days = parts[0]?.rows.map((r) => r.day) || [];
+  return days.map((day, i) => {
+    const row: any = { day };
+    for (const p of parts) row[p.name] = p.rows[i]?.count ?? 0;
+    return row;
+  });
+}
+
+function SectionHeader({ icon: Icon, title, description }: { icon: any; title: string; description?: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-2">
+      <Icon className="h-4 w-4 text-primary" />
+      <div>
+        <h2 className="text-base font-semibold leading-tight">{title}</h2>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  delta,
+  hint,
+  loading,
+}: {
+  icon: any;
+  label: string;
+  value: number | string;
+  delta?: number | null;
+  hint?: string;
+  loading?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+          <Icon className="h-3.5 w-3.5" />
+          <span className="truncate">{label}</span>
+        </div>
+        {loading ? (
+          <Skeleton className="h-7 w-16 mt-1" />
+        ) : (
+          <div className="mt-1 text-xl font-bold">{typeof value === "number" ? value.toLocaleString() : value}</div>
+        )}
+        {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
+        {typeof delta === "number" && (
+          <div className={cn("text-[11px] flex items-center gap-0.5 mt-0.5", delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground")}>
+            {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+            {delta > 0 ? "+" : ""}{delta}% vs prev
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScoreCard({ score }: { score: number }) {
+  const color = score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-destructive";
+  return (
+    <Card className="col-span-2 md:col-span-1">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+          <Activity className="h-3.5 w-3.5" />
+          Engagement score
+        </div>
+        <div className={cn("mt-1 text-2xl font-bold", color)}>{score}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+        <div className="mt-1 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className={cn("h-full", score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-destructive")} style={{ width: `${score}%` }} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="text-center text-sm text-muted-foreground py-8">
+      {label}
+    </div>
+  );
+}
+
+type ActivityUserDay = { day: string; user_id: string | null };
+
+function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: ActivityUserDay[]; prevActivityRows: ActivityUserDay[] }) {
+  const activeDaysByUser = new Map<string, Set<string>>();
+  for (const r of activityRows) {
+    if (!r.user_id || !r.day) continue;
+    if (!activeDaysByUser.has(r.user_id)) activeDaysByUser.set(r.user_id, new Set());
+    activeDaysByUser.get(r.user_id)!.add(r.day);
+  }
+
+  const current = new Set(activeDaysByUser.keys());
+  const prev = new Set(prevActivityRows.map((r) => r.user_id).filter(Boolean));
+  let returning = 0;
+  let singleDay = 0;
+  activeDaysByUser.forEach((daysActive) => {
+    if (daysActive.size >= 2) returning++;
+    else singleDay++;
+  });
+
+  // Churn still needs a previous baseline; if none exists, show unavailable instead of a false zero.
+  let churned = 0;
+  prev.forEach((u) => { if (!current.has(u)) churned++; });
+  const retentionRate = current.size ? Math.round((returning / current.size) * 100) : 0;
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <Metric icon={Users} label="Returning users" value={returning} hint="2+ active days" />
+      <Metric icon={TrendingUp} label="Retention rate" value={`${retentionRate}%`} hint="of active users" />
+      <Metric icon={TrendingDown} label="Churned" value={prev.size ? churned : "—"} hint={prev.size ? "vs previous period" : "No previous baseline"} />
+      <Metric icon={UserPlus} label="One-day active" value={singleDay} hint="1 active day" />
+    </div>
+  );
+}
+
+function CompetitionPanel({ competitions, range }: { competitions: { id: string; name: string }[]; range: RangeBounds }) {
+  const compIds = competitions.map((c) => c.id);
+  const { data: stats } = useQuery({
+    queryKey: ["competition-engagement", compIds, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const [matches, broadcasts, entries] = await Promise.all([
+        supabase
+          .from("competition_matches")
+          .select("id, home_score, away_score", { count: "exact", head: false })
+          .in("competition_id", compIds)
+          .limit(2000),
+        supabase
+          .from("competition_broadcasts")
+          .select("id, created_at", { count: "exact", head: false })
+          .in("competition_id", compIds)
+          .gte("created_at", range.start.toISOString())
+          .lte("created_at", range.end.toISOString())
+          .limit(1000),
+        supabase
+          .from("competition_entries")
+          .select("id, team_id", { count: "exact", head: true })
+          .in("competition_id", compIds),
+      ]);
+      const totalMatches = matches.data?.length || 0;
+      const completed = (matches.data || []).filter((m: any) => m.home_score !== null && m.away_score !== null).length;
+      return {
+        activeTeams: entries.count || 0,
+        totalMatches,
+        resultsEntered: completed,
+        broadcasts: broadcasts.data?.length || 0,
+      };
+    },
+  });
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <Metric icon={Users} label="Active teams" value={stats?.activeTeams ?? 0} />
+      <Metric icon={CalendarCheck} label="Fixtures" value={stats?.totalMatches ?? 0} />
+      <Metric icon={Trophy} label="Results entered" value={stats?.resultsEntered ?? 0} />
+      <Metric icon={Megaphone} label="Comp broadcasts" value={stats?.broadcasts ?? 0} />
+    </div>
+  );
+}

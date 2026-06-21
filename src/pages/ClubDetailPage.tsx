@@ -83,18 +83,19 @@ import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
 import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
 import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
 import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
-import { AttendanceStatsView } from "@/components/AttendanceStatsView";
+
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
+// PlayHQ sync hidden until API is configured — re-enable when PLAYHQ_API_KEY_<tenant> env var is set
+// import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
 
 type ClubRole = "club_admin";
 
@@ -2029,13 +2030,6 @@ export default function ClubDetailPage() {
           <AccordionContent>
             <div className="pt-2 space-y-6">
               <ClassAttendanceManager clubId={id!} />
-              <div className="border-t pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  <h4 className="text-sm font-semibold">Attendance Report</h4>
-                </div>
-                <AttendanceStatsView clubId={id!} />
-              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -2095,8 +2089,25 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              <PlayHQClubSyncCard clubId={id!} />
+
+              <Link to={`/clubs/${id}/engagement`}>
+                <Card className="hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Activity className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">Engagement Analytics</div>
+                      <div className="text-xs text-muted-foreground">Health, adoption, communication & more</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* PlayHQ sync hidden until API is configured */}
+              {/* <PlayHQClubSyncCard clubId={id!} /> */}
             </div>
+
           </AccordionContent>
         </AccordionItem>
       )}
