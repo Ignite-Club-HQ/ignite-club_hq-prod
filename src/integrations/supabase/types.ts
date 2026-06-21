@@ -9849,8 +9849,11 @@ export type Database = {
           ctr: number
           prev_clicks: number
           prev_views: number
+          raw_clicks: number
+          raw_views: number
           sponsor_id: string
           sponsor_name: string
+          tracking_started: string
           unique_reach: number
           views: number
         }[]
