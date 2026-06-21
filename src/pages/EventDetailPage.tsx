@@ -301,19 +301,39 @@ export default function EventDetailPage() {
   // Track when user views this event
   useEventViewTracking(id, user?.id);
 
-  const { data: event, isLoading } = useQuery({
+  const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
     queryKey: ["event", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
         .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs!club_id (name, is_pro, sport)`)
         .eq("id", id!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: !!id,
+    retry: (failureCount, err: any) => {
+      // Telemetry: log every retry so we can quantify how often the transient
+      // failure path (resume-race / 5xx / token rotation) is hit in the wild.
+      try {
+        console.warn("[EventDetailPage] event fetch retry", {
+          eventId: id,
+          userId: user?.id,
+          attempt: failureCount + 1,
+          code: err?.code,
+          status: err?.status,
+          message: err?.message,
+        });
+      } catch {}
+      return failureCount < 3;
+    },
+    retryDelay: (attempt) => Math.min(500 * attempt, 2000),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
+
 
   const { data: rsvps } = useQuery({
     queryKey: ["event-rsvps", id],
@@ -2344,19 +2364,38 @@ export default function EventDetailPage() {
   }
 
   if (!event) {
+    // A real RLS-deny / deleted-row resolves the query with `data === null`
+    // and no error. A transient network/auth race resolves with an error
+    // after react-query's retries are exhausted. Show different copy so we
+    // don't tell a legitimate team member their event is "not available"
+    // when the lookup actually just failed.
+    const transientFailure = !!eventError && !isEventFetching;
     return (
       <div className="py-12 text-center space-y-4 px-6">
-        <div className="text-5xl">📋</div>
-        <h2 className="text-xl font-bold text-foreground">Event Not Available</h2>
+        <div className="text-5xl">{transientFailure ? "⚠️" : "📋"}</div>
+        <h2 className="text-xl font-bold text-foreground">
+          {transientFailure ? "Couldn't load this event" : "Event Not Available"}
+        </h2>
         <p className="text-muted-foreground max-w-sm mx-auto">
-          This event may have been removed, or it's for a specific team or group you're not part of. If you think this is a mistake, check with your club admin.
+          {transientFailure
+            ? "Something went wrong fetching this event. Check your connection and try again."
+            : "This event may have been removed, or it's for a specific team or group you're not part of. If you think this is a mistake, check with your club admin."}
         </p>
-        <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
-          Go Home
-        </Button>
+        <div className="flex gap-2 justify-center mt-4">
+          {transientFailure && (
+            <Button
+              variant="default"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["event", id] })}
+            >
+              Try again
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => navigate('/')}>Go Home</Button>
+        </div>
       </div>
     );
   }
+
 
   return (
     <div className="py-6 space-y-6">
