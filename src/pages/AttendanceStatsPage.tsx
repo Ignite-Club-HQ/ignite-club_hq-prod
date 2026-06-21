@@ -343,8 +343,7 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
     const totalGoing = playerStats.reduce((sum, p) => sum + p.going, 0);
     const totalMaybe = playerStats.reduce((sum, p) => sum + p.maybe, 0);
     const totalNotGoing = playerStats.reduce((sum, p) => sum + p.notGoing, 0);
-    const totalNoResponse = playerStats.reduce((sum, p) => sum + p.noResponse, 0);
-    
+
     return {
       totalEvents: events.length,
       totalPlayers: playerStats.length,
@@ -352,12 +351,11 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       totalGoing,
       totalMaybe,
       totalNotGoing,
-      totalNoResponse,
     };
   }, [playerStats, events]);
 
   const exportToCSV = () => {
-    const headers = ["Name", "Type", "Parent", "Total Events", "Going", "Maybe", "Not Going", "No Response", "Attendance Rate"];
+    const headers = ["Name", "Type", "Parent", "Total Events", "Going", "Maybe", "Not Going", "Attendance Rate"];
     const rows = playerStats.map(p => [
       p.displayName,
       p.isChild ? "Child" : "Player",
@@ -366,7 +364,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       p.going,
       p.maybe,
       p.notGoing,
-      p.noResponse,
       `${p.attendanceRate}%`,
     ]);
 
