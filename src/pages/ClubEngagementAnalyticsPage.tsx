@@ -616,17 +616,20 @@ export default function ClubEngagementAnalyticsPage({
               </PopoverContent>
             </Popover>
           </div>
-          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All teams" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_TEAMS}>All teams ({teams.length})</SelectItem>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isPlatform && (
+            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TEAMS}>All teams ({teams.length})</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <p className="text-xs text-muted-foreground">
             {format(range.start, "MMM d")} – {format(range.end, "MMM d, yyyy")} · vs previous {rangeDays}d
           </p>
