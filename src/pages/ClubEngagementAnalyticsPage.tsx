@@ -488,6 +488,45 @@ export default function ClubEngagementAnalyticsPage({
     return { impressions, clicks, ctr, top };
   }, [sponsorAnalytics, sponsorRows]);
 
+  // ---------- Benchmark metrics (Active%, DAU/WAU/MAU, Message Participation, Read Rates) ----------
+  const { data: benchmarks } = useQuery({
+    queryKey: ["club-engagement-benchmarks", clubId, mode, range.start.toISOString(), range.end.toISOString(), prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_benchmarks", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return data as Record<string, number>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  // ---------- Sponsor performance (unique reach + CTR per sponsor) ----------
+  const { data: sponsorPerf = [] } = useQuery({
+    queryKey: ["club-engagement-sponsor-perf", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_sponsor_performance", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        sponsor_id: string; sponsor_name: string; unique_reach: number;
+        views: number; clicks: number; ctr: number;
+        prev_clicks: number; prev_views: number;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+
 
   // ---------- Engagement score (composite 0-100) ----------
   const engagementScore = useMemo(() => {
