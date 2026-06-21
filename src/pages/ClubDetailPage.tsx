@@ -83,7 +83,7 @@ import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
