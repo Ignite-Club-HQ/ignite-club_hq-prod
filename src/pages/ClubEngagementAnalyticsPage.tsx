@@ -795,31 +795,9 @@ export default function ClubEngagementAnalyticsPage({
         <Metric icon={MessageCircle} label="Comments" value={photoEngagement?.comments ?? 0} />
       </div>
 
-      {/* Section 6: Sponsors */}
-      <SectionHeader icon={Trophy} title="Sponsors" description="Impressions and click-through performance" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={Eye} label="Impressions" value={sponsorStats.impressions} />
-        <Metric icon={MousePointerClick} label="Clicks" value={sponsorStats.clicks} />
-        <Metric icon={TrendingUp} label="CTR" value={`${sponsorStats.ctr}%`} />
-        <Metric icon={Trophy} label="Active sponsors" value={sponsorRows.length} />
-      </div>
-      {sponsorStats.top.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top sponsors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {sponsorStats.top.map((s) => (
-              <div key={s.sponsorId} className="flex items-center justify-between text-sm">
-                <span className="truncate">{s.name}</span>
-                <span className="text-muted-foreground">
-                  {s.clicks} clicks · {s.ctr}% CTR
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* Section 6: Sponsor Performance */}
+      <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
+      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} />
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
