@@ -454,7 +454,7 @@ export default function MediaPage() {
       
       const { data } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs(name)")
+        .select("id, name, club_id, clubs!club_id(name)")
         .in("id", teamIds)
         .order("name");
       return data || [];
