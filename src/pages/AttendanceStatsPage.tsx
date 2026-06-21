@@ -625,7 +625,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                         <X className="h-4 w-4 text-destructive" />
                       </span>
                     </TableHead>
-                    <TableHead className="text-center w-20">N/A</TableHead>
                     <TableHead className="w-32">Rate</TableHead>
                   </TableRow>
                 </TableHeader>
