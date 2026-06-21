@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// Native Deno.serve — no std-lib import needed (drops one cold-start fetch).
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,7 +60,7 @@ function validateUrl(urlString: string): URL {
   return parsed;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

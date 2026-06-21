@@ -231,11 +231,11 @@ export default function MessagesPage() {
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
 
   const { data: clubAdminConversations = [] } = useQuery({
-    queryKey: clubAdminInboxQueryKey(user?.id, activeClubFilter),
+    queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
     enabled: !!user && initialized,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
-    queryFn: () => fetchClubAdminConversations(user!.id, activeClubFilter),
+    queryFn: () => fetchClubAdminConversations(user!.id, effectiveClubFilter),
   });
 
   // Load cached data for instant display
@@ -1942,6 +1942,79 @@ export default function MessagesPage() {
     return { leagueChats: leagues, regularChatGroups: regular };
   }, [displayChatGroups]);
 
+  // Personal/custom groups (membership-based, no club/team/league/competition scope).
+  const personalGroupIds = useMemo(
+    () => regularChatGroups
+      .filter((g: any) => !g.club_id && !g.team_id && !g.mini_league_id && !g.competition_id)
+      .map((g: any) => g.id),
+    [regularChatGroups]
+  );
+
+  // Other-user ids across all DM conversations (used to test club membership).
+  const dmOtherUserIds = useMemo(
+    () => (dmConversations || [])
+      .map((c: any) => c?.other_user?.id)
+      .filter((id: any) => !!id && id !== user?.id),
+    [dmConversations, user?.id]
+  );
+
+  // When a club filter is active, look up which DM peers and which
+  // personal-group members hold any user_role under the selected club.
+  // RLS already allows visibility to club co-members.
+  const { data: clubScopeFilterData } = useQuery({
+    queryKey: [
+      "messages-club-scope-filter",
+      user?.id,
+      effectiveClubFilter,
+      personalGroupIds.join(","),
+      dmOtherUserIds.join(","),
+    ],
+    enabled: !!user && !!effectiveClubFilter && (personalGroupIds.length > 0 || dmOtherUserIds.length > 0),
+    staleTime: 60_000,
+    queryFn: async () => {
+      // 1. Personal group memberships.
+      const groupMembersMap = new Map<string, string[]>();
+      if (personalGroupIds.length > 0) {
+        const { data: gm } = await supabase
+          .from("group_members")
+          .select("group_id, user_id")
+          .in("group_id", personalGroupIds);
+        (gm || []).forEach((row: any) => {
+          const arr = groupMembersMap.get(row.group_id) || [];
+          arr.push(row.user_id);
+          groupMembersMap.set(row.group_id, arr);
+        });
+      }
+
+      // 2. Union of user ids whose club membership we need to check.
+      const userIdSet = new Set<string>(dmOtherUserIds);
+      groupMembersMap.forEach((members) => {
+        members.forEach((uid) => {
+          if (uid && uid !== user?.id) userIdSet.add(uid);
+        });
+      });
+
+      const usersInClub = new Set<string>();
+      if (userIdSet.size > 0) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", effectiveClubFilter)
+          .in("user_id", Array.from(userIdSet));
+        (roles || []).forEach((r: any) => {
+          if (r.user_id) usersInClub.add(r.user_id);
+        });
+      }
+
+      return { groupMembersMap, usersInClub };
+    },
+  });
+
+  const clubScopedUsersInClub = clubScopeFilterData?.usersInClub;
+  const clubScopedGroupMembers = clubScopeFilterData?.groupMembersMap;
+
+
+
   const filteredLeagueChats = useMemo(() => {
     let groups = leagueChats;
     if (effectiveClubFilter) {
@@ -1965,10 +2038,20 @@ export default function MessagesPage() {
           const clubs = competitionClubMap?.[group.competition_id];
           return !!clubs && clubs.has(effectiveClubFilter);
         }
-        // Personal/custom groups have no club or team scope — always show them
-        // regardless of the club filter so they don't disappear unexpectedly.
+        // Personal/custom groups: when a club filter is active, only show
+        // the group if at least one member (other than the current user)
+        // holds a role under the selected club. While the membership
+        // lookup is still loading, fall back to showing the group so it
+        // doesn't briefly disappear on each filter switch.
         const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-        if (isPersonalGroup) return true;
+        if (isPersonalGroup) {
+          if (!clubScopedGroupMembers || !clubScopedUsersInClub) return true;
+          const members = clubScopedGroupMembers.get(group.id) || [];
+          const otherMembers = members.filter((uid) => uid !== user?.id);
+          if (otherMembers.length === 0) return true;
+          return otherMembers.some((uid) => clubScopedUsersInClub.has(uid));
+        }
+
         return (
           group.club_id === effectiveClubFilter ||
           (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
@@ -1995,7 +2078,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap, clubScopedGroupMembers, clubScopedUsersInClub, user?.id]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
@@ -2048,6 +2131,17 @@ export default function MessagesPage() {
         const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
         if (stillHidden && !query) return false;
       }
+      // When a club filter is active, only show DMs whose other participant
+      // holds a role under the selected club. Always keep Ignite Support
+      // visible regardless of club scope. While the lookup is loading, keep
+      // the conversation visible to avoid a flash of empty state.
+      if (effectiveClubFilter && clubScopedUsersInClub) {
+        const otherId = conv.other_user?.id;
+        const isSupport = isIgniteSupportUser(otherId);
+        if (!isSupport && otherId && !clubScopedUsersInClub.has(otherId)) {
+          return false;
+        }
+      }
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
@@ -2055,7 +2149,8 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query, allDrafts]);
+  }, [dmConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
@@ -2970,7 +3065,7 @@ export default function MessagesPage() {
 
         {/* Discover open-to-club Operations / Volunteers groups */}
         {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
-          <DiscoverGroupsList activeClubFilter={activeClubFilter} />
+          <DiscoverGroupsList activeClubFilter={effectiveClubFilter} />
         )}
 
         {/* Sponsor/Ad Carousel */}

@@ -92,6 +92,7 @@ export async function publishChatImageToGallery(
     .upload(storagePath, blob, {
       contentType: blob.type || `image/${ext}`,
       upsert: false,
+      cacheControl: "31536000",
     });
   if (uploadError) {
     console.error("[publishChatImageToGallery] upload failed", uploadError);
