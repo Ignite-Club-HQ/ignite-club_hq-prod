@@ -358,5 +358,7 @@ Deno.serve(async (req) => {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+  } finally {
+    await admin.rpc("release_cron_lock", { p_key: LOCK_KEY }).catch(() => {});
   }
 });
