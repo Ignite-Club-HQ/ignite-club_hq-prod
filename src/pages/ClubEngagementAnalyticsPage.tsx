@@ -102,8 +102,12 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export default function ClubEngagementAnalyticsPage() {
-  const { clubId } = useParams<{ clubId: string }>();
+export default function ClubEngagementAnalyticsPage({
+  mode = "club",
+}: { mode?: "club" | "platform" } = {}) {
+  const params = useParams<{ clubId: string }>();
+  const clubId = mode === "platform" ? null : params.clubId ?? null;
+  const isPlatform = mode === "platform";
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -125,9 +129,11 @@ export default function ClubEngagementAnalyticsPage() {
     end: endOfDay(subDays(range.end, rangeDays)),
   }), [range, rangeDays]);
 
+  const queryReady = isPlatform || !!clubId;
+
   // ---------- Access control ----------
   const { data: access, isLoading: accessLoading } = useQuery({
-    queryKey: ["club-engagement-access", user?.id, clubId],
+    queryKey: ["club-engagement-access", user?.id, clubId, mode],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
@@ -135,12 +141,15 @@ export default function ClubEngagementAnalyticsPage() {
         .eq("user_id", user!.id);
       if (!data) return { isAdmin: false, isCompAdmin: false };
       const isAppAdmin = data.some((r) => r.role === "app_admin");
+      if (isPlatform) {
+        return { isAdmin: isAppAdmin, isCompAdmin: isAppAdmin };
+      }
       const isClubAdmin = data.some((r) => r.role === "club_admin" && r.club_id === clubId);
       const isCommittee = data.some((r) => r.role === "committee_member" && r.club_id === clubId);
       const isCompAdmin = data.some((r) => r.role === "competition_admin");
       return { isAdmin: isAppAdmin || isClubAdmin || isCommittee, isCompAdmin: isAppAdmin || isCompAdmin };
     },
-    enabled: !!user && !!clubId,
+    enabled: !!user && queryReady,
   });
 
   const { data: club } = useQuery({
@@ -154,22 +163,24 @@ export default function ClubEngagementAnalyticsPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!clubId,
+    enabled: !isPlatform && !!clubId,
   });
 
   const { data: teams = [] } = useQuery({
-    queryKey: ["club-engagement-teams", clubId],
+    queryKey: ["club-engagement-teams", clubId, isPlatform],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("teams")
         .select("id, name, is_archived")
-        .eq("club_id", clubId!)
         .eq("is_archived", false)
-        .order("name");
+        .order("name")
+        .limit(2000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const scopedTeamIds = useMemo(() => {
@@ -179,32 +190,33 @@ export default function ClubEngagementAnalyticsPage() {
 
   // ---------- Section 1 + 2: Activity / active users (via SECURITY DEFINER RPC) ----------
   // Bypasses per-user RLS on user_activity_logs so club admins see club-wide activity.
+  // Passing _club_id=null returns platform-wide aggregate (app_admin only).
   const { data: activityRows = [], isLoading: actLoading } = useQuery({
-    queryKey: ["club-engagement-activity-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-activity-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_active_users", {
-        _club_id: clubId!,
+        _club_id: clubId as any,
         _start: range.start.toISOString(),
         _end: range.end.toISOString(),
       });
       if (error) throw error;
       return (data || []) as { day: string; user_id: string }[];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const { data: prevActivityRows = [] } = useQuery({
-    queryKey: ["club-engagement-activity-prev-rpc", clubId, prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryKey: ["club-engagement-activity-prev-rpc", clubId, mode, prevRange.start.toISOString(), prevRange.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_active_users", {
-        _club_id: clubId!,
+        _club_id: clubId as any,
         _start: prevRange.start.toISOString(),
         _end: prevRange.end.toISOString(),
       });
       if (error) throw error;
       return (data || []) as { day: string; user_id: string }[];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const activeMembers = useMemo(() => {
@@ -241,62 +253,65 @@ export default function ClubEngagementAnalyticsPage() {
 
   // ---------- New members ----------
   const { data: newMembers = [] } = useQuery({
-    queryKey: ["club-engagement-new-members", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-new-members", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("club_players")
         .select("id, profile_id, created_at")
-        .eq("club_id", clubId!)
         .gte("created_at", range.start.toISOString())
         .lte("created_at", range.end.toISOString())
-        .limit(2000);
+        .limit(5000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const { data: prevNewMembers = [] } = useQuery({
-    queryKey: ["club-engagement-new-members-prev", clubId, prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryKey: ["club-engagement-new-members-prev", clubId, mode, prevRange.start.toISOString(), prevRange.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("club_players")
         .select("id, created_at")
-        .eq("club_id", clubId!)
         .gte("created_at", prevRange.start.toISOString())
         .lte("created_at", prevRange.end.toISOString())
-        .limit(2000);
+        .limit(5000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   // ---------- Invites ----------
   const { data: inviteStats } = useQuery({
-    queryKey: ["club-engagement-invites", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-invites", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("pending_invites")
         .select("id, accepted_at, created_at, status")
-        .eq("club_id", clubId!)
         .gte("created_at", range.start.toISOString())
         .lte("created_at", range.end.toISOString())
-        .limit(5000);
+        .limit(10000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       const total = (data || []).length;
       const accepted = (data || []).filter((i) => !!i.accepted_at).length;
       return { total, accepted, rate: total ? Math.round((accepted / total) * 100) : 0 };
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   // ---------- Club-wide totals (RPC) — bypasses 1000-row cap & RLS for club admins ----------
   const { data: totals, isLoading: totalsLoading, error: totalsError } = useQuery({
-    queryKey: ["club-engagement-totals-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-totals-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_totals", {
-        _club_id: clubId!,
+        _club_id: clubId as any,
         _start: range.start.toISOString(),
         _end: range.end.toISOString(),
       });
@@ -314,22 +329,22 @@ export default function ClubEngagementAnalyticsPage() {
         photosUploaded: Number(row.photos_uploaded ?? 0),
       };
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   // ---------- Message volume per day (RPC) ----------
   const { data: msgVolume = [], error: msgVolumeError } = useQuery({
-    queryKey: ["club-engagement-msg-volume-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-msg-volume-rpc", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_message_volume", {
-        _club_id: clubId!,
+        _club_id: clubId as any,
         _start: range.start.toISOString(),
         _end: range.end.toISOString(),
       });
       if (error) throw error;
       return (data || []) as { day: string; club_count: number; team_count: number }[];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const msgVolumeChart = useMemo(
@@ -356,21 +371,22 @@ export default function ClubEngagementAnalyticsPage() {
 
   // ---------- Media: photo uploads (use total) + per-photo engagement (capped sample) ----------
   const { data: photos = [] } = useQuery({
-    queryKey: ["club-engagement-photos", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-photos", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("photos")
         .select("id")
-        .eq("club_id", clubId!)
         .is("deleted_at", null)
         .gte("created_at", range.start.toISOString())
         .lte("created_at", range.end.toISOString())
         .order("created_at", { ascending: false })
         .limit(1000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const { data: photoEngagement } = useQuery({
@@ -398,18 +414,19 @@ export default function ClubEngagementAnalyticsPage() {
 
   // ---------- Sponsors ----------
   const { data: sponsorRows = [] } = useQuery({
-    queryKey: ["club-engagement-sponsors", clubId],
+    queryKey: ["club-engagement-sponsors", clubId, mode],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("sponsors")
         .select("id, name, club_id")
-        .eq("club_id", clubId!)
         .eq("is_active", true)
-        .limit(500);
+        .limit(2000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId && !!access?.isAdmin,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const { data: sponsorAnalytics = [] } = useQuery({
@@ -482,8 +499,15 @@ export default function ClubEngagementAnalyticsPage() {
 
   // ---------- Competition (admins only) ----------
   const { data: competitions = [] } = useQuery({
-    queryKey: ["club-engagement-competitions", clubId],
+    queryKey: ["club-engagement-competitions", clubId, mode],
     queryFn: async () => {
+      if (isPlatform) {
+        const { data } = await supabase
+          .from("competitions")
+          .select("id, name")
+          .limit(500);
+        return data || [];
+      }
       const { data: entries } = await supabase
         .from("competition_entries")
         .select("competition_id, team_id, teams!inner(club_id)")
@@ -497,8 +521,9 @@ export default function ClubEngagementAnalyticsPage() {
         .in("id", compIds);
       return data || [];
     },
-    enabled: !!clubId && !!access?.isCompAdmin,
+    enabled: queryReady && !!access?.isCompAdmin,
   });
+
 
   // ---------- UI ----------
   if (accessLoading) {
@@ -536,8 +561,11 @@ export default function ClubEngagementAnalyticsPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold truncate">Engagement Analytics</h1>
           <p className="text-xs sm:text-sm text-muted-foreground truncate">
-            {club?.name ?? "Club"} • how your members are participating
+            {isPlatform
+              ? "All clubs • platform-wide engagement"
+              : `${club?.name ?? "Club"} • how your members are participating`}
           </p>
+
         </div>
       </div>
 
@@ -588,17 +616,20 @@ export default function ClubEngagementAnalyticsPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All teams" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_TEAMS}>All teams ({teams.length})</SelectItem>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isPlatform && (
+            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TEAMS}>All teams ({teams.length})</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <p className="text-xs text-muted-foreground">
             {format(range.start, "MMM d")} – {format(range.end, "MMM d, yyyy")} · vs previous {rangeDays}d
           </p>
