@@ -255,7 +255,7 @@ export default function ProfilePage() {
     queryFn: async () => {
       let query = supabase
         .from("reward_redemptions")
-        .select(`id, points_spent, status, redeemed_at, created_at, club_id, club_rewards (name), clubs (name)`)
+        .select(`id, points_spent, status, redeemed_at, created_at, club_id, club_rewards (name), clubs!club_id (name)`)
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       
