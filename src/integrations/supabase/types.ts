@@ -2743,6 +2743,24 @@ export type Database = {
           },
         ]
       }
+      cron_locks: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          key: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          key: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          key?: string
+        }
+        Relationships: []
+      }
       default_rollover_log: {
         Row: {
           default_id: string
@@ -10778,6 +10796,7 @@ export type Database = {
         Args: { _request_id: string }
         Returns: undefined
       }
+      release_cron_lock: { Args: { p_key: string }; Returns: undefined }
       request_join_chat_group: {
         Args: { _group_id: string; _message?: string }
         Returns: string
@@ -10947,6 +10966,10 @@ export type Database = {
           _streak_length: number
           _user_id: string
         }
+        Returns: boolean
+      }
+      try_cron_lock: {
+        Args: { p_key: string; p_ttl_seconds?: number }
         Returns: boolean
       }
       try_insert_points_cooldown: {
