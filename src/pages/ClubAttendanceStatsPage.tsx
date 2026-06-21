@@ -242,10 +242,61 @@ export default function ClubAttendanceStatsPage() {
         <AttendanceStatsPage key={selectedTeamId} teamIdOverride={selectedTeamId} embedded />
       ) : (
         <>
-          <p className="text-xs text-muted-foreground -mt-2">
-            Showing games &amp; training from {format(startDate, "dd MMM yyyy")} to{" "}
-            {format(endDate, "dd MMM yyyy")}. Switch to a team for a full per-player breakdown.
-          </p>
+          {/* Date range filters */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Time Period
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Start Date</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {format(startDate, "dd MMM yyyy")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={(date) => date && setStartDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">End Date</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {format(endDate, "dd MMM yyyy")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={(date) => date && setEndDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Showing games &amp; training from {format(startDate, "dd MMM yyyy")} to{" "}
+                {format(endDate, "dd MMM yyyy")}. Switch to a team for a full per-player breakdown.
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
