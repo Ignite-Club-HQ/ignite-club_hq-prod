@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles, Paperclip, TrendingUp, Image as ImageIcon, Bug, RotateCcw } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles, Paperclip, TrendingUp, Image as ImageIcon, Bug, RotateCcw, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -51,20 +51,21 @@ export default function AdminPage() {
   });
 
   // Check if user is club admin (for club-scoped tools like restoring deleted chats)
-  const { data: isClubAdmin } = useQuery({
-    queryKey: ["is-club-admin-any", user?.id],
+  const { data: clubAdminClubIds = [] } = useQuery({
+    queryKey: ["club-admin-club-ids", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("club_id")
         .eq("user_id", user!.id)
         .eq("role", "club_admin")
-        .not("club_id", "is", null)
-        .limit(1);
-      return !!(data && data.length > 0);
+        .not("club_id", "is", null);
+      return (data || []).map((r: any) => r.club_id).filter(Boolean) as string[];
     },
     enabled: !!user,
   });
+  const isClubAdmin = clubAdminClubIds.length > 0;
+  const primaryClubId = clubAdminClubIds[0];
 
 
   if (isLoading) {
@@ -125,6 +126,14 @@ export default function AdminPage() {
             <CardDescription>Tools available to club admins</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
+            {primaryClubId && (
+              <AdminMenuItem
+                icon={ClipboardCheck}
+                label="Attendance Stats"
+                description="Club-wide attendance across all teams"
+                onClick={() => navigate(`/clubs/${primaryClubId}/attendance`)}
+              />
+            )}
             <AdminMenuItem
               icon={RotateCcw}
               label="Deleted Chats"

@@ -34,7 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-type EventType = "game" | "training" | "social" | "all";
+type EventType = "game" | "training" | "all";
 
 interface PlayerStats {
   userId: string;
@@ -211,22 +211,23 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
   const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ["team-events-attendance", teamId, startDate, endDate, eventTypeFilter],
     queryFn: async () => {
-      let query = supabase
+      // Only game and training events count toward attendance stats
+      const allowedTypes: ("game" | "training")[] = eventTypeFilter === "all"
+        ? ["game", "training"]
+        : [eventTypeFilter as "game" | "training"];
+
+      const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, is_cancelled")
         .eq("team_id", teamId!)
         .eq("is_cancelled", false)
+        .in("type", allowedTypes)
         .gte("event_date", startDate.toISOString())
         .lte("event_date", endDate.toISOString())
         .order("event_date", { ascending: true });
-      
-      if (eventTypeFilter !== "all") {
-        query = query.eq("type", eventTypeFilter);
-      }
-      
-      const { data, error } = await query;
+
       if (error) throw error;
-      
+
       // Only include past events for attendance
       return (data || []).filter(e => isPast(parseISO(e.event_date)));
     },
@@ -533,10 +534,9 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Events</SelectItem>
+                  <SelectItem value="all">Games &amp; Training</SelectItem>
                   <SelectItem value="game">Games Only</SelectItem>
                   <SelectItem value="training">Training Only</SelectItem>
-                  <SelectItem value="social">Social Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
