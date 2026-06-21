@@ -54,7 +54,7 @@ export function BoardViewerDialog({
     (async () => {
       const { data: row, error: rowErr } = await supabase
         .from("active_games")
-        .select("team_id, teams(id, name, clubs!teams_club_id_fkey(sport))")
+        .select("team_id, teams(id, name, clubs!club_id(sport))")
         .eq("id", gameId)
         .maybeSingle();
 

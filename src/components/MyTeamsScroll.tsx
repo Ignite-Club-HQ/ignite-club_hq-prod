@@ -62,7 +62,7 @@ export function MyTeamsScroll() {
       if (teamIds.length > 0) {
         const { data: teams } = await supabase
           .from("teams")
-          .select("id, name, logo_url, club_id, clubs!teams_club_id_fkey(name, sport)")
+          .select("id, name, logo_url, club_id, clubs!club_id(name, sport)")
           .in("id", teamIds);
 
         if (teams) {
@@ -111,7 +111,7 @@ export function MyTeamsScroll() {
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
           .from("mini_leagues")
-          .select("id, name, club_id, clubs!mini_leagues_club_id_fkey(name, sport)")
+          .select("id, name, club_id, clubs!club_id(name, sport)")
           .in("id", Array.from(leagueIds));
 
         if (leagues) {
