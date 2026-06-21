@@ -172,6 +172,19 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
+  // Overlap guard: 15-min cron with a TTL of 14 min so a stuck run can't stack.
+  const LOCK_KEY = "auto-rsvp-dm-cron";
+  const { data: lockAcquired } = await admin.rpc("try_cron_lock", {
+    p_key: LOCK_KEY,
+    p_ttl_seconds: 14 * 60,
+  });
+  if (!lockAcquired) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: "another run in progress" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   const summary: Record<Cadence, { events: number; sent: number; skipped: number }> = {
     t72: { events: 0, sent: 0, skipped: 0 },
     t24: { events: 0, sent: 0, skipped: 0 },
