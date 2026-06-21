@@ -521,6 +521,8 @@ export default function ClubEngagementAnalyticsPage({
         sponsor_id: string; sponsor_name: string; unique_reach: number;
         views: number; clicks: number; ctr: number;
         prev_clicks: number; prev_views: number;
+        raw_views: number; raw_clicks: number;
+        tracking_started: string | null;
       }>;
     },
     enabled: queryReady && !!access?.isAdmin,
@@ -1196,6 +1198,8 @@ type SponsorPerfRow = {
   sponsor_id: string; sponsor_name: string; unique_reach: number;
   views: number; clicks: number; ctr: number;
   prev_clicks: number; prev_views: number;
+  raw_views: number; raw_clicks: number;
+  tracking_started: string | null;
 };
 
 function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow[]; totalSponsors: number }) {
@@ -1211,17 +1215,28 @@ function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow
   const totalReach = rows.reduce((a, r) => a + r.unique_reach, 0);
   const totalClicks = rows.reduce((a, r) => a + r.clicks, 0);
   const totalViews = rows.reduce((a, r) => a + r.views, 0);
+  const totalRawViews = rows.reduce((a, r) => a + (r.raw_views || 0), 0);
   const avgCtr = totalViews ? Math.round((totalClicks / totalViews) * 1000) / 10 : 0;
   const highestCtr = [...rows].sort((a, b) => b.ctr - a.ctr)[0];
   const mostViewed = [...rows].sort((a, b) => b.views - a.views)[0];
   const mostReach = [...rows].sort((a, b) => b.unique_reach - a.unique_reach)[0];
+  const trackingStarted = rows.find((r) => r.tracking_started)?.tracking_started;
+  const trackingDate = trackingStarted ? new Date(trackingStarted) : null;
+  const hasLegacyGap = totalRawViews > totalViews;
 
   return (
     <div className="space-y-3">
+      {trackingDate && (
+        <div className="text-[11px] text-muted-foreground border border-border/60 bg-muted/30 rounded-md px-2.5 py-1.5 leading-snug">
+          Member-level sponsor tracking started <span className="text-foreground font-medium">{trackingDate.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>.
+          Reach, Views and CTR below count only identified members so the numbers are comparable.
+          {hasLegacyGap && <> Earlier anonymous impressions ({totalRawViews.toLocaleString()}) are excluded.</>}
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={Users} label="Total Unique Reach" value={totalReach} hint="members engaged" />
+        <Metric icon={Users} label="Members Reached" value={totalReach} hint="unique identified members" />
         <Metric icon={TrendingUp} label="Avg Sponsor CTR" value={`${avgCtr}%`} />
-        <Metric icon={MousePointerClick} label="Total Clicks" value={totalClicks} />
+        <Metric icon={MousePointerClick} label="Tracked Clicks" value={totalClicks} />
         <Metric icon={Trophy} label="Active Sponsors" value={totalSponsors} />
       </div>
 
@@ -1230,6 +1245,7 @@ function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow
         <LeaderCard label="Most Viewed" sponsorName={mostViewed?.sponsor_name} value={`${mostViewed?.views ?? 0} views`} />
         <LeaderCard label="Largest Reach" sponsorName={mostReach?.sponsor_name} value={`${mostReach?.unique_reach ?? 0} members`} />
       </div>
+
 
       <Card>
         <CardHeader className="pb-2">
