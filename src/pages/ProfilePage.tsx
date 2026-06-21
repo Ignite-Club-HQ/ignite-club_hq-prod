@@ -228,7 +228,7 @@ export default function ProfilePage() {
     queryFn: async () => {
       let query = supabase
         .from("duties")
-        .select(`id, name, status, points, points_awarded, created_at, events (id, title, event_date, club_id, team_id, teams (name), clubs (name))`)
+        .select(`id, name, status, points, points_awarded, created_at, events (id, title, event_date, club_id, team_id, teams (name), clubs!club_id (name))`)
         .eq("assigned_to", user!.id)
         .eq("points_awarded", true)
         .order("created_at", { ascending: false });
