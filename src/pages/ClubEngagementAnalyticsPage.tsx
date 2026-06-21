@@ -252,14 +252,17 @@ export default function ClubEngagementAnalyticsPage({
   }, [activityRows, range]);
 
   // ---------- New members ----------
+  // Defined as: pending_invites that were accepted within the date range
+  // (team_memberships/club_players are not the source of truth for joins)
   const { data: newMembers = [] } = useQuery({
     queryKey: ["club-engagement-new-members", clubId, mode, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       let q = supabase
-        .from("club_players")
-        .select("id, profile_id, created_at")
-        .gte("created_at", range.start.toISOString())
-        .lte("created_at", range.end.toISOString())
+        .from("pending_invites")
+        .select("id, invited_user_id, accepted_at, club_id")
+        .not("accepted_at", "is", null)
+        .gte("accepted_at", range.start.toISOString())
+        .lte("accepted_at", range.end.toISOString())
         .limit(5000);
       if (!isPlatform) q = q.eq("club_id", clubId!);
       const { data, error } = await q;
@@ -273,10 +276,11 @@ export default function ClubEngagementAnalyticsPage({
     queryKey: ["club-engagement-new-members-prev", clubId, mode, prevRange.start.toISOString(), prevRange.end.toISOString()],
     queryFn: async () => {
       let q = supabase
-        .from("club_players")
-        .select("id, created_at")
-        .gte("created_at", prevRange.start.toISOString())
-        .lte("created_at", prevRange.end.toISOString())
+        .from("pending_invites")
+        .select("id, accepted_at, club_id")
+        .not("accepted_at", "is", null)
+        .gte("accepted_at", prevRange.start.toISOString())
+        .lte("accepted_at", prevRange.end.toISOString())
         .limit(5000);
       if (!isPlatform) q = q.eq("club_id", clubId!);
       const { data, error } = await q;
@@ -285,6 +289,7 @@ export default function ClubEngagementAnalyticsPage({
     },
     enabled: queryReady && !!access?.isAdmin,
   });
+
 
   // ---------- Invites ----------
   const { data: inviteStats } = useQuery({
