@@ -325,6 +325,25 @@ export function MatchScoreCard({
         }))
     : [];
 
+  // Format a team's saved secondary stats inline e.g. cricket "120/3".
+  const savedPeriod = result?.period_scores;
+  const savedPeriodObj =
+    savedPeriod && !Array.isArray(savedPeriod) && typeof savedPeriod === "object"
+      ? (savedPeriod as any)
+      : null;
+  const formatTeamScore = (base: number | null | undefined, side: "home" | "away") => {
+    const b = base ?? 0;
+    const meta = savedPeriodObj?.[side];
+    if (!meta || !sportConfig.secondaryStats?.length) return `${b}`;
+    const parts = sportConfig.secondaryStats
+      .map((s) => {
+        const v = meta[s.key];
+        return v === undefined || v === null || v === "" ? null : `${v}`;
+      })
+      .filter(Boolean);
+    return parts.length ? `${b}/${parts.join("/")}` : `${b}`;
+  };
+
   const availableToAdd = (roster || []).filter(
     (p) => !scorers.some((s) => s.id === p.id)
   );
