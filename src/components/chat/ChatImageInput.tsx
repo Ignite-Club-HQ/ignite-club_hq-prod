@@ -252,7 +252,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
     const { error: uploadError } = await supabase.storage
       .from("chat-attachments")
-      .upload(fileName, fileToUpload, { contentType, upsert: false });
+      .upload(fileName, fileToUpload, { contentType, upsert: false, cacheControl: "31536000" });
 
     if (uploadError) throw new Error(uploadError.message || "Failed to upload image");
 
@@ -308,7 +308,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       const { error: upErr } = await supabase.storage
         .from("chat-attachments")
-        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false, cacheControl: "31536000" });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
       const fileUrl = pub.publicUrl;
