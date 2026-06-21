@@ -680,31 +680,11 @@ export default function ClubEngagementAnalyticsPage() {
         <Metric icon={Users} label="Going rate" value={`${rsvpStats.attendanceRate}%`} />
         <Metric icon={RefreshCcw} label="Pending RSVPs" value={rsvpStats.pending} />
       </div>
-      {events.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Events created over time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bucketByDay(events as any, range.start, range.end)}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
-                  <YAxis fontSize={11} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} name="Events" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Section 5: Media Engagement */}
       <SectionHeader icon={ImageIcon} title="Media" description="Photo uploads & viewer engagement" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={ImageIcon} label="Photos uploaded" value={photos.length} />
+        <Metric icon={ImageIcon} label="Photos uploaded" value={totals?.photosUploaded ?? photos.length} />
         <Metric icon={Eye} label="Views" value={photoEngagement?.views ?? 0} />
         <Metric icon={Heart} label="Reactions" value={photoEngagement?.reactions ?? 0} />
         <Metric icon={MessageCircle} label="Comments" value={photoEngagement?.comments ?? 0} />
