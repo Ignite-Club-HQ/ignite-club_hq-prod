@@ -1173,7 +1173,7 @@ function FixturesFilterAndList({
                   {totalRounds} round{totalRounds === 1 ? "" : "s"} scheduled
                   <span className="text-muted-foreground font-normal ml-2 tabular-nums">(max: {maxRound})</span>
                 </span>
-                {isAdmin && (
+                {isAdmin && source !== "playhq" && (
                   <SetMaxRoundsButton
                     competitionId={competitionId}
                     currentMax={maxRound}
