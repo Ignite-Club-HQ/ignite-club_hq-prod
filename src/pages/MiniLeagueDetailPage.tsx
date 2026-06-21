@@ -47,7 +47,7 @@ export default function MiniLeagueDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("*, club:clubs(id, name)")
+        .select("*, club:clubs!club_id(id, name)")
         .eq("id", id!)
         .single();
       if (error) throw error;
