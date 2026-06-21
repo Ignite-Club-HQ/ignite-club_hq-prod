@@ -521,6 +521,8 @@ export default function ClubEngagementAnalyticsPage({
         sponsor_id: string; sponsor_name: string; unique_reach: number;
         views: number; clicks: number; ctr: number;
         prev_clicks: number; prev_views: number;
+        raw_views: number; raw_clicks: number;
+        tracking_started: string | null;
       }>;
     },
     enabled: queryReady && !!access?.isAdmin,
