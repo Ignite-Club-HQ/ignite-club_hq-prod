@@ -25,20 +25,28 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { getSportScoreConfig } from "@/lib/sportScoreConfig";
+
 /**
  * Sport-contextual match score card.
  *
- * Soccer-only manual entry today (Goals For / Goals Against + per-goal
- * scorer attribution). Goal scorers are stored inside `game_results.player_stats`
- * as `[{ id, name, goals }]` so the existing MVP / leaderboard / history
- * surfaces can read them without a schema change.
+ * The same underlying `game_results` row drives every sport — only the
+ * vocabulary (goals vs points vs runs, scorers heading, own-goal option)
+ * changes per sport via `getSportScoreConfig(sport)`.
+ *
+ * Per-player attribution is stored inside `game_results.player_stats`
+ * as `[{ id, name, goals }]` (the column is named after soccer's first
+ * use; we re-use it for points/runs across every sport so the existing
+ * MVP / leaderboard / history surfaces keep working without a schema
+ * change).
  */
 interface MatchScoreCardProps {
   eventId: string;
   teamId: string;
   teamName: string;
   opponent: string | null;
-  sport: "soccer";
+  /** Raw club sport string (e.g. "Soccer", "Basketball", "Cricket"). */
+  sport: string | null | undefined;
   canEdit: boolean;
 }
 
