@@ -4458,6 +4458,7 @@ export type Database = {
           id: string
           mvp_player_id: string | null
           mvp_player_name: string | null
+          notes: string | null
           period_scores: Json
           played_at: string
           player_stats: Json
@@ -4476,6 +4477,7 @@ export type Database = {
           id?: string
           mvp_player_id?: string | null
           mvp_player_name?: string | null
+          notes?: string | null
           period_scores?: Json
           played_at?: string
           player_stats?: Json
@@ -4494,6 +4496,7 @@ export type Database = {
           id?: string
           mvp_player_id?: string | null
           mvp_player_name?: string | null
+          notes?: string | null
           period_scores?: Json
           played_at?: string
           player_stats?: Json
