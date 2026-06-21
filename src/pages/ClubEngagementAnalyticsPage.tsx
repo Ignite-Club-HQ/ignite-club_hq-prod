@@ -102,8 +102,12 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export default function ClubEngagementAnalyticsPage() {
-  const { clubId } = useParams<{ clubId: string }>();
+export default function ClubEngagementAnalyticsPage({
+  mode = "club",
+}: { mode?: "club" | "platform" } = {}) {
+  const params = useParams<{ clubId: string }>();
+  const clubId = mode === "platform" ? null : params.clubId ?? null;
+  const isPlatform = mode === "platform";
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -125,9 +129,11 @@ export default function ClubEngagementAnalyticsPage() {
     end: endOfDay(subDays(range.end, rangeDays)),
   }), [range, rangeDays]);
 
+  const queryReady = isPlatform || !!clubId;
+
   // ---------- Access control ----------
   const { data: access, isLoading: accessLoading } = useQuery({
-    queryKey: ["club-engagement-access", user?.id, clubId],
+    queryKey: ["club-engagement-access", user?.id, clubId, mode],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
@@ -135,12 +141,15 @@ export default function ClubEngagementAnalyticsPage() {
         .eq("user_id", user!.id);
       if (!data) return { isAdmin: false, isCompAdmin: false };
       const isAppAdmin = data.some((r) => r.role === "app_admin");
+      if (isPlatform) {
+        return { isAdmin: isAppAdmin, isCompAdmin: isAppAdmin };
+      }
       const isClubAdmin = data.some((r) => r.role === "club_admin" && r.club_id === clubId);
       const isCommittee = data.some((r) => r.role === "committee_member" && r.club_id === clubId);
       const isCompAdmin = data.some((r) => r.role === "competition_admin");
       return { isAdmin: isAppAdmin || isClubAdmin || isCommittee, isCompAdmin: isAppAdmin || isCompAdmin };
     },
-    enabled: !!user && !!clubId,
+    enabled: !!user && queryReady,
   });
 
   const { data: club } = useQuery({
@@ -154,22 +163,24 @@ export default function ClubEngagementAnalyticsPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!clubId,
+    enabled: !isPlatform && !!clubId,
   });
 
   const { data: teams = [] } = useQuery({
-    queryKey: ["club-engagement-teams", clubId],
+    queryKey: ["club-engagement-teams", clubId, isPlatform],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("teams")
         .select("id, name, is_archived")
-        .eq("club_id", clubId!)
         .eq("is_archived", false)
-        .order("name");
+        .order("name")
+        .limit(2000);
+      if (!isPlatform) q = q.eq("club_id", clubId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!clubId,
+    enabled: queryReady && !!access?.isAdmin,
   });
 
   const scopedTeamIds = useMemo(() => {
