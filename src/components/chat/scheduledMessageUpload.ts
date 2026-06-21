@@ -57,7 +57,7 @@ export async function uploadScheduledImage(
 
   const { error } = await supabase.storage
     .from("chat-attachments")
-    .upload(path, toUpload, { contentType, upsert: false });
+    .upload(path, toUpload, { contentType, upsert: false, cacheControl: "31536000" });
   if (error) throw new Error(error.message || "Upload failed");
 
   const { data } = supabase.storage.from("chat-attachments").getPublicUrl(path);

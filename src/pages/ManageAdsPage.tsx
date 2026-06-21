@@ -86,7 +86,7 @@ export default function ManageAdsPage() {
 
       const { error: uploadError } = await supabase.storage
         .from('app-ads')
-        .upload(filePath, file);
+        .upload(filePath, file, { cacheControl: "31536000" });
 
       if (uploadError) throw uploadError;
 
@@ -128,7 +128,7 @@ export default function ManageAdsPage() {
 
       const { error: uploadError } = await supabase.storage
         .from('app-ads')
-        .upload(filePath, file);
+        .upload(filePath, file, { cacheControl: "31536000" });
 
       if (uploadError) throw uploadError;
 

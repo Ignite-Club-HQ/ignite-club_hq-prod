@@ -1752,7 +1752,7 @@ export default function VaultPage() {
 
       const { error: uploadError } = await supabase.storage
         .from("photos")
-        .upload(storagePath, file);
+        .upload(storagePath, file, { cacheControl: "31536000" });
 
       if (uploadError) throw uploadError;
 
@@ -1824,7 +1824,7 @@ export default function VaultPage() {
 
       const { error: uploadError } = await supabase.storage
         .from("photos")
-        .upload(storagePath, file);
+        .upload(storagePath, file, { cacheControl: "31536000" });
 
       if (uploadError) throw uploadError;
 
