@@ -25,20 +25,28 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { getSportScoreConfig } from "@/lib/sportScoreConfig";
+
 /**
  * Sport-contextual match score card.
  *
- * Soccer-only manual entry today (Goals For / Goals Against + per-goal
- * scorer attribution). Goal scorers are stored inside `game_results.player_stats`
- * as `[{ id, name, goals }]` so the existing MVP / leaderboard / history
- * surfaces can read them without a schema change.
+ * The same underlying `game_results` row drives every sport — only the
+ * vocabulary (goals vs points vs runs, scorers heading, own-goal option)
+ * changes per sport via `getSportScoreConfig(sport)`.
+ *
+ * Per-player attribution is stored inside `game_results.player_stats`
+ * as `[{ id, name, goals }]` (the column is named after soccer's first
+ * use; we re-use it for points/runs across every sport so the existing
+ * MVP / leaderboard / history surfaces keep working without a schema
+ * change).
  */
 interface MatchScoreCardProps {
   eventId: string;
   teamId: string;
   teamName: string;
   opponent: string | null;
-  sport: "soccer";
+  /** Raw club sport string (e.g. "Soccer", "Basketball", "Cricket"). */
+  sport: string | null | undefined;
   canEdit: boolean;
 }
 
@@ -61,6 +69,7 @@ export function MatchScoreCard({
   sport,
   canEdit,
 }: MatchScoreCardProps) {
+  const sportConfig = useMemo(() => getSportScoreConfig(sport), [sport]);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -168,7 +177,7 @@ export function MatchScoreCard({
     !isNaN(homeNum) && totalAttributedGoals > homeNum && homeNum >= 0;
 
   const OWN_GOAL_ID = "__own_goal__";
-  const OWN_GOAL_NAME = "Own goal (opposition)";
+  const OWN_GOAL_NAME = `Own ${sportConfig.unit} (opposition)`;
 
   const addScorer = () => {
     if (!pendingScorerId) return;
@@ -210,7 +219,7 @@ export function MatchScoreCard({
     if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
       toast({
         title: "Invalid score",
-        description: "Please enter valid goals for both teams.",
+        description: `Please enter valid ${sportConfig.unitPlural} for both teams.`,
         variant: "destructive",
       });
       return;
@@ -218,7 +227,7 @@ export function MatchScoreCard({
     if (totalAttributedGoals > h) {
       toast({
         title: "Too many scorers",
-        description: `You attributed ${totalAttributedGoals} goals but ${labelHome} scored ${h}.`,
+        description: `You attributed ${totalAttributedGoals} ${sportConfig.unitPlural} but ${labelHome} scored ${h}.`,
         variant: "destructive",
       });
       return;
@@ -228,7 +237,7 @@ export function MatchScoreCard({
       const payload = {
         team_id: teamId,
         event_id: eventId,
-        sport,
+        sport: sportConfig.key,
         home_label: teamName,
         away_label: opponent || "Opponent",
         home_score: h,
@@ -294,7 +303,7 @@ export function MatchScoreCard({
             <div className="flex items-center gap-3 min-w-0">
               <Trophy className="h-5 w-5 text-primary shrink-0" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold">Match Score</p>
+                <p className="text-sm font-semibold">{sportConfig.title}</p>
                 {hasScore ? (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-base font-bold">
@@ -334,7 +343,7 @@ export function MatchScoreCard({
             <div className="mt-3 pt-3 border-t">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
                 <Target className="h-3.5 w-3.5" />
-                Goal scorers
+                {sportConfig.scorersLabel}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {savedScorers.map((s) => (
@@ -356,21 +365,21 @@ export function MatchScoreCard({
           className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6 gap-3 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col top-[max(1rem,env(safe-area-inset-top))] translate-y-0 sm:top-1/2 sm:-translate-y-1/2"
         >
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} Match Score</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{hasScore ? "Edit" : "Record"} {sportConfig.title}</DialogTitle>
           </DialogHeader>
 
           <ScrollArea className="flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3 py-2">
               <div className="min-w-0">
                 <Label htmlFor="home-score" className="text-xs text-muted-foreground truncate block">
-                  {labelHome}
+                  {labelHome} <span className="opacity-70">({sportConfig.teamScoreLabel})</span>
                 </Label>
                 <Input
                   id="home-score"
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={999}
+                  max={sportConfig.maxScore}
                   value={homeScore}
                   onChange={(e) => setHomeScore(e.target.value)}
                   className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
@@ -380,14 +389,14 @@ export function MatchScoreCard({
               <div className="pb-3 text-lg sm:text-xl font-bold text-muted-foreground">–</div>
               <div className="min-w-0">
                 <Label htmlFor="away-score" className="text-xs text-muted-foreground truncate block">
-                  {labelAway}
+                  {labelAway} <span className="opacity-70">({sportConfig.teamScoreLabel})</span>
                 </Label>
                 <Input
                   id="away-score"
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={999}
+                  max={sportConfig.maxScore}
                   value={awayScore}
                   onChange={(e) => setAwayScore(e.target.value)}
                   className="text-center text-xl sm:text-2xl font-bold h-12 sm:h-14 mt-1 px-1"
@@ -396,12 +405,13 @@ export function MatchScoreCard({
               </div>
             </div>
 
-            {/* Goal scorers */}
+            {/* Scorers */}
+            {sportConfig.supportsScorers && (
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-1.5 text-sm">
                   <Target className="h-4 w-4 text-primary" />
-                  Goal scorers
+                  {sportConfig.scorersLabel}
                 </Label>
                 <span
                   className={`text-xs tabular-nums ${
@@ -419,7 +429,7 @@ export function MatchScoreCard({
                     <SelectValue placeholder="Select a player…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64 z-[1000010]">
-                    {!scorers.some((s) => s.id === OWN_GOAL_ID) && (
+                    {sportConfig.allowOwnGoal && !scorers.some((s) => s.id === OWN_GOAL_ID) && (
                       <SelectItem value={OWN_GOAL_ID}>
                         {OWN_GOAL_NAME}
                       </SelectItem>
@@ -464,7 +474,7 @@ export function MatchScoreCard({
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() => adjustGoals(s.id, -1)}
-                          aria-label="Remove one goal"
+                          aria-label={`Remove one ${sportConfig.unit}`}
                         >
                           –
                         </Button>
@@ -477,7 +487,7 @@ export function MatchScoreCard({
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() => adjustGoals(s.id, +1)}
-                          aria-label="Add one goal"
+                          aria-label={`Add one ${sportConfig.unit}`}
                         >
                           +
                         </Button>
@@ -497,16 +507,17 @@ export function MatchScoreCard({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Optional — attribute goals to players to track top scorers.
+                  {sportConfig.scorersHint}
                 </p>
               )}
 
               {overAttributed && (
                 <p className="text-xs text-destructive">
-                  You've attributed more goals than {labelHome} scored.
+                  You've attributed more {sportConfig.unitPlural} than {labelHome} scored.
                 </p>
               )}
             </div>
+            )}
           </ScrollArea>
 
           <DialogFooter className="pt-3 flex-row gap-2 sm:gap-2">

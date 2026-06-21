@@ -2861,9 +2861,9 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
-      {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
-        const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
+      {/* Match Score — viewable by team members; editable by team admins/coaches/club admins, app admins, and the Subs Manager assigned to the event */}
+      {event.type === "game" && event.team_id && (isTeamMember || isAdmin || isAppAdmin) && (() => {
+        const canEditScore = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
         // Fallback: derive opponent from title (e.g. "Round 4: Wolves v Stirling District")
         const derivedOpponent = (() => {
           if (event.opponent) return event.opponent;
@@ -2876,7 +2876,7 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             teamName={event.teams?.name || "Our Team"}
             opponent={derivedOpponent}
-            sport="soccer"
+            sport={event.clubs?.sport}
             canEdit={canEditScore}
           />
         );
