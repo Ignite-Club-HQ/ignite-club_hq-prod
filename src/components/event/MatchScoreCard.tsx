@@ -360,7 +360,7 @@ export function MatchScoreCard({
                 {hasScore ? (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-base font-bold">
-                      {labelHome} {result!.home_score} – {result!.away_score} {labelAway}
+                      {labelHome} {formatTeamScore(result!.home_score, "home")} – {formatTeamScore(result!.away_score, "away")} {labelAway}
                     </span>
                     {won && <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">Win</Badge>}
                     {lost && <Badge variant="destructive">Loss</Badge>}
