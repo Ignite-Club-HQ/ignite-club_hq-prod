@@ -69,6 +69,7 @@ export function MatchScoreCard({
   sport,
   canEdit,
 }: MatchScoreCardProps) {
+  const sportConfig = useMemo(() => getSportScoreConfig(sport), [sport]);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
