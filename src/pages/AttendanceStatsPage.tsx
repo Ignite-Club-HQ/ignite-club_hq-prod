@@ -557,12 +557,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
             <p className="text-sm text-muted-foreground">Avg Attendance</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-amber-500">{overallStats.totalNoResponse}</p>
-            <p className="text-sm text-muted-foreground">No Response</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Export Button */}
@@ -618,7 +612,7 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                         <X className="h-4 w-4 text-destructive" />
                       </span>
                     </TableHead>
-                    <TableHead className="text-center w-20">N/A</TableHead>
+                    
                     <TableHead className="w-32">Rate</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -641,9 +635,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                               </p>
                             )}
                           </div>
-                          {player.isChild && (
-                            <Badge variant="outline" className="text-xs">Child</Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -654,9 +645,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-destructive font-medium">{player.notGoing}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="text-muted-foreground">{player.noResponse}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
