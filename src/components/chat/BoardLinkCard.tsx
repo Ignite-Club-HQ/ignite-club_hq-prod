@@ -28,7 +28,7 @@ export const BoardLinkCard = memo(function BoardLinkCard({
       const { data, error } = await supabase
         .from("active_games")
         .select(
-          "id, team_id, is_active, updated_at, pitch_state, timer_state, teams(id, name, club_id, clubs(sport))"
+          "id, team_id, is_active, updated_at, pitch_state, timer_state, teams(id, name, club_id, clubs!teams_club_id_fkey(sport))"
         )
         .eq("id", gameId)
         .maybeSingle();
