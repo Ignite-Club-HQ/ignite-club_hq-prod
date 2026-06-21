@@ -1,58 +1,142 @@
-## Goal
-Let a team admin pick which PlayHQ team in a linked PlayHQ competition is "their" team. Once linked, every fixture for that PlayHQ team becomes a match event on the team's schedule, and stays in sync as PlayHQ updates (times, venue, scores, cancellations).
+# Match Result Entry Redesign
 
-## How it fits today
-- PlayHQ comps already live in `competitions` (`source='playhq'`) and fixtures in `competition_matches` with `external_home_team_id` / `external_away_team_id` (PlayHQ team ids) plus `home_team_name` / `away_team_name`.
-- `competition_matches` already has `home_team_id` / `away_team_id` (Ignite UUIDs) and `home_event_id` / `away_event_id` (links to a row in `events`). Nothing populates these for PlayHQ rows yet.
-- `playhq-sync` cron is already running, so we just need to (a) capture the team↔PlayHQ link and (b) materialise events from matching `competition_matches` rows.
+A complete rework of `MatchScoreCard` into a fast, sport-aware, mobile-first result entry flow. Score-only saves stay one tap; rich stats are progressively disclosed.
 
-## Changes
+## Architecture
 
-### 1. Schema
-Add to `teams`:
-- `playhq_team_id text` — the PlayHQ team UUID this Ignite team is mirroring
-- `playhq_competition_id uuid references competitions(id)` — the linked PlayHQ comp (so we know which grade to scope to)
-- `playhq_auto_create_events boolean default true` — kill-switch per team
+Split the single 600-line `MatchScoreCard.tsx` into a small system:
 
-(No new tables. `competition_matches.home_event_id`/`away_event_id` already give us idempotency.)
+```text
+src/components/event/result/
+  MatchResultCard.tsx          // summary card + entry trigger
+  MatchResultSheet.tsx         // bottom sheet shell, drives flow
+  ScoreInputs.tsx              // large 2-up numeric inputs (universal)
+  StatsAccordion.tsx           // "Add match statistics" disclosure
+  sections/
+    GoalScorersSection.tsx     // soccer / futsal / hockey / handball
+    CardsSection.tsx           // soccer / futsal
+    AflScoreSection.tsx        // goals + behinds, auto "8.10 (58)"
+    CricketSection.tsx         // wickets, overs, batting/bowling
+    VolleyballSection.tsx      // set-by-set scores
+    AwardsSection.tsx          // best on court / MVP / best players
+    NotesSection.tsx           // free-text match notes
+  ResultSummaryToast.tsx       // post-save summary + quick actions
+```
 
-### 2. Edge function: `playhq-materialise-team-events`
-Inputs: `team_id`.
-For the linked team:
-1. Load team + `playhq_team_id` + `playhq_competition_id`.
-2. Select all `competition_matches` where `competition_id = playhq_competition_id` AND (`external_home_team_id = playhq_team_id` OR `external_away_team_id = playhq_team_id`).
-3. For each match:
-   - Determine `isHome`; set `home_team_id` / `away_team_id` to the Ignite team id if not already.
-   - If the corresponding `home_event_id` / `away_event_id` is null:
-     - Insert into `events`: `team_id`, `club_id` (from team), `event_type='match'`, `title` = `"vs " + opponentName`, `start_at = scheduled_at`, `venue = match.venue`, `source='playhq'`, `external_id = match.external_id`, `created_by = team admin / system bot`.
-     - Write the new event id back into the right `home_event_id` / `away_event_id`.
-   - If the event exists, update its `start_at`, `venue`, `status` (cancel if match.status='cancelled') to keep it in sync.
-4. Return counts: created / updated / cancelled.
+Sport behaviour comes from an expanded `src/lib/sportScoreConfig.ts` (existing file) — one config per sport drives:
+- Title + unit vocabulary (already done)
+- Required score inputs (single pair vs AFL's two pairs)
+- Which optional sections to render (`sections: ['scorers','cards','notes']`)
+- Auto-generated summary sentence formatter (`formatResultSentence`)
 
-### 3. Hook into the existing PlayHQ cron
-After `playhq-sync` finishes a grade, look up any teams with `playhq_competition_id = <synced comp>` and call `playhq-materialise-team-events` for each (capped, sequential, ignore errors per team). Keeps future fixture changes flowing into events without a manual click.
+## Universal sheet layout
 
-### 4. UI
+```text
+┌──────────────────────────────┐
+│ ⚽  Record Football Result  ✕│
+├──────────────────────────────┤
+│   Riverside        Stirling  │
+│  ┌────────┐  vs  ┌────────┐  │
+│  │   3    │      │   1    │  │  ← 56px tall, numeric keypad
+│  └────────┘      └────────┘  │
+│                              │
+│  Riverside won 3–1           │  ← live preview
+│                              │
+│  ▾ Add match statistics      │  ← collapsed by default
+├──────────────────────────────┤
+│ [ Cancel ]   [ Save result ] │  ← sticky footer above keyboard
+└──────────────────────────────┘
+```
 
-**Team Settings → "PlayHQ link" card** (visible to team admins):
-- "Link to PlayHQ competition" — Select from PlayHQ comps the team's club / parent association organises (`competitions where source='playhq'`).
-- After picking a comp, fetch its `competition_matches` and derive the unique PlayHQ teams (external_home_team_id + external_away_team_id, with the readable name). Show a second Select: "Which team is yours?"
-- Auto-create events toggle (writes `playhq_auto_create_events`).
-- "Import fixtures now" button → calls the edge function. Shows toast with created/updated counts.
-- "Unlink" — clears all three columns. Existing events stay (they're just events at that point).
+- Uses existing `ResponsiveDialog` (bottom drawer on mobile, dialog on desktop) — already wired in current file.
+- Score inputs are 56px tall, `text-3xl font-bold`, `inputMode="numeric"`, auto-focus first input on open.
+- Live result sentence updates as scores change ("Draw 2–2", "Riverside won 3–1").
+- Sticky footer respects `pb-safe` and stays above the keyboard via the drawer's existing keyboard handling.
 
-**TeamDetailPage**: small "PlayHQ" badge near header when linked, and the auto-created match events appear in the normal schedule like any other event (no special rendering needed).
+## Sport-specific score blocks
 
-### 5. Guardrails
-- Only team admins (or club admins of the team's club, or admins of the association that organises the comp) can link/unlink.
-- Auto-created events get `source='playhq'` so admins can tell them apart. Editing such an event locally sets `manually_overridden_at` (mirroring the pattern already used on `competition_matches`) so future syncs don't overwrite their changes.
-- Cancellation in PlayHQ → event `status` flipped to `cancelled` (we don't hard-delete, in case people RSVP'd).
-- Idempotent everywhere: re-running the import never creates duplicate events because we key off `competition_matches.home_event_id` / `away_event_id`.
+Selected via `sportConfig.scoreLayout`:
 
-## Out of scope this round
-- Auto-RSVP / push when a new fixture lands (can layer on later; they'll flow through the existing new-event notification path anyway).
-- Roster mapping (PlayHQ player → Ignite child).
-- Reverse sync (Ignite changes pushed back to PlayHQ).
+- **default** — single pair of inputs (soccer, netball, basketball, hockey, rugby, handball, baseball, generic).
+- **afl** — two stacked pairs (Goals / Behinds) plus auto-rendered `G.B (Total)` line.
+- **cricket** — Runs + Wickets per team in one row (`120/6`), optional Overs.
+- **volleyball** — Sets won pair + collapsible per-set scores list.
+- **tennis** — Sets won pair + collapsible per-set scores list (reuses volleyball component).
 
-## Open question
-Where do you want the link UI to live — **Team Settings** (admin-only, tucked away) or as a card on **Team Detail** under the header (more discoverable, but visible to all members)? My default is Team Settings.
+Each layout still writes to the same `game_results` row:
+- `home_score` / `away_score` = primary number
+- `period_scores` jsonb = secondary stats (`{home:{wickets,overs}, away:{...}}` or `[{home,away}, ...]` for sets/AFL behinds)
+- `player_stats` jsonb = scorers / batters / awards
+
+No DB migration needed — existing columns cover every sport.
+
+## Optional sections
+
+All hidden inside a single "Add match statistics" accordion so the default path is *enter two numbers → Save*. Sections shown depend on `sportConfig.optionalSections`:
+
+- `scorers` — current goal-scorer picker (already built), relabelled per sport
+- `cards` — yellow/red card counters with player picker (soccer/futsal only)
+- `awards` — single-select player picker for "Best on Court / MVP / Best Players" (stored as `player_stats` entry with `award: 'mvp'`)
+- `notes` — multiline textarea, stored in new `game_results` column `notes text` *(only DB change required — see below)*
+- Sport-specific (cricket batting/bowling, volleyball sets, AFL goal kickers) rendered inline
+
+## Post-save summary
+
+After `upsert` succeeds:
+- Sheet closes
+- Toast renders the auto-formatted sentence + 3 quick actions:
+  - **Share result** — Web Share API with the sentence
+  - **Notify team** — posts the sentence to the event's team chat (reuses existing `auto-post-event-to-chat` style flow if available, otherwise direct insert into `team_messages` from a bot profile — confirm before wiring)
+  - **Enter statistics** — reopens the sheet with the stats accordion pre-expanded
+- Updated summary card on `EventDetailPage` shows the sentence + win/draw/loss badge (already there).
+
+## Auto-save draft
+
+While the sheet is open, debounce writes (1.5s) to `localStorage` under `ignite_match_draft_${eventId}` containing `{ homeScore, awayScore, period, players, notes, savedAt }`. On reopen, hydrate from draft if newer than the server row and show a small "Draft restored" chip with an "Discard draft" affordance. Draft cleared on successful save.
+
+## Admin configuration (deferred)
+
+Competition-level "required vs optional" stats is out of scope for this pass — we land sport-driven defaults first. Hook is a `competition_id?: string` prop on `MatchResultSheet` that can later read overrides from a new `competition_result_config` table. Noted in code with a `TODO(competition-config)` comment, no schema work now.
+
+## Database
+
+One migration:
+
+```sql
+ALTER TABLE public.game_results
+  ADD COLUMN IF NOT EXISTS notes text;
+```
+
+No RLS or grant changes — table already has them. Migration ships with this work only because the Notes optional section needs persistence.
+
+## Files
+
+**New**
+- `src/components/event/result/MatchResultCard.tsx`
+- `src/components/event/result/MatchResultSheet.tsx`
+- `src/components/event/result/ScoreInputs.tsx`
+- `src/components/event/result/StatsAccordion.tsx`
+- `src/components/event/result/sections/GoalScorersSection.tsx`
+- `src/components/event/result/sections/CardsSection.tsx`
+- `src/components/event/result/sections/AflScoreSection.tsx`
+- `src/components/event/result/sections/CricketSection.tsx`
+- `src/components/event/result/sections/VolleyballSection.tsx`
+- `src/components/event/result/sections/AwardsSection.tsx`
+- `src/components/event/result/sections/NotesSection.tsx`
+- `src/components/event/result/ResultSummaryToast.tsx`
+- `src/components/event/result/useMatchResultDraft.ts`
+- `src/lib/matchResultFormat.ts` — `formatResultSentence(sport, home, away, labels)` covering all sports listed (soccer "won 3–1", cricket "won by 22 runs"/"won by 4 wickets", AFL "8.10 (58) d 6.8 (44)", volleyball "3–1 in sets", etc.)
+
+**Edited**
+- `src/lib/sportScoreConfig.ts` — add `scoreLayout`, `optionalSections`, `iconKey` per sport; add tennis preset; extend `getSportScoreConfig` matcher for futsal/tennis/softball.
+- `src/components/event/MatchScoreCard.tsx` — becomes a thin re-export of `MatchResultCard` so existing imports keep working.
+- `src/pages/EventDetailPage.tsx` — no logic changes (already routes through `MatchScoreCard`).
+
+**Deleted**
+- None (old card is kept as the public API shim).
+
+## Out of scope
+
+- Competition-admin stat configuration UI (stub only)
+- Edit-later workflow beyond what `upsert` already supports
+- Ladder integration ("View ladder" quick action will be added only if a ladder route exists for this event's competition — confirm during build)
