@@ -9,6 +9,17 @@
 
 import { isBasketballSport, isNetballSport, isSoccerSport } from "./sportDetection";
 
+export interface SecondaryStat {
+  /** Stable key written to period_scores.home/away */
+  key: string;
+  /** Long form label for input fields */
+  label: string;
+  /** Short label for the inline score display (e.g. "W" → "120/3") */
+  short: string;
+  /** Max sensible value */
+  max: number;
+}
+
 export interface SportScoreConfig {
   /** Canonical sport key stored in game_results.sport */
   key: string;
@@ -22,7 +33,9 @@ export interface SportScoreConfig {
   teamScoreLabel: string;
   /** Heading for the scorers list e.g. "Goal scorers", "Top scorers" */
   scorersLabel: string;
-  /** Whether per-player attribution makes sense for this sport */
+  /** Whether per-player attribution makes sense for this sport. Only
+   *  soccer-family sports get per-player goal attribution; everything
+   *  else just records team totals (plus any secondaryStats). */
   supportsScorers: boolean;
   /** Whether to expose the "Own goal (opposition)" option */
   allowOwnGoal: boolean;
@@ -30,6 +43,8 @@ export interface SportScoreConfig {
   scorersHint: string;
   /** Max sensible per-team total (used for input max) */
   maxScore: number;
+  /** Additional per-team numeric stats (e.g. cricket wickets lost) */
+  secondaryStats?: SecondaryStat[];
 }
 
 const SOCCER: SportScoreConfig = {
