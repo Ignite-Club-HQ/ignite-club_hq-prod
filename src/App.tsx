@@ -97,6 +97,7 @@ const SponsorAnalyticsPage = lazy(() => import("./pages/SponsorAnalyticsPage"));
 const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
+const ClubAttendanceStatsPage = lazy(() => import("./pages/ClubAttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPreferencesPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
