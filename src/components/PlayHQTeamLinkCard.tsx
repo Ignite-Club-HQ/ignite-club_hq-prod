@@ -37,6 +37,21 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
   const qc = useQueryClient();
   const [importing, setImporting] = useState(false);
 
+  // Gate: only show this card if the club has PlayHQ configured at club level
+  const { data: club, isLoading: clubLoading } = useQuery({
+    queryKey: ["club-playhq-link", clubId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("playhq_tenant, playhq_org_id")
+        .eq("id", clubId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { playhq_tenant: string | null; playhq_org_id: string | null } | null;
+    },
+  });
+  const clubHasPlayHQ = !!(club?.playhq_tenant && club?.playhq_org_id);
+
   const { data: team } = useQuery({
     queryKey: ["team-playhq-link", teamId],
     queryFn: async () => {
@@ -48,7 +63,11 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
       if (error) throw error;
       return data as TeamRow;
     },
+    enabled: clubHasPlayHQ,
   });
+
+  if (clubLoading) return null;
+  if (!clubHasPlayHQ) return null;
 
   // PlayHQ comps the user can see (RLS already scopes by membership/visibility).
   // We don't pre-filter by organiser here so that comps run by a parent
