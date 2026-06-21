@@ -79,6 +79,10 @@ export function MatchScoreCard({
   const [scorers, setScorers] = useState<PlayerGoalRow[]>([]);
   const [pendingScorerId, setPendingScorerId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  // Per-team secondary stats keyed by SecondaryStat.key (e.g. cricket wickets).
+  // Stored in game_results.period_scores as { home: {...}, away: {...} }.
+  const [homeMeta, setHomeMeta] = useState<Record<string, string>>({});
+  const [awayMeta, setAwayMeta] = useState<Record<string, string>>({});
 
   const { data: result, isLoading } = useQuery({
     queryKey: ["match-score", eventId],
@@ -86,7 +90,7 @@ export function MatchScoreCard({
       const { data } = await supabase
         .from("game_results")
         .select(
-          "id, home_score, away_score, home_label, away_label, saved_by, player_stats"
+          "id, home_score, away_score, home_label, away_label, saved_by, player_stats, period_scores"
         )
         .eq("event_id", eventId)
         .maybeSingle();
@@ -156,8 +160,23 @@ export function MatchScoreCard({
         : [];
       setScorers(existing);
       setPendingScorerId("");
+      // Hydrate secondary stats from period_scores (object form).
+      const ps = result?.period_scores;
+      const psObj = ps && !Array.isArray(ps) && typeof ps === "object" ? (ps as any) : {};
+      const toStrMap = (src: any): Record<string, string> => {
+        const out: Record<string, string> = {};
+        if (src && typeof src === "object") {
+          for (const s of sportConfig.secondaryStats || []) {
+            const v = src[s.key];
+            if (v !== undefined && v !== null && v !== "") out[s.key] = String(v);
+          }
+        }
+        return out;
+      };
+      setHomeMeta(toStrMap(psObj.home));
+      setAwayMeta(toStrMap(psObj.away));
     }
-  }, [open, result]);
+  }, [open, result, sportConfig]);
 
   const labelHome = result?.home_label || teamName;
   // Prefer the live opponent name from the event over a stale/generic
@@ -234,6 +253,21 @@ export function MatchScoreCard({
     }
     setSaving(true);
     try {
+      const toNumMap = (src: Record<string, string>) => {
+        const out: Record<string, number> = {};
+        for (const s of sportConfig.secondaryStats || []) {
+          const raw = (src[s.key] ?? "").trim();
+          if (raw === "") continue;
+          const n = parseInt(raw, 10);
+          if (!isNaN(n) && n >= 0) out[s.key] = Math.min(n, s.max);
+        }
+        return out;
+      };
+      const homeMetaNum = toNumMap(homeMeta);
+      const awayMetaNum = toNumMap(awayMeta);
+      const periodScoresPayload: any = (sportConfig.secondaryStats?.length ?? 0) > 0
+        ? { home: homeMetaNum, away: awayMetaNum }
+        : [];
       const payload = {
         team_id: teamId,
         event_id: eventId,
@@ -242,7 +276,7 @@ export function MatchScoreCard({
         away_label: opponent || "Opponent",
         home_score: h,
         away_score: a,
-        period_scores: [],
+        period_scores: periodScoresPayload,
         player_stats: scorers.map((s) => ({
           id: s.id,
           name: s.name,
@@ -291,6 +325,25 @@ export function MatchScoreCard({
         }))
     : [];
 
+  // Format a team's saved secondary stats inline e.g. cricket "120/3".
+  const savedPeriod = result?.period_scores;
+  const savedPeriodObj =
+    savedPeriod && !Array.isArray(savedPeriod) && typeof savedPeriod === "object"
+      ? (savedPeriod as any)
+      : null;
+  const formatTeamScore = (base: number | null | undefined, side: "home" | "away") => {
+    const b = base ?? 0;
+    const meta = savedPeriodObj?.[side];
+    if (!meta || !sportConfig.secondaryStats?.length) return `${b}`;
+    const parts = sportConfig.secondaryStats
+      .map((s) => {
+        const v = meta[s.key];
+        return v === undefined || v === null || v === "" ? null : `${v}`;
+      })
+      .filter(Boolean);
+    return parts.length ? `${b}/${parts.join("/")}` : `${b}`;
+  };
+
   const availableToAdd = (roster || []).filter(
     (p) => !scorers.some((s) => s.id === p.id)
   );
@@ -307,7 +360,7 @@ export function MatchScoreCard({
                 {hasScore ? (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-base font-bold">
-                      {labelHome} {result!.home_score} – {result!.away_score} {labelAway}
+                      {labelHome} {formatTeamScore(result!.home_score, "home")} – {formatTeamScore(result!.away_score, "away")} {labelAway}
                     </span>
                     {won && <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">Win</Badge>}
                     {lost && <Badge variant="destructive">Loss</Badge>}
@@ -404,6 +457,54 @@ export function MatchScoreCard({
                 />
               </div>
             </div>
+
+            {/* Per-team secondary stats (e.g. cricket wickets lost) */}
+            {sportConfig.secondaryStats?.length ? (
+              <div className="mt-3 space-y-3">
+                {sportConfig.secondaryStats.map((s) => (
+                  <div key={s.key} className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3">
+                    <div className="min-w-0">
+                      <Label htmlFor={`home-${s.key}`} className="text-xs text-muted-foreground truncate block">
+                        {labelHome} <span className="opacity-70">({s.label})</span>
+                      </Label>
+                      <Input
+                        id={`home-${s.key}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={s.max}
+                        value={homeMeta[s.key] ?? ""}
+                        onChange={(e) =>
+                          setHomeMeta((m) => ({ ...m, [s.key]: e.target.value }))
+                        }
+                        className="text-center text-base font-semibold h-10 mt-1 px-1"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="pb-2 text-xs font-semibold text-muted-foreground">{s.short}</div>
+                    <div className="min-w-0">
+                      <Label htmlFor={`away-${s.key}`} className="text-xs text-muted-foreground truncate block">
+                        {labelAway} <span className="opacity-70">({s.label})</span>
+                      </Label>
+                      <Input
+                        id={`away-${s.key}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={s.max}
+                        value={awayMeta[s.key] ?? ""}
+                        onChange={(e) =>
+                          setAwayMeta((m) => ({ ...m, [s.key]: e.target.value }))
+                        }
+                        className="text-center text-base font-semibold h-10 mt-1 px-1"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
 
             {/* Scorers */}
             {sportConfig.supportsScorers && (

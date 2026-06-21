@@ -9,6 +9,17 @@
 
 import { isBasketballSport, isNetballSport, isSoccerSport } from "./sportDetection";
 
+export interface SecondaryStat {
+  /** Stable key written to period_scores.home/away */
+  key: string;
+  /** Long form label for input fields */
+  label: string;
+  /** Short label for the inline score display (e.g. "W" → "120/3") */
+  short: string;
+  /** Max sensible value */
+  max: number;
+}
+
 export interface SportScoreConfig {
   /** Canonical sport key stored in game_results.sport */
   key: string;
@@ -22,7 +33,9 @@ export interface SportScoreConfig {
   teamScoreLabel: string;
   /** Heading for the scorers list e.g. "Goal scorers", "Top scorers" */
   scorersLabel: string;
-  /** Whether per-player attribution makes sense for this sport */
+  /** Whether per-player attribution makes sense for this sport. Only
+   *  soccer-family sports get per-player goal attribution; everything
+   *  else just records team totals (plus any secondaryStats). */
   supportsScorers: boolean;
   /** Whether to expose the "Own goal (opposition)" option */
   allowOwnGoal: boolean;
@@ -30,6 +43,8 @@ export interface SportScoreConfig {
   scorersHint: string;
   /** Max sensible per-team total (used for input max) */
   maxScore: number;
+  /** Additional per-team numeric stats (e.g. cricket wickets lost) */
+  secondaryStats?: SecondaryStat[];
 }
 
 const SOCCER: SportScoreConfig = {
@@ -46,11 +61,15 @@ const SOCCER: SportScoreConfig = {
 };
 
 const NETBALL: SportScoreConfig = {
-  ...SOCCER,
   key: "netball",
   title: "Game Score",
+  unit: "goal",
+  unitPlural: "goals",
+  teamScoreLabel: "Goals",
+  scorersLabel: "Goal scorers",
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — attribute goals to your shooters.",
+  scorersHint: "",
   maxScore: 200,
 };
 
@@ -61,9 +80,9 @@ const BASKETBALL: SportScoreConfig = {
   unitPlural: "points",
   teamScoreLabel: "Points",
   scorersLabel: "Top scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record points per player.",
+  scorersHint: "",
   maxScore: 300,
 };
 
@@ -74,10 +93,11 @@ const RUGBY: SportScoreConfig = {
   unitPlural: "points",
   teamScoreLabel: "Points",
   scorersLabel: "Try / point scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record points per player.",
+  scorersHint: "",
   maxScore: 200,
+  secondaryStats: [{ key: "tries", label: "Tries", short: "T", max: 30 }],
 };
 
 const AFL: SportScoreConfig = {
@@ -87,10 +107,14 @@ const AFL: SportScoreConfig = {
   unitPlural: "points",
   teamScoreLabel: "Points",
   scorersLabel: "Goal kickers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record goals per player.",
+  scorersHint: "",
   maxScore: 300,
+  secondaryStats: [
+    { key: "goals", label: "Goals", short: "G", max: 40 },
+    { key: "behinds", label: "Behinds", short: "B", max: 40 },
+  ],
 };
 
 const CRICKET: SportScoreConfig = {
@@ -100,10 +124,11 @@ const CRICKET: SportScoreConfig = {
   unitPlural: "runs",
   teamScoreLabel: "Runs",
   scorersLabel: "Top run scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record runs per player.",
+  scorersHint: "",
   maxScore: 999,
+  secondaryStats: [{ key: "wickets", label: "Wickets lost", short: "W", max: 10 }],
 };
 
 const HOCKEY: SportScoreConfig = {
@@ -120,9 +145,9 @@ const BASEBALL: SportScoreConfig = {
   unitPlural: "runs",
   teamScoreLabel: "Runs",
   scorersLabel: "Top scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record runs per player.",
+  scorersHint: "",
   maxScore: 99,
 };
 
@@ -133,9 +158,9 @@ const VOLLEYBALL: SportScoreConfig = {
   unitPlural: "points",
   teamScoreLabel: "Points",
   scorersLabel: "Top scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record points per player.",
+  scorersHint: "",
   maxScore: 200,
 };
 
@@ -155,9 +180,9 @@ const GENERIC: SportScoreConfig = {
   unitPlural: "points",
   teamScoreLabel: "Score",
   scorersLabel: "Top scorers",
-  supportsScorers: true,
+  supportsScorers: false,
   allowOwnGoal: false,
-  scorersHint: "Optional — record scorers and their points.",
+  scorersHint: "",
   maxScore: 999,
 };
 
