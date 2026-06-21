@@ -2100,6 +2100,20 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
+              <Link to={`/clubs/${id}/engagement`}>
+                <Card className="hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Activity className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">Engagement Analytics</div>
+                      <div className="text-xs text-muted-foreground">Health, adoption, communication & more</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+
               {/* PlayHQ sync hidden until API is configured */}
               {/* <PlayHQClubSyncCard clubId={id!} /> */}
             </div>
