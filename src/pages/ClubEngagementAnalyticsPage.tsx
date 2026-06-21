@@ -642,25 +642,22 @@ export default function ClubEngagementAnalyticsPage() {
       {/* Section 3: Communication Engagement */}
       <SectionHeader icon={MessageSquare} title="Communication" description="Messaging & broadcast activity" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={MessageSquare} label="Club messages" value={clubMsgs.length} />
-        <Metric icon={MessageSquare} label="Team messages" value={teamMsgs.length} />
+        <Metric icon={MessageSquare} label="Club messages" value={clubMsgsCount} />
+        <Metric icon={MessageSquare} label="Team messages" value={teamMsgsCount} />
         <Metric icon={Heart} label="Reactions" value={reactionCount} />
-        <Metric icon={Megaphone} label="Broadcasts" value={broadcasts.length} />
+        <Metric icon={Megaphone} label="Broadcasts" value={broadcastsCount} />
       </div>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Message volume</CardTitle>
         </CardHeader>
         <CardContent>
-          {clubMsgs.length + teamMsgs.length === 0 ? (
+          {clubMsgsCount + teamMsgsCount === 0 ? (
             <EmptyState label="No messages sent in this period." />
           ) : (
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mergeSeries([
-                  { name: "Club", rows: bucketByDay(clubMsgs as any, range.start, range.end) },
-                  { name: "Team", rows: bucketByDay(teamMsgs as any, range.start, range.end) },
-                ])}>
+                <BarChart data={msgVolumeChart}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
                   <YAxis fontSize={11} allowDecimals={false} />
