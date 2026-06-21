@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
           name,
           logo_url,
           club_id,
-          clubs (
+          clubs!club_id (
             name,
             logo_url,
             storage_used_bytes

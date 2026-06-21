@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           // Get team details with club info
           const { data: team } = await supabase
             .from('teams')
-            .select('name, club_id, clubs(name, logo_url)')
+            .select('name, club_id, clubs!club_id(name, logo_url)')
             .eq('id', sub.team_id)
             .single();
 

@@ -92,7 +92,7 @@ serve(async (req) => {
       const { data: msg } = await supabase.from("team_messages").select("team_id, teams(name)").eq("id", messageId).single();
       contextName = (msg?.teams as any)?.name || "Unknown Team";
     } else if (messageType === "club") {
-      const { data: msg } = await supabase.from("club_messages").select("club_id, clubs(name)").eq("id", messageId).single();
+      const { data: msg } = await supabase.from("club_messages").select("club_id, clubs!club_id(name)").eq("id", messageId).single();
       contextName = (msg?.clubs as any)?.name || "Unknown Club";
     } else if (messageType === "group") {
       const { data: msg } = await supabase.from("group_messages").select("group_id, chat_groups(name)").eq("id", messageId).single();
