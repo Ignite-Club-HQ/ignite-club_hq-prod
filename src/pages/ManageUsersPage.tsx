@@ -169,7 +169,7 @@ export default function ManageUsersPage() {
       if (hasFilter) {
         let rolesQuery = supabase
           .from("user_roles")
-          .select("id, user_id, role, club_id, team_id, clubs(name), teams(name)");
+          .select("id, user_id, role, club_id, team_id, clubs!club_id(name), teams(name)");
         
         if (filterRole) {
           rolesQuery = rolesQuery.eq("role", filterRole);
