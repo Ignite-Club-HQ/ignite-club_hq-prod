@@ -57,7 +57,7 @@ export default function ManageTeamRolesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs!teams_club_id_fkey (name)")
+        .select("*, clubs!club_id (name)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;

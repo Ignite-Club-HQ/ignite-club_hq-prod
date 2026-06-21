@@ -48,8 +48,8 @@ export default function MyRolesPage() {
           role,
           club_id,
           team_id,
-          clubs!user_roles_club_id_fkey (id, name, logo_url),
-          teams (id, name, club_id, clubs!teams_club_id_fkey (name))
+          clubs!club_id (id, name, logo_url),
+          teams (id, name, club_id, clubs!club_id (name))
         `)
         .eq("user_id", user!.id);
 

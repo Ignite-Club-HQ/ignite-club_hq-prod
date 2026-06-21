@@ -80,7 +80,7 @@ export default function AdminActiveGamesPage() {
         .from("active_games")
         .select(
           `id, team_id, user_id, is_active, updated_at, created_at, timer_state, pitch_state,
-           team:teams ( id, name, club_id, club:clubs!teams_club_id_fkey ( id, name ) )`
+           team:teams ( id, name, club_id, club:clubs!club_id ( id, name ) )`
         )
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
@@ -100,7 +100,7 @@ export default function AdminActiveGamesPage() {
         .from("active_games")
         .select(
           `id, team_id, user_id, is_active, updated_at, created_at, timer_state, pitch_state,
-           team:teams ( id, name, club_id, club:clubs!teams_club_id_fkey ( id, name ) )`
+           team:teams ( id, name, club_id, club:clubs!club_id ( id, name ) )`
         )
         .eq("is_active", false)
         .gte("updated_at", since)
