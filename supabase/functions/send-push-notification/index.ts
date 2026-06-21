@@ -1,5 +1,12 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Module-scope env + client: created once per isolate, reused across warm invocations.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
+const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
+const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -568,7 +575,7 @@ async function checkUserPreference(
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -577,14 +584,14 @@ serve(async (req) => {
     const { userId, title, body, url, notificationId, tag, notificationType, data } = await req.json();
     
     console.log(`[PUSH] Starting push notification for user ${userId}, type: ${notificationType || 'unspecified'}`);
-    
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-    const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Reuse module-scope client + env (set at cold start).
+    const supabaseUrl = SUPABASE_URL;
+    const vapidPublicKey = VAPID_PUBLIC_KEY;
+    const vapidPrivateKey = VAPID_PRIVATE_KEY;
+    const vapidSubject = VAPID_SUBJECT;
+    const supabase = supabaseAdmin;
+
 
     // Deduplication: if this notificationId already has a push log entry, skip to prevent
     // duplicate pushes caused by pg_net delivering the same HTTP request twice.
