@@ -405,12 +405,13 @@ export function MatchScoreCard({
               </div>
             </div>
 
-            {/* Goal scorers */}
+            {/* Scorers */}
+            {sportConfig.supportsScorers && (
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-1.5 text-sm">
                   <Target className="h-4 w-4 text-primary" />
-                  Goal scorers
+                  {sportConfig.scorersLabel}
                 </Label>
                 <span
                   className={`text-xs tabular-nums ${
@@ -428,7 +429,7 @@ export function MatchScoreCard({
                     <SelectValue placeholder="Select a player…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64 z-[1000010]">
-                    {!scorers.some((s) => s.id === OWN_GOAL_ID) && (
+                    {sportConfig.allowOwnGoal && !scorers.some((s) => s.id === OWN_GOAL_ID) && (
                       <SelectItem value={OWN_GOAL_ID}>
                         {OWN_GOAL_NAME}
                       </SelectItem>
@@ -473,7 +474,7 @@ export function MatchScoreCard({
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() => adjustGoals(s.id, -1)}
-                          aria-label="Remove one goal"
+                          aria-label={`Remove one ${sportConfig.unit}`}
                         >
                           –
                         </Button>
@@ -486,7 +487,7 @@ export function MatchScoreCard({
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() => adjustGoals(s.id, +1)}
-                          aria-label="Add one goal"
+                          aria-label={`Add one ${sportConfig.unit}`}
                         >
                           +
                         </Button>
@@ -506,16 +507,17 @@ export function MatchScoreCard({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Optional — attribute goals to players to track top scorers.
+                  {sportConfig.scorersHint}
                 </p>
               )}
 
               {overAttributed && (
                 <p className="text-xs text-destructive">
-                  You've attributed more goals than {labelHome} scored.
+                  You've attributed more {sportConfig.unitPlural} than {labelHome} scored.
                 </p>
               )}
             </div>
+            )}
           </ScrollArea>
 
           <DialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
