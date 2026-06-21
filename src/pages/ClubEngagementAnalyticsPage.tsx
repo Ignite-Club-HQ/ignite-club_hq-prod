@@ -176,50 +176,47 @@ export default function ClubEngagementAnalyticsPage() {
     return teams.map((t) => t.id);
   }, [teams, selectedTeamId]);
 
-  // ---------- Section 1 + 2: Activity / active users ----------
+  // ---------- Section 1 + 2: Activity / active users (via SECURITY DEFINER RPC) ----------
+  // Bypasses per-user RLS on user_activity_logs so club admins see club-wide activity.
   const { data: activityRows = [], isLoading: actLoading } = useQuery({
-    queryKey: ["club-engagement-activity", clubId, range.start.toISOString(), range.end.toISOString()],
+    queryKey: ["club-engagement-activity-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_activity_logs")
-        .select("user_id, started_at")
-        .eq("club_id", clubId!)
-        .gte("started_at", range.start.toISOString())
-        .lte("started_at", range.end.toISOString())
-        .limit(10000);
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId!,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
       if (error) throw error;
-      return data || [];
+      return (data || []) as { day: string; user_id: string }[];
     },
     enabled: !!clubId && !!access?.isAdmin,
   });
 
   const { data: prevActivityRows = [] } = useQuery({
-    queryKey: ["club-engagement-activity-prev", clubId, prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryKey: ["club-engagement-activity-prev-rpc", clubId, prevRange.start.toISOString(), prevRange.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_activity_logs")
-        .select("user_id, started_at")
-        .eq("club_id", clubId!)
-        .gte("started_at", prevRange.start.toISOString())
-        .lte("started_at", prevRange.end.toISOString())
-        .limit(10000);
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId!,
+        _start: prevRange.start.toISOString(),
+        _end: prevRange.end.toISOString(),
+      });
       if (error) throw error;
-      return data || [];
+      return (data || []) as { day: string; user_id: string }[];
     },
     enabled: !!clubId && !!access?.isAdmin,
   });
 
   const activeMembers = useMemo(() => {
     const now = new Date();
-    const d7 = subDays(now, 7).toISOString();
-    const d30 = subDays(now, 30).toISOString();
+    const d7Cutoff = format(subDays(now, 7), "yyyy-MM-dd");
+    const d30Cutoff = format(subDays(now, 30), "yyyy-MM-dd");
     const s7 = new Set<string>();
     const s30 = new Set<string>();
     const sRange = new Set<string>();
     for (const r of activityRows) {
       if (!r.user_id) continue;
-      if (r.started_at >= d7) s7.add(r.user_id);
-      if (r.started_at >= d30) s30.add(r.user_id);
+      if (r.day >= d7Cutoff) s7.add(r.user_id);
+      if (r.day >= d30Cutoff) s30.add(r.user_id);
       sRange.add(r.user_id);
     }
     const sPrev = new Set<string>();
@@ -227,7 +224,7 @@ export default function ClubEngagementAnalyticsPage() {
     return { d7: s7.size, d30: s30.size, range: sRange.size, prev: sPrev.size };
   }, [activityRows, prevActivityRows]);
 
-  // DAU/WAU/MAU timeline (per day in range)
+  // DAU timeline (per day in range)
   const dauSeries = useMemo(() => {
     const days = differenceInDays(range.end, range.start) + 1;
     const byDay = new Map<string, Set<string>>();
@@ -235,9 +232,8 @@ export default function ClubEngagementAnalyticsPage() {
       byDay.set(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"), new Set());
     }
     for (const r of activityRows) {
-      if (!r.user_id || !r.started_at) continue;
-      const key = format(parseISO(r.started_at), "yyyy-MM-dd");
-      byDay.get(key)?.add(r.user_id);
+      if (!r.user_id || !r.day) continue;
+      byDay.get(r.day)?.add(r.user_id);
     }
     return Array.from(byDay.entries()).map(([day, set]) => ({ day, dau: set.size }));
   }, [activityRows, range]);
