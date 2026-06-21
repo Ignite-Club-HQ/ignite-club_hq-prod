@@ -458,6 +458,54 @@ export function MatchScoreCard({
               </div>
             </div>
 
+            {/* Per-team secondary stats (e.g. cricket wickets lost) */}
+            {sportConfig.secondaryStats?.length ? (
+              <div className="mt-3 space-y-3">
+                {sportConfig.secondaryStats.map((s) => (
+                  <div key={s.key} className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3">
+                    <div className="min-w-0">
+                      <Label htmlFor={`home-${s.key}`} className="text-xs text-muted-foreground truncate block">
+                        {labelHome} <span className="opacity-70">({s.label})</span>
+                      </Label>
+                      <Input
+                        id={`home-${s.key}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={s.max}
+                        value={homeMeta[s.key] ?? ""}
+                        onChange={(e) =>
+                          setHomeMeta((m) => ({ ...m, [s.key]: e.target.value }))
+                        }
+                        className="text-center text-base font-semibold h-10 mt-1 px-1"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="pb-2 text-xs font-semibold text-muted-foreground">{s.short}</div>
+                    <div className="min-w-0">
+                      <Label htmlFor={`away-${s.key}`} className="text-xs text-muted-foreground truncate block">
+                        {labelAway} <span className="opacity-70">({s.label})</span>
+                      </Label>
+                      <Input
+                        id={`away-${s.key}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={s.max}
+                        value={awayMeta[s.key] ?? ""}
+                        onChange={(e) =>
+                          setAwayMeta((m) => ({ ...m, [s.key]: e.target.value }))
+                        }
+                        className="text-center text-base font-semibold h-10 mt-1 px-1"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+
             {/* Scorers */}
             {sportConfig.supportsScorers && (
             <div className="mt-4 space-y-3">
