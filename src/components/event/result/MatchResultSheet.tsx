@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Share2,
   StickyNote,
-  Award,
   Square,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,7 +84,6 @@ interface DraftShape {
   awayMeta: Record<string, string>;
   sets: SetScore[];
   scorers: PlayerStatRow[];
-  awardId: string;
   notes: string;
   savedAt: number;
 }
@@ -119,7 +117,6 @@ export function MatchResultSheet({
   const [sets, setSets] = useState<SetScore[]>([]);
   const [scorers, setScorers] = useState<PlayerStatRow[]>([]);
   const [pendingScorerId, setPendingScorerId] = useState("");
-  const [awardId, setAwardId] = useState("");
   const [notes, setNotes] = useState("");
   const [statsOpen, setStatsOpen] = useState(defaultStatsOpen);
   const [saving, setSaving] = useState(false);
@@ -202,7 +199,6 @@ export function MatchResultSheet({
           setAwayMeta(d.awayMeta || {});
           setSets(d.sets || []);
           setScorers(d.scorers || []);
-          setAwardId(d.awardId || "");
           setNotes(d.notes || "");
           setDraftRestored(true);
           usedDraft = true;
@@ -253,12 +249,9 @@ export function MatchResultSheet({
               goals: Number(p.goals) || 0,
               yellow: Number(p.yellow) || 0,
               red: Number(p.red) || 0,
-              award: p.award ? String(p.award) : undefined,
             }))
         : [];
       setScorers(existing.filter((p) => (p.goals ?? 0) > 0 || p.yellow || p.red));
-      const award = existing.find((p) => p.award === "mvp");
-      setAwardId(award?.id ?? "");
       setNotes((result?.notes as string) || "");
       setDraftRestored(false);
     }
@@ -287,13 +280,12 @@ export function MatchResultSheet({
           awayMeta,
           sets,
           scorers,
-          awardId,
           notes,
           savedAt: Date.now(),
         };
         // Skip writing an "empty" draft so we don't fight a fresh open.
         const empty =
-          !homeScore && !awayScore && !notes && !awardId &&
+          !homeScore && !awayScore && !notes &&
           scorers.length === 0 && sets.length === 0 &&
           Object.keys(homeMeta).length === 0 && Object.keys(awayMeta).length === 0;
         if (empty) return;
@@ -301,7 +293,7 @@ export function MatchResultSheet({
       } catch {/* quota or json */}
     }, 1500);
     return () => clearTimeout(t);
-  }, [open, eventId, homeScore, awayScore, homeMeta, awayMeta, sets, scorers, awardId, notes]);
+  }, [open, eventId, homeScore, awayScore, homeMeta, awayMeta, sets, scorers, notes]);
 
   // ── Derived ────────────────────────────────────────────────────────
   const labelHome = result?.home_label || teamName;
@@ -415,7 +407,6 @@ export function MatchResultSheet({
     setAwayScore(result?.away_score?.toString() ?? "");
     setScorers([]);
     setNotes((result?.notes as string) || "");
-    setAwardId("");
     setHomeMeta({});
     setAwayMeta({});
     setSets([]);
@@ -458,7 +449,7 @@ export function MatchResultSheet({
         periodScoresPayload = { home: toNum(homeMeta), away: toNum(awayMeta) };
       }
 
-      // player_stats payload — merge scorers + MVP into one array.
+      // player_stats payload — scorers + cards only.
       const playerStatsPayload: any[] = scorers.map((s) => ({
         id: s.id,
         name: s.name,
@@ -466,13 +457,6 @@ export function MatchResultSheet({
         ...(s.yellow ? { yellow: s.yellow } : {}),
         ...(s.red ? { red: s.red } : {}),
       }));
-      if (awardId) {
-        const award = roster?.find((r) => r.id === awardId);
-        const existing = playerStatsPayload.find((p) => p.id === awardId);
-        if (existing) existing.award = "mvp";
-        else if (award)
-          playerStatsPayload.push({ id: award.id, name: award.name, goals: 0, award: "mvp" });
-      }
 
       const payload = {
         team_id: teamId,
@@ -643,15 +627,6 @@ export function MatchResultSheet({
                   <CardsSection
                     scorers={scorers}
                     setScorers={setScorers}
-                    roster={roster || []}
-                  />
-                )}
-
-                {config.optionalSections.includes("awards") && (
-                  <AwardsSection
-                    label={config.awardLabel || "Player of the match"}
-                    awardId={awardId}
-                    setAwardId={setAwardId}
                     roster={roster || []}
                   />
                 )}
@@ -1220,32 +1195,6 @@ function CardCounter({
       <span className="w-4 text-center text-xs font-semibold tabular-nums">{value}</span>
       <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={onPlus}>+</Button>
     </div>
-  );
-}
-
-function AwardsSection({
-  label, awardId, setAwardId, roster,
-}: {
-  label: string;
-  awardId: string;
-  setAwardId: (v: string) => void;
-  roster: RosterPlayer[];
-}) {
-  return (
-    <section className="space-y-2">
-      <Label className="flex items-center gap-1.5 text-sm">
-        <Award className="h-4 w-4 text-primary" /> {label}
-      </Label>
-      <Select value={awardId} onValueChange={(v) => setAwardId(v === "__none__" ? "" : v)}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select a player…" />
-        </SelectTrigger>
-        <SelectContent className="max-h-64 z-[1000010]">
-          <SelectItem value="__none__">None</SelectItem>
-          {roster.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </section>
   );
 }
 
