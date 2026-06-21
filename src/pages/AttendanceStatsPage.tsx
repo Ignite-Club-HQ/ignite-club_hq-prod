@@ -212,9 +212,9 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
     queryKey: ["team-events-attendance", teamId, startDate, endDate, eventTypeFilter],
     queryFn: async () => {
       // Only game and training events count toward attendance stats
-      const allowedTypes = eventTypeFilter === "all"
+      const allowedTypes: ("game" | "training")[] = eventTypeFilter === "all"
         ? ["game", "training"]
-        : [eventTypeFilter];
+        : [eventTypeFilter as "game" | "training"];
 
       const { data, error } = await supabase
         .from("events")
