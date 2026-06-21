@@ -160,8 +160,23 @@ export function MatchScoreCard({
         : [];
       setScorers(existing);
       setPendingScorerId("");
+      // Hydrate secondary stats from period_scores (object form).
+      const ps = result?.period_scores;
+      const psObj = ps && !Array.isArray(ps) && typeof ps === "object" ? (ps as any) : {};
+      const toStrMap = (src: any): Record<string, string> => {
+        const out: Record<string, string> = {};
+        if (src && typeof src === "object") {
+          for (const s of sportConfig.secondaryStats || []) {
+            const v = src[s.key];
+            if (v !== undefined && v !== null && v !== "") out[s.key] = String(v);
+          }
+        }
+        return out;
+      };
+      setHomeMeta(toStrMap(psObj.home));
+      setAwayMeta(toStrMap(psObj.away));
     }
-  }, [open, result]);
+  }, [open, result, sportConfig]);
 
   const labelHome = result?.home_label || teamName;
   // Prefer the live opponent name from the event over a stale/generic
