@@ -1942,6 +1942,79 @@ export default function MessagesPage() {
     return { leagueChats: leagues, regularChatGroups: regular };
   }, [displayChatGroups]);
 
+  // Personal/custom groups (membership-based, no club/team/league/competition scope).
+  const personalGroupIds = useMemo(
+    () => regularChatGroups
+      .filter((g: any) => !g.club_id && !g.team_id && !g.mini_league_id && !g.competition_id)
+      .map((g: any) => g.id),
+    [regularChatGroups]
+  );
+
+  // Other-user ids across all DM conversations (used to test club membership).
+  const dmOtherUserIds = useMemo(
+    () => (dmConversations || [])
+      .map((c: any) => c?.other_user?.id)
+      .filter((id: any) => !!id && id !== user?.id),
+    [dmConversations, user?.id]
+  );
+
+  // When a club filter is active, look up which DM peers and which
+  // personal-group members hold any user_role under the selected club.
+  // RLS already allows visibility to club co-members.
+  const { data: clubScopeFilterData } = useQuery({
+    queryKey: [
+      "messages-club-scope-filter",
+      user?.id,
+      effectiveClubFilter,
+      personalGroupIds.join(","),
+      dmOtherUserIds.join(","),
+    ],
+    enabled: !!user && !!effectiveClubFilter && (personalGroupIds.length > 0 || dmOtherUserIds.length > 0),
+    staleTime: 60_000,
+    queryFn: async () => {
+      // 1. Personal group memberships.
+      const groupMembersMap = new Map<string, string[]>();
+      if (personalGroupIds.length > 0) {
+        const { data: gm } = await supabase
+          .from("group_members")
+          .select("group_id, user_id")
+          .in("group_id", personalGroupIds);
+        (gm || []).forEach((row: any) => {
+          const arr = groupMembersMap.get(row.group_id) || [];
+          arr.push(row.user_id);
+          groupMembersMap.set(row.group_id, arr);
+        });
+      }
+
+      // 2. Union of user ids whose club membership we need to check.
+      const userIdSet = new Set<string>(dmOtherUserIds);
+      groupMembersMap.forEach((members) => {
+        members.forEach((uid) => {
+          if (uid && uid !== user?.id) userIdSet.add(uid);
+        });
+      });
+
+      const usersInClub = new Set<string>();
+      if (userIdSet.size > 0) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", effectiveClubFilter)
+          .in("user_id", Array.from(userIdSet));
+        (roles || []).forEach((r: any) => {
+          if (r.user_id) usersInClub.add(r.user_id);
+        });
+      }
+
+      return { groupMembersMap, usersInClub };
+    },
+  });
+
+  const clubScopedUsersInClub = clubScopeFilterData?.usersInClub;
+  const clubScopedGroupMembers = clubScopeFilterData?.groupMembersMap;
+
+
+
   const filteredLeagueChats = useMemo(() => {
     let groups = leagueChats;
     if (effectiveClubFilter) {
