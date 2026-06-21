@@ -953,6 +953,10 @@ export default function ClubDetailPage() {
                 <Sparkles className="h-4 w-4 mr-2" />
                 Manage Seasons
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/attendance`)}>
+                <Trophy className="h-4 w-4 mr-2" />
+                Attendance Stats
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
