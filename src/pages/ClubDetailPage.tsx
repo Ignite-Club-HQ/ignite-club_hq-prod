@@ -83,7 +83,7 @@ import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -2096,6 +2096,20 @@ export default function ClubDetailPage() {
                       <BarChart3 className="h-5 w-5 text-primary" />
                     </div>
                     <span className="font-medium">Attendance Stats</span>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              <Link to={`/clubs/${id}/engagement`}>
+                <Card className="hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Activity className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">Engagement Analytics</div>
+                      <div className="text-xs text-muted-foreground">Health, adoption, communication & more</div>
+                    </div>
                   </CardContent>
                 </Card>
               </Link>
