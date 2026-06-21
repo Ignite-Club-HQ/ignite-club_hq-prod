@@ -458,18 +458,20 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
   const isLoading = eventsLoading || rsvpsLoading;
 
   return (
-    <div className="py-6 space-y-6">
+    <div className={embedded ? "space-y-6" : "py-6 space-y-6"}>
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Attendance Stats</h1>
-          <p className="text-sm text-muted-foreground">{team.name}</p>
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Attendance Stats</h1>
+            <p className="text-sm text-muted-foreground">{team.name}</p>
+          </div>
+          <BarChart3 className="h-8 w-8 text-primary" />
         </div>
-        <BarChart3 className="h-8 w-8 text-primary" />
-      </div>
+      )}
 
       {/* Filters */}
       <Card>
