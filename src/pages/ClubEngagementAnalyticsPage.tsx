@@ -767,7 +767,7 @@ export default function ClubEngagementAnalyticsPage({
       )}
 
       {/* Section 7: Retention */}
-      <SectionHeader icon={RefreshCcw} title="Retention" description="Members returning in the period" />
+      <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
       <RetentionBlock activityRows={activityRows} prevActivityRows={prevActivityRows} />
 
       {/* Section 8: Competition */}
@@ -883,7 +883,9 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: any[]; prevActivityRows: any[] }) {
+type ActivityUserDay = { day: string; user_id: string | null };
+
+function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: ActivityUserDay[]; prevActivityRows: ActivityUserDay[] }) {
   const activeDaysByUser = new Map<string, Set<string>>();
   for (const r of activityRows) {
     if (!r.user_id || !r.day) continue;
@@ -906,10 +908,10 @@ function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: any[
   const retentionRate = current.size ? Math.round((returning / current.size) * 100) : 0;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      <Metric icon={Users} label="Returning users" value={returning} />
-      <Metric icon={TrendingUp} label="Retention rate" value={`${retentionRate}%`} />
-      <Metric icon={TrendingDown} label="Churned" value={prev.size ? churned : "—"} />
-      <Metric icon={UserPlus} label="One-day active" value={singleDay} />
+      <Metric icon={Users} label="Returning users" value={returning} hint="2+ active days" />
+      <Metric icon={TrendingUp} label="Retention rate" value={`${retentionRate}%`} hint="of active users" />
+      <Metric icon={TrendingDown} label="Churned" value={prev.size ? churned : "—"} hint={prev.size ? "vs previous period" : "No previous baseline"} />
+      <Metric icon={UserPlus} label="One-day active" value={singleDay} hint="1 active day" />
     </div>
   );
 }
