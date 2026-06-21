@@ -219,7 +219,7 @@ export function MatchScoreCard({
     if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
       toast({
         title: "Invalid score",
-        description: "Please enter valid goals for both teams.",
+        description: `Please enter valid ${sportConfig.unitPlural} for both teams.`,
         variant: "destructive",
       });
       return;
@@ -227,7 +227,7 @@ export function MatchScoreCard({
     if (totalAttributedGoals > h) {
       toast({
         title: "Too many scorers",
-        description: `You attributed ${totalAttributedGoals} goals but ${labelHome} scored ${h}.`,
+        description: `You attributed ${totalAttributedGoals} ${sportConfig.unitPlural} but ${labelHome} scored ${h}.`,
         variant: "destructive",
       });
       return;
@@ -237,7 +237,7 @@ export function MatchScoreCard({
       const payload = {
         team_id: teamId,
         event_id: eventId,
-        sport,
+        sport: sportConfig.key,
         home_label: teamName,
         away_label: opponent || "Opponent",
         home_score: h,
