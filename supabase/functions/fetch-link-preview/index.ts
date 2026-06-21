@@ -60,7 +60,7 @@ function validateUrl(urlString: string): URL {
   return parsed;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
