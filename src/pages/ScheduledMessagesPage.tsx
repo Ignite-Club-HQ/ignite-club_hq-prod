@@ -123,7 +123,7 @@ function useThreadLabels(rows: ScheduledMessageRow[]) {
         tasks.push((async () => {
           const { data } = await supabase
             .from("teams")
-            .select("id, name, clubs(name)")
+            .select("id, name, clubs!club_id(name)")
             .in("id", teamIds);
           (data || []).forEach((t: any) => {
             labels[`team:${t.id}`] = {
