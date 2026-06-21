@@ -116,7 +116,7 @@ export default function CreateGroupDialog({
       if (teamId) {
         const { data } = await supabase
           .from("teams")
-          .select("id, name, club_id, clubs(id, name)")
+          .select("id, name, club_id, clubs!teams_club_id_fkey(id, name)")
           .eq("id", teamId)
           .maybeSingle();
         return {
@@ -129,7 +129,7 @@ export default function CreateGroupDialog({
       if (miniLeagueId) {
         const { data } = await supabase
           .from("mini_leagues")
-          .select("id, name, club_id, clubs(id, name)")
+          .select("id, name, club_id, clubs!mini_leagues_club_id_fkey(id, name)")
           .eq("id", miniLeagueId)
           .maybeSingle();
         return {
@@ -274,7 +274,7 @@ export default function CreateGroupDialog({
       if (proIds.length === 0) return [];
       const { data } = await supabase
         .from("mini_leagues")
-        .select("id, name, club_id, clubs(name)")
+        .select("id, name, club_id, clubs!mini_leagues_club_id_fkey(name)")
         .in("club_id", proIds);
       return data || [];
     },

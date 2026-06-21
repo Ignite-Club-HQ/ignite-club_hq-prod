@@ -70,7 +70,7 @@ export default function CourtBoardResumeCard() {
       const { data, error } = await supabase
         .from("active_games")
         .select(
-          "id, team_id, updated_at, timer_state, teams!inner(id, name, clubs(sport))"
+          "id, team_id, updated_at, timer_state, teams!inner(id, name, clubs!teams_club_id_fkey(sport))"
         )
         .eq("user_id", user.id)
         .eq("is_active", true)
