@@ -231,11 +231,11 @@ export default function MessagesPage() {
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
 
   const { data: clubAdminConversations = [] } = useQuery({
-    queryKey: clubAdminInboxQueryKey(user?.id, activeClubFilter),
+    queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
     enabled: !!user && initialized,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
-    queryFn: () => fetchClubAdminConversations(user!.id, activeClubFilter),
+    queryFn: () => fetchClubAdminConversations(user!.id, effectiveClubFilter),
   });
 
   // Load cached data for instant display
