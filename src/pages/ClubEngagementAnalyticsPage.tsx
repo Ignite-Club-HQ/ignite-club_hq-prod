@@ -561,8 +561,11 @@ export default function ClubEngagementAnalyticsPage({
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold truncate">Engagement Analytics</h1>
           <p className="text-xs sm:text-sm text-muted-foreground truncate">
-            {club?.name ?? "Club"} • how your members are participating
+            {isPlatform
+              ? "All clubs • platform-wide engagement"
+              : `${club?.name ?? "Club"} • how your members are participating`}
           </p>
+
         </div>
       </div>
 
