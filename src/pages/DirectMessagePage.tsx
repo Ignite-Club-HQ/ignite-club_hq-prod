@@ -251,14 +251,12 @@ export default function DirectMessagePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardBottomInset();
   const isNativePlatform = Capacitor.isNativePlatform();
-  const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
   useEffect(() => {
@@ -356,29 +354,9 @@ export default function DirectMessagePage() {
   // Live presence — true when the other user has the app open in any tab.
   const isOtherUserOnline = useIsUserOnline(otherUserId);
 
-  useLayoutEffect(() => {
-    const composerEl = composerRef.current;
-    if (!composerEl) return;
-
-    const measure = () => {
-      const nextHeight = Math.max(56, Math.ceil(composerEl.getBoundingClientRect().height));
-      setComposerHeight(nextHeight);
-    };
-
-    measure();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    }
-
-    const observer = new ResizeObserver(() => {
-      requestAnimationFrame(measure);
-    });
-
-    observer.observe(composerEl);
-    return () => observer.disconnect();
-  }, [isIgniteSupportConversation, replyTo, editingMessage]);
+  const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
+    [isIgniteSupportConversation, replyTo, editingMessage],
+  );
 
   // Fetch other participant's profile
   const { data: otherUser, isLoading: otherUserLoading } = useQuery({
