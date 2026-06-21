@@ -9811,6 +9811,35 @@ export type Database = {
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      club_engagement_active_users: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: {
+          day: string
+          user_id: string
+        }[]
+      }
+      club_engagement_message_volume: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: {
+          club_count: number
+          day: string
+          team_count: number
+        }[]
+      }
+      club_engagement_totals: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: {
+          broadcasts: number
+          club_msgs: number
+          events: number
+          photos_uploaded: number
+          reactions: number
+          rsvps_going: number
+          rsvps_responded: number
+          rsvps_total: number
+          team_msgs: number
+        }[]
+      }
       confirm_eoi_placement: {
         Args: { _submission_id: string }
         Returns: {
