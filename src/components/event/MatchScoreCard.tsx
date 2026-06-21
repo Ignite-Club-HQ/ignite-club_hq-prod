@@ -343,7 +343,7 @@ export function MatchScoreCard({
             <div className="mt-3 pt-3 border-t">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
                 <Target className="h-3.5 w-3.5" />
-                Goal scorers
+                {sportConfig.scorersLabel}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {savedScorers.map((s) => (
