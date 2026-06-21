@@ -263,7 +263,7 @@ export default function RewardRedemptionCard() {
           redeemed_at,
           child_id,
           club_rewards (id, name, description, points_required, qr_code_url, show_qr_code),
-          clubs (name),
+          clubs!club_id (name),
           children (id, name)
         `)
         .eq("user_id", user!.id)

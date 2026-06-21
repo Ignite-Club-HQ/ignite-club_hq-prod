@@ -173,7 +173,7 @@ export default function ProfilePage() {
       if (teamIds.length > 0) {
         const { data: teamsData } = await supabase
           .from("teams")
-          .select("id, name, club_id, clubs (id, name, sport)")
+          .select("id, name, club_id, clubs!club_id (id, name, sport)")
           .in("id", teamIds);
         teams = teamsData || [];
       }
@@ -228,7 +228,7 @@ export default function ProfilePage() {
     queryFn: async () => {
       let query = supabase
         .from("duties")
-        .select(`id, name, status, points, points_awarded, created_at, events (id, title, event_date, club_id, team_id, teams (name), clubs (name))`)
+        .select(`id, name, status, points, points_awarded, created_at, events (id, title, event_date, club_id, team_id, teams (name), clubs!club_id (name))`)
         .eq("assigned_to", user!.id)
         .eq("points_awarded", true)
         .order("created_at", { ascending: false });
@@ -255,7 +255,7 @@ export default function ProfilePage() {
     queryFn: async () => {
       let query = supabase
         .from("reward_redemptions")
-        .select(`id, points_spent, status, redeemed_at, created_at, club_id, club_rewards (name), clubs (name)`)
+        .select(`id, points_spent, status, redeemed_at, created_at, club_id, club_rewards (name), clubs!club_id (name)`)
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       
@@ -486,7 +486,7 @@ export default function ProfilePage() {
 
       let teamsQuery = supabase
         .from("teams")
-        .select(`id, name, club_id, is_pro, pro_expires_at, stripe_subscription_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football, is_trial, trial_ends_at)`);
+        .select(`id, name, club_id, is_pro, pro_expires_at, stripe_subscription_id, clubs!club_id (name, sport), team_subscriptions (is_pro, is_pro_football, is_trial, trial_ends_at)`);
 
       if (activeClubFilter) {
         teamsQuery = teamsQuery.eq("club_id", activeClubFilter);

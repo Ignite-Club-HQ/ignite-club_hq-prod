@@ -169,7 +169,7 @@ export default function ManageUsersPage() {
       if (hasFilter) {
         let rolesQuery = supabase
           .from("user_roles")
-          .select("id, user_id, role, club_id, team_id, clubs(name), teams(name)");
+          .select("id, user_id, role, club_id, team_id, clubs!club_id(name), teams(name)");
         
         if (filterRole) {
           rolesQuery = rolesQuery.eq("role", filterRole);
@@ -207,7 +207,7 @@ export default function ManageUsersPage() {
         // Fetch ALL roles for these users (not just filtered ones)
         const { data: allUserRoles } = await supabase
           .from("user_roles")
-          .select("id, user_id, role, club_id, team_id, clubs(name), teams(name)")
+          .select("id, user_id, role, club_id, team_id, clubs!club_id(name), teams(name)")
           .in("user_id", filteredProfiles.map(p => p.id));
         
         // Group roles by user
@@ -241,7 +241,7 @@ export default function ManageUsersPage() {
       
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("id, user_id, role, club_id, team_id, clubs(name), teams(name)")
+        .select("id, user_id, role, club_id, team_id, clubs!club_id(name), teams(name)")
         .in("user_id", userIds);
       
       // Group roles by user

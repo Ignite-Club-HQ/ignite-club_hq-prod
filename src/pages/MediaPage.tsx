@@ -454,7 +454,7 @@ export default function MediaPage() {
       
       const { data } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs(name)")
+        .select("id, name, club_id, clubs!club_id(name)")
         .in("id", teamIds)
         .order("name");
       return data || [];
@@ -528,7 +528,7 @@ export default function MediaPage() {
       diagLog("photos:start", { pageParam });
       let query = supabase
         .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, album_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, album_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!teams_club_id_fkey(name)), mini_leagues(name, club_id, clubs!mini_leagues_club_id_fkey(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null);
 
@@ -592,7 +592,7 @@ export default function MediaPage() {
         if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
         const { data, error } = await supabase
           .from("photos")
-          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!teams_club_id_fkey(name)), mini_leagues(name, club_id, clubs!mini_leagues_club_id_fkey(name))")
           .eq("id", highlightedPhotoId)
           .eq("show_in_feed", true)
           .is("deleted_at", null)
