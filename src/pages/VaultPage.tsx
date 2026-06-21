@@ -1107,7 +1107,7 @@ export default function VaultPage() {
         // Fetch the folder to get its details
         const { data: folder, error } = await supabase
           .from("vault_folders")
-          .select("*, teams!vault_folders_team_id_fkey(id, name, club_id), clubs!vault_folders_club_id_fkey(id, name)")
+          .select("*, teams!vault_folders_team_id_fkey(id, name, club_id), clubs!club_id(id, name)")
           .eq("id", urlFolderId)
           .maybeSingle();
         

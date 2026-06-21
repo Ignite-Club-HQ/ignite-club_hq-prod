@@ -124,7 +124,7 @@ export default function ChildrenPage() {
       if (!children?.length) return [];
       const { data, error } = await supabase
         .from("child_team_assignments")
-        .select("*, teams(id, name, clubs(name))")
+        .select("*, teams(id, name, clubs!club_id(name))")
         .in("child_id", children.map(c => c.id));
       if (error) throw error;
       return data as (ChildAssignment & { child_id: string })[];
@@ -159,7 +159,7 @@ export default function ChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("team_id, teams(id, name, club_id, clubs(name))")
+        .select("team_id, teams(id, name, club_id, clubs!club_id(name))")
         .eq("user_id", user!.id)
         .not("team_id", "is", null);
       if (error) throw error;

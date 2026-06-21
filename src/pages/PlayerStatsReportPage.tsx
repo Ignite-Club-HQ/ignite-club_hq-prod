@@ -267,7 +267,7 @@ export default function PlayerStatsReportPage() {
 
       const { data: teams } = await supabase
         .from("teams")
-        .select("id, name, logo_url, clubs(name, logo_url)")
+        .select("id, name, logo_url, clubs!club_id(name, logo_url)")
         .in("id", teamIds);
 
       return (teams as Team[]) || [];

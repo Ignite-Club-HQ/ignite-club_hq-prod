@@ -59,7 +59,7 @@ export default function EditTeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name, sport, class_mode_enabled)")
+        .select("*, clubs!club_id (id, name, sport, class_mode_enabled)")
         .eq("id", id!)
         .single();
       if (error) throw error;

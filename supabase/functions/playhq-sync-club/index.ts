@@ -166,11 +166,20 @@ Deno.serve(async (req) => {
   const teamIdsToMaterialise: string[] = [];
 
   for (const t of teams) {
-    // Match: linked already, else by name (case-insensitive).
+    // Match: linked already, else by name (case-insensitive) — but only
+    // against teams NOT already linked to a different PlayHQ team, and only
+    // if the name match is unambiguous. Two local teams sharing a name used
+    // to silently re-link to the first match, stealing the link.
     let match = (existingTeams ?? []).find((e) => e.playhq_team_id === t.id);
     if (!match) {
       const norm = (s: string) => s.trim().toLowerCase();
-      match = (existingTeams ?? []).find((e) => norm(e.name) === norm(t.name));
+      const target = norm(t.name);
+      const candidates = (existingTeams ?? []).filter(
+        (e) => norm(e.name) === target && (!e.playhq_team_id || e.playhq_team_id === t.id),
+      );
+      if (candidates.length === 1) match = candidates[0];
+      // candidates.length > 1 → ambiguous, fall through to create a new team
+      // so we never silently re-link the wrong one.
     }
 
     const compId = compByGrade.get(t.grade_id) ?? null;

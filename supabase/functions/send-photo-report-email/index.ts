@@ -68,7 +68,7 @@ serve(async (req) => {
         uploader_id,
         club_id,
         team_id,
-        clubs(name),
+        clubs!club_id(name),
         teams(name)
       `)
       .eq("id", photoId)

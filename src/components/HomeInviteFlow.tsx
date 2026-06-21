@@ -109,7 +109,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         teamIds.length
           ? supabase
               .from("teams")
-              .select("id, name, club_id, clubs(id, name)")
+              .select("id, name, club_id, clubs!club_id(id, name)")
               .in("id", teamIds)
           : Promise.resolve({ data: [] as any[] }),
         allClubIds.length

@@ -57,7 +57,7 @@ export function UpcomingClassesWidget() {
     queryFn: async () => {
       const { data } = await supabase
         .from("teams")
-        .select("id, name, class_day, class_time, class_duration_minutes, level_age, club_id, clubs(name)")
+        .select("id, name, class_day, class_time, class_duration_minutes, level_age, club_id, clubs!club_id(name)")
         .in("id", enrolledTeamIds)
         .eq("is_archived", false)
         .not("class_day", "is", null);

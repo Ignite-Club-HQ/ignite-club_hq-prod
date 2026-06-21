@@ -101,7 +101,7 @@ export default function SponsorAnalyticsPage() {
       // Get sponsors with their clubs (use explicit FK relationship)
       let sponsorsQuery = supabase
         .from("sponsors")
-        .select("id, name, logo_url, club_id, clubs!sponsors_club_id_fkey(name)");
+        .select("id, name, logo_url, club_id, clubs!club_id(name)");
 
       if (selectedClub !== "all") {
         sponsorsQuery = sponsorsQuery.eq("club_id", selectedClub);

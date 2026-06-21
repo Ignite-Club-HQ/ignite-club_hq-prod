@@ -225,7 +225,7 @@ serve(async (req: Request): Promise<Response> => {
     if (payload.messageType === 'team' && payload.contextId) {
       const { data: team } = await supabase
         .from('teams')
-        .select('logo_url, club_id, clubs(logo_url)')
+        .select('logo_url, club_id, clubs!club_id(logo_url)')
         .eq('id', payload.contextId)
         .single();
       // Prefer team logo, fall back to club logo
@@ -250,7 +250,7 @@ serve(async (req: Request): Promise<Response> => {
         if (chatGroup.mini_league_id) {
           const { data: miniLeague } = await supabase
             .from('mini_leagues')
-            .select('logo_url, club_id, clubs(logo_url)')
+            .select('logo_url, club_id, clubs!club_id(logo_url)')
             .eq('id', chatGroup.mini_league_id)
             .single();
           // Prefer league logo, fall back to club logo
@@ -259,7 +259,7 @@ serve(async (req: Request): Promise<Response> => {
           // Team-based group chat
           const { data: team } = await supabase
             .from('teams')
-            .select('logo_url, clubs(logo_url)')
+            .select('logo_url, clubs!club_id(logo_url)')
             .eq('id', chatGroup.team_id)
             .single();
           clubLogoUrl = team?.logo_url || (team?.clubs as any)?.logo_url;

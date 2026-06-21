@@ -52,7 +52,7 @@ export function BoardPickerSheet({
       const { data, error } = await supabase
         .from("active_games")
         .select(
-          "id, team_id, updated_at, pitch_state, timer_state, teams!inner(id, name, club_id, clubs(sport))"
+          "id, team_id, updated_at, pitch_state, timer_state, teams!inner(id, name, club_id, clubs!club_id(sport))"
         )
         .eq("is_active", true)
         .order("updated_at", { ascending: false })

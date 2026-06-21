@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     if (type === "photo") {
       const { data: photo } = await supabase
         .from("photos")
-        .select("title, image_url, file_url, team_id, club_id, teams(name), clubs(name, logo_url)")
+        .select("title, image_url, file_url, team_id, club_id, teams(name), clubs!club_id(name, logo_url)")
         .eq("id", id)
         .maybeSingle();
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     } else if (type === "folder") {
       const { data: folder } = await supabase
         .from("vault_folders")
-        .select("name, club_id, clubs(name, logo_url)")
+        .select("name, club_id, clubs!club_id(name, logo_url)")
         .eq("id", id)
         .maybeSingle();
 

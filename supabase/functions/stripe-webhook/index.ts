@@ -357,7 +357,7 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
   // Try to find club subscription
   const { data: clubSub } = await supabase
     .from('club_subscriptions')
-    .select('club_id, is_pro_football, plan, clubs(name, created_by)')
+    .select('club_id, is_pro_football, plan, clubs!club_id(name, created_by)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
@@ -495,7 +495,7 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
 
   const { data: clubSub } = await supabase
     .from('club_subscriptions')
-    .select('club_id, is_pro_football, clubs(name, created_by)')
+    .select('club_id, is_pro_football, clubs!club_id(name, created_by)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
@@ -598,7 +598,7 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
     .from('club_subscriptions')
     .delete()
     .eq('stripe_subscription_id', subscriptionId)
-    .select('club_id, clubs(created_by)')
+    .select('club_id, clubs!club_id(created_by)')
     .maybeSingle();
 
   if (clubSub) {
