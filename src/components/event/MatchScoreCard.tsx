@@ -177,7 +177,7 @@ export function MatchScoreCard({
     !isNaN(homeNum) && totalAttributedGoals > homeNum && homeNum >= 0;
 
   const OWN_GOAL_ID = "__own_goal__";
-  const OWN_GOAL_NAME = "Own goal (opposition)";
+  const OWN_GOAL_NAME = `Own ${sportConfig.unit} (opposition)`;
 
   const addScorer = () => {
     if (!pendingScorerId) return;
