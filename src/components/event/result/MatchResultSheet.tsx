@@ -727,7 +727,6 @@ function PrimaryScoreBlock(p: PrimaryProps) {
             meta={p.homeMeta}
             setMeta={p.setHomeMeta}
             total={p.aflHomeTotal ?? 0}
-            firstRef={p.homeInputRef}
           />
           <div className="text-lg font-bold text-muted-foreground">–</div>
           <AflTeamColumn side="away" meta={p.awayMeta} setMeta={p.setAwayMeta} total={p.aflAwayTotal ?? 0} />
@@ -743,15 +742,16 @@ function PrimaryScoreBlock(p: PrimaryProps) {
         <TeamLabels home={labelHome} away={labelAway} />
         <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
           <CricketTeamColumn
+            side="home"
             runs={p.homeScore}
             setRuns={p.setHomeScore}
             meta={p.homeMeta}
             setMeta={p.setHomeMeta}
-            firstRef={p.homeInputRef}
             sport={config}
           />
           <div className="pb-3 text-lg font-bold text-muted-foreground">vs</div>
           <CricketTeamColumn
+            side="away"
             runs={p.awayScore}
             setRuns={p.setAwayScore}
             meta={p.awayMeta}
@@ -762,6 +762,7 @@ function PrimaryScoreBlock(p: PrimaryProps) {
       </div>
     );
   }
+
 
   // Sets layout (volleyball / tennis)
   if (config.scoreLayout === "sets") {
