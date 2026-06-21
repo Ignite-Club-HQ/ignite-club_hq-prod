@@ -833,7 +833,7 @@ export default function MessagesPage() {
 
       let query = supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs(name, logo_url), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name), clubs!club_id(name, logo_url), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (accessibleIds) query = query.in("id", accessibleIds);
