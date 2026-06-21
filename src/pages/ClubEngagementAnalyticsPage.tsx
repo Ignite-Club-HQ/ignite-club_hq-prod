@@ -642,18 +642,28 @@ export default function ClubEngagementAnalyticsPage() {
 
       {/* Section 3: Communication Engagement */}
       <SectionHeader icon={MessageSquare} title="Communication" description="Messaging & broadcast activity" />
+      {(totalsError || msgVolumeError) && (
+        <Card className="border-destructive/50">
+          <CardContent className="p-3 flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>Message analytics could not load. Try refreshing; if it persists, the admin analytics query is still failing.</span>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={MessageSquare} label="Club messages" value={clubMsgsCount} />
-        <Metric icon={MessageSquare} label="Team messages" value={teamMsgsCount} />
-        <Metric icon={Heart} label="Reactions" value={reactionCount} />
-        <Metric icon={Megaphone} label="Broadcasts" value={broadcastsCount} />
+        <Metric icon={MessageSquare} label="Club messages" value={clubMsgsCount} loading={totalsLoading} />
+        <Metric icon={MessageSquare} label="Team / group messages" value={teamMsgsCount} loading={totalsLoading} />
+        <Metric icon={Heart} label="Reactions" value={reactionCount} loading={totalsLoading} />
+        <Metric icon={Megaphone} label="Broadcasts" value={broadcastsCount} loading={totalsLoading} />
       </div>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Message volume</CardTitle>
         </CardHeader>
         <CardContent>
-          {clubMsgsCount + teamMsgsCount === 0 ? (
+          {totalsLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : clubMsgsCount + teamMsgsCount === 0 ? (
             <EmptyState label="No messages sent in this period." />
           ) : (
             <div className="h-48">
@@ -665,7 +675,7 @@ export default function ClubEngagementAnalyticsPage() {
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="Club" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Team" fill="hsl(142 70% 45%)" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Team / group" fill="hsl(142 70% 45%)" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
