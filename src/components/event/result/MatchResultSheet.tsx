@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Share2,
   StickyNote,
-  Award,
   Square,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,7 +84,6 @@ interface DraftShape {
   awayMeta: Record<string, string>;
   sets: SetScore[];
   scorers: PlayerStatRow[];
-  awardId: string;
   notes: string;
   savedAt: number;
 }
@@ -119,7 +117,6 @@ export function MatchResultSheet({
   const [sets, setSets] = useState<SetScore[]>([]);
   const [scorers, setScorers] = useState<PlayerStatRow[]>([]);
   const [pendingScorerId, setPendingScorerId] = useState("");
-  const [awardId, setAwardId] = useState("");
   const [notes, setNotes] = useState("");
   const [statsOpen, setStatsOpen] = useState(defaultStatsOpen);
   const [saving, setSaving] = useState(false);
@@ -202,7 +199,6 @@ export function MatchResultSheet({
           setAwayMeta(d.awayMeta || {});
           setSets(d.sets || []);
           setScorers(d.scorers || []);
-          setAwardId(d.awardId || "");
           setNotes(d.notes || "");
           setDraftRestored(true);
           usedDraft = true;
@@ -287,13 +283,12 @@ export function MatchResultSheet({
           awayMeta,
           sets,
           scorers,
-          awardId,
           notes,
           savedAt: Date.now(),
         };
         // Skip writing an "empty" draft so we don't fight a fresh open.
         const empty =
-          !homeScore && !awayScore && !notes && !awardId &&
+          !homeScore && !awayScore && !notes &&
           scorers.length === 0 && sets.length === 0 &&
           Object.keys(homeMeta).length === 0 && Object.keys(awayMeta).length === 0;
         if (empty) return;
@@ -415,7 +410,6 @@ export function MatchResultSheet({
     setAwayScore(result?.away_score?.toString() ?? "");
     setScorers([]);
     setNotes((result?.notes as string) || "");
-    setAwardId("");
     setHomeMeta({});
     setAwayMeta({});
     setSets([]);
@@ -458,7 +452,7 @@ export function MatchResultSheet({
         periodScoresPayload = { home: toNum(homeMeta), away: toNum(awayMeta) };
       }
 
-      // player_stats payload — merge scorers + MVP into one array.
+      // player_stats payload — scorers + cards only.
       const playerStatsPayload: any[] = scorers.map((s) => ({
         id: s.id,
         name: s.name,
@@ -466,13 +460,6 @@ export function MatchResultSheet({
         ...(s.yellow ? { yellow: s.yellow } : {}),
         ...(s.red ? { red: s.red } : {}),
       }));
-      if (awardId) {
-        const award = roster?.find((r) => r.id === awardId);
-        const existing = playerStatsPayload.find((p) => p.id === awardId);
-        if (existing) existing.award = "mvp";
-        else if (award)
-          playerStatsPayload.push({ id: award.id, name: award.name, goals: 0, award: "mvp" });
-      }
 
       const payload = {
         team_id: teamId,
@@ -643,15 +630,6 @@ export function MatchResultSheet({
                   <CardsSection
                     scorers={scorers}
                     setScorers={setScorers}
-                    roster={roster || []}
-                  />
-                )}
-
-                {config.optionalSections.includes("awards") && (
-                  <AwardsSection
-                    label={config.awardLabel || "Player of the match"}
-                    awardId={awardId}
-                    setAwardId={setAwardId}
                     roster={roster || []}
                   />
                 )}
