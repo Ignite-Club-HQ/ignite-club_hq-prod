@@ -47,7 +47,7 @@ export function LatestPhotosScroll({ showProBadge = false }: LatestPhotosScrollP
       // Build query for recent feed photos the user has access to
       let query = supabase
         .from("photos")
-        .select("id, file_url, image_url, title, created_at, club_id, team_id, teams(name), clubs!photos_club_id_fkey(name)")
+        .select("id, file_url, image_url, title, created_at, club_id, team_id, teams(name), clubs!club_id(name)")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
