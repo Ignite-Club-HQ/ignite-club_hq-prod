@@ -419,7 +419,7 @@ export default function EventsPage() {
 
       // Offline fallback: serve cached events list
       if (!navigator.onLine) {
-        const cached = getCachedEventsList(eventsScopeKey);
+        const cached = getCachedEventsList(eventsScopeKey, user?.id);
         diagLog("events:offline-cache", { hasCached: !!cached });
         if (cached) return cached as Event[];
       }
@@ -498,7 +498,7 @@ export default function EventsPage() {
         const msg = String(e?.message || "");
         if (name === "AbortError" || /aborted|abort/i.test(msg)) {
           diagLog("events:query-aborted", { ms: Math.round(performance.now() - queryStart) });
-          const cached = getCachedEventsList(eventsScopeKey);
+          const cached = getCachedEventsList(eventsScopeKey, user?.id);
           return (cached as Event[]) || [];
         }
         throw e;
@@ -506,7 +506,7 @@ export default function EventsPage() {
       diagLog("events:query-resolved", { ms: Math.round(performance.now() - queryStart), rows: data?.length ?? null, error: error?.message });
       if (error) {
         // Network failed — try cache as fallback
-        const cached = getCachedEventsList(eventsScopeKey);
+        const cached = getCachedEventsList(eventsScopeKey, user?.id);
         diagLog("events:error-fallback-cache", { hasCached: !!cached, error: error.message });
         if (cached) return cached as Event[];
         throw error;
@@ -545,7 +545,7 @@ export default function EventsPage() {
           : (filterRecurringEvents(filteredData) as Event[]);
 
       // Cache for offline use
-      cacheEventsList(eventsScopeKey, finalEvents);
+      cacheEventsList(eventsScopeKey, finalEvents, user?.id);
 
       return finalEvents;
     },
