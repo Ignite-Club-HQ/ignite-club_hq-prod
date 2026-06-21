@@ -647,9 +647,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                               </p>
                             )}
                           </div>
-                          {player.isChild && (
-                            <Badge variant="outline" className="text-xs">Child</Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -660,9 +657,6 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-destructive font-medium">{player.notGoing}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="text-muted-foreground">{player.noResponse}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
