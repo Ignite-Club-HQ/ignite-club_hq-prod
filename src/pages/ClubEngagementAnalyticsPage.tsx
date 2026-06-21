@@ -470,14 +470,14 @@ export default function ClubEngagementAnalyticsPage() {
     const totalMembers = teams.length ? Math.max(scopedTeamIds.length * 12, activeMembers.range) : Math.max(activeMembers.range, 1);
     const activeRatio = Math.min(activeMembers.d30 / Math.max(totalMembers, 1), 1);
     const msgPerUser = activeMembers.range
-      ? Math.min((clubMsgs.length + teamMsgs.length + reactionCount) / activeMembers.range / 10, 1)
+      ? Math.min((clubMsgsCount + teamMsgsCount + reactionCount) / activeMembers.range / 10, 1)
       : 0;
     const rsvp = (rsvpStats.completionRate || 0) / 100;
     const media = photos.length ? Math.min(((photoEngagement?.views || 0) + (photoEngagement?.reactions || 0)) / Math.max(photos.length * 5, 1), 1) : 0;
     const sponsor = Math.min(sponsorStats.ctr / 5, 1);
     const score = Math.round(activeRatio * 40 + msgPerUser * 20 + rsvp * 20 + media * 10 + sponsor * 10);
     return Math.max(0, Math.min(100, score));
-  }, [teams.length, scopedTeamIds.length, activeMembers, clubMsgs.length, teamMsgs.length, reactionCount, rsvpStats.completionRate, photos.length, photoEngagement, sponsorStats.ctr]);
+  }, [teams.length, scopedTeamIds.length, activeMembers, clubMsgsCount, teamMsgsCount, reactionCount, rsvpStats.completionRate, photos.length, photoEngagement, sponsorStats.ctr]);
 
   // ---------- Competition (admins only) ----------
   const { data: competitions = [] } = useQuery({
