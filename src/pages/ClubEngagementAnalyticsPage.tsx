@@ -290,165 +290,82 @@ export default function ClubEngagementAnalyticsPage() {
     enabled: !!clubId && !!access?.isAdmin,
   });
 
-  // ---------- Messages ----------
-  const { data: clubMsgs = [] } = useQuery({
-    queryKey: ["club-engagement-club-msgs", clubId, range.start.toISOString(), range.end.toISOString()],
+  // ---------- Club-wide totals (RPC) — bypasses 1000-row cap & RLS for club admins ----------
+  const { data: totals } = useQuery({
+    queryKey: ["club-engagement-totals-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("club_messages")
-        .select("id, created_at, author_id")
-        .eq("club_id", clubId!)
-        .is("deleted_at", null)
-        .gte("created_at", range.start.toISOString())
-        .lte("created_at", range.end.toISOString())
-        .limit(5000);
+      const { data, error } = await supabase.rpc("club_engagement_totals", {
+        _club_id: clubId!,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
       if (error) throw error;
-      return data || [];
+      const row = (data && (data as any[])[0]) || {};
+      return {
+        clubMsgs: Number(row.club_msgs ?? 0),
+        teamMsgs: Number(row.team_msgs ?? 0),
+        reactions: Number(row.reactions ?? 0),
+        broadcasts: Number(row.broadcasts ?? 0),
+        events: Number(row.events ?? 0),
+        rsvpsTotal: Number(row.rsvps_total ?? 0),
+        rsvpsResponded: Number(row.rsvps_responded ?? 0),
+        rsvpsGoing: Number(row.rsvps_going ?? 0),
+        photosUploaded: Number(row.photos_uploaded ?? 0),
+      };
     },
     enabled: !!clubId && !!access?.isAdmin,
   });
 
-  const { data: teamMsgs = [] } = useQuery({
-    queryKey: ["club-engagement-team-msgs", scopedTeamIds, range.start.toISOString(), range.end.toISOString()],
+  // ---------- Message volume per day (RPC) ----------
+  const { data: msgVolume = [] } = useQuery({
+    queryKey: ["club-engagement-msg-volume-rpc", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
-      if (scopedTeamIds.length === 0) return [];
-      const out: any[] = [];
-      const chunk = 100;
-      for (let i = 0; i < scopedTeamIds.length; i += chunk) {
-        const ids = scopedTeamIds.slice(i, i + chunk);
-        const { data, error } = await supabase
-          .from("team_messages")
-          .select("id, created_at, team_id, author_id")
-          .in("team_id", ids)
-          .is("deleted_at", null)
-          .gte("created_at", range.start.toISOString())
-          .lte("created_at", range.end.toISOString())
-          .limit(5000);
-        if (error) throw error;
-        out.push(...(data || []));
-      }
-      return out;
-    },
-    enabled: !!access?.isAdmin && scopedTeamIds.length > 0,
-  });
-
-  const { data: broadcasts = [] } = useQuery({
-    queryKey: ["club-engagement-broadcasts", clubId, range.start.toISOString(), range.end.toISOString()],
-    queryFn: async () => {
-      // broadcast_messages has no club_id directly; filter by author belonging to club admins is non-trivial.
-      // Use scheduled_messages as proxy where applicable; otherwise show schedule_broadcasts count.
-      const { data, error } = await supabase
-        .from("schedule_broadcasts")
-        .select("id, created_at, club_id")
-        .eq("club_id", clubId!)
-        .gte("created_at", range.start.toISOString())
-        .lte("created_at", range.end.toISOString())
-        .limit(2000);
+      const { data, error } = await supabase.rpc("club_engagement_message_volume", {
+        _club_id: clubId!,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
       if (error) throw error;
-      return data || [];
+      return (data || []) as { day: string; club_count: number; team_count: number }[];
     },
     enabled: !!clubId && !!access?.isAdmin,
   });
 
-  // Message reactions on this club's messages
-  const { data: reactionCount = 0 } = useQuery({
-    queryKey: ["club-engagement-reactions", clubMsgs.map((m) => m.id).slice(0, 200), teamMsgs.map((m) => m.id).slice(0, 200)],
-    queryFn: async () => {
-      const clubIds = clubMsgs.map((m) => m.id);
-      const teamIds = teamMsgs.map((m) => m.id);
-      let total = 0;
-      const chunk = 100;
-      for (let i = 0; i < clubIds.length; i += chunk) {
-        const { count } = await supabase
-          .from("message_reactions")
-          .select("id", { count: "exact", head: true })
-          .in("club_message_id", clubIds.slice(i, i + chunk));
-        total += count || 0;
-      }
-      for (let i = 0; i < teamIds.length; i += chunk) {
-        const { count } = await supabase
-          .from("message_reactions")
-          .select("id", { count: "exact", head: true })
-          .in("team_message_id", teamIds.slice(i, i + chunk));
-        total += count || 0;
-      }
-      return total;
-    },
-    enabled: !!access?.isAdmin && (clubMsgs.length > 0 || teamMsgs.length > 0),
-  });
+  const msgVolumeChart = useMemo(
+    () => msgVolume.map((r) => ({ day: r.day, Club: Number(r.club_count || 0), Team: Number(r.team_count || 0) })),
+    [msgVolume]
+  );
 
-  // ---------- RSVP / events ----------
-  const { data: events = [] } = useQuery({
-    queryKey: ["club-engagement-events", scopedTeamIds, range.start.toISOString(), range.end.toISOString()],
-    queryFn: async () => {
-      if (scopedTeamIds.length === 0) return [];
-      const out: any[] = [];
-      const chunk = 100;
-      for (let i = 0; i < scopedTeamIds.length; i += chunk) {
-        const ids = scopedTeamIds.slice(i, i + chunk);
-        const { data, error } = await supabase
-          .from("events")
-          .select("id, team_id, start_time, created_at, event_date, type, is_cancelled")
-          .in("team_id", ids)
-          .eq("is_cancelled", false)
-          .in("type", ["game", "training"])
-          .gte("created_at", range.start.toISOString())
-          .lte("created_at", range.end.toISOString())
-          .limit(5000);
-        if (error) throw error;
-        out.push(...(data || []));
-      }
-      return out;
-    },
-    enabled: !!access?.isAdmin && scopedTeamIds.length > 0,
-  });
-
-  const { data: rsvps = [] } = useQuery({
-    queryKey: ["club-engagement-rsvps", events.map((e) => e.id).slice(0, 500)],
-    queryFn: async () => {
-      const eventIds = events.map((e) => e.id);
-      if (eventIds.length === 0) return [];
-      const out: any[] = [];
-      const chunk = 200;
-      for (let i = 0; i < eventIds.length; i += chunk) {
-        const { data, error } = await supabase
-          .from("rsvps")
-          .select("id, event_id, status, created_at, updated_at")
-          .in("event_id", eventIds.slice(i, i + chunk))
-          .limit(5000);
-        if (error) throw error;
-        out.push(...(data || []));
-      }
-      return out;
-    },
-    enabled: !!access?.isAdmin && events.length > 0,
-  });
+  const clubMsgsCount = totals?.clubMsgs ?? 0;
+  const teamMsgsCount = totals?.teamMsgs ?? 0;
+  const reactionCount = totals?.reactions ?? 0;
+  const broadcastsCount = totals?.broadcasts ?? 0;
 
   const rsvpStats = useMemo(() => {
-    const responded = rsvps.filter((r) => r.status && r.status !== "pending").length;
-    const pending = rsvps.filter((r) => !r.status || r.status === "pending").length;
-    const going = rsvps.filter((r) => r.status === "going").length;
-    const total = rsvps.length;
+    const total = totals?.rsvpsTotal ?? 0;
+    const responded = totals?.rsvpsResponded ?? 0;
+    const going = totals?.rsvpsGoing ?? 0;
     return {
-      eventsCreated: events.length,
+      eventsCreated: totals?.events ?? 0,
       completionRate: total ? Math.round((responded / total) * 100) : 0,
       attendanceRate: total ? Math.round((going / total) * 100) : 0,
-      pending,
+      pending: Math.max(0, total - responded),
     };
-  }, [events, rsvps]);
+  }, [totals]);
 
-  // ---------- Media ----------
+  // ---------- Media: photo uploads (use total) + per-photo engagement (capped sample) ----------
   const { data: photos = [] } = useQuery({
     queryKey: ["club-engagement-photos", clubId, range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, created_at, uploader_id, album_id, team_id")
+        .select("id")
         .eq("club_id", clubId!)
         .is("deleted_at", null)
         .gte("created_at", range.start.toISOString())
         .lte("created_at", range.end.toISOString())
-        .limit(5000);
+        .order("created_at", { ascending: false })
+        .limit(1000);
       if (error) throw error;
       return data || [];
     },
@@ -498,30 +415,41 @@ export default function ClubEngagementAnalyticsPage() {
     queryKey: ["club-engagement-sponsor-analytics", sponsorRows.map((s) => s.id), range.start.toISOString(), range.end.toISOString()],
     queryFn: async () => {
       if (sponsorRows.length === 0) return [];
-      const { data, error } = await supabase
-        .from("sponsor_analytics")
-        .select("id, sponsor_id, context, created_at")
-        .in("sponsor_id", sponsorRows.map((s) => s.id))
-        .gte("created_at", range.start.toISOString())
-        .lte("created_at", range.end.toISOString())
-        .limit(10000);
-      if (error) throw error;
-      return data || [];
+      // Fetch counts per sponsor per event_type to avoid 1000-row cap on raw rows.
+      const out: { sponsor_id: string; event_type: string; n: number }[] = [];
+      for (const s of sponsorRows) {
+        const [v, c] = await Promise.all([
+          supabase.from("sponsor_analytics")
+            .select("id", { count: "exact", head: true })
+            .eq("sponsor_id", s.id)
+            .eq("event_type", "view")
+            .gte("created_at", range.start.toISOString())
+            .lte("created_at", range.end.toISOString()),
+          supabase.from("sponsor_analytics")
+            .select("id", { count: "exact", head: true })
+            .eq("sponsor_id", s.id)
+            .eq("event_type", "click")
+            .gte("created_at", range.start.toISOString())
+            .lte("created_at", range.end.toISOString()),
+        ]);
+        out.push({ sponsor_id: s.id, event_type: "view", n: v.count || 0 });
+        out.push({ sponsor_id: s.id, event_type: "click", n: c.count || 0 });
+      }
+      return out;
     },
     enabled: !!access?.isAdmin && sponsorRows.length > 0,
   });
 
   const sponsorStats = useMemo(() => {
-    const impressions = sponsorAnalytics.filter((s) => s.context === "impression" || s.context === "view").length;
-    const clicks = sponsorAnalytics.filter((s) => s.context === "click").length;
-    const ctr = impressions ? Math.round((clicks / impressions) * 1000) / 10 : 0;
+    let impressions = 0, clicks = 0;
     const bySponsor = new Map<string, { impressions: number; clicks: number }>();
     for (const s of sponsorAnalytics) {
-      const e = bySponsor.get(s.sponsor_id) || { impressions: 0, clicks: 0 };
-      if (s.context === "click") e.clicks += 1;
-      else e.impressions += 1;
-      bySponsor.set(s.sponsor_id, e);
+      const entry = bySponsor.get(s.sponsor_id) || { impressions: 0, clicks: 0 };
+      if (s.event_type === "click") { clicks += s.n; entry.clicks += s.n; }
+      else if (s.event_type === "view") { impressions += s.n; entry.impressions += s.n; }
+      bySponsor.set(s.sponsor_id, entry);
     }
+    const ctr = impressions ? Math.round((clicks / impressions) * 1000) / 10 : 0;
     const top = Array.from(bySponsor.entries())
       .map(([sponsorId, v]) => ({
         sponsorId,
@@ -529,10 +457,11 @@ export default function ClubEngagementAnalyticsPage() {
         ...v,
         ctr: v.impressions ? Math.round((v.clicks / v.impressions) * 1000) / 10 : 0,
       }))
-      .sort((a, b) => b.clicks - a.clicks)
+      .sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions))
       .slice(0, 5);
     return { impressions, clicks, ctr, top };
   }, [sponsorAnalytics, sponsorRows]);
+
 
   // ---------- Engagement score (composite 0-100) ----------
   const engagementScore = useMemo(() => {
