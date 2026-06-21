@@ -621,16 +621,16 @@ export function MatchScoreCard({
             )}
           </ScrollArea>
 
-          <DialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
+          <ResponsiveDialogFooter className="pt-3 flex-row gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving} className="flex-1 sm:flex-none">
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || overAttributed} className="flex-1 sm:flex-none">
               {saving ? "Saving…" : "Save score"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </>
   );
 }
