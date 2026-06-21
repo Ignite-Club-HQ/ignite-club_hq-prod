@@ -963,13 +963,12 @@ function SmallStatInput({
 }
 
 function AflTeamColumn({
-  side, meta, setMeta, total, firstRef,
+  side, meta, setMeta, total,
 }: {
   side: "home" | "away";
   meta: Record<string, string>;
   setMeta: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   total: number;
-  firstRef?: React.MutableRefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="space-y-2">
@@ -993,52 +992,39 @@ function AflTeamColumn({
         <div className="text-2xl font-black tabular-nums">{total}</div>
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</div>
       </div>
-      {firstRef && (
-        <input
-          ref={firstRef}
-          tabIndex={-1}
-          aria-hidden
-          className="sr-only"
-          onFocus={() => {
-            const el = document.getElementById(`${side}-goals`) as HTMLInputElement | null;
-            el?.focus();
-          }}
-        />
-      )}
     </div>
   );
 }
 
 function CricketTeamColumn({
-  runs, setRuns, meta, setMeta, firstRef, sport,
+  side, runs, setRuns, meta, setMeta, sport,
 }: {
+  side: "home" | "away";
   runs: string;
   setRuns: (v: string) => void;
   meta: Record<string, string>;
   setMeta: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  firstRef?: React.MutableRefObject<HTMLInputElement | null>;
   sport: SportScoreConfig;
 }) {
   return (
     <div className="space-y-2 min-w-0">
       <BigScoreInput
-        id={`cricket-${runs === meta.wickets ? "x" : Math.random()}`}
+        id={`${side}-runs`}
         value={runs}
         onChange={setRuns}
         label="Runs"
-        inputRef={firstRef}
         max={sport.maxScore}
       />
       <div className="grid grid-cols-2 gap-2">
         <SmallStatInput
-          id={`wkts-${Math.random()}`}
+          id={`${side}-wkts`}
           label="Wickets"
           value={meta.wickets ?? ""}
           onChange={(v) => setMeta((m) => ({ ...m, wickets: v }))}
           max={10}
         />
         <SmallStatInput
-          id={`overs-${Math.random()}`}
+          id={`${side}-overs`}
           label="Overs"
           value={meta.overs ?? ""}
           onChange={(v) => setMeta((m) => ({ ...m, overs: v }))}
@@ -1048,6 +1034,7 @@ function CricketTeamColumn({
     </div>
   );
 }
+
 
 // ────────────────────────────────────────────────────────────────────
 // Optional sections
