@@ -2038,10 +2038,20 @@ export default function MessagesPage() {
           const clubs = competitionClubMap?.[group.competition_id];
           return !!clubs && clubs.has(effectiveClubFilter);
         }
-        // Personal/custom groups have no club or team scope — always show them
-        // regardless of the club filter so they don't disappear unexpectedly.
+        // Personal/custom groups: when a club filter is active, only show
+        // the group if at least one member (other than the current user)
+        // holds a role under the selected club. While the membership
+        // lookup is still loading, fall back to showing the group so it
+        // doesn't briefly disappear on each filter switch.
         const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-        if (isPersonalGroup) return true;
+        if (isPersonalGroup) {
+          if (!clubScopedGroupMembers || !clubScopedUsersInClub) return true;
+          const members = clubScopedGroupMembers.get(group.id) || [];
+          const otherMembers = members.filter((uid) => uid !== user?.id);
+          if (otherMembers.length === 0) return true;
+          return otherMembers.some((uid) => clubScopedUsersInClub.has(uid));
+        }
+
         return (
           group.club_id === effectiveClubFilter ||
           (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
