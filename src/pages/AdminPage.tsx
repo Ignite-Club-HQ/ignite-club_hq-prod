@@ -126,14 +126,6 @@ export default function AdminPage() {
             <CardDescription>Tools available to club admins</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {primaryClubId && (
-              <AdminMenuItem
-                icon={ClipboardCheck}
-                label="Attendance Stats"
-                description="Club-wide attendance across all teams"
-                onClick={() => navigate(`/clubs/${primaryClubId}/attendance`)}
-              />
-            )}
             <AdminMenuItem
               icon={RotateCcw}
               label="Deleted Chats"

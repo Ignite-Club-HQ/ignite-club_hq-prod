@@ -2089,16 +2089,6 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              <Link to={`/clubs/${id}/attendance`}>
-                <Card className="hover:border-primary/50 transition-colors">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <BarChart3 className="h-5 w-5 text-primary" />
-                    </div>
-                    <span className="font-medium">Attendance Stats</span>
-                  </CardContent>
-                </Card>
-              </Link>
 
               <Link to={`/clubs/${id}/engagement`}>
                 <Card className="hover:border-primary/50 transition-colors">
