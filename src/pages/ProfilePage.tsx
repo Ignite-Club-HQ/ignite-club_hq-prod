@@ -173,7 +173,7 @@ export default function ProfilePage() {
       if (teamIds.length > 0) {
         const { data: teamsData } = await supabase
           .from("teams")
-          .select("id, name, club_id, clubs (id, name, sport)")
+          .select("id, name, club_id, clubs!club_id (id, name, sport)")
           .in("id", teamIds);
         teams = teamsData || [];
       }
