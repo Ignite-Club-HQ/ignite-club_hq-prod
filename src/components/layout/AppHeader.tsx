@@ -1083,11 +1083,11 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto gap-3">
+      <div className="flex items-center justify-between h-[84px] px-4 max-w-lg mx-auto gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors min-w-0 flex-1"
+              className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors min-w-0 flex-1"
               aria-label="Switch club"
               key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
             >
@@ -1129,16 +1129,16 @@ export function AppHeader() {
                         <LogoImage
                           src={displayLogoUrl}
                           alt={rawName}
-                          className="h-9 w-9 rounded-lg object-cover"
+                          className="h-[72px] w-[72px] rounded-xl object-cover"
                           fallback={
-                            <div className="p-1.5 rounded-lg bg-primary">
-                              <Flame className="h-5 w-5 text-primary-foreground" />
+                            <div className="p-3 rounded-xl bg-primary">
+                              <Flame className="h-10 w-10 text-primary-foreground" />
                             </div>
                           }
                         />
                         {shouldShowClubTheming && (
-                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm ring-2 ring-background" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
-                            <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
+                          <div className="absolute -bottom-1.5 -right-1.5 p-1 rounded-full shadow-sm ring-2 ring-background" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                            <Flame className="h-4 w-4" style={{ color: 'white' }} />
                           </div>
                         )}
                       </div>
@@ -1146,9 +1146,7 @@ export function AppHeader() {
                       <img
                         src={igniteIcon}
                         alt="Ignite"
-                        width={36}
-                        height={36}
-                        className="h-9 w-9 shrink-0 rounded-full object-contain"
+                        className="h-[72px] w-[72px] shrink-0 rounded-full object-contain"
                         loading="eager"
                         decoding="sync"
                         fetchPriority="high"
@@ -1162,7 +1160,7 @@ export function AppHeader() {
                         >
                           {mainName}
                         </span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" strokeWidth={2} />
                       </div>
                       {suffix && (
                         <span className="text-[11px] text-muted-foreground leading-tight font-medium">
