@@ -82,7 +82,7 @@ export function ClubThemeToggle() {
         <DropdownMenuSeparator />
 
         {availableClubThemes.map((theme) => {
-          const locked = !theme.isProTheme;
+          const locked = !theme.canUseCustomTheme;
           return (
             <DropdownMenuItem
               key={theme.clubId}
@@ -114,7 +114,7 @@ export function ClubThemeToggle() {
                   <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
                     Custom club colours are available on Pro
                   </p>
-                ) : theme.primary ? (
+                ) : theme.hasCustomTheme && theme.primary ? (
                   <div className="flex gap-1 mt-0.5">
                     <div
                       className="h-3 w-3 rounded-full border border-border"
