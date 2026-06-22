@@ -749,6 +749,28 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id,
   });
 
+  // ALL clubs the user belongs to (Pro + free) — used to validate active club
+  // selections that aren't themed. Free clubs can be selected as the active
+  // club filter but won't apply theme overrides.
+  const { data: userClubIds = [] } = useQuery<string[]>({
+    queryKey: ["user-club-ids-for-switcher", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const [rolesRes, teamRolesRes] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase.from("user_roles").select("teams!inner(club_id)").eq("user_id", user.id).not("team_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      (rolesRes.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      (teamRolesRes.data || []).forEach((r: any) => {
+        const cid = r.teams?.club_id;
+        if (cid) ids.add(cid);
+      });
+      return Array.from(ids);
+    },
+    enabled: !!user?.id,
+  });
+
   // Auto-set theme for new members who haven't set a preference yet
   useEffect(() => {
     if (!user?.id || hasCheckedDefault || isLoading || isLoadingFromDb) return;
