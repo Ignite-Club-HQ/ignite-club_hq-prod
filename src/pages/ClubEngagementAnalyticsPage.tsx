@@ -270,7 +270,10 @@ export default function ClubEngagementAnalyticsPage({
       if (!r.user_id || !r.day) continue;
       byDay.get(r.day)?.add(r.user_id);
     }
-    return Array.from(byDay.entries()).map(([day, set]) => ({ day, dau: set.size }));
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    return Array.from(byDay.entries())
+      .filter(([day]) => day < todayKey)
+      .map(([day, set]) => ({ day, dau: set.size }));
   }, [activityRows, range]);
 
   // ---------- New members ----------
