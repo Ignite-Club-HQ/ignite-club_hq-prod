@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -249,8 +249,8 @@ function LogoClubThemeDropdown() {
       {lockedClubs.map((club) => (
         <DropdownMenuItem
           key={club.clubId}
-          disabled
-          className="flex items-center gap-3 py-2 opacity-60 cursor-not-allowed"
+          onClick={() => setActiveClubTheme(club.clubId)}
+          className="flex items-center gap-3 py-2"
         >
           <Avatar className="h-8 w-8">
             <AvatarImage src={club.logoUrl || undefined} />
@@ -260,11 +260,12 @@ function LogoClubThemeDropdown() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{club.clubName}</p>
-            <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
               <Lock className="h-3 w-3" />
-              <span className="text-xs">Pro only</span>
+              <span className="text-xs">Free — no club theme</span>
             </div>
           </div>
+          {activeClubTheme === club.clubId && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
       ))}
     </DropdownMenuContent>
@@ -1016,6 +1017,7 @@ export function AppHeader() {
                         >
                           {clubNameParts.mainName}
                         </span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                       </div>
                       <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
                     </div>
@@ -1034,7 +1036,10 @@ export function AppHeader() {
                     fetchPriority="high"
                   />
                   <div className="flex flex-col leading-tight items-start">
-                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                    </div>
                     <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
                   </div>
                 </>
