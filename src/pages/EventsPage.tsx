@@ -1044,7 +1044,11 @@ export default function EventsPage() {
         ))}
       </div>
 
+      {/* Sponsor/Ad strip (shown in both calendar and list view; per-club opt-in) */}
+      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
+
       {viewMode === "calendar" ? (
+
         <div className="space-y-2">
           <Card>
             <CardContent className="p-4">
@@ -1111,10 +1115,8 @@ export default function EventsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Sponsor/Ad strip (above tabs for visibility; per-club opt-in) */}
-          <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
-
           <Tabs defaultValue="upcoming" className="w-full">
+
               <TabsList className="w-full">
                 <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
                 <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
