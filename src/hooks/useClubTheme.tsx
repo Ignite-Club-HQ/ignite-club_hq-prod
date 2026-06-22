@@ -642,11 +642,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Fetch all Pro clubs that the user belongs to with custom themes
+  // Fetch ALL clubs the user belongs to (Pro and Free). Each entry carries an
+  // `isProTheme` flag so the resolver knows whether to apply custom colours.
+  // Free clubs remain selectable for content filtering but render with the
+  // default Ignite theme.
   const { data: availableClubThemes = [], isLoading } = useQuery({
-    queryKey: ["club-themes", user?.id],
+    queryKey: ["club-themes-v2", user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) return [] as ClubTheme[];
 
       // Get user's clubs through their roles
       const { data: userRoles, error: rolesError } = await supabase
@@ -655,9 +658,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .eq("user_id", user.id)
         .not("club_id", "is", null);
 
-      if (rolesError || !userRoles?.length) return [];
+      if (rolesError) return [] as ClubTheme[];
 
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
+      const clubIds = [...new Set((userRoles ?? []).map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from teams
       const { data: teamRoles } = await supabase
@@ -675,62 +678,37 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return [] as ClubTheme[];
 
-      // Fetch clubs with theme settings (left join on subscriptions)
       const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select(`
-          id,
-          name,
-          logo_url,
-          show_logo_in_header,
-          show_name_in_header,
-          logo_only_mode,
-          sport,
-          is_pro,
-          theme_enabled,
-          theme_primary_h,
-          theme_primary_s,
-          theme_primary_l,
-          theme_secondary_h,
-          theme_secondary_s,
-          theme_secondary_l,
-          theme_accent_h,
-          theme_accent_s,
-          theme_accent_l,
-          theme_dark_primary_h,
-          theme_dark_primary_s,
-          theme_dark_primary_l,
-          theme_dark_secondary_h,
-          theme_dark_secondary_s,
-          theme_dark_secondary_l,
-          theme_dark_accent_h,
-          theme_dark_accent_s,
-          theme_dark_accent_l,
+          id, name, logo_url, show_logo_in_header, show_name_in_header,
+          logo_only_mode, sport, is_pro, theme_enabled, kind,
+          theme_primary_h, theme_primary_s, theme_primary_l,
+          theme_secondary_h, theme_secondary_s, theme_secondary_l,
+          theme_accent_h, theme_accent_s, theme_accent_l,
+          theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
+          theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
+          theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
         .in("id", clubIds)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("kind", "shell");
 
-      if (clubsError || !clubs) return [];
+      if (clubsError || !clubs) return [] as ClubTheme[];
 
-      // Filter to only Pro clubs with theme data that have theme enabled
-      return clubs
-        .filter(club => {
-          // Handle both array and single object subscription data
-          const subs = club.club_subscriptions as any;
-          const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : 
-                     (subs && !Array.isArray(subs) ? subs : null);
-          const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
-            (!sub.expires_at || new Date(sub.expires_at) > new Date());
-          // Check club.is_pro flag directly (synced by trigger)
-          const hasPro = club.is_pro === true || hasProFromSub === true;
-          const hasTheme = club.theme_primary_h !== null;
-          const themeEnabled = (club as any).theme_enabled !== false; // Default to true
-          return hasPro && hasTheme && themeEnabled;
-        })
-        .map(club => ({
+      const result: ClubTheme[] = clubs.map(club => {
+        const subs = (club as any).club_subscriptions;
+        const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
+        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
+        const hasPro = (club as any).is_pro === true || hasProFromSub === true;
+        const hasTheme = club.theme_primary_h !== null;
+        const themeEnabled = (club as any).theme_enabled !== false;
+        const isProTheme = hasPro && hasTheme && themeEnabled;
+
+        return {
           clubId: club.id,
           clubName: club.name,
           logoUrl: club.logo_url,
@@ -738,37 +716,28 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           showNameInHeader: club.show_name_in_header ?? true,
           logoOnlyMode: club.logo_only_mode ?? false,
           sport: club.sport,
-          primary: club.theme_primary_h !== null ? {
-            h: club.theme_primary_h!,
-            s: club.theme_primary_s!,
-            l: club.theme_primary_l!,
-          } : null,
-          secondary: club.theme_secondary_h !== null ? {
-            h: club.theme_secondary_h!,
-            s: club.theme_secondary_s!,
-            l: club.theme_secondary_l!,
-          } : null,
-          accent: club.theme_accent_h !== null ? {
-            h: club.theme_accent_h!,
-            s: club.theme_accent_s!,
-            l: club.theme_accent_l!,
-          } : null,
-          darkPrimary: club.theme_dark_primary_h !== null ? {
-            h: club.theme_dark_primary_h!,
-            s: club.theme_dark_primary_s!,
-            l: club.theme_dark_primary_l!,
-          } : null,
-          darkSecondary: club.theme_dark_secondary_h !== null ? {
-            h: club.theme_dark_secondary_h!,
-            s: club.theme_dark_secondary_s!,
-            l: club.theme_dark_secondary_l!,
-          } : null,
-          darkAccent: club.theme_dark_accent_h !== null ? {
-            h: club.theme_dark_accent_h!,
-            s: club.theme_dark_accent_s!,
-            l: club.theme_dark_accent_l!,
-          } : null,
-        }));
+          isProTheme,
+          primary: club.theme_primary_h !== null ? { h: club.theme_primary_h!, s: club.theme_primary_s!, l: club.theme_primary_l! } : null,
+          secondary: club.theme_secondary_h !== null ? { h: club.theme_secondary_h!, s: club.theme_secondary_s!, l: club.theme_secondary_l! } : null,
+          accent: club.theme_accent_h !== null ? { h: club.theme_accent_h!, s: club.theme_accent_s!, l: club.theme_accent_l! } : null,
+          darkPrimary: club.theme_dark_primary_h !== null ? { h: club.theme_dark_primary_h!, s: club.theme_dark_primary_s!, l: club.theme_dark_primary_l! } : null,
+          darkSecondary: club.theme_dark_secondary_h !== null ? { h: club.theme_dark_secondary_h!, s: club.theme_dark_secondary_s!, l: club.theme_dark_secondary_l! } : null,
+          darkAccent: club.theme_dark_accent_h !== null ? { h: club.theme_dark_accent_h!, s: club.theme_dark_accent_s!, l: club.theme_dark_accent_l! } : null,
+        };
+      });
+
+      // Dedupe by normalized club name, preferring the higher-priority entry.
+      const priority = (t: ClubTheme) =>
+        (t.isProTheme ? 4 : 0) + (t.primary ? 2 : 0) + (t.logoUrl ? 1 : 0);
+      const byName = new Map<string, ClubTheme>();
+      for (const t of result) {
+        const key = t.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+        const existing = byName.get(key);
+        if (!existing || priority(t) > priority(existing)) {
+          byName.set(key, t);
+        }
+      }
+      return Array.from(byName.values());
     },
     enabled: !!user?.id,
   });
