@@ -9840,9 +9840,9 @@ export type Database = {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {
           completion_pct: number
-          day: string
           expected: number
           responded: number
+          week: string
         }[]
       }
       club_engagement_sponsor_performance: {

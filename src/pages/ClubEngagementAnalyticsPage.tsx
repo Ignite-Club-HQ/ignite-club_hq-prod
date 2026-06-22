@@ -389,7 +389,7 @@ export default function ClubEngagementAnalyticsPage({
         _end: range.end.toISOString(),
       });
       if (error) throw error;
-      return (data || []) as { day: string; completion_pct: number | null; responded: number; expected: number }[];
+      return (data || []) as { week: string; completion_pct: number | null; responded: number; expected: number }[];
     },
     enabled: queryReady && !!access?.isAdmin,
   });
@@ -397,7 +397,7 @@ export default function ClubEngagementAnalyticsPage({
   const rsvpSeriesChart = useMemo(
     () =>
       rsvpSeries.map((r) => ({
-        day: r.day,
+        week: r.week,
         pct: r.completion_pct == null ? null : Number(r.completion_pct),
         responded: Number(r.responded || 0),
         expected: Number(r.expected || 0),
@@ -848,7 +848,7 @@ export default function ClubEngagementAnalyticsPage({
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={rsvpSeriesChart}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
+                  <XAxis dataKey="week" tickFormatter={(d) => `Wk ${format(parseISO(d), "M/d")}`} fontSize={11} />
                   <YAxis fontSize={11} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
                     contentStyle={tooltipStyle}
@@ -857,7 +857,7 @@ export default function ClubEngagementAnalyticsPage({
                       const { responded, expected } = props?.payload || {};
                       return [`${value}% (${responded}/${expected})`, "Completion"];
                     }}
-                    labelFormatter={(d) => format(parseISO(d as string), "EEE, MMM d")}
+                    labelFormatter={(d) => `Week of ${format(parseISO(d as string), "MMM d, yyyy")}`}
                   />
                   <Line
                     type="monotone"
