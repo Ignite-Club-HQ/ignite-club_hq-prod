@@ -113,9 +113,17 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           )}
         </div>
         {sponsor.website_url && (
-          <div className="shrink-0 p-2 rounded-lg bg-primary/10 text-primary">
-            <ExternalLink className="h-5 w-5" />
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBannerClick();
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            Visit site
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
     </div>
