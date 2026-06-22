@@ -16,11 +16,14 @@ interface HSLColor {
 interface ClubTheme {
   clubId: string;
   clubName: string;
+  plan: string | null;
   logoUrl: string | null;
   showLogoInHeader: boolean;
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
+  canUseCustomTheme: boolean;
+  hasCustomTheme: boolean;
   // Whether the club has Pro entitlement AND a custom theme to apply.
   // Free clubs are still selectable (for content filtering) but render
   // with the default Ignite theme instead of custom colours.
@@ -39,11 +42,14 @@ interface ClubTheme {
 interface CachedThemeData {
   clubId: string;
   clubName: string;
+  plan?: string | null;
   logoUrl: string | null;
   showLogoInHeader: boolean;
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
+  canUseCustomTheme?: boolean;
+  hasCustomTheme?: boolean;
   isProTheme?: boolean; // optional for backwards-compat with old caches
   primary: HSLColor | null;
   secondary: HSLColor | null;
@@ -57,11 +63,14 @@ interface CachedThemeData {
 const toCacheableTheme = (theme: ClubTheme): CachedThemeData => ({
   clubId: theme.clubId,
   clubName: theme.clubName,
+  plan: theme.plan,
   logoUrl: theme.logoUrl,
   showLogoInHeader: theme.showLogoInHeader,
   showNameInHeader: theme.showNameInHeader,
   logoOnlyMode: theme.logoOnlyMode,
   sport: theme.sport,
+  canUseCustomTheme: theme.canUseCustomTheme,
+  hasCustomTheme: theme.hasCustomTheme,
   isProTheme: theme.isProTheme,
   primary: theme.primary,
   secondary: theme.secondary,
@@ -75,14 +84,17 @@ const toCacheableTheme = (theme: ClubTheme): CachedThemeData => ({
 const fromCachedTheme = (parsed: CachedThemeData): ClubTheme => ({
   clubId: parsed.clubId,
   clubName: parsed.clubName,
+  plan: parsed.plan ?? null,
   logoUrl: parsed.logoUrl ?? null,
   showLogoInHeader: parsed.showLogoInHeader,
   showNameInHeader: parsed.showNameInHeader,
   logoOnlyMode: parsed.logoOnlyMode,
   sport: parsed.sport ?? null,
-  // Old caches predate the Pro/theme split — default true so existing
-  // cached themes keep applying until the DB load corrects them.
-  isProTheme: parsed.isProTheme ?? true,
+  // Old caches predate the Pro/theme split — default locked so stale preview
+  // cache can never apply custom branding to a free club before DB resolves.
+  canUseCustomTheme: parsed.canUseCustomTheme ?? false,
+  hasCustomTheme: parsed.hasCustomTheme ?? !!parsed.primary,
+  isProTheme: parsed.isProTheme ?? false,
   primary: parsed.primary,
   secondary: parsed.secondary,
   accent: parsed.accent,
