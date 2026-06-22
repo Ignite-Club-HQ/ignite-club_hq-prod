@@ -1107,7 +1107,7 @@ export function AppHeader() {
                 const suffixWords: string[] = [];
                 while (words.length > 1) {
                   const last = words[words.length - 1];
-                  if (/^(FC|SC|AFC|RFC|CC|HC|NC|BC|Club|United|Soccer|Cricket|Football|Basketball|Netball|Rugby|Hockey|Swimming|Athletics|Volleyball|Baseball|Tennis|Golf|Rowing|Lacrosse|Town|City|Rovers|Rangers|Wanderers)$/i.test(last) && suffixWords.length < 2) {
+                  if (/^(FC|SC|AFC|RFC|CC|HC|NC|BC|Club|United|Soccer|Cricket|Football|Basketball|Netball|Rugby|Hockey|Swimming|Athletics|Volleyball|Baseball|Tennis|Golf|Rowing|Lacrosse|Town|City|Rovers|Rangers|Wanderers|HQ|League)$/i.test(last) && suffixWords.length < 2) {
                     suffixWords.unshift(words.pop()!);
                   } else break;
                 }
