@@ -8,6 +8,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
