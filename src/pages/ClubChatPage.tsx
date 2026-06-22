@@ -6,6 +6,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -1554,6 +1555,8 @@ export default function ClubChatPage() {
           clubId={clubId}
         />
       )}
+
+      <ChatThreadSponsorStrip clubId={clubId ?? null} />
 
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (

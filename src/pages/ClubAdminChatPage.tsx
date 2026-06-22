@@ -8,6 +8,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -904,6 +905,8 @@ export default function ClubAdminChatPage() {
           />
         </div>
       </div>
+
+      <ChatThreadSponsorStrip clubId={conversation?.club_id ?? null} />
 
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">

@@ -10,6 +10,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
@@ -1820,6 +1821,9 @@ export default function TeamChatPage() {
           teamId={teamId}
         />
       )}
+
+      {/* Sponsor / Ad strip (per-club opt-in; never enters message stream) */}
+      <ChatThreadSponsorStrip clubId={team?.club_id ?? null} />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
