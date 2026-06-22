@@ -13,12 +13,34 @@ interface ChatThreadSponsorStripProps {
   clubId: string | null | undefined;
 }
 
+type SponsorTier = "platinum" | "gold" | "silver" | "bronze" | null;
+
 interface SponsorLite {
   id: string;
   name: string;
   logo_url: string | null;
   website_url: string | null;
+  tier: SponsorTier;
 }
+
+// Tier-based rotation weights & on-screen durations.
+// Higher tier = appears more often AND stays visible longer.
+const TIER_WEIGHT: Record<Exclude<SponsorTier, null> | "default", number> = {
+  platinum: 6,
+  gold: 4,
+  silver: 2,
+  bronze: 1,
+  default: 2, // untiered sponsors behave like silver
+};
+const TIER_DURATION_MS: Record<Exclude<SponsorTier, null> | "default", number> = {
+  platinum: 20_000,
+  gold: 18_000,
+  silver: 12_000,
+  bronze: 8_000,
+  default: 12_000,
+};
+const tierKey = (t: SponsorTier): keyof typeof TIER_WEIGHT =>
+  t && t in TIER_WEIGHT ? (t as keyof typeof TIER_WEIGHT) : "default";
 
 interface AppAdLite {
   id: string;
@@ -48,7 +70,6 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [adIndex, setAdIndex] = useState(0);
-  const [sponsorIndex, setSponsorIndex] = useState(0);
 
   // 1. Club-level opt-in
   const { data: clubFlag } = useQuery({
@@ -104,7 +125,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     },
   });
 
-  // 4a. Pro path — fetch this club's active sponsors
+  // 4a. Pro path — fetch this club's active sponsors (with tier for weighted rotation)
   const { data: sponsors = [] } = useQuery({
     queryKey: ["chat-thread-strip-sponsors", clubId],
     enabled: clubEnabled && placementEnabled && isProClub === true,
@@ -112,7 +133,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
-        .select("id, name, logo_url, website_url")
+        .select("id, name, logo_url, website_url, tier")
         .eq("club_id", clubId!)
         .eq("is_active", true)
         .order("name");
@@ -137,23 +158,51 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     },
   });
 
-  // Rotate every 12s
-  const rotatingPool = isProClub ? sponsors : appAds;
-  useEffect(() => {
-    if (rotatingPool.length <= 1) return;
-    const id = setInterval(() => {
-      if (isProClub) setSponsorIndex((i) => (i + 1) % sponsors.length);
-      else setAdIndex((i) => (i + 1) % appAds.length);
-    }, 12_000);
-    return () => clearInterval(id);
-  }, [rotatingPool.length, isProClub, sponsors.length, appAds.length]);
+  // Build a tier-weighted playlist of sponsor indices (higher tier appears more times).
+  // Example: 1 gold + 1 bronze → [0,0,0,0,1] → gold shows 4× as often as bronze.
+  const sponsorPlaylist = useMemo(() => {
+    const out: number[] = [];
+    sponsors.forEach((s, i) => {
+      const w = TIER_WEIGHT[tierKey(s.tier)];
+      for (let k = 0; k < w; k++) out.push(i);
+    });
+    return out;
+  }, [sponsors]);
 
+  // Pro rotation: weighted playlist + per-tier duration
+  const [playlistPos, setPlaylistPos] = useState(0);
+  useEffect(() => {
+    setPlaylistPos(0);
+  }, [sponsorPlaylist.length]);
+
+  const sponsorIndex = sponsorPlaylist.length > 0
+    ? sponsorPlaylist[playlistPos % sponsorPlaylist.length]
+    : 0;
   const activeSponsor = useMemo(
-    () => (isProClub && sponsors.length > 0 ? sponsors[sponsorIndex % sponsors.length] : null),
+    () => (isProClub && sponsors.length > 0 ? sponsors[sponsorIndex] : null),
     [isProClub, sponsors, sponsorIndex],
   );
+
+  useEffect(() => {
+    if (!isProClub || sponsorPlaylist.length <= 1 || !activeSponsor) return;
+    const duration = TIER_DURATION_MS[tierKey(activeSponsor.tier)];
+    const id = setTimeout(() => {
+      setPlaylistPos((p) => (p + 1) % sponsorPlaylist.length);
+    }, duration);
+    return () => clearTimeout(id);
+  }, [isProClub, sponsorPlaylist.length, playlistPos, activeSponsor]);
+
+  // Free app-ad rotation: simple 12s
+  useEffect(() => {
+    if (isProClub !== false || appAds.length <= 1) return;
+    const id = setInterval(() => {
+      setAdIndex((i) => (i + 1) % appAds.length);
+    }, 12_000);
+    return () => clearInterval(id);
+  }, [isProClub, appAds.length]);
+
   const activeAd = useMemo(
-    () => (!isProClub && appAds.length > 0 ? appAds[adIndex % appAds.length] : null),
+    () => (isProClub === false && appAds.length > 0 ? appAds[adIndex % appAds.length] : null),
     [isProClub, appAds, adIndex],
   );
 
