@@ -430,6 +430,34 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
 
+  // Belt-and-braces: re-pin to bottom on ANY composer height change (even
+  // sub-4px growths) while the user is near the bottom. The main effect above
+  // only fires on >4px growths and can miss the case where the composer grows
+  // in small steps during typing (mid-line wrap reflows, predictive-text bar
+  // toggles), letting the latest message drift behind the input.
+  const lastPinComposerHeightRef = useRef(composerHeight);
+  useEffect(() => {
+    if (!virtualReady) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    const prev = lastPinComposerHeightRef.current;
+    lastPinComposerHeightRef.current = composerHeight;
+    if (composerHeight <= prev) return; // only react to growth
+    if (!handle.isNearBottom(240)) return;
+    // Two rAFs: let Virtuoso apply the new bottomPadding (Footer height) before
+    // we ask it to re-align LAST to "end", otherwise we scroll against stale
+    // layout and the last bubble still lands under the composer.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (isChatJumpActive()) return;
+        handle.scrollToBottom("auto", { force: true });
+        markChatScrollWrite();
+      });
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [composerHeight, virtualReady, virtualHandleRef]);
+
+
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
   // re-evaluate (defeats `memo` on ChatMessage). `renderRow` is captured by
