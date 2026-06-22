@@ -553,17 +553,26 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   .from('clubs')
                   .select(`
                     id, name, logo_url, show_logo_in_header, show_name_in_header, logo_only_mode, sport,
+                    is_pro, theme_enabled,
                     theme_primary_h, theme_primary_s, theme_primary_l,
                     theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
                     theme_secondary_h, theme_secondary_s, theme_secondary_l,
                     theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
                     theme_accent_h, theme_accent_s, theme_accent_l,
-                    theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l
+                    theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
+                    club_subscriptions(is_pro, is_pro_football, expires_at)
                   `)
                   .eq('id', data.active_club_theme_id)
                   .single();
                 
                 if (clubData) {
+                  const subs = (clubData as any).club_subscriptions;
+                  const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
+                  const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
+                  const hasPro = (clubData as any).is_pro === true || hasProFromSub === true;
+                  const hasTheme = clubData.theme_primary_h !== null;
+                  const themeEnabled = (clubData as any).theme_enabled !== false;
+                  const isProTheme = hasPro && hasTheme && themeEnabled;
                   const themeData: ClubTheme = {
                     clubId: clubData.id,
                     clubName: clubData.name,
@@ -572,6 +581,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                     showNameInHeader: clubData.show_name_in_header ?? true,
                     logoOnlyMode: clubData.logo_only_mode ?? false,
                     sport: clubData.sport,
+                    isProTheme,
                     primary: clubData.theme_primary_h !== null ? { h: clubData.theme_primary_h, s: clubData.theme_primary_s!, l: clubData.theme_primary_l! } : null,
                     secondary: clubData.theme_secondary_h !== null ? { h: clubData.theme_secondary_h, s: clubData.theme_secondary_s!, l: clubData.theme_secondary_l! } : null,
                     accent: clubData.theme_accent_h !== null ? { h: clubData.theme_accent_h, s: clubData.theme_accent_s!, l: clubData.theme_accent_l! } : null,
