@@ -397,7 +397,7 @@ export default function ClubEngagementAnalyticsPage({
   const rsvpSeriesChart = useMemo(
     () =>
       rsvpSeries.map((r) => ({
-        day: r.day,
+        week: r.week,
         pct: r.completion_pct == null ? null : Number(r.completion_pct),
         responded: Number(r.responded || 0),
         expected: Number(r.expected || 0),
