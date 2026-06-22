@@ -166,7 +166,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
 
   useEffect(() => {
     if (activeAd && user?.id) {
-      trackAdView(activeAd.id, "messages");
+      trackAdView(activeAd.id, "messages_page");
     }
   }, [activeAd?.id, user?.id, trackAdView]);
 
