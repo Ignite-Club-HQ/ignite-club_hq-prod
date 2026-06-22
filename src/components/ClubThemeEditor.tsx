@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Palette, RotateCcw, Loader2, Sun, Moon } from "lucide-react";
+import { Palette, RotateCcw, Loader2, Sun, Moon, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ interface ClubThemeEditorProps {
   initialShowNameInHeader?: boolean;
   initialLogoOnlyMode?: boolean;
   initialThemeEnabled?: boolean;
+  canEdit?: boolean;
   onSave?: () => void;
 }
 
@@ -218,6 +219,7 @@ export function ClubThemeEditor({
   initialShowNameInHeader = true,
   initialLogoOnlyMode = false,
   initialThemeEnabled = true,
+  canEdit = true,
   onSave,
 }: ClubThemeEditorProps) {
   const { toast } = useToast();
@@ -367,6 +369,26 @@ export function ClubThemeEditor({
   
   const previewBg = activeTab === "dark" ? "hsl(160, 15%, 6%)" : "hsl(0, 0%, 98%)";
   const previewText = activeTab === "dark" ? "#fafafa" : "#1a1a1a";
+
+  if (!canEdit) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Club Theme</CardTitle>
+            <Badge variant="secondary" className="ml-auto gap-1">
+              <Lock className="h-3 w-3" />
+              Pro
+            </Badge>
+          </div>
+          <CardDescription>
+            Custom club colours are available on Pro. This club will keep using the default Ignite Club HQ theme until Pro is enabled.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
