@@ -1610,6 +1610,10 @@ export default function MediaPage() {
                   </p>
                 </div>
               </Card>
+              {(index + 1) % 8 === 0 && (
+                <MediaSponsorTile seed={Math.floor(index / 8)} />
+              )}
+              </Fragment>
             );
           })}
           
