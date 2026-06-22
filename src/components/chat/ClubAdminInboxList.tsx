@@ -128,6 +128,7 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
     enabled: !!user && !providedConversations,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    refetchOnMount: "always",
     queryFn: () => fetchClubAdminConversations(user!.id, clubFilter),
   });
   const conversations = providedConversations ?? fetchedConversations;
