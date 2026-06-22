@@ -44,6 +44,7 @@ import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
