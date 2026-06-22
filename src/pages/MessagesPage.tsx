@@ -235,6 +235,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    refetchOnMount: "always",
     queryFn: () => fetchClubAdminConversations(user!.id, effectiveClubFilter),
   });
 
