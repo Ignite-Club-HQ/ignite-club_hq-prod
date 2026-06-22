@@ -848,7 +848,7 @@ export default function ClubEngagementAnalyticsPage({
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={rsvpSeriesChart}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
+                  <XAxis dataKey="week" tickFormatter={(d) => `Wk ${format(parseISO(d), "M/d")}`} fontSize={11} />
                   <YAxis fontSize={11} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
                     contentStyle={tooltipStyle}
