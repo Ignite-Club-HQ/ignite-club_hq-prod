@@ -214,7 +214,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     const clickable = !!activeAd.link_url;
     const onClick = () => {
       if (!clickable) return;
-      trackAdClick(activeAd.id, "messages");
+      trackAdClick(activeAd.id, "messages_page");
       safeOpenUrl(activeAd.link_url!);
     };
     return (
