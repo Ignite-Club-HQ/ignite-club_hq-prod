@@ -228,15 +228,118 @@ function LogoClubThemeDropdown() {
     return a.clubName.localeCompare(b.clubName);
   });
 
+  // Pin the active club at the very top so the dropdown opens with the
+  // current selection visible without scrolling.
+  const sortedClubs = [...mergedClubs].sort((a, b) => {
+    if (a.clubId === activeClubTheme && b.clubId !== activeClubTheme) return -1;
+    if (b.clubId === activeClubTheme && a.clubId !== activeClubTheme) return 1;
+    const aHas = a.theme ? 1 : 0;
+    const bHas = b.theme ? 1 : 0;
+    if (aHas !== bHas) return bHas - aHas;
+    return a.clubName.localeCompare(b.clubName);
+  });
+
+  const renderClubRow = (club: MergedClub) => {
+    const theme = club.theme;
+    const selected = activeClubTheme === club.clubId;
+    const isFree = !theme;
+    return (
+      <DropdownMenuItem
+        key={club.clubId}
+        onClick={() => setActiveClubTheme(club.clubId)}
+        className={
+          "flex items-center gap-3 py-2 my-0.5 rounded-md " +
+          (selected ? "bg-primary/15 ring-1 ring-primary/40 focus:bg-primary/20" : "")
+        }
+      >
+        <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
+          <AvatarImage src={club.logoUrl || undefined} />
+          <AvatarFallback
+            className="text-xs"
+            style={{
+              backgroundColor: theme?.primary
+                ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
+                : undefined,
+              color: theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
+            }}
+          >
+            {club.clubName.charAt(0)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className={"text-sm truncate " + (selected ? "font-semibold text-foreground" : "font-medium")}>
+              {club.clubName}
+            </p>
+            {selected && (
+              <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
+                Current
+              </span>
+            )}
+          </div>
+          {isFree ? (
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span className="text-[11px]">Default theme</span>
+            </div>
+          ) : theme?.primary ? (
+            <div className="flex gap-1 mt-0.5">
+              <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }} />
+              {theme.secondary && (
+                <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }} />
+              )}
+              {theme.accent && (
+                <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }} />
+              )}
+            </div>
+          ) : null}
+        </div>
+        {selected && (
+          <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </div>
+        )}
+      </DropdownMenuItem>
+    );
+  };
+
+  const activeClub = sortedClubs.find((c) => c.clubId === activeClubTheme) || null;
+  const otherClubs = sortedClubs.filter((c) => c.clubId !== activeClubTheme);
+
   return (
-    <DropdownMenuContent align="start" className="w-64">
+    <DropdownMenuContent align="start" className="w-72">
       <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Switch club</p>
         <p className="text-xs text-muted-foreground">Choose which club to view</p>
       </div>
       <DropdownMenuSeparator />
 
-      {/* Default / all clubs */}
+      {/* Active club pinned at top */}
+      {activeClub && (
+        <>
+          <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Current club
+          </p>
+          {renderClubRow(activeClub)}
+        </>
+      )}
+
+      {/* Other clubs */}
+      {otherClubs.length > 0 && (
+        <>
+          <DropdownMenuSeparator />
+          <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Your clubs
+          </p>
+          {otherClubs.map(renderClubRow)}
+        </>
+      )}
+
+      {/* Default Ignite theme — its own section so it's never confused with a club */}
+      <DropdownMenuSeparator />
+      <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Workspace
+      </p>
       <DropdownMenuItem
         onClick={() => setActiveClubTheme(null)}
         className={
@@ -254,14 +357,14 @@ function LogoClubThemeDropdown() {
         />
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default</p>
+            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default Ignite theme</p>
             {!activeClubTheme && (
               <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
                 Current
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
+          <p className="text-xs text-muted-foreground">View all clubs together</p>
         </div>
         {!activeClubTheme && (
           <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
@@ -269,88 +372,10 @@ function LogoClubThemeDropdown() {
           </div>
         )}
       </DropdownMenuItem>
-
-      {mergedClubs.length > 0 && <DropdownMenuSeparator />}
-
-      {mergedClubs.map((club) => {
-        const theme = club.theme;
-        const selected = activeClubTheme === club.clubId;
-        const isFree = !theme;
-        return (
-          <DropdownMenuItem
-            key={club.clubId}
-            onClick={() => setActiveClubTheme(club.clubId)}
-            className={
-              "flex items-center gap-3 py-2 my-0.5 rounded-md " +
-              (selected
-                ? "bg-primary/15 ring-1 ring-primary/40 focus:bg-primary/20"
-                : "")
-            }
-          >
-            <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
-              <AvatarImage src={club.logoUrl || undefined} />
-              <AvatarFallback
-                className="text-xs"
-                style={{
-                  backgroundColor:
-                    theme?.primary
-                      ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
-                      : undefined,
-                  color:
-                    theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
-                }}
-              >
-                {club.clubName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className={"text-sm truncate " + (selected ? "font-semibold text-foreground" : "font-medium")}>
-                  {club.clubName}
-                </p>
-                {selected && (
-                  <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
-                    Current
-                  </span>
-                )}
-              </div>
-              {isFree ? (
-                <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
-                  <Lock className="h-3 w-3" />
-                  <span className="text-[11px]">Default theme</span>
-                </div>
-              ) : theme?.primary ? (
-                <div className="flex gap-1 mt-0.5">
-                  <div
-                    className="h-3 w-3 rounded-full border border-border"
-                    style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }}
-                  />
-                  {theme.secondary && (
-                    <div
-                      className="h-3 w-3 rounded-full border border-border"
-                      style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }}
-                    />
-                  )}
-                  {theme.accent && (
-                    <div
-                      className="h-3 w-3 rounded-full border border-border"
-                      style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }}
-                    />
-                  )}
-                </div>
-              ) : null}
-            </div>
-            {selected && (
-              <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                <Check className="h-3 w-3" strokeWidth={3} />
-              </div>
-            )}
-          </DropdownMenuItem>
-        );
-      })}
     </DropdownMenuContent>
   );
 }
+
 
 export function AppHeader() {
   const navigate = useNavigate();
