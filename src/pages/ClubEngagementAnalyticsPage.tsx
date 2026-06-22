@@ -857,7 +857,7 @@ export default function ClubEngagementAnalyticsPage({
                       const { responded, expected } = props?.payload || {};
                       return [`${value}% (${responded}/${expected})`, "Completion"];
                     }}
-                    labelFormatter={(d) => format(parseISO(d as string), "EEE, MMM d")}
+                    labelFormatter={(d) => `Week of ${format(parseISO(d as string), "MMM d, yyyy")}`}
                   />
                   <Line
                     type="monotone"
