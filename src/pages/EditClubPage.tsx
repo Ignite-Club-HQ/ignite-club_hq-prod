@@ -41,7 +41,11 @@ export default function EditClubPage() {
   const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
   const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
+  const [eventsSponsorStripEnabled, setEventsSponsorStripEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const EVENTS_STRIP_PILOT_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10"; // Riverside FC
+  const showEventsStripToggle = id === EVENTS_STRIP_PILOT_CLUB_ID;
 
   const { data: club, isLoading } = useQuery({
     queryKey: ["club", id],
