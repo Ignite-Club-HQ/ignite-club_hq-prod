@@ -253,17 +253,21 @@ function LogoClubThemeDropdown() {
         }
       >
         <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
-          <AvatarImage src={club.logoUrl || undefined} />
+          {!isFree && <AvatarImage src={club.logoUrl || undefined} />}
           <AvatarFallback
             className="text-xs"
             style={{
-              backgroundColor: theme?.primary
+              backgroundColor: !isFree && theme?.primary
                 ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
                 : undefined,
-              color: theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
+              color: !isFree && theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
             }}
           >
-            {club.clubName.charAt(0)}
+            {isFree ? (
+              <img src={igniteIcon} alt="Ignite" className="h-full w-full object-contain" />
+            ) : (
+              club.clubName.charAt(0)
+            )}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
