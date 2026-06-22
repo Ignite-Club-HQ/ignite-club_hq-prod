@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatTimeShort } from "@/lib/formatTimeShort";
+import { fetchProfilesWithCache } from "@/lib/profileCache";
 
 interface ClubAdminInboxListProps {
   /** Optional: limit to a single active club. */
@@ -63,9 +64,9 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
   const convIds = convs.map((c) => c.id);
 
   const sb = supabase as any;
-  const [clubsRes, profilesRes, msgsRes] = await Promise.all([
+  const [clubsRes, profilesMap, msgsRes] = await Promise.all([
     sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
-    sb.from("profiles").select("id, display_name, avatar_url").in("id", memberIds),
+    fetchProfilesWithCache(memberIds),
     sb
       .from("club_admin_messages")
       .select("conversation_id, author_id, text, image_url, created_at")
@@ -75,9 +76,6 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
   ]);
 
   const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
-  const profileMap = new Map(
-    (profilesRes.data || []).map((p: any) => [p.id, p]),
-  );
   const latestByConv = new Map<string, any>();
   for (const m of msgsRes.data || []) {
     if (!latestByConv.has(m.conversation_id)) {
@@ -90,7 +88,7 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
     // Hide empty conversations — only show threads where a member has actually messaged
     if (!last) return [];
     const club = clubMap.get(c.club_id) as any;
-    const profile = profileMap.get(c.member_user_id) as any;
+    const profile = profilesMap.get(c.member_user_id) as any;
     return [{
       id: c.id,
       club_id: c.club_id,
@@ -130,6 +128,7 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
     enabled: !!user && !providedConversations,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    refetchOnMount: "always",
     queryFn: () => fetchClubAdminConversations(user!.id, clubFilter),
   });
   const conversations = providedConversations ?? fetchedConversations;

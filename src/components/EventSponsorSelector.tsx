@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -57,13 +57,15 @@ export function EventSponsorSelector({ eventId, clubId }: EventSponsorSelectorPr
   });
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
-  // Initialize selected IDs when data loads
-  useState(() => {
-    if (eventSponsorIds) {
+  // Initialize selected IDs once when data loads
+  useEffect(() => {
+    if (!initialized && eventSponsorIds) {
       setSelectedIds(eventSponsorIds);
+      setInitialized(true);
     }
-  });
+  }, [eventSponsorIds, initialized]);
 
   const saveMutation = useMutation({
     mutationFn: async (sponsorIds: string[]) => {
@@ -118,11 +120,6 @@ export function EventSponsorSelector({ eventId, clubId }: EventSponsorSelectorPr
   };
 
   const isLoading = sponsorsLoading || eventSponsorsLoading;
-
-  // Set initial values when data loads
-  if (!isLoading && eventSponsorIds && selectedIds.length === 0 && eventSponsorIds.length > 0) {
-    setSelectedIds(eventSponsorIds);
-  }
 
   if (isLoading) {
     return (

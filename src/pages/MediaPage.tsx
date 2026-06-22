@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, Fragment } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,8 @@ import { AlbumCarousel } from "@/components/AlbumCarousel";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
+import { MediaSponsorTile } from "@/components/media/MediaSponsorTile";
+import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorStrip";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
@@ -1301,6 +1303,13 @@ export default function MediaPage() {
         </div>
       </div>
 
+      {/* Header sponsor / ad strip — Pro: Riverside only (admin toggle, defaults off). Free: always on. */}
+      <div className="max-w-lg mx-auto">
+        <MediaHeaderSponsorStrip
+          clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
+        />
+      </div>
+
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
         <DrawerContent>
@@ -1442,8 +1451,8 @@ export default function MediaPage() {
             const avatarUrl = photo.profiles?.avatar_url || cachedProfile?.avatar_url || null;
 
             return (
+              <Fragment key={photo.id}>
               <Card 
-                key={photo.id}
                 ref={(el) => {
                   if (el) {
                     photoRefs.current.set(photo.id, el);
@@ -1609,6 +1618,10 @@ export default function MediaPage() {
                   </p>
                 </div>
               </Card>
+              {(index + 1) % 8 === 0 && (
+                <MediaSponsorTile seed={Math.floor(index / 8)} />
+              )}
+              </Fragment>
             );
           })}
           

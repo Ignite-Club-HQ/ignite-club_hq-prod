@@ -176,7 +176,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // user on the latest message) stay clear of the fixed composer instead of
   // disappearing behind it. 56px keeps metadata + a single-row reaction pill
   // fully visible while still feeling tight (à la Messenger).
-  const COMPOSER_GAP = 56;
+  // Bumped from 56 → 80: with multi-line typing the composer grows ~24px per
+  // wrapped line and the late-arriving reactions/timestamp/read-frontier rows
+  // (~46px combined) were eating the full 56px buffer, leaving the last
+  // message clipped behind the composer's top edge while the user typed.
+  const COMPOSER_GAP = 80;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -425,6 +429,34 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     return () => timers.forEach((timer) => window.clearTimeout(timer));
 
   }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
+
+  // Belt-and-braces: re-pin to bottom on ANY composer height change (even
+  // sub-4px growths) while the user is near the bottom. The main effect above
+  // only fires on >4px growths and can miss the case where the composer grows
+  // in small steps during typing (mid-line wrap reflows, predictive-text bar
+  // toggles), letting the latest message drift behind the input.
+  const lastPinComposerHeightRef = useRef(composerHeight);
+  useEffect(() => {
+    if (!virtualReady) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    const prev = lastPinComposerHeightRef.current;
+    lastPinComposerHeightRef.current = composerHeight;
+    if (composerHeight <= prev) return; // only react to growth
+    if (!handle.isNearBottom(240)) return;
+    // Two rAFs: let Virtuoso apply the new bottomPadding (Footer height) before
+    // we ask it to re-align LAST to "end", otherwise we scroll against stale
+    // layout and the last bubble still lands under the composer.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (isChatJumpActive()) return;
+        handle.scrollToBottom("auto", { force: true });
+        markChatScrollWrite();
+      });
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [composerHeight, virtualReady, virtualHandleRef]);
+
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to

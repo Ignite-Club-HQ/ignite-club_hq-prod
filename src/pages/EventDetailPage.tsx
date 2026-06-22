@@ -69,7 +69,7 @@ import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
-import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
@@ -2913,8 +2913,11 @@ export default function EventDetailPage() {
         </>
       )}
 
-      {/* Event Sponsors (Pro only) */}
-      <EventSponsorsSection eventId={id!} clubId={event.club_id} />
+      {/* Slim sponsor strip (matches Media header width/style; per-club opt-in) */}
+      <div className="max-w-lg mx-auto w-full">
+        <EventsHeaderSponsorStrip activeClubFilter={event.club_id} />
+      </div>
+
 
       {/* Event Views are now surfaced inside the unified Attendance section below */}
 

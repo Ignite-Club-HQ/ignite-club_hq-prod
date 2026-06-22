@@ -30,6 +30,7 @@ import {
   differenceInDays,
   parseISO,
   isPast,
+  startOfWeek,
 } from "date-fns";
 import {
   ResponsiveContainer,
@@ -115,6 +116,7 @@ export default function ClubEngagementAnalyticsPage({
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
+  const [adoptionGranularity, setAdoptionGranularity] = useState<"daily" | "weekly" | "monthly">("daily");
 
   const range: RangeBounds = useMemo(() => {
     if (customStart && customEnd) {
@@ -219,37 +221,87 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // Always-on 30-day window so the "Active (7d)" and "Active (30d)" tiles
+  // remain stable regardless of the user's selected time-range filter.
+  const { data: fixed30Rows = [] } = useQuery({
+    queryKey: ["club-engagement-activity-fixed30-rpc", clubId, mode],
+    queryFn: async () => {
+      const end = new Date();
+      const start = subDays(end, 30);
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId as any,
+        _start: start.toISOString(),
+        _end: end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; user_id: string }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
   const activeMembers = useMemo(() => {
     const now = new Date();
     const d7Cutoff = format(subDays(now, 7), "yyyy-MM-dd");
     const d30Cutoff = format(subDays(now, 30), "yyyy-MM-dd");
     const s7 = new Set<string>();
     const s30 = new Set<string>();
-    const sRange = new Set<string>();
-    for (const r of activityRows) {
+    // d7/d30 use the fixed 30-day window so they don't shrink/grow with the filter.
+    for (const r of fixed30Rows) {
       if (!r.user_id) continue;
       if (r.day >= d7Cutoff) s7.add(r.user_id);
       if (r.day >= d30Cutoff) s30.add(r.user_id);
-      sRange.add(r.user_id);
+    }
+    // "Active in range" stays tied to the selected filter.
+    const sRange = new Set<string>();
+    for (const r of activityRows) {
+      if (r.user_id) sRange.add(r.user_id);
     }
     const sPrev = new Set<string>();
     for (const r of prevActivityRows) if (r.user_id) sPrev.add(r.user_id);
     return { d7: s7.size, d30: s30.size, range: sRange.size, prev: sPrev.size };
-  }, [activityRows, prevActivityRows]);
+  }, [fixed30Rows, activityRows, prevActivityRows]);
 
-  // DAU timeline (per day in range)
-  const dauSeries = useMemo(() => {
+  // Adoption timeline: DAU / WAU / MAU (per day in range)
+  const adoptionSeries = useMemo(() => {
     const days = differenceInDays(range.end, range.start) + 1;
-    const byDay = new Map<string, Set<string>>();
+    const dayKeys: string[] = [];
     for (let i = 0; i < days; i++) {
-      byDay.set(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"), new Set());
+      dayKeys.push(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"));
     }
+
+    const dayUsers = new Map<string, Set<string>>();
+    for (const key of dayKeys) dayUsers.set(key, new Set());
     for (const r of activityRows) {
       if (!r.user_id || !r.day) continue;
-      byDay.get(r.day)?.add(r.user_id);
+      dayUsers.get(r.day)?.add(r.user_id);
     }
-    return Array.from(byDay.entries()).map(([day, set]) => ({ day, dau: set.size }));
-  }, [activityRows, range]);
+
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    const result: { day: string; value: number }[] = [];
+
+    for (let i = 0; i < dayKeys.length; i++) {
+      const day = dayKeys[i];
+      if (day >= todayKey) continue;
+
+      let users: Set<string>;
+      if (adoptionGranularity === "daily") {
+        users = dayUsers.get(day) || new Set();
+      } else {
+        const windowSize = adoptionGranularity === "weekly" ? 7 : 30;
+        users = new Set<string>();
+        for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
+          const set = dayUsers.get(dayKeys[j]);
+          if (set) {
+            for (const uid of set) users.add(uid);
+          }
+        }
+      }
+      result.push({ day, value: users.size });
+    }
+
+    const firstNonZero = result.findIndex((d) => d.value > 0);
+    return firstNonZero === -1 ? [] : result.slice(firstNonZero);
+  }, [activityRows, range, adoptionGranularity]);
 
   // ---------- New members ----------
   // Defined as: pending_invites that were accepted within the date range
@@ -356,6 +408,34 @@ export default function ClubEngagementAnalyticsPage({
     () => msgVolume.map((r) => ({ day: r.day, Club: Number(r.club_count || 0), "Team / group": Number(r.team_count || 0) })),
     [msgVolume]
   );
+
+  // ---------- RSVP completion % per day (RPC) ----------
+  const { data: rsvpSeries = [] } = useQuery({
+    queryKey: ["club-engagement-rsvp-series", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_rsvp_completion_series", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { week: string; completion_pct: number | null; responded: number; expected: number }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const rsvpSeriesChart = useMemo(() => {
+    const currentWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    return rsvpSeries
+      .filter((r) => r.week < currentWeekStart)
+      .map((r) => ({
+        week: r.week,
+        pct: r.completion_pct == null ? null : Number(r.completion_pct),
+        responded: Number(r.responded || 0),
+        expected: Number(r.expected || 0),
+      }));
+  }, [rsvpSeries]);
+  const rsvpSeriesHasData = rsvpSeriesChart.some((d) => d.pct != null);
 
   const clubMsgsCount = totals?.clubMsgs ?? 0;
   const teamMsgsCount = totals?.teamMsgs ?? 0;
@@ -487,6 +567,47 @@ export default function ClubEngagementAnalyticsPage({
       .slice(0, 5);
     return { impressions, clicks, ctr, top };
   }, [sponsorAnalytics, sponsorRows]);
+
+  // ---------- Benchmark metrics (Active%, DAU/WAU/MAU, Message Participation, Read Rates) ----------
+  const { data: benchmarks, error: benchmarksError } = useQuery({
+    queryKey: ["club-engagement-benchmarks", clubId, mode, range.start.toISOString(), range.end.toISOString(), prevRange.start.toISOString(), prevRange.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_benchmarks", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return data as Record<string, number>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  // ---------- Sponsor performance (unique reach + CTR per sponsor) ----------
+  const { data: sponsorPerf = [] } = useQuery({
+    queryKey: ["club-engagement-sponsor-perf", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_sponsor_performance", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+        _prev_start: prevRange.start.toISOString(),
+        _prev_end: prevRange.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        sponsor_id: string; sponsor_name: string; unique_reach: number;
+        views: number; clicks: number; ctr: number;
+        prev_clicks: number; prev_views: number;
+        raw_views: number; raw_clicks: number;
+        tracking_started: string | null;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
 
 
   // ---------- Engagement score (composite 0-100) ----------
@@ -655,23 +776,69 @@ export default function ClubEngagementAnalyticsPage({
         <ScoreCard score={engagementScore} />
       </div>
 
+      {/* Benchmark: Active Member % */}
+      <SectionHeader icon={Users} title="Active Member Rate" description="Members with any meaningful action in this period" />
+      {benchmarksError ? <AnalyticsErrorCard /> : <ActiveMemberCard b={benchmarks} />}
+
+      {/* Benchmark: DAU / WAU / MAU */}
+      <SectionHeader icon={Activity} title="Engagement (DAU / WAU / MAU)" description="Industry-standard active-user metrics" />
+      {benchmarksError ? <AnalyticsErrorCard /> : <EngagementBenchmarkCards b={benchmarks} />}
+
+      {/* Benchmark: Message Participation */}
+      <SectionHeader icon={MessageSquare} title="Message Participation" description="How members engage with chat" />
+      {benchmarksError ? <AnalyticsErrorCard /> : <MessageParticipationCard b={benchmarks} />}
+
+      {/* Benchmark: Read Rates */}
+      <SectionHeader icon={Eye} title="Read Rates" description="Communication effectiveness — viewers within 7 days" />
+      {benchmarksError ? <AnalyticsErrorCard /> : <ReadRatesGrid b={benchmarks} />}
+
       {/* Section 2: Member Adoption */}
-      <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
+      <SectionHeader
+        icon={Users}
+        title="Member Adoption"
+        description={
+          adoptionGranularity === "daily"
+            ? "Daily active users over time"
+            : adoptionGranularity === "weekly"
+              ? "Weekly active users over time"
+              : "Monthly active users over time"
+        }
+      />
       <Card>
         <CardContent className="pt-4">
+          <Tabs value={adoptionGranularity} onValueChange={(v) => setAdoptionGranularity(v as typeof adoptionGranularity)} className="mb-3">
+            <TabsList className="grid grid-cols-3 w-full max-w-xs">
+              <TabsTrigger value="daily">Daily</TabsTrigger>
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+            </TabsList>
+          </Tabs>
           {actLoading ? (
             <Skeleton className="h-56 w-full" />
-          ) : dauSeries.every((d) => d.dau === 0) ? (
+          ) : adoptionSeries.every((d) => d.value === 0) ? (
             <EmptyState label="No member activity logged in this period yet." />
           ) : (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dauSeries}>
+                <LineChart data={adoptionSeries}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
                   <YAxis fontSize={11} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="dau" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Daily active" />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    name={
+                      adoptionGranularity === "daily"
+                        ? "Daily active"
+                        : adoptionGranularity === "weekly"
+                          ? "Weekly active"
+                          : "Monthly active"
+                    }
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -730,6 +897,44 @@ export default function ClubEngagementAnalyticsPage({
         <Metric icon={Users} label="Going rate" value={`${rsvpStats.attendanceRate}%`} />
         <Metric icon={RefreshCcw} label="Pending RSVPs" value={rsvpStats.pending} />
       </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">RSVP completion % over time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!rsvpSeriesHasData ? (
+            <EmptyState label="No events with eligible rosters in this period." />
+          ) : (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={rsvpSeriesChart}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="week" tickFormatter={(d) => `Wk ${format(parseISO(d), "M/d")}`} fontSize={11} />
+                  <YAxis fontSize={11} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value: any, _name, props: any) => {
+                      if (value == null) return ["—", "Completion"];
+                      const { responded, expected } = props?.payload || {};
+                      return [`${value}% (${responded}/${expected})`, "Completion"];
+                    }}
+                    labelFormatter={(d) => `Week of ${format(parseISO(d as string), "MMM d, yyyy")}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="pct"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                    name="Completion"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Section 5: Media Engagement */}
       <SectionHeader icon={ImageIcon} title="Media" description="Photo uploads & viewer engagement" />
@@ -740,31 +945,9 @@ export default function ClubEngagementAnalyticsPage({
         <Metric icon={MessageCircle} label="Comments" value={photoEngagement?.comments ?? 0} />
       </div>
 
-      {/* Section 6: Sponsors */}
-      <SectionHeader icon={Trophy} title="Sponsors" description="Impressions and click-through performance" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <Metric icon={Eye} label="Impressions" value={sponsorStats.impressions} />
-        <Metric icon={MousePointerClick} label="Clicks" value={sponsorStats.clicks} />
-        <Metric icon={TrendingUp} label="CTR" value={`${sponsorStats.ctr}%`} />
-        <Metric icon={Trophy} label="Active sponsors" value={sponsorRows.length} />
-      </div>
-      {sponsorStats.top.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top sponsors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {sponsorStats.top.map((s) => (
-              <div key={s.sponsorId} className="flex items-center justify-between text-sm">
-                <span className="truncate">{s.name}</span>
-                <span className="text-muted-foreground">
-                  {s.clicks} clicks · {s.ctr}% CTR
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* Section 6: Sponsor Performance */}
+      <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
+      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} />
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
@@ -883,6 +1066,17 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
+function AnalyticsErrorCard() {
+  return (
+    <Card className="border-destructive/50">
+      <CardContent className="p-3 flex items-start gap-2 text-sm text-destructive">
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+        <span>Analytics could not load. Refresh this page to try again.</span>
+      </CardContent>
+    </Card>
+  );
+}
+
 type ActivityUserDay = { day: string; user_id: string | null };
 
 function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: ActivityUserDay[]; prevActivityRows: ActivityUserDay[] }) {
@@ -956,5 +1150,320 @@ function CompetitionPanel({ competitions, range }: { competitions: { id: string;
       <Metric icon={Trophy} label="Results entered" value={stats?.resultsEntered ?? 0} />
       <Metric icon={Megaphone} label="Comp broadcasts" value={stats?.broadcasts ?? 0} />
     </div>
+  );
+}
+
+// ===================== Benchmark sub-components =====================
+
+type Benchmarks = Record<string, number> | undefined;
+
+function pct(n: number, d: number): number {
+  if (!d) return 0;
+  return Math.max(0, Math.min(100, Math.round((n / d) * 100)));
+}
+
+function TrendBadge({ current, previous, suffix = "%" }: { current: number; previous: number; suffix?: string }) {
+  const delta = pctChange(current, previous);
+  if (delta === null) return <span className="text-[10px] text-muted-foreground">no baseline</span>;
+  const positive = delta > 0;
+  const negative = delta < 0;
+  return (
+    <span className={cn(
+      "text-[11px] flex items-center gap-0.5",
+      positive ? "text-emerald-500" : negative ? "text-destructive" : "text-muted-foreground"
+    )}>
+      {positive ? <TrendingUp className="h-3 w-3" /> : negative ? <TrendingDown className="h-3 w-3" /> : null}
+      {positive ? "+" : ""}{delta}{suffix} vs prev
+    </span>
+  );
+}
+
+function InfoTip({ children }: { children: React.ReactNode }) {
+  return (
+    <span title={typeof children === "string" ? children : undefined} className="text-[10px] text-muted-foreground cursor-help">
+      ⓘ
+    </span>
+  );
+}
+
+function ActiveMemberCard({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  const total = Number(b.total_members || 0);
+  const active = Number(b.active_members || 0);
+  const inactive = Number(b.inactive_members || 0);
+  const rate = pct(active, total);
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-4xl font-bold text-primary">{rate}%</div>
+            <div className="text-xs text-muted-foreground">
+              Active Member Rate <InfoTip>Members with any meaningful action (open, view, message, react, RSVP, upload)</InfoTip>
+            </div>
+          </div>
+          <div className="text-right text-xs space-y-0.5">
+            <div><span className="font-semibold text-foreground">{total.toLocaleString()}</span> total</div>
+            <div className="text-emerald-500">{active.toLocaleString()} active</div>
+            <div className="text-muted-foreground">{inactive.toLocaleString()} inactive</div>
+          </div>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
+          <div className="h-full bg-primary" style={{ width: `${rate}%` }} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EngagementBenchmarkCards({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  const dau = Number(b.dau || 0);
+  const wau = Number(b.wau || 0);
+  const mau = Number(b.mau || 0);
+  const stickiness = pct(wau, mau);
+  const prevStickiness = pct(Number(b.prev_wau || 0), Number(b.prev_mau || 0));
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <Metric icon={Activity} label="DAU" value={dau} hint="last 24h" />
+      <Metric icon={Users} label="WAU" value={wau} hint="last 7d" />
+      <Metric icon={Users} label="MAU" value={mau} hint="last 30d" />
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span>Weekly Engagement</span>
+            <InfoTip>Percentage of monthly users who return weekly (WAU/MAU)</InfoTip>
+          </div>
+          <div className="mt-1 text-xl font-bold text-primary">{stickiness}%</div>
+          <TrendBadge current={stickiness} previous={prevStickiness} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MessageParticipationCard({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-32 w-full" />;
+  const total = Number(b.total_members || 0);
+  const posted = Number(b.posters || 0);
+  const reacted = Number(b.reactors_only || 0);
+  const readOnly = Number(b.readers_only || 0);
+  const inactive = Number(b.inactive_msg || 0);
+  const participation = pct(posted, total);
+  const segments = [
+    { key: "Posted a message", val: posted, color: "bg-primary" },
+    { key: "Reacted only", val: reacted, color: "bg-emerald-500" },
+    { key: "Read only", val: readOnly, color: "bg-amber-500" },
+    { key: "Inactive", val: inactive, color: "bg-muted-foreground/30" },
+  ];
+  const sum = Math.max(total, segments.reduce((a, s) => a + s.val, 0), 1);
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-3xl font-bold text-primary">{participation}%</div>
+            <div className="text-xs text-muted-foreground">
+              Message Participation Rate{" "}
+              <InfoTip>
+                Share of club members who sent at least one chat message in this period.
+                The numbers below count <strong>members</strong> (not messages) out of {total.toLocaleString()} total.
+              </InfoTip>
+            </div>
+          </div>
+        </div>
+        <div className="h-3 rounded-full bg-muted overflow-hidden flex">
+          {segments.map((s) => (
+            <div key={s.key} className={cn("h-full", s.color)} style={{ width: `${(s.val / sum) * 100}%` }} />
+          ))}
+        </div>
+        <div className="text-[11px] text-muted-foreground -mt-1">
+          Member breakdown (of {total.toLocaleString()} total members)
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          {segments.map((s) => (
+            <div key={s.key} className="flex items-center gap-1.5">
+              <span className={cn("h-2 w-2 rounded-sm", s.color)} />
+              <span className="text-muted-foreground">{s.key}:</span>
+              <span className="font-semibold text-foreground">{s.val.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReadRateTile({ title, viewed, possible, prevViewed, prevPossible, emptyLabel }: {
+  title: string; viewed: number; possible: number;
+  prevViewed: number; prevPossible: number; emptyLabel?: string;
+}) {
+  if (possible === 0 && emptyLabel) {
+    return (
+      <Card>
+        <CardContent className="p-3">
+          <div className="text-xs text-muted-foreground">{title}</div>
+          <p className="text-xs text-muted-foreground mt-2">{emptyLabel}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const rate = pct(viewed, possible);
+  const prevRate = pct(prevViewed, prevPossible);
+  const notViewed = Math.max(possible - viewed, 0);
+  return (
+    <Card>
+      <CardContent className="p-3 space-y-1">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          {title} <InfoTip>Percentage of members who viewed this communication within 7 days</InfoTip>
+        </div>
+        <div className="text-2xl font-bold text-primary">{rate}%</div>
+        <div className="text-[11px] text-muted-foreground">
+          {viewed.toLocaleString()} viewed · {notViewed.toLocaleString()} not viewed
+        </div>
+        <TrendBadge current={rate} previous={prevRate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReadRatesGrid({ b }: { b: Benchmarks }) {
+  if (!b) return <Skeleton className="h-24 w-full" />;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <ReadRateTile
+        title="Club Messages"
+        viewed={Number(b.club_msg_reads || 0)}
+        possible={Number(b.club_msg_possible || 0)}
+        prevViewed={Number(b.prev_club_msg_reads || 0)}
+        prevPossible={Number(b.prev_club_msg_possible || 0)}
+        emptyLabel="No club messages in this period."
+      />
+      <ReadRateTile
+        title="Team Messages"
+        viewed={Number(b.team_msg_reads || 0)}
+        possible={Number(b.team_msg_possible || 0)}
+        prevViewed={Number(b.prev_team_msg_reads || 0)}
+        prevPossible={Number(b.prev_team_msg_possible || 0)}
+        emptyLabel="No team messages in this period."
+      />
+    </div>
+  );
+}
+
+type SponsorPerfRow = {
+  sponsor_id: string; sponsor_name: string; unique_reach: number;
+  views: number; clicks: number; ctr: number;
+  prev_clicks: number; prev_views: number;
+  raw_views: number; raw_clicks: number;
+  tracking_started: string | null;
+};
+
+function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow[]; totalSponsors: number }) {
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <EmptyState label={totalSponsors === 0 ? "No active sponsors yet." : "No sponsor activity in this period."} />
+        </CardContent>
+      </Card>
+    );
+  }
+  const totalReach = rows.reduce((a, r) => a + r.unique_reach, 0);
+  const totalClicks = rows.reduce((a, r) => a + r.clicks, 0);
+  const totalViews = rows.reduce((a, r) => a + r.views, 0);
+  const totalRawViews = rows.reduce((a, r) => a + (r.raw_views || 0), 0);
+  const avgCtr = totalViews ? Math.round((totalClicks / totalViews) * 1000) / 10 : 0;
+  const highestCtr = [...rows].sort((a, b) => b.ctr - a.ctr)[0];
+  const mostViewed = [...rows].sort((a, b) => b.views - a.views)[0];
+  const mostReach = [...rows].sort((a, b) => b.unique_reach - a.unique_reach)[0];
+  const trackingStarted = rows.find((r) => r.tracking_started)?.tracking_started;
+  const trackingDate = trackingStarted ? new Date(trackingStarted) : null;
+  const hasLegacyGap = totalRawViews > totalViews;
+
+  return (
+    <div className="space-y-3">
+      {trackingDate && (
+        <div className="text-[11px] text-muted-foreground border border-border/60 bg-muted/30 rounded-md px-2.5 py-1.5 leading-snug">
+          Member-level sponsor tracking started <span className="text-foreground font-medium">{trackingDate.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>.
+          Reach, Views and CTR below count only identified members so the numbers are comparable.
+          {hasLegacyGap && <> Earlier anonymous impressions ({totalRawViews.toLocaleString()}) are excluded.</>}
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={Users} label="Members Reached" value={totalReach} hint="unique identified members" />
+        <Metric icon={TrendingUp} label="Avg Sponsor CTR" value={`${avgCtr}%`} />
+        <Metric icon={MousePointerClick} label="Tracked Clicks" value={totalClicks} />
+        <Metric icon={Trophy} label="Active Sponsors" value={totalSponsors} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <LeaderCard label="Highest CTR" sponsorName={highestCtr?.sponsor_name} value={`${highestCtr?.ctr ?? 0}%`} />
+        <LeaderCard label="Most Viewed" sponsorName={mostViewed?.sponsor_name} value={`${mostViewed?.views ?? 0} views`} />
+        <LeaderCard label="Largest Reach" sponsorName={mostReach?.sponsor_name} value={`${mostReach?.unique_reach ?? 0} members`} />
+      </div>
+
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Sponsor leaderboard</CardTitle>
+          <CardDescription className="text-xs">Engagement quality, not raw impressions</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {rows.map((r) => {
+            const delta = pctChange(r.clicks, r.prev_clicks);
+            return (
+              <div key={r.sponsor_id} className="border border-border rounded-md p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm truncate">{r.sponsor_name}</span>
+                  {delta !== null && (
+                    <span className={cn(
+                      "text-[10px] flex items-center gap-0.5 shrink-0",
+                      delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                      {delta > 0 ? "+" : ""}{delta}% clicks
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[11px]">
+                  <div>
+                    <div className="text-muted-foreground">Reach</div>
+                    <div className="font-semibold">{r.unique_reach.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Views</div>
+                    <div className="font-semibold">{r.views.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Clicks</div>
+                    <div className="font-semibold">{r.clicks.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">CTR</div>
+                    <div className="font-semibold text-primary">{r.ctr}%</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LeaderCard({ label, sponsorName, value }: { label: string; sponsorName?: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Trophy className="h-3.5 w-3.5 text-amber-500" /> {label}
+        </div>
+        <div className="mt-1 text-sm font-semibold truncate">{sponsorName || "—"}</div>
+        <div className="text-xs text-primary">{value}</div>
+      </CardContent>
+    </Card>
   );
 }

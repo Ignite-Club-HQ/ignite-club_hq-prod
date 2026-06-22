@@ -209,36 +209,57 @@ export type Database = {
       }
       app_ads: {
         Row: {
+          ad_type: string
+          bg_color: string | null
           created_at: string
+          cta_label: string | null
           description: string | null
           display_order: number
+          headline: string | null
           id: string
-          image_url: string
+          image_url: string | null
           is_active: boolean
           link_url: string | null
+          logo_url: string | null
           name: string
+          subtext: string | null
+          text_color: string | null
           updated_at: string
         }
         Insert: {
+          ad_type?: string
+          bg_color?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number
+          headline?: string | null
           id?: string
-          image_url: string
+          image_url?: string | null
           is_active?: boolean
           link_url?: string | null
+          logo_url?: string | null
           name: string
+          subtext?: string | null
+          text_color?: string | null
           updated_at?: string
         }
         Update: {
+          ad_type?: string
+          bg_color?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number
+          headline?: string | null
           id?: string
-          image_url?: string
+          image_url?: string | null
           is_active?: boolean
           link_url?: string | null
+          logo_url?: string | null
           name?: string
+          subtext?: string | null
+          text_color?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2014,6 +2035,7 @@ export type Database = {
           allow_guests_default: boolean
           auto_reward_threshold: number | null
           bot_user_id: string | null
+          chat_thread_ads_enabled: boolean
           city: string | null
           class_mode_enabled: boolean
           contact_email: string | null
@@ -2023,6 +2045,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
+          events_sponsor_strip_enabled: boolean
           id: string
           is_pro: boolean
           kind: string
@@ -2032,6 +2055,8 @@ export type Database = {
           logo_url: string | null
           longitude: number | null
           max_guests_per_member_default: number
+          media_header_sponsors_enabled: boolean
+          media_sponsors_enabled: boolean
           member_count: number | null
           member_payments_enabled: boolean
           name: string
@@ -2087,6 +2112,7 @@ export type Database = {
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null
+          chat_thread_ads_enabled?: boolean
           city?: string | null
           class_mode_enabled?: boolean
           contact_email?: string | null
@@ -2096,6 +2122,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          events_sponsor_strip_enabled?: boolean
           id?: string
           is_pro?: boolean
           kind?: string
@@ -2105,6 +2132,8 @@ export type Database = {
           logo_url?: string | null
           longitude?: number | null
           max_guests_per_member_default?: number
+          media_header_sponsors_enabled?: boolean
+          media_sponsors_enabled?: boolean
           member_count?: number | null
           member_payments_enabled?: boolean
           name: string
@@ -2160,6 +2189,7 @@ export type Database = {
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null
+          chat_thread_ads_enabled?: boolean
           city?: string | null
           class_mode_enabled?: boolean
           contact_email?: string | null
@@ -2169,6 +2199,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          events_sponsor_strip_enabled?: boolean
           id?: string
           is_pro?: boolean
           kind?: string
@@ -2178,6 +2209,8 @@ export type Database = {
           logo_url?: string | null
           longitude?: number | null
           max_guests_per_member_default?: number
+          media_header_sponsors_enabled?: boolean
+          media_sponsors_enabled?: boolean
           member_count?: number | null
           member_payments_enabled?: boolean
           name?: string
@@ -8307,6 +8340,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_club_announcement: boolean
+          is_sponsor: boolean
           is_system_message: boolean
           reply_to_id: string | null
           team_id: string
@@ -8323,6 +8357,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_sponsor?: boolean
           is_system_message?: boolean
           reply_to_id?: string | null
           team_id: string
@@ -8339,6 +8374,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_sponsor?: boolean
           is_system_message?: boolean
           reply_to_id?: string | null
           team_id?: string
@@ -9818,12 +9854,53 @@ export type Database = {
           user_id: string
         }[]
       }
+      club_engagement_benchmarks: {
+        Args: {
+          _club_id: string
+          _end: string
+          _prev_end: string
+          _prev_start: string
+          _start: string
+        }
+        Returns: Json
+      }
       club_engagement_message_volume: {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {
           club_count: number
           day: string
           team_count: number
+        }[]
+      }
+      club_engagement_rsvp_completion_series: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: {
+          completion_pct: number
+          expected: number
+          responded: number
+          week: string
+        }[]
+      }
+      club_engagement_sponsor_performance: {
+        Args: {
+          _club_id: string
+          _end: string
+          _prev_end: string
+          _prev_start: string
+          _start: string
+        }
+        Returns: {
+          clicks: number
+          ctr: number
+          prev_clicks: number
+          prev_views: number
+          raw_clicks: number
+          raw_views: number
+          sponsor_id: string
+          sponsor_name: string
+          tracking_started: string
+          unique_reach: number
+          views: number
         }[]
       }
       club_engagement_totals: {

@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
@@ -1044,7 +1044,13 @@ export default function EventsPage() {
         ))}
       </div>
 
+      {/* Slim sponsor strip (matches Media header width/style; per-club opt-in) */}
+      <div className="max-w-lg mx-auto w-full">
+        <EventsHeaderSponsorStrip activeClubFilter={activeClubFilter} />
+      </div>
+
       {viewMode === "calendar" ? (
+
         <div className="space-y-2">
           <Card>
             <CardContent className="p-4">
@@ -1112,6 +1118,7 @@ export default function EventsPage() {
       ) : (
         <div className="space-y-3">
           <Tabs defaultValue="upcoming" className="w-full">
+
               <TabsList className="w-full">
                 <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
                 <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
@@ -1156,8 +1163,6 @@ export default function EventsPage() {
         </div>
       )}
 
-      {/* Sponsor/Ad Carousel */}
-      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
     </div>
   );
 }
