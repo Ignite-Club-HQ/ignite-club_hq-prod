@@ -176,7 +176,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // user on the latest message) stay clear of the fixed composer instead of
   // disappearing behind it. 56px keeps metadata + a single-row reaction pill
   // fully visible while still feeling tight (à la Messenger).
-  const COMPOSER_GAP = 56;
+  // Bumped from 56 → 80: with multi-line typing the composer grows ~24px per
+  // wrapped line and the late-arriving reactions/timestamp/read-frontier rows
+  // (~46px combined) were eating the full 56px buffer, leaving the last
+  // message clipped behind the composer's top edge while the user typed.
+  const COMPOSER_GAP = 80;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
