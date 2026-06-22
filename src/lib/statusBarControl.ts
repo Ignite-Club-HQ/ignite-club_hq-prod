@@ -88,6 +88,12 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
     await StatusBar.show().catch(() => {});
 
     if (platform === 'android') {
+      // Disable overlay FIRST. Some Android WebView/OEM builds (notably
+      // Samsung One UI) silently no-op the overlay toggle if it lands in
+      // the same frame as a fresh viewer that set overlay=true — leaving
+      // the system status bar painting over the app header until the
+      // process is killed. We call it twice, with the bg/style apply
+      // sandwiched between, so at least one call wins the race.
       await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
       await StatusBar.setBackgroundColor({
         color: theme === 'dark' ? DARK_BG : LIGHT_BG,
@@ -97,6 +103,12 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
     await StatusBar.setStyle({
       style: theme === 'dark' ? Style.Dark : Style.Light,
     });
+
+    if (platform === 'android') {
+      // Second overlay-off pass — wins the race when the first was a no-op
+      // (e.g. fired the same frame as a fullscreen viewer's overlay=true).
+      await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+    }
 
     lastAppliedTheme = theme;
   } catch (error) {
