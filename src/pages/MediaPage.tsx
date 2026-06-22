@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, Fragment } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,7 @@ import { AlbumCarousel } from "@/components/AlbumCarousel";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
+import { MediaSponsorTile } from "@/components/media/MediaSponsorTile";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
@@ -1442,8 +1443,8 @@ export default function MediaPage() {
             const avatarUrl = photo.profiles?.avatar_url || cachedProfile?.avatar_url || null;
 
             return (
+              <Fragment key={photo.id}>
               <Card 
-                key={photo.id}
                 ref={(el) => {
                   if (el) {
                     photoRefs.current.set(photo.id, el);
@@ -1609,6 +1610,10 @@ export default function MediaPage() {
                   </p>
                 </div>
               </Card>
+              {(index + 1) % 8 === 0 && (
+                <MediaSponsorTile seed={Math.floor(index / 8)} />
+              )}
+              </Fragment>
             );
           })}
           
