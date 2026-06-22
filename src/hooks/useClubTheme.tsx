@@ -749,9 +749,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // Check if user has any stored preference (including explicit "none")
     const hasStoredPreference = localStorage.getItem(getStorageKey(user.id)) !== null;
     
-    if (!hasStoredPreference && availableClubThemes.length > 0) {
-      // New member - default to first available club theme
-      const firstTheme = availableClubThemes[0];
+    // Auto-default only to Pro-themed clubs (free clubs paint the Ignite
+    // theme anyway, so there's no reason to auto-select them).
+    const firstProTheme = availableClubThemes.find(t => t.isProTheme && t.primary);
+    if (!hasStoredPreference && firstProTheme) {
+      const firstTheme = firstProTheme;
       setActiveClubThemeState(firstTheme.clubId);
       safeSetItem(getStorageKey(user.id), firstTheme.clubId);
       safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
