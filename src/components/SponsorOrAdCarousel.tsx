@@ -139,17 +139,17 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
   // Check if user has any ACTIVE sponsors (from sponsors table, not primary_sponsor_id)
   const { data: hasSponsors } = useQuery({
-    queryKey: ["user-has-active-sponsors", activeClubFilter],
+    queryKey: ["user-has-active-sponsors", effectiveClubFilter],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
-      if (activeClubFilter) {
+      if (effectiveClubFilter) {
         // Check if this specific club has active sponsors
         const { data } = await supabase
           .from("sponsors")
           .select("id")
-          .eq("club_id", activeClubFilter)
+          .eq("club_id", effectiveClubFilter)
           .eq("is_active", true)
           .limit(1);
         return !!data && data.length > 0;
