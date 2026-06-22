@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatTimeShort } from "@/lib/formatTimeShort";
+import { fetchProfilesWithCache } from "@/lib/profileCache";
 
 interface ClubAdminInboxListProps {
   /** Optional: limit to a single active club. */
