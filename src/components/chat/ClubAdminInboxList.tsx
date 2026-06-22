@@ -64,9 +64,9 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
   const convIds = convs.map((c) => c.id);
 
   const sb = supabase as any;
-  const [clubsRes, profilesRes, msgsRes] = await Promise.all([
+  const [clubsRes, profilesMap, msgsRes] = await Promise.all([
     sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
-    sb.from("profiles").select("id, display_name, avatar_url").in("id", memberIds),
+    fetchProfilesWithCache(memberIds),
     sb
       .from("club_admin_messages")
       .select("conversation_id, author_id, text, image_url, created_at")
