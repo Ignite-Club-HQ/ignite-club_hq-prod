@@ -160,7 +160,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
     queryFn: async () => {
       const { data, error } = await supabase
         .from("app_ads")
-        .select("id, name, image_url, link_url")
+        .select("id, name, image_url, link_url, ad_type, logo_url, headline")
         .eq("is_active", true)
         .order("display_order", { ascending: true });
       if (error) throw error;
