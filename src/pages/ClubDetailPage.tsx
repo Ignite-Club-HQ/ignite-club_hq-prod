@@ -1937,6 +1937,33 @@ export default function ClubDetailPage() {
                     />
                   </div>
                 )}
+                {/* Chat thread sponsor strip toggle — Riverside FC only, defaults to OFF */}
+                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show sponsor strip in chat threads</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Shows a slim, dismissible club sponsor bar at the top of every chat thread. Tier-weighted rotation. Off by default.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!(club as any)?.chat_thread_ads_enabled}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase
+                          .from("clubs")
+                          .update({ chat_thread_ads_enabled: checked } as any)
+                          .eq("id", id!);
+                        if (error) {
+                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                        await queryClient.invalidateQueries({ queryKey: ["club-chat-thread-ads-enabled", id] });
+                        toast({ title: checked ? "Chat sponsor strip enabled" : "Chat sponsor strip disabled" });
+                      }}
+                    />
+                  </div>
+                )}
                 <SponsorsManager 
                   clubId={id!} 
                   currentPrimarySponsorId={club?.primary_sponsor_id || null}
