@@ -1022,12 +1022,16 @@ export function useClubTheme() {
 export function hasClubThemeCached(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    // Check for any cached theme data - means user has club theme active
+    // Check for a cached Pro/custom theme only. Free club context can also be
+    // cached, but must not make pages render as club-themed.
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key?.startsWith(STORAGE_DATA_KEY_PREFIX)) {
         const data = localStorage.getItem(key);
-        if (data) return true;
+        if (data) {
+          const parsed = JSON.parse(data) as CachedThemeData;
+          if (parsed.isProTheme || (parsed.canUseCustomTheme && parsed.hasCustomTheme)) return true;
+        }
       }
     }
   } catch {
