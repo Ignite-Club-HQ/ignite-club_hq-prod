@@ -572,7 +572,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                     theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
                     theme_accent_h, theme_accent_s, theme_accent_l,
                     theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
-                    club_subscriptions(is_pro, is_pro_football, expires_at)
+                    club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, plan)
                   `)
                   .eq('id', data.active_club_theme_id)
                   .single();
@@ -580,7 +580,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                 if (clubData) {
                   const subs = (clubData as any).club_subscriptions;
                   const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
-                  const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
+                  const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
                   const hasPro = (clubData as any).is_pro === true || hasProFromSub === true;
                   const hasTheme = clubData.theme_primary_h !== null;
                   const themeEnabled = (clubData as any).theme_enabled !== false;
@@ -588,11 +588,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   const themeData: ClubTheme = {
                     clubId: clubData.id,
                     clubName: clubData.name,
+                    plan: sub?.plan ?? (hasPro ? "pro" : "free"),
                     logoUrl: clubData.logo_url,
                     showLogoInHeader: clubData.show_logo_in_header ?? false,
                     showNameInHeader: clubData.show_name_in_header ?? true,
                     logoOnlyMode: clubData.logo_only_mode ?? false,
                     sport: clubData.sport,
+                    canUseCustomTheme: hasPro,
+                    hasCustomTheme: hasTheme && themeEnabled,
                     isProTheme,
                     primary: clubData.theme_primary_h !== null ? { h: clubData.theme_primary_h, s: clubData.theme_primary_s!, l: clubData.theme_primary_l! } : null,
                     secondary: clubData.theme_secondary_h !== null ? { h: clubData.theme_secondary_h, s: clubData.theme_secondary_s!, l: clubData.theme_secondary_l! } : null,
@@ -703,7 +706,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
           theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
           theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
-          club_subscriptions(is_pro, is_pro_football, expires_at)
+          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, plan)
         `)
         .in("id", clubIds)
         .is("deleted_at", null)
@@ -714,7 +717,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const result: ClubTheme[] = clubs.map(club => {
         const subs = (club as any).club_subscriptions;
         const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
-        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
+        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
         const hasPro = (club as any).is_pro === true || hasProFromSub === true;
         const hasTheme = club.theme_primary_h !== null;
         const themeEnabled = (club as any).theme_enabled !== false;
@@ -723,11 +726,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         return {
           clubId: club.id,
           clubName: club.name,
+          plan: sub?.plan ?? (hasPro ? "pro" : "free"),
           logoUrl: club.logo_url,
           showLogoInHeader: club.show_logo_in_header ?? false,
           showNameInHeader: club.show_name_in_header ?? true,
           logoOnlyMode: club.logo_only_mode ?? false,
           sport: club.sport,
+          canUseCustomTheme: hasPro,
+          hasCustomTheme: hasTheme && themeEnabled,
           isProTheme,
           primary: club.theme_primary_h !== null ? { h: club.theme_primary_h!, s: club.theme_primary_s!, l: club.theme_primary_l! } : null,
           secondary: club.theme_secondary_h !== null ? { h: club.theme_secondary_h!, s: club.theme_secondary_s!, l: club.theme_secondary_l! } : null,
