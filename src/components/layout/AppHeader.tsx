@@ -167,106 +167,148 @@ function LogoClubThemeDropdown() {
     enabled: !!user?.id,
   });
 
-  const lockedClubs = allUserClubs.filter(c => !c.isSelectable && !c.hasPro);
+  // Build a single, deduplicated list of every club the user belongs to.
+  // Each club appears exactly once. Pro+themed clubs show swatches and are
+  // selectable for branding; free clubs are still selectable (for content
+  // filtering) but show a small lock + "Default theme" hint.
+  const themeByClubId = new Map(availableClubThemes.map((t) => [t.clubId, t]));
+  const themeByName = new Map(
+    availableClubThemes.map((t) => [t.clubName.toLowerCase().replace(/\s+/g, " ").trim(), t]),
+  );
+
+  type MergedClub = {
+    clubId: string;
+    clubName: string;
+    logoUrl: string | null;
+    hasPro: boolean;
+    theme: (typeof availableClubThemes)[number] | null;
+  };
+
+  const mergedMap = new Map<string, MergedClub>();
+  allUserClubs.forEach((club) => {
+    const normalized = club.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+    const theme = themeByClubId.get(club.clubId) ?? themeByName.get(normalized) ?? null;
+    const existing = mergedMap.get(normalized);
+    const next: MergedClub = {
+      clubId: theme?.clubId ?? club.clubId,
+      clubName: club.clubName,
+      logoUrl: club.logoUrl,
+      hasPro: club.hasPro,
+      theme,
+    };
+    if (!existing) {
+      mergedMap.set(normalized, next);
+    } else {
+      // Prefer the entry that has a theme / Pro
+      const score = (c: MergedClub) => (c.theme ? 2 : 0) + (c.hasPro ? 1 : 0);
+      if (score(next) > score(existing)) mergedMap.set(normalized, next);
+    }
+  });
+  // Also include any availableClubThemes that somehow weren't in allUserClubs
+  availableClubThemes.forEach((t) => {
+    const normalized = t.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+    if (!mergedMap.has(normalized)) {
+      mergedMap.set(normalized, {
+        clubId: t.clubId,
+        clubName: t.clubName,
+        logoUrl: t.logoUrl,
+        hasPro: true,
+        theme: t,
+      });
+    }
+  });
+
+  const mergedClubs = Array.from(mergedMap.values()).sort((a, b) => {
+    // Active first, then themed/Pro, then alphabetical
+    if (a.clubId === activeClubTheme) return -1;
+    if (b.clubId === activeClubTheme) return 1;
+    const aw = (a.theme ? 2 : 0) + (a.hasPro ? 1 : 0);
+    const bw = (b.theme ? 2 : 0) + (b.hasPro ? 1 : 0);
+    if (aw !== bw) return bw - aw;
+    return a.clubName.localeCompare(b.clubName);
+  });
 
   return (
-    <DropdownMenuContent align="start" className="w-56">
+    <DropdownMenuContent align="start" className="w-64">
       <div className="px-2 py-1.5">
-        <p className="text-sm font-medium">Club Themes</p>
-        <p className="text-xs text-muted-foreground">Apply your club's colors</p>
+        <p className="text-sm font-medium">Switch club</p>
+        <p className="text-xs text-muted-foreground">Choose which club to view</p>
       </div>
       <DropdownMenuSeparator />
-      
-      {/* Default theme option */}
-      <DropdownMenuItem 
+
+      {/* Default / all clubs */}
+      <DropdownMenuItem
         onClick={() => setActiveClubTheme(null)}
         className="flex items-center gap-3 py-2"
       >
-        <img 
-          src={defaultLogo} 
-          alt="Ignite" 
-          className="h-8 w-8 rounded-lg object-cover"
-        />
+        <img src={defaultLogo} alt="Ignite" className="h-8 w-8 rounded-lg object-cover" />
         <div className="flex-1">
           <p className="text-sm font-medium">Default</p>
           <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
         </div>
         {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
       </DropdownMenuItem>
-      
-      {availableClubThemes.length > 0 && <DropdownMenuSeparator />}
-      
-      {/* Pro club themes */}
-      {availableClubThemes.map((theme) => (
-        <DropdownMenuItem
-          key={theme.clubId}
-          onClick={() => setActiveClubTheme(theme.clubId)}
-          className="flex items-center gap-3 py-2"
-        >
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={theme.logoUrl || undefined} />
-            <AvatarFallback 
-              className="text-xs"
-              style={{
-                backgroundColor: theme.primary 
-                  ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
-                  : undefined,
-                color: theme.primary && theme.primary.l > 50 ? '#1a1a1a' : '#fafafa',
-              }}
-            >
-              {theme.clubName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{theme.clubName}</p>
-            {theme.primary && (
-              <div className="flex gap-1 mt-0.5">
-                <div 
-                  className="h-3 w-3 rounded-full border border-border"
-                  style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }}
-                />
-                {theme.secondary && (
-                  <div 
-                    className="h-3 w-3 rounded-full border border-border"
-                    style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }}
-                  />
-                )}
-                {theme.accent && (
-                  <div 
-                    className="h-3 w-3 rounded-full border border-border"
-                    style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-          {activeClubTheme === theme.clubId && <Check className="h-4 w-4 text-primary" />}
-        </DropdownMenuItem>
-      ))}
 
-      {/* Locked clubs (non-Pro) */}
-      {lockedClubs.length > 0 && (availableClubThemes.length > 0 || true) && <DropdownMenuSeparator />}
-      {lockedClubs.map((club) => (
-        <DropdownMenuItem
-          key={club.clubId}
-          disabled
-          className="flex items-center gap-3 py-2 opacity-60 cursor-not-allowed"
-        >
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={club.logoUrl || undefined} />
-            <AvatarFallback className="text-xs bg-muted text-muted-foreground">
-              {club.clubName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{club.clubName}</p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <Lock className="h-3 w-3" />
-              <span className="text-xs">Pro only</span>
+      {mergedClubs.length > 0 && <DropdownMenuSeparator />}
+
+      {mergedClubs.map((club) => {
+        const theme = club.theme;
+        const selected = activeClubTheme === club.clubId;
+        const isFree = !theme;
+        return (
+          <DropdownMenuItem
+            key={club.clubId}
+            onClick={() => setActiveClubTheme(club.clubId)}
+            className="flex items-center gap-3 py-2"
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={club.logoUrl || undefined} />
+              <AvatarFallback
+                className="text-xs"
+                style={{
+                  backgroundColor:
+                    theme?.primary
+                      ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
+                      : undefined,
+                  color:
+                    theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
+                }}
+              >
+                {club.clubName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{club.clubName}</p>
+              {isFree ? (
+                <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+                  <Lock className="h-3 w-3" />
+                  <span className="text-[11px]">Default theme</span>
+                </div>
+              ) : theme?.primary ? (
+                <div className="flex gap-1 mt-0.5">
+                  <div
+                    className="h-3 w-3 rounded-full border border-border"
+                    style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }}
+                  />
+                  {theme.secondary && (
+                    <div
+                      className="h-3 w-3 rounded-full border border-border"
+                      style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }}
+                    />
+                  )}
+                  {theme.accent && (
+                    <div
+                      className="h-3 w-3 rounded-full border border-border"
+                      style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }}
+                    />
+                  )}
+                </div>
+              ) : null}
             </div>
-          </div>
-        </DropdownMenuItem>
-      ))}
+            {selected && <Check className="h-4 w-4 text-primary" />}
+          </DropdownMenuItem>
+        );
+      })}
     </DropdownMenuContent>
   );
 }
