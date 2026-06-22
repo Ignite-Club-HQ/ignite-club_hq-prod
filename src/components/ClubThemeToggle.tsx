@@ -193,7 +193,7 @@ export function ClubThemeToggle() {
               )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Default Ignite theme
+              See updates from all your clubs in one place
             </p>
           </div>
           {!activeClubTheme && (

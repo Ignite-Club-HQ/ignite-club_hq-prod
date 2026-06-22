@@ -339,10 +339,10 @@ function LogoClubThemeDropdown() {
         </>
       )}
 
-      {/* Default Ignite theme — its own section so it's never confused with a club */}
+      {/* All Clubs — its own section so it's never confused with a club */}
       <DropdownMenuSeparator />
       <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Workspace
+        All Clubs
       </p>
       <DropdownMenuItem
         onClick={() => setActiveClubTheme(null)}
@@ -361,14 +361,14 @@ function LogoClubThemeDropdown() {
         />
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default Ignite theme</p>
+            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>All Clubs</p>
             {!activeClubTheme && (
               <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
                 Current
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">View all clubs together</p>
+          <p className="text-xs text-muted-foreground">See updates from all your clubs in one place</p>
         </div>
         {!activeClubTheme && (
           <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
@@ -1147,7 +1147,7 @@ export function AppHeader() {
                     )}
                     <div className="flex flex-col leading-tight items-start min-w-0">
                       <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">
-                        {activeClubTheme ? 'Club' : 'Workspace'}
+                        {activeClubTheme ? 'Club' : 'All Clubs'}
                       </span>
                       <span
                         className="font-bold text-[15px] truncate max-w-[160px] leading-tight mt-0.5"
