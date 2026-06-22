@@ -8307,6 +8307,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_club_announcement: boolean
+          is_sponsor: boolean
           is_system_message: boolean
           reply_to_id: string | null
           team_id: string
@@ -8323,6 +8324,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_sponsor?: boolean
           is_system_message?: boolean
           reply_to_id?: string | null
           team_id: string
@@ -8339,6 +8341,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_sponsor?: boolean
           is_system_message?: boolean
           reply_to_id?: string | null
           team_id?: string
