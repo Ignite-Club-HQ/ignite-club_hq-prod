@@ -57,13 +57,15 @@ export function EventSponsorSelector({ eventId, clubId }: EventSponsorSelectorPr
   });
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
-  // Initialize selected IDs when data loads
-  useState(() => {
-    if (eventSponsorIds) {
+  // Initialize selected IDs once when data loads
+  useEffect(() => {
+    if (!initialized && eventSponsorIds) {
       setSelectedIds(eventSponsorIds);
+      setInitialized(true);
     }
-  });
+  }, [eventSponsorIds, initialized]);
 
   const saveMutation = useMutation({
     mutationFn: async (sponsorIds: string[]) => {
