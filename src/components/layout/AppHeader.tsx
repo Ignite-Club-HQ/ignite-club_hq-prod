@@ -1160,7 +1160,7 @@ export function AppHeader() {
                         >
                           {mainName}
                         </span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" strokeWidth={2} />
                       </div>
                       {suffix && (
                         <span className="text-[11px] text-muted-foreground leading-tight font-medium">
