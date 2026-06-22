@@ -212,7 +212,7 @@ export function EventsHeaderSponsorStrip({
   );
 
   useEffect(() => {
-    if (activeSponsor && user?.id) trackSponsorView(activeSponsor.id, "events_page");
+    if (activeSponsor && user?.id) trackSponsorView(activeSponsor.id, "event_page");
   }, [activeSponsor?.id, user?.id, trackSponsorView]);
   useEffect(() => {
     if (activeAd && user?.id) trackAdView(activeAd.id, "events_page");
@@ -231,7 +231,7 @@ export function EventsHeaderSponsorStrip({
           type="button"
           onClick={() => {
             if (!clickable) return;
-            trackSponsorClick(activeSponsor.id, "events_page");
+            trackSponsorClick(activeSponsor.id, "event_page");
             safeOpenUrl(activeSponsor.website_url!);
           }}
           disabled={!clickable}
