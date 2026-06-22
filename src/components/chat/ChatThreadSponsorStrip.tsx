@@ -76,6 +76,39 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [adIndex, setAdIndex] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Load dismissal state (Pro-only feature, but we read it whenever clubId/user changes)
+  useEffect(() => {
+    if (!clubId) return;
+    try {
+      const raw = localStorage.getItem(dismissKey(user?.id, clubId));
+      if (!raw) {
+        setDismissed(false);
+        return;
+      }
+      const ts = parseInt(raw, 10);
+      if (Number.isFinite(ts) && Date.now() - ts < DISMISS_TTL_MS) {
+        setDismissed(true);
+      } else {
+        localStorage.removeItem(dismissKey(user?.id, clubId));
+        setDismissed(false);
+      }
+    } catch {
+      setDismissed(false);
+    }
+  }, [clubId, user?.id]);
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!clubId) return;
+    try {
+      localStorage.setItem(dismissKey(user?.id, clubId), String(Date.now()));
+    } catch {
+      // ignore quota errors
+    }
+    setDismissed(true);
+  };
 
   // 1. Club-level opt-in
   const { data: clubFlag } = useQuery({
