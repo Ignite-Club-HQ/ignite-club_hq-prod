@@ -44,6 +44,7 @@ import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
@@ -1044,8 +1045,8 @@ export default function EventsPage() {
         ))}
       </div>
 
-      {/* Sponsor/Ad strip (shown in both calendar and list view; per-club opt-in) */}
-      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
+      {/* Slim sponsor strip (matches Messages/Media header strip; per-club opt-in) */}
+      <EventsHeaderSponsorStrip activeClubFilter={activeClubFilter} />
 
       {viewMode === "calendar" ? (
 
