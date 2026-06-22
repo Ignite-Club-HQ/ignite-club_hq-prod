@@ -1883,6 +1883,33 @@ export default function ClubDetailPage() {
           {(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
             <AccordionContent>
               <div className="pt-2 space-y-4">
+                {/* Media sponsors toggle — Riverside FC only, defaults to OFF */}
+                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show sponsors in Media feed</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Interleaves a club sponsor tile every 8 photos in the Media feed. Tier-weighted (Gold &gt; Silver &gt; Bronze). Off by default.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!(club as any)?.media_sponsors_enabled}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase
+                          .from("clubs")
+                          .update({ media_sponsors_enabled: checked } as any)
+                          .eq("id", id!);
+                        if (error) {
+                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                        await queryClient.invalidateQueries({ queryKey: ["riverside-media-sponsors-enabled"] });
+                        toast({ title: checked ? "Media sponsors enabled" : "Media sponsors disabled" });
+                      }}
+                    />
+                  </div>
+                )}
                 <SponsorsManager 
                   clubId={id!} 
                   currentPrimarySponsorId={club?.primary_sponsor_id || null}
