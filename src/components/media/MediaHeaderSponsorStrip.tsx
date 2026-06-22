@@ -284,12 +284,12 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
             Sponsor
           </span>
           <Avatar className="h-6 w-6 rounded-md shrink-0">
-            <AvatarImage src={activeAd.image_url} className="object-cover" />
+            <AvatarImage src={activeAd.logo_url || activeAd.image_url || undefined} className="object-cover" />
             <AvatarFallback className="text-[10px] bg-secondary rounded-md">
-              {activeAd.name.charAt(0).toUpperCase()}
+              {(activeAd.headline || activeAd.name).charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="text-sm font-medium truncate flex-1 min-w-0">{activeAd.name}</span>
+          <span className="text-sm font-medium truncate flex-1 min-w-0">{activeAd.headline || activeAd.name}</span>
           {clickable && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
         </button>
       </div>
