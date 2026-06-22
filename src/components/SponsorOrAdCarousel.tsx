@@ -116,7 +116,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const hasAnyPro = proClubIds.size > 0;
 
       // If filtered to a specific club, check if THAT club is Pro
-      const isProFiltered = activeClubFilter ? proClubIds.has(activeClubFilter) : hasAnyPro;
+      const isProFiltered = effectiveClubFilter ? proClubIds.has(effectiveClubFilter) : hasAnyPro;
 
       return { isProFiltered, hasAnyPro };
     },
