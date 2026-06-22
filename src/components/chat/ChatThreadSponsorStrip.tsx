@@ -51,9 +51,12 @@ const tierKey = (t: SponsorTier): keyof typeof TIER_WEIGHT =>
 interface AppAdLite {
   id: string;
   name: string;
-  image_url: string;
+  image_url: string | null;
   link_url: string | null;
   description: string | null;
+  ad_type: "image" | "logo_text";
+  logo_url: string | null;
+  headline: string | null;
 }
 
 /**
