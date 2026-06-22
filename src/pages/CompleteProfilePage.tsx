@@ -833,15 +833,11 @@ export default function CompleteProfilePage() {
             const cacheData = {
               clubId: proClubWithTheme.id,
               clubName: proClubWithTheme.name,
-              plan: "pro",
               logoUrl: proClubWithTheme.logo_url,
               showLogoInHeader: false,
               showNameInHeader: true,
               logoOnlyMode: false,
               sport: null,
-              canUseCustomTheme: true,
-              hasCustomTheme: primary !== null,
-              isProTheme: primary !== null,
               primary,
               secondary: null,
               accent: null,
@@ -916,7 +912,7 @@ export default function CompleteProfilePage() {
       // Profile completed - no toast needed, navigating to home
       
       // Invalidate club theme queries so they refetch with new user roles
-      await queryClient.invalidateQueries({ queryKey: ["club-themes-v2"] });
+      await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
       await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
       
       // Force refresh profile in auth context so theme is picked up

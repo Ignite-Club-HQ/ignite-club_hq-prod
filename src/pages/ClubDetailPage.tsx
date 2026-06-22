@@ -910,13 +910,6 @@ export default function ClubDetailPage() {
                        club?.sport?.toLowerCase().includes("futsal");
 
   const { hasProFootball } = useClubProAccess(id);
-  const clubHasThemeEntitlement = !!(
-    club?.is_pro ||
-    clubSubscription?.is_pro ||
-    clubSubscription?.is_pro_football ||
-    clubSubscription?.admin_pro_override ||
-    clubSubscription?.admin_pro_football_override
-  );
 
 
   if (isLoading) {
@@ -2227,8 +2220,8 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
-      {/* Club Branding - free clubs show locked custom theme state */}
-      {isAdmin && (
+      {/* Club Branding - Pro only */}
+      {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
         <AccordionItem value="branding" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
@@ -2251,10 +2244,9 @@ export default function ClubDetailPage() {
                 initialShowNameInHeader={(club as any).show_name_in_header ?? true}
                 initialLogoOnlyMode={(club as any).logo_only_mode ?? false}
                 initialThemeEnabled={(club as any).theme_enabled ?? true}
-                canEdit={clubHasThemeEntitlement}
                 onSave={() => {
                   queryClient.invalidateQueries({ queryKey: ["club", id] });
-                  queryClient.invalidateQueries({ queryKey: ["club-themes-v2"] });
+                  queryClient.invalidateQueries({ queryKey: ["club-themes"] });
                 }}
               />
             </div>

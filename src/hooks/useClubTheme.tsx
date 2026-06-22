@@ -16,18 +16,11 @@ interface HSLColor {
 interface ClubTheme {
   clubId: string;
   clubName: string;
-  plan: string | null;
   logoUrl: string | null;
   showLogoInHeader: boolean;
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
-  canUseCustomTheme: boolean;
-  hasCustomTheme: boolean;
-  // Whether the club has Pro entitlement AND a custom theme to apply.
-  // Free clubs are still selectable (for content filtering) but render
-  // with the default Ignite theme instead of custom colours.
-  isProTheme: boolean;
   // Light mode colors
   primary: HSLColor | null;
   secondary: HSLColor | null;
@@ -42,15 +35,11 @@ interface ClubTheme {
 interface CachedThemeData {
   clubId: string;
   clubName: string;
-  plan?: string | null;
   logoUrl: string | null;
   showLogoInHeader: boolean;
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
-  canUseCustomTheme?: boolean;
-  hasCustomTheme?: boolean;
-  isProTheme?: boolean; // optional for backwards-compat with old caches
   primary: HSLColor | null;
   secondary: HSLColor | null;
   accent: HSLColor | null;
@@ -63,44 +52,17 @@ interface CachedThemeData {
 const toCacheableTheme = (theme: ClubTheme): CachedThemeData => ({
   clubId: theme.clubId,
   clubName: theme.clubName,
-  plan: theme.plan,
   logoUrl: theme.logoUrl,
   showLogoInHeader: theme.showLogoInHeader,
   showNameInHeader: theme.showNameInHeader,
   logoOnlyMode: theme.logoOnlyMode,
   sport: theme.sport,
-  canUseCustomTheme: theme.canUseCustomTheme,
-  hasCustomTheme: theme.hasCustomTheme,
-  isProTheme: theme.isProTheme,
   primary: theme.primary,
   secondary: theme.secondary,
   accent: theme.accent,
   darkPrimary: theme.darkPrimary,
   darkSecondary: theme.darkSecondary,
   darkAccent: theme.darkAccent,
-});
-
-// Hydrate a ClubTheme from a possibly-old cached object.
-const fromCachedTheme = (parsed: CachedThemeData): ClubTheme => ({
-  clubId: parsed.clubId,
-  clubName: parsed.clubName,
-  plan: parsed.plan ?? null,
-  logoUrl: parsed.logoUrl ?? null,
-  showLogoInHeader: parsed.showLogoInHeader,
-  showNameInHeader: parsed.showNameInHeader,
-  logoOnlyMode: parsed.logoOnlyMode,
-  sport: parsed.sport ?? null,
-  // Old caches predate the Pro/theme split — default locked so stale preview
-  // cache can never apply custom branding to a free club before DB resolves.
-  canUseCustomTheme: parsed.canUseCustomTheme ?? false,
-  hasCustomTheme: parsed.hasCustomTheme ?? !!parsed.primary,
-  isProTheme: parsed.isProTheme ?? false,
-  primary: parsed.primary,
-  secondary: parsed.secondary,
-  accent: parsed.accent,
-  darkPrimary: parsed.darkPrimary,
-  darkSecondary: parsed.darkSecondary,
-  darkAccent: parsed.darkAccent,
 });
 
 // Safe localStorage setter that handles quota errors
@@ -187,20 +149,16 @@ const clearAllThemeCSS = () => {
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const root = document.documentElement;
 
-  // Central theme resolver: only apply custom colours when the club has a
-  // Pro entitlement AND a theme. Otherwise fall back to default Ignite theme.
-  const shouldApplyCustomTheme = !!theme && theme.isProTheme && !theme.logoOnlyMode;
-
   // Build a stable signature representing the resolved theme + mode
-  const signature = !shouldApplyCustomTheme
+  const signature = !theme || theme.logoOnlyMode
     ? `none|${isDarkMode}`
     : JSON.stringify({
-        c: theme!.clubId,
+        c: theme.clubId,
         d: isDarkMode,
-        p: isDarkMode ? (theme!.darkPrimary || theme!.primary) : theme!.primary,
-        s: isDarkMode ? (theme!.darkSecondary || theme!.secondary) : theme!.secondary,
-        a: isDarkMode ? (theme!.darkAccent || theme!.accent) : theme!.accent,
-        lo: theme!.logoOnlyMode,
+        p: isDarkMode ? (theme.darkPrimary || theme.primary) : theme.primary,
+        s: isDarkMode ? (theme.darkSecondary || theme.secondary) : theme.secondary,
+        a: isDarkMode ? (theme.darkAccent || theme.accent) : theme.accent,
+        lo: theme.logoOnlyMode,
       });
 
   // Skip if nothing changed since the last application
@@ -209,7 +167,7 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   }
   lastAppliedThemeSignature = signature;
 
-  if (!shouldApplyCustomTheme) {
+  if (!theme || theme.logoOnlyMode) {
     clearAllThemeCSS();
     return;
   }
@@ -338,7 +296,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       try {
         const parsedData = JSON.parse(storedData) as CachedThemeData;
         if (parsedData.clubId === storedId) {
-          const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
+          const themeFromCache: ClubTheme = { 
+            ...parsedData, 
+            logoUrl: parsedData.logoUrl ?? null, 
+            sport: parsedData.sport ?? null 
+          };
           // Apply theme CSS immediately during initialization
           // CRITICAL: Use getEffectiveTheme() instead of resolvedTheme here because
           // resolvedTheme is undefined during initial render before next-themes hydrates
@@ -426,7 +388,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId) {
-            const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
+            const themeFromCache: ClubTheme = { 
+              ...parsedData, 
+              logoUrl: parsedData.logoUrl ?? null, 
+              sport: parsedData.sport ?? null 
+            };
             setActiveClubThemeState(storedId);
             setCachedThemeData(themeFromCache);
             applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
@@ -475,7 +441,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           try {
             const parsedData = JSON.parse(storedData) as CachedThemeData;
             if (parsedData.clubId === storedId) {
-              const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
+              const themeFromCache: ClubTheme = { 
+                ...parsedData, 
+                logoUrl: parsedData.logoUrl ?? null, 
+                sport: parsedData.sport ?? null 
+              };
               setCachedThemeData(themeFromCache);
               applyThemeCSS(themeFromCache, isDarkMode);
             }
@@ -549,7 +519,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   const parsedData = JSON.parse(freshStoredData) as CachedThemeData;
                   // Only use cached data if it matches the club ID from database
                   if (parsedData.clubId === data.active_club_theme_id) {
-                    const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
+                    const themeFromCache: ClubTheme = { 
+                      ...parsedData, 
+                      logoUrl: parsedData.logoUrl ?? null, 
+                      sport: parsedData.sport ?? null 
+                    };
                     setCachedThemeData(themeFromCache);
                     applyThemeCSS(themeFromCache, isDarkMode);
                     themeApplied = true;
@@ -565,38 +539,25 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   .from('clubs')
                   .select(`
                     id, name, logo_url, show_logo_in_header, show_name_in_header, logo_only_mode, sport,
-                    is_pro, theme_enabled,
                     theme_primary_h, theme_primary_s, theme_primary_l,
                     theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
                     theme_secondary_h, theme_secondary_s, theme_secondary_l,
                     theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
                     theme_accent_h, theme_accent_s, theme_accent_l,
-                    theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
-                    club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, plan)
+                    theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l
                   `)
                   .eq('id', data.active_club_theme_id)
                   .single();
                 
                 if (clubData) {
-                  const subs = (clubData as any).club_subscriptions;
-                  const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
-                  const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
-                  const hasPro = (clubData as any).is_pro === true || hasProFromSub === true;
-                  const hasTheme = clubData.theme_primary_h !== null;
-                  const themeEnabled = (clubData as any).theme_enabled !== false;
-                  const isProTheme = hasPro && hasTheme && themeEnabled;
                   const themeData: ClubTheme = {
                     clubId: clubData.id,
                     clubName: clubData.name,
-                    plan: sub?.plan ?? (hasPro ? "pro" : "free"),
                     logoUrl: clubData.logo_url,
                     showLogoInHeader: clubData.show_logo_in_header ?? false,
                     showNameInHeader: clubData.show_name_in_header ?? true,
                     logoOnlyMode: clubData.logo_only_mode ?? false,
                     sport: clubData.sport,
-                    canUseCustomTheme: hasPro,
-                    hasCustomTheme: hasTheme && themeEnabled,
-                    isProTheme,
                     primary: clubData.theme_primary_h !== null ? { h: clubData.theme_primary_h, s: clubData.theme_primary_s!, l: clubData.theme_primary_l! } : null,
                     secondary: clubData.theme_secondary_h !== null ? { h: clubData.theme_secondary_h, s: clubData.theme_secondary_s!, l: clubData.theme_secondary_l! } : null,
                     accent: clubData.theme_accent_h !== null ? { h: clubData.theme_accent_h, s: clubData.theme_accent_s!, l: clubData.theme_accent_l! } : null,
@@ -657,14 +618,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Fetch ALL clubs the user belongs to (Pro and Free). Each entry carries an
-  // `isProTheme` flag so the resolver knows whether to apply custom colours.
-  // Free clubs remain selectable for content filtering but render with the
-  // default Ignite theme.
+  // Fetch all Pro clubs that the user belongs to with custom themes
   const { data: availableClubThemes = [], isLoading } = useQuery({
-    queryKey: ["club-themes-v2", user?.id],
+    queryKey: ["club-themes", user?.id],
     queryFn: async () => {
-      if (!user?.id) return [] as ClubTheme[];
+      if (!user?.id) return [];
 
       // Get user's clubs through their roles
       const { data: userRoles, error: rolesError } = await supabase
@@ -673,9 +631,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .eq("user_id", user.id)
         .not("club_id", "is", null);
 
-      if (rolesError) return [] as ClubTheme[];
+      if (rolesError || !userRoles?.length) return [];
 
-      const clubIds = [...new Set((userRoles ?? []).map(r => r.club_id).filter(Boolean))];
+      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from teams
       const { data: teamRoles } = await supabase
@@ -693,69 +651,100 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (!clubIds.length) return [] as ClubTheme[];
+      if (!clubIds.length) return [];
 
+      // Fetch clubs with theme settings (left join on subscriptions)
       const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select(`
-          id, name, logo_url, show_logo_in_header, show_name_in_header,
-          logo_only_mode, sport, is_pro, theme_enabled, kind,
-          theme_primary_h, theme_primary_s, theme_primary_l,
-          theme_secondary_h, theme_secondary_s, theme_secondary_l,
-          theme_accent_h, theme_accent_s, theme_accent_l,
-          theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
-          theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
-          theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l,
-          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at, plan)
+          id,
+          name,
+          logo_url,
+          show_logo_in_header,
+          show_name_in_header,
+          logo_only_mode,
+          sport,
+          is_pro,
+          theme_enabled,
+          theme_primary_h,
+          theme_primary_s,
+          theme_primary_l,
+          theme_secondary_h,
+          theme_secondary_s,
+          theme_secondary_l,
+          theme_accent_h,
+          theme_accent_s,
+          theme_accent_l,
+          theme_dark_primary_h,
+          theme_dark_primary_s,
+          theme_dark_primary_l,
+          theme_dark_secondary_h,
+          theme_dark_secondary_s,
+          theme_dark_secondary_l,
+          theme_dark_accent_h,
+          theme_dark_accent_s,
+          theme_dark_accent_l,
+          club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
         .in("id", clubIds)
-        .is("deleted_at", null)
-        .neq("kind", "shell");
+        .is("deleted_at", null);
 
-      if (clubsError || !clubs) return [] as ClubTheme[];
+      if (clubsError || !clubs) return [];
 
-      const result: ClubTheme[] = clubs.map(club => {
-        const subs = (club as any).club_subscriptions;
-        const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : (subs && !Array.isArray(subs) ? subs : null);
-        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && (!sub.expires_at || new Date(sub.expires_at) > new Date());
-        const hasPro = (club as any).is_pro === true || hasProFromSub === true;
-        const hasTheme = club.theme_primary_h !== null;
-        const themeEnabled = (club as any).theme_enabled !== false;
-        const isProTheme = hasPro && hasTheme && themeEnabled;
-
-        return {
+      // Filter to only Pro clubs with theme data that have theme enabled
+      return clubs
+        .filter(club => {
+          // Handle both array and single object subscription data
+          const subs = club.club_subscriptions as any;
+          const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : 
+                     (subs && !Array.isArray(subs) ? subs : null);
+          const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
+            (!sub.expires_at || new Date(sub.expires_at) > new Date());
+          // Check club.is_pro flag directly (synced by trigger)
+          const hasPro = club.is_pro === true || hasProFromSub === true;
+          const hasTheme = club.theme_primary_h !== null;
+          const themeEnabled = (club as any).theme_enabled !== false; // Default to true
+          return hasPro && hasTheme && themeEnabled;
+        })
+        .map(club => ({
           clubId: club.id,
           clubName: club.name,
-          plan: sub?.plan ?? (hasPro ? "pro" : "free"),
           logoUrl: club.logo_url,
           showLogoInHeader: club.show_logo_in_header ?? false,
           showNameInHeader: club.show_name_in_header ?? true,
           logoOnlyMode: club.logo_only_mode ?? false,
           sport: club.sport,
-          canUseCustomTheme: hasPro,
-          hasCustomTheme: hasTheme && themeEnabled,
-          isProTheme,
-          primary: club.theme_primary_h !== null ? { h: club.theme_primary_h!, s: club.theme_primary_s!, l: club.theme_primary_l! } : null,
-          secondary: club.theme_secondary_h !== null ? { h: club.theme_secondary_h!, s: club.theme_secondary_s!, l: club.theme_secondary_l! } : null,
-          accent: club.theme_accent_h !== null ? { h: club.theme_accent_h!, s: club.theme_accent_s!, l: club.theme_accent_l! } : null,
-          darkPrimary: club.theme_dark_primary_h !== null ? { h: club.theme_dark_primary_h!, s: club.theme_dark_primary_s!, l: club.theme_dark_primary_l! } : null,
-          darkSecondary: club.theme_dark_secondary_h !== null ? { h: club.theme_dark_secondary_h!, s: club.theme_dark_secondary_s!, l: club.theme_dark_secondary_l! } : null,
-          darkAccent: club.theme_dark_accent_h !== null ? { h: club.theme_dark_accent_h!, s: club.theme_dark_accent_s!, l: club.theme_dark_accent_l! } : null,
-        };
-      });
-
-      // Dedupe by normalized club name, preferring the higher-priority entry.
-      const priority = (t: ClubTheme) =>
-        (t.isProTheme ? 4 : 0) + (t.primary ? 2 : 0) + (t.logoUrl ? 1 : 0);
-      const byName = new Map<string, ClubTheme>();
-      for (const t of result) {
-        const key = t.clubName.toLowerCase().replace(/\s+/g, " ").trim();
-        const existing = byName.get(key);
-        if (!existing || priority(t) > priority(existing)) {
-          byName.set(key, t);
-        }
-      }
-      return Array.from(byName.values());
+          primary: club.theme_primary_h !== null ? {
+            h: club.theme_primary_h!,
+            s: club.theme_primary_s!,
+            l: club.theme_primary_l!,
+          } : null,
+          secondary: club.theme_secondary_h !== null ? {
+            h: club.theme_secondary_h!,
+            s: club.theme_secondary_s!,
+            l: club.theme_secondary_l!,
+          } : null,
+          accent: club.theme_accent_h !== null ? {
+            h: club.theme_accent_h!,
+            s: club.theme_accent_s!,
+            l: club.theme_accent_l!,
+          } : null,
+          darkPrimary: club.theme_dark_primary_h !== null ? {
+            h: club.theme_dark_primary_h!,
+            s: club.theme_dark_primary_s!,
+            l: club.theme_dark_primary_l!,
+          } : null,
+          darkSecondary: club.theme_dark_secondary_h !== null ? {
+            h: club.theme_dark_secondary_h!,
+            s: club.theme_dark_secondary_s!,
+            l: club.theme_dark_secondary_l!,
+          } : null,
+          darkAccent: club.theme_dark_accent_h !== null ? {
+            h: club.theme_dark_accent_h!,
+            s: club.theme_dark_accent_s!,
+            l: club.theme_dark_accent_l!,
+          } : null,
+        }));
     },
     enabled: !!user?.id,
   });
@@ -767,11 +756,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // Check if user has any stored preference (including explicit "none")
     const hasStoredPreference = localStorage.getItem(getStorageKey(user.id)) !== null;
     
-    // Auto-default only to Pro-themed clubs (free clubs paint the Ignite
-    // theme anyway, so there's no reason to auto-select them).
-    const firstProTheme = availableClubThemes.find(t => t.isProTheme && t.primary);
-    if (!hasStoredPreference && firstProTheme) {
-      const firstTheme = firstProTheme;
+    if (!hasStoredPreference && availableClubThemes.length > 0) {
+      // New member - default to first available club theme
+      const firstTheme = availableClubThemes[0];
       setActiveClubThemeState(firstTheme.clubId);
       safeSetItem(getStorageKey(user.id), firstTheme.clubId);
       safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
@@ -851,7 +838,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId && parsedData.primary) {
             // Apply the cached theme instead of clearing
-            const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
+            const themeFromCache: ClubTheme = { 
+              ...parsedData, 
+              logoUrl: parsedData.logoUrl ?? null, 
+              sport: parsedData.sport ?? null 
+            };
             applyThemeCSS(themeFromCache, isDarkMode);
             // Update state to sync with localStorage
             setActiveClubThemeState(storedId);
@@ -921,11 +912,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
   // Use server data if available, otherwise fall back to cached data
-  const unresolvedActiveThemeData = activeClubTheme 
+  const activeThemeData = activeClubTheme 
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
-    : null;
-  const activeThemeData = unresolvedActiveThemeData?.canUseCustomTheme && (unresolvedActiveThemeData.hasCustomTheme || unresolvedActiveThemeData.logoOnlyMode)
-    ? unresolvedActiveThemeData
     : null;
 
   // Pre-warm the club logo decode cache the instant we know the URL.
@@ -1022,16 +1010,12 @@ export function useClubTheme() {
 export function hasClubThemeCached(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    // Check for a cached Pro/custom theme only. Free club context can also be
-    // cached, but must not make pages render as club-themed.
+    // Check for any cached theme data - means user has club theme active
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key?.startsWith(STORAGE_DATA_KEY_PREFIX)) {
         const data = localStorage.getItem(key);
-        if (data) {
-          const parsed = JSON.parse(data) as CachedThemeData;
-          if (parsed.isProTheme || (parsed.canUseCustomTheme && parsed.hasCustomTheme)) return true;
-        }
+        if (data) return true;
       }
     }
   } catch {

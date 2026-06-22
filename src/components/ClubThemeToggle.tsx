@@ -1,131 +1,155 @@
-import { Building2, Check, Lock, Sparkles, ChevronRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Building2, Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import igniteIcon from "@/assets/ignite-icon.png";
-import { cn } from "@/lib/utils";
 
-/**
- * Club switcher.
- *
- * Every club the user belongs to is selectable, regardless of plan, and each
- * appears exactly once. The active club is pinned at the top with a strong
- * selected state. Free clubs are selectable (for content filtering) but
- * surface a subtle "Free" hint; custom branding is only applied for clubs
- * with Pro entitlement (resolved centrally in `useClubTheme`).
- */
 export function ClubThemeToggle() {
-  const navigate = useNavigate();
   const { availableClubThemes, activeClubTheme, setActiveClubTheme, isLoading } = useClubTheme();
+  const { user } = useAuth();
 
-  if (isLoading || availableClubThemes.length === 0) {
+  // Fetch ALL user clubs (including non-Pro) to show with lock
+  const { data: allUserClubs = [] } = useQuery({
+    queryKey: ["all-user-clubs-for-theme-v2", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+
+      // Get club IDs from user roles
+      const { data: clubRoles } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user.id)
+        .not("club_id", "is", null);
+
+      const clubIds = [...new Set((clubRoles || []).map(r => r.club_id).filter(Boolean))];
+
+      // Also get clubs from team roles
+      const { data: teamRoles } = await supabase
+        .from("user_roles")
+        .select("team_id, teams!inner(club_id)")
+        .eq("user_id", user.id)
+        .not("team_id", "is", null);
+
+      if (teamRoles) {
+        teamRoles.forEach(r => {
+          const teamClubId = (r.teams as any)?.club_id;
+          if (teamClubId && !clubIds.includes(teamClubId)) {
+            clubIds.push(teamClubId);
+          }
+        });
+      }
+
+      if (!clubIds.length) return [];
+
+      // Fetch clubs with subscription info
+      const { data: clubs } = await supabase
+        .from("clubs")
+        .select(`
+          id,
+          name,
+          logo_url,
+          is_pro,
+          kind,
+          theme_primary_h,
+          theme_primary_s,
+          theme_primary_l,
+          theme_enabled,
+          club_subscriptions(is_pro, is_pro_football, expires_at)
+        `)
+        .in("id", clubIds)
+        .is("deleted_at", null)
+        .neq("kind", "shell");
+
+      if (!clubs) return [];
+
+      const getClubPriority = (club: {
+        isSelectable: boolean;
+        hasPro: boolean;
+        hasTheme: boolean;
+        themeEnabled: boolean;
+      }) => (
+        (club.isSelectable ? 8 : 0) +
+        (club.hasPro ? 4 : 0) +
+        (club.hasTheme ? 2 : 0) +
+        (club.themeEnabled ? 1 : 0)
+      );
+
+      const result = clubs.map(club => {
+        // Handle both array and single object subscription data
+        const subs = club.club_subscriptions;
+        const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] : 
+                   (subs && !Array.isArray(subs) ? subs : null);
+        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
+          (!sub.expires_at || new Date(sub.expires_at) > new Date());
+        // Check club.is_pro flag directly (synced by trigger)
+        const hasPro = club.is_pro === true || hasProFromSub === true;
+        const hasTheme = club.theme_primary_h !== null;
+        const themeEnabled = (club as any).theme_enabled !== false; // Default to true
+        // Only selectable if Pro AND has theme AND theme is enabled
+        const isSelectable = hasPro && hasTheme && themeEnabled;
+        
+        return {
+          clubId: club.id,
+          clubName: club.name.trim(),
+          logoUrl: club.logo_url,
+          hasPro,
+          hasTheme,
+          themeEnabled,
+          isSelectable,
+          primary: club.theme_primary_h !== null ? {
+            h: club.theme_primary_h!,
+            s: club.theme_primary_s!,
+            l: club.theme_primary_l!,
+          } : null,
+        };
+      });
+
+      const dedupedClubs = new Map<string, (typeof result)[number]>();
+
+      result.forEach((club) => {
+        const normalizedName = club.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+        const existing = dedupedClubs.get(normalizedName);
+
+        if (!existing || getClubPriority(club) > getClubPriority(existing)) {
+          dedupedClubs.set(normalizedName, club);
+        }
+      });
+      
+      return Array.from(dedupedClubs.values());
+    },
+    enabled: !!user?.id,
+  });
+
+  // Show non-selectable clubs with appropriate messaging
+  const availableClubIds = new Set(availableClubThemes.map(t => t.clubId));
+  const nonSelectableClubs = allUserClubs.filter(c => !c.isSelectable && !availableClubIds.has(c.clubId));
+
+  // Don't show if no clubs at all
+  if (isLoading || (availableClubThemes.length === 0 && nonSelectableClubs.length === 0)) {
     return null;
   }
 
-  // Deduplicate defensively by clubId (hook already dedupes by name).
-  const uniqueClubs = Array.from(
-    new Map(availableClubThemes.map((t) => [t.clubId, t])).values()
-  );
-
-  const activeTheme = uniqueClubs.find((t) => t.clubId === activeClubTheme) ?? null;
-  const otherClubs = uniqueClubs.filter((t) => t.clubId !== activeClubTheme);
-  const hasFreeClub = uniqueClubs.some((t) => !t.canUseCustomTheme);
-
-  const renderSwatches = (theme: typeof uniqueClubs[number]) => {
-    if (!theme.canUseCustomTheme || !theme.hasCustomTheme || !theme.primary) return null;
-    const stops = [theme.primary, theme.secondary, theme.accent].filter(Boolean) as NonNullable<typeof theme.primary>[];
-    return (
-      <div className="flex gap-1">
-        {stops.map((c, i) => (
-          <span
-            key={i}
-            className="h-2.5 w-2.5 rounded-full border border-border/60"
-            style={{ backgroundColor: `hsl(${c.h}, ${c.s}%, ${c.l}%)` }}
-          />
-        ))}
-      </div>
-    );
-  };
-
-  const ClubRow = ({
-    theme,
-    selected,
-    onSelect,
-  }: {
-    theme: typeof uniqueClubs[number];
-    selected: boolean;
-    onSelect: () => void;
-  }) => {
-    const isFree = !theme.canUseCustomTheme;
-    return (
-      <button
-        type="button"
-        onClick={onSelect}
-        className={cn(
-          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
-          selected
-            ? "bg-primary/10 ring-1 ring-primary/40"
-            : "hover:bg-muted/60 active:bg-muted"
-        )}
-      >
-        <Avatar className="h-9 w-9 shrink-0">
-          <AvatarImage src={theme.logoUrl || undefined} />
-          <AvatarFallback
-            className="text-xs font-semibold"
-            style={{
-              backgroundColor:
-                !isFree && theme.primary
-                  ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
-                  : undefined,
-              color:
-                !isFree && theme.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
-            }}
-          >
-            {theme.clubName.charAt(0)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium truncate">{theme.clubName}</p>
-            {selected && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-medium">
-                Current
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            {isFree ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                <Lock className="h-3 w-3" />
-                Default theme
-              </span>
-            ) : (
-              renderSwatches(theme) ?? (
-                <span className="text-[11px] text-muted-foreground">Custom theme</span>
-              )
-            )}
-          </div>
-        </div>
-        {selected && (
-          <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
-          </div>
-        )}
-      </button>
-    );
-  };
+  const activeTheme = availableClubThemes.find(t => t.clubId === activeClubTheme);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative"
+        >
           {activeTheme ? (
             <Avatar className="h-5 w-5">
               <AvatarImage src={activeTheme.logoUrl || undefined} />
@@ -137,111 +161,110 @@ export function ClubThemeToggle() {
             <Building2 className="h-5 w-5" />
           )}
           {activeClubTheme && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary" />
           )}
-          <span className="sr-only">Active club</span>
+          <span className="sr-only">Club theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[20rem] p-2 max-h-[80vh] overflow-y-auto"
-      >
-        <div className="px-2 pt-1 pb-2">
-          <p className="text-sm font-semibold">Switch club</p>
-          <p className="text-xs text-muted-foreground">
-            Choose which club's content and branding to view
-          </p>
+      <DropdownMenuContent align="end" className="w-56">
+        <div className="px-2 py-1.5">
+          <p className="text-sm font-medium">Club Themes</p>
+          <p className="text-xs text-muted-foreground">Apply your club's colors</p>
         </div>
-
-        {/* Active club — pinned at top */}
-        {activeTheme && (
-          <>
-            <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Current
-            </p>
-            <ClubRow theme={activeTheme} selected onSelect={() => {}} />
-          </>
-        )}
-
-        {/* All clubs (no club selected) */}
-        <p className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {activeTheme ? "Switch to" : "Current"}
-        </p>
-
-        <button
-          type="button"
+        <DropdownMenuSeparator />
+        
+        {/* Default theme option */}
+        <DropdownMenuItem 
           onClick={() => setActiveClubTheme(null)}
-          className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
-            !activeClubTheme
-              ? "bg-primary/10 ring-1 ring-primary/40"
-              : "hover:bg-muted/60 active:bg-muted"
-          )}
+          className="flex items-center gap-3 py-2"
         >
-          <img
-            src={igniteIcon}
-            alt="Ignite"
-            className="h-9 w-9 rounded-full object-contain bg-muted shrink-0"
+          <img 
+            src={igniteIcon} 
+            alt="Ignite" 
+            className="h-8 w-8 rounded-full object-contain"
           />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-medium">All clubs</p>
-              {!activeClubTheme && (
-                <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-medium">
-                  Current
-                </Badge>
+          <div className="flex-1">
+            <p className="text-sm font-medium">Default</p>
+            <p className="text-xs text-muted-foreground">Ignite emerald</p>
+          </div>
+          {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
+        </DropdownMenuItem>
+        
+        <DropdownMenuSeparator />
+        
+        {/* Club themes */}
+        {availableClubThemes.map((theme) => (
+          <DropdownMenuItem
+            key={theme.clubId}
+            onClick={() => setActiveClubTheme(theme.clubId)}
+            className="flex items-center gap-3 py-2"
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={theme.logoUrl || undefined} />
+              <AvatarFallback 
+                className="text-xs"
+                style={{
+                  backgroundColor: theme.primary 
+                    ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
+                    : undefined,
+                  color: theme.primary && theme.primary.l > 50 ? '#1a1a1a' : '#fafafa',
+                }}
+              >
+                {theme.clubName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{theme.clubName}</p>
+              {theme.primary && (
+                <div className="flex gap-1 mt-0.5">
+                  <div 
+                    className="h-3 w-3 rounded-full border border-border"
+                    style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }}
+                  />
+                  {theme.secondary && (
+                    <div 
+                      className="h-3 w-3 rounded-full border border-border"
+                      style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }}
+                    />
+                  )}
+                  {theme.accent && (
+                    <div 
+                      className="h-3 w-3 rounded-full border border-border"
+                      style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }}
+                    />
+                  )}
+                </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              See updates from all your clubs in one place
-            </p>
-          </div>
-          {!activeClubTheme && (
-            <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-              <Check className="h-3.5 w-3.5" strokeWidth={3} />
-            </div>
-          )}
-        </button>
+            {activeClubTheme === theme.clubId && <Check className="h-4 w-4 text-primary" />}
+          </DropdownMenuItem>
+        ))}
 
-        {/* Other clubs — each appears exactly once, selectable regardless of plan */}
-        <div className="mt-1 space-y-0.5">
-          {otherClubs.map((theme) => (
-            <ClubRow
-              key={theme.clubId}
-              theme={theme}
-              selected={false}
-              onSelect={() => setActiveClubTheme(theme.clubId)}
-            />
-          ))}
-        </div>
-
-        {/* Single Pro upsell — replaces per-club locked duplicates */}
-        {hasFreeClub && (
-          <button
-            type="button"
-            onClick={() => {
-              const freeClub = uniqueClubs.find((t) => !t.canUseCustomTheme);
-              if (freeClub) navigate(`/clubs/${freeClub.clubId}/upgrade`);
-            }}
-            className="mt-3 w-full rounded-lg p-3 text-left bg-gradient-to-br from-primary/15 via-primary/10 to-accent/10 ring-1 ring-primary/30 hover:ring-primary/50 transition-all group"
+        {/* Non-selectable clubs */}
+        {nonSelectableClubs.length > 0 && availableClubThemes.length > 0 && <DropdownMenuSeparator />}
+        {nonSelectableClubs.map((club) => (
+          <DropdownMenuItem
+            key={club.clubId}
+            disabled
+            className="flex items-center gap-3 py-2 opacity-60 cursor-not-allowed"
           >
-            <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">Unlock club themes</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                  Bring your club colours, logo and branded experience to every screen with Pro.
-                </p>
-                <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary group-hover:gap-1.5 transition-all">
-                  Upgrade to Pro
-                  <ChevronRight className="h-3 w-3" />
-                </div>
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={club.logoUrl || undefined} />
+              <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                {club.clubName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{club.clubName}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Lock className="h-3 w-3" />
+                <span className="text-xs">
+                  {!club.hasPro ? "Pro only" : !club.hasTheme ? "No theme set" : "Theme disabled"}
+                </span>
               </div>
             </div>
-          </button>
-        )}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
