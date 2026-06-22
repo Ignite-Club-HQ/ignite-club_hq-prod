@@ -70,7 +70,6 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [adIndex, setAdIndex] = useState(0);
-  const [sponsorIndex, setSponsorIndex] = useState(0);
 
   // 1. Club-level opt-in
   const { data: clubFlag } = useQuery({
