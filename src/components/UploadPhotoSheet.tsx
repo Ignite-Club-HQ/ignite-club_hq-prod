@@ -362,9 +362,9 @@ export function UploadPhotoSheet({
     });
   }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
 
-  // Also filter by activeClubFilter when in filtered mode
+  // Show all clubs; free ones are visually locked so users know they need Pro
   const availableClubs = (() => {
-    let clubs = isAppAdmin ? userClubs : userClubs?.filter(club => club.has_pro_access);
+    let clubs = userClubs;
     if (activeClubFilter && clubs) {
       clubs = clubs.filter(club => club.id === activeClubFilter);
     }
