@@ -916,7 +916,7 @@ export default function CompleteProfilePage() {
       // Profile completed - no toast needed, navigating to home
       
       // Invalidate club theme queries so they refetch with new user roles
-      await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
+      await queryClient.invalidateQueries({ queryKey: ["club-themes-v2"] });
       await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
       
       // Force refresh profile in auth context so theme is picked up
