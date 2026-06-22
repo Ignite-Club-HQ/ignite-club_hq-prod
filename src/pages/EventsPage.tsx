@@ -1044,7 +1044,11 @@ export default function EventsPage() {
         ))}
       </div>
 
+      {/* Sponsor/Ad strip (shown in both calendar and list view; per-club opt-in) */}
+      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
+
       {viewMode === "calendar" ? (
+
         <div className="space-y-2">
           <Card>
             <CardContent className="p-4">
