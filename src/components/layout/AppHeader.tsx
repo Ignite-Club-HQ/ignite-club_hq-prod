@@ -1083,11 +1083,11 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto gap-3">
+      <div className="flex items-center justify-between h-[84px] px-4 max-w-lg mx-auto gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors min-w-0 flex-1"
+              className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors min-w-0 flex-1"
               aria-label="Switch club"
               key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
             >
