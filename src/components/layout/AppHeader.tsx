@@ -1083,7 +1083,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-16 px-4 max-w-lg mx-auto gap-3">
+      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -1102,12 +1102,12 @@ export function AppHeader() {
                 const rawName = activeClubInfo?.clubName
                   || (shouldShowClubTheming && clubNameParts?.mainName ? `${clubNameParts.mainName}${clubNameParts.suffix ? ' ' + clubNameParts.suffix : ''}` : null)
                   || 'Ignite Club HQ';
-                // Split trailing acronym suffix (e.g. "Riverside FC", "Bridgewater Soccer Club")
+                // Split trailing suffix (e.g. "Riverside FC", "Bridgewater Soccer Club", "Adelaide Cricket Club")
                 const words = rawName.trim().split(/\s+/);
                 const suffixWords: string[] = [];
                 while (words.length > 1) {
                   const last = words[words.length - 1];
-                  if (/^(FC|SC|AFC|RFC|CC|HC|NC|BC|Club|United|Soccer)$/i.test(last) && suffixWords.length < 2) {
+                  if (/^(FC|SC|AFC|RFC|CC|HC|NC|BC|Club|United|Soccer|Cricket|Football|Basketball|Netball|Rugby|Hockey|Swimming|Athletics|Volleyball|Baseball|Tennis|Golf|Rowing|Lacrosse|Town|City|Rovers|Rangers|Wanderers)$/i.test(last) && suffixWords.length < 2) {
                     suffixWords.unshift(words.pop()!);
                   } else break;
                 }
@@ -1129,10 +1129,10 @@ export function AppHeader() {
                         <LogoImage
                           src={displayLogoUrl}
                           alt={rawName}
-                          className="h-11 w-11 rounded-lg object-cover"
+                          className="h-9 w-9 rounded-lg object-cover"
                           fallback={
-                            <div className="p-2 rounded-lg bg-primary">
-                              <Flame className="h-6 w-6 text-primary-foreground" />
+                            <div className="p-1.5 rounded-lg bg-primary">
+                              <Flame className="h-5 w-5 text-primary-foreground" />
                             </div>
                           }
                         />
@@ -1146,26 +1146,26 @@ export function AppHeader() {
                       <img
                         src={igniteIcon}
                         alt="Ignite"
-                        width={44}
-                        height={44}
-                        className="h-11 w-11 shrink-0 rounded-full object-contain"
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 shrink-0 rounded-full object-contain"
                         loading="eager"
                         decoding="sync"
                         fetchPriority="high"
                       />
                     )}
                     <div className="flex flex-col leading-tight items-start min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                      <div className="flex items-center gap-1 min-w-0 max-w-full">
                         <span
-                          className="font-extrabold text-[20px] leading-tight truncate"
+                          className="font-bold text-[15px] leading-tight truncate"
                           style={nameColor ? { color: nameColor } : undefined}
                         >
                           {mainName}
                         </span>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" strokeWidth={2.5} />
                       </div>
                       {suffix && (
-                        <span className="text-[12px] text-muted-foreground leading-tight font-medium">
+                        <span className="text-[11px] text-muted-foreground leading-tight font-medium">
                           {suffix}
                         </span>
                       )}
