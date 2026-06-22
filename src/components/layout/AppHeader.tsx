@@ -314,7 +314,7 @@ function LogoClubThemeDropdown() {
     <DropdownMenuContent align="start" className="w-72">
       <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Switch club</p>
-        <p className="text-xs text-muted-foreground">Choose which club to view</p>
+        <p className="text-xs text-muted-foreground">Tap a club to see its schedule, teams and news</p>
       </div>
       <DropdownMenuSeparator />
 
