@@ -158,6 +158,12 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
     return null;
   }
 
+  // Events placement: gated by pilot club + per-club opt-in toggle.
+  if (isEventsPlacement) {
+    if (isStripGateLoading) return null;
+    if (!eventsStripAllowed) return null;
+  }
+
   // === PRO CLUB ===
   if (isProFiltered) {
     // Pro club WITH sponsors → show club sponsor banners
