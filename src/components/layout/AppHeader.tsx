@@ -253,17 +253,21 @@ function LogoClubThemeDropdown() {
         }
       >
         <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
-          <AvatarImage src={club.logoUrl || undefined} />
+          {!isFree && <AvatarImage src={club.logoUrl || undefined} />}
           <AvatarFallback
             className="text-xs"
             style={{
-              backgroundColor: theme?.primary
+              backgroundColor: !isFree && theme?.primary
                 ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
                 : undefined,
-              color: theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
+              color: !isFree && theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
             }}
           >
-            {club.clubName.charAt(0)}
+            {isFree ? (
+              <img src={igniteIcon} alt="Ignite" className="h-full w-full object-contain" />
+            ) : (
+              club.clubName.charAt(0)
+            )}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
@@ -1088,13 +1092,15 @@ export function AppHeader() {
               key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
             >
               {(() => {
-                // Always show the active club (themed or free). Falls back to Ignite default.
+                // Always show the active club. Pro clubs may use their custom logo;
+                // free clubs ALWAYS show the default Ignite icon next to the name.
                 const activeClubInfo = activeClubTheme
                   ? availableClubThemes.find((t) => t.clubId === activeClubTheme)
                   : null;
+                const clubIsPro = !!activeClubInfo?.canUseCustomTheme;
                 const displayLogoUrl = (shouldShowClubTheming && showClubLogo)
                   ? activeThemeData!.logoUrl!
-                  : activeClubInfo?.logoUrl || null;
+                  : (clubIsPro ? activeClubInfo?.logoUrl || null : null);
                 const displayName = activeClubInfo?.clubName
                   || (shouldShowClubTheming && clubNameParts?.mainName ? `${clubNameParts.mainName}${clubNameParts.suffix ? ' ' + clubNameParts.suffix : ''}` : null)
                   || 'Ignite Club HQ';
@@ -1126,10 +1132,6 @@ export function AppHeader() {
                             <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
                           </div>
                         )}
-                      </div>
-                    ) : activeClubTheme ? (
-                      <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 text-sm font-semibold">
-                        {displayName.charAt(0).toUpperCase()}
                       </div>
                     ) : (
                       <img
