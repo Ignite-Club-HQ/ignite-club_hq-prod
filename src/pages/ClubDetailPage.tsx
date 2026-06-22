@@ -1910,6 +1910,33 @@ export default function ClubDetailPage() {
                     />
                   </div>
                 )}
+                {/* Media header sponsor strip toggle — Riverside FC only, defaults to OFF */}
+                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show sponsor strip at top of Media</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Shows a slim, dismissible club sponsor bar above the Media feed. Tier-weighted rotation. Off by default.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!(club as any)?.media_header_sponsors_enabled}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase
+                          .from("clubs")
+                          .update({ media_header_sponsors_enabled: checked } as any)
+                          .eq("id", id!);
+                        if (error) {
+                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                        await queryClient.invalidateQueries({ queryKey: ["riverside-media-header-sponsors-enabled"] });
+                        toast({ title: checked ? "Media header strip enabled" : "Media header strip disabled" });
+                      }}
+                    />
+                  </div>
+                )}
                 <SponsorsManager 
                   clubId={id!} 
                   currentPrimarySponsorId={club?.primary_sponsor_id || null}
