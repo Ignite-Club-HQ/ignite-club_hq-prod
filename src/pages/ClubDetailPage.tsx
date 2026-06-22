@@ -1963,6 +1963,33 @@ export default function ClubDetailPage() {
                       }}
                     />
                   </div>
+                 )}
+                {/* Events sponsor strip toggle — Riverside FC only, defaults to OFF */}
+                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
+                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show sponsor strip on Events</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Shows a rotating sponsor or ad strip above the events list and on each event detail page. Off by default.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!(club as any)?.events_sponsor_strip_enabled}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase
+                          .from("clubs")
+                          .update({ events_sponsor_strip_enabled: checked } as any)
+                          .eq("id", id!);
+                        if (error) {
+                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                        await queryClient.invalidateQueries({ queryKey: ["events-sponsor-strip-allowed", id] });
+                        toast({ title: checked ? "Events sponsor strip enabled" : "Events sponsor strip disabled" });
+                      }}
+                    />
+                  </div>
                 )}
                 <SponsorsManager 
                   clubId={id!} 
