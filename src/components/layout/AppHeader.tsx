@@ -1083,17 +1083,15 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
+      <div className="flex items-center justify-between h-16 px-4 max-w-lg mx-auto gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors max-w-[78%]"
+              className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors min-w-0 flex-1"
               aria-label="Switch club"
               key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
             >
               {(() => {
-                // Always show the active club. Pro clubs may use their custom logo;
-                // free clubs ALWAYS show the default Ignite icon next to the name.
                 const activeClubInfo = activeClubTheme
                   ? availableClubThemes.find((t) => t.clubId === activeClubTheme)
                   : null;
@@ -1101,9 +1099,20 @@ export function AppHeader() {
                 const displayLogoUrl = (shouldShowClubTheming && showClubLogo)
                   ? activeThemeData!.logoUrl!
                   : (clubIsPro ? activeClubInfo?.logoUrl || null : null);
-                const displayName = activeClubInfo?.clubName
+                const rawName = activeClubInfo?.clubName
                   || (shouldShowClubTheming && clubNameParts?.mainName ? `${clubNameParts.mainName}${clubNameParts.suffix ? ' ' + clubNameParts.suffix : ''}` : null)
                   || 'Ignite Club HQ';
+                // Split trailing acronym suffix (e.g. "Riverside FC", "Bridgewater Soccer Club")
+                const words = rawName.trim().split(/\s+/);
+                const suffixWords: string[] = [];
+                while (words.length > 1) {
+                  const last = words[words.length - 1];
+                  if (/^(FC|SC|AFC|RFC|CC|HC|NC|BC|Club|United|Soccer)$/i.test(last) && suffixWords.length < 2) {
+                    suffixWords.unshift(words.pop()!);
+                  } else break;
+                }
+                const mainName = words.join(' ') || rawName;
+                const suffix = suffixWords.join(' ');
                 const nameColor = shouldShowClubTheming
                   ? getBestContrastColor(
                       effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
@@ -1119,16 +1128,16 @@ export function AppHeader() {
                       <div className="relative shrink-0">
                         <LogoImage
                           src={displayLogoUrl}
-                          alt={displayName}
-                          className="h-8 w-8 rounded-lg object-cover"
+                          alt={rawName}
+                          className="h-11 w-11 rounded-lg object-cover"
                           fallback={
-                            <div className="p-1.5 rounded-lg bg-primary">
-                              <Flame className="h-5 w-5 text-primary-foreground" />
+                            <div className="p-2 rounded-lg bg-primary">
+                              <Flame className="h-6 w-6 text-primary-foreground" />
                             </div>
                           }
                         />
                         {shouldShowClubTheming && (
-                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm ring-2 ring-background" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
                             <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
                           </div>
                         )}
@@ -1137,30 +1146,35 @@ export function AppHeader() {
                       <img
                         src={igniteIcon}
                         alt="Ignite"
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 shrink-0 rounded-full object-contain"
+                        width={44}
+                        height={44}
+                        className="h-11 w-11 shrink-0 rounded-full object-contain"
                         loading="eager"
                         decoding="sync"
                         fetchPriority="high"
                       />
                     )}
-                    <div className="flex flex-col leading-tight items-start min-w-0">
-                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">
-                        {activeClubTheme ? 'Club' : 'All Clubs'}
-                      </span>
-                      <span
-                        className="font-bold text-[15px] truncate max-w-[160px] leading-tight mt-0.5"
-                        style={nameColor ? { color: nameColor } : undefined}
-                      >
-                        {displayName}
-                      </span>
+                    <div className="flex flex-col leading-tight items-start min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                        <span
+                          className="font-extrabold text-[20px] leading-tight truncate"
+                          style={nameColor ? { color: nameColor } : undefined}
+                        >
+                          {mainName}
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" strokeWidth={2.5} />
+                      </div>
+                      {suffix && (
+                        <span className="text-[12px] text-muted-foreground leading-tight font-medium">
+                          {suffix}
+                        </span>
+                      )}
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" strokeWidth={2.5} />
                   </>
                 );
               })()}
             </button>
+
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
