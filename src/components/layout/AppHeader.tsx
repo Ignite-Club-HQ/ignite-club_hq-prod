@@ -249,8 +249,8 @@ function LogoClubThemeDropdown() {
       {lockedClubs.map((club) => (
         <DropdownMenuItem
           key={club.clubId}
-          disabled
-          className="flex items-center gap-3 py-2 opacity-60 cursor-not-allowed"
+          onClick={() => setActiveClubTheme(club.clubId)}
+          className="flex items-center gap-3 py-2"
         >
           <Avatar className="h-8 w-8">
             <AvatarImage src={club.logoUrl || undefined} />
@@ -260,11 +260,12 @@ function LogoClubThemeDropdown() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{club.clubName}</p>
-            <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
               <Lock className="h-3 w-3" />
-              <span className="text-xs">Pro only</span>
+              <span className="text-xs">Free — no club theme</span>
             </div>
           </div>
+          {activeClubTheme === club.clubId && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
       ))}
     </DropdownMenuContent>
