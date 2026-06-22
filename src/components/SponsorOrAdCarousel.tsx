@@ -215,7 +215,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       }
       return (
         <>
-          <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
+          <MessagesSponsorCarousel activeClubFilter={effectiveClubFilter} />
           {isNative && <AdMobBannerZone show={true} />}
         </>
       );
