@@ -1443,8 +1443,8 @@ export default function MediaPage() {
             const avatarUrl = photo.profiles?.avatar_url || cachedProfile?.avatar_url || null;
 
             return (
+              <Fragment key={photo.id}>
               <Card 
-                key={photo.id}
                 ref={(el) => {
                   if (el) {
                     photoRefs.current.set(photo.id, el);
