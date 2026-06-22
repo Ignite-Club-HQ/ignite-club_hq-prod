@@ -918,6 +918,17 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
+function AnalyticsErrorCard() {
+  return (
+    <Card className="border-destructive/50">
+      <CardContent className="p-3 flex items-start gap-2 text-sm text-destructive">
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+        <span>Analytics could not load. Refresh this page to try again.</span>
+      </CardContent>
+    </Card>
+  );
+}
+
 type ActivityUserDay = { day: string; user_id: string | null };
 
 function RetentionBlock({ activityRows, prevActivityRows }: { activityRows: ActivityUserDay[]; prevActivityRows: ActivityUserDay[] }) {
