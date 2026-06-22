@@ -920,15 +920,21 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     applyThemeCSS(themeToApply, isDarkMode);
   }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
 
-  // Validate stored theme exists and user is a member
+  // Validate stored theme exists and user is a member.
+  // Allow free / non-themed clubs (id present in userClubIds) to remain selected
+  // as the active club filter; only reset when the id is neither a themed club
+  // nor any club the user belongs to.
   useEffect(() => {
-    if (activeClubTheme && availableClubThemes.length > 0) {
-      const exists = availableClubThemes.some(t => t.clubId === activeClubTheme);
-      if (!exists) {
-        setActiveClubTheme(null);
-      }
+    if (!activeClubTheme) return;
+    const themedReady = availableClubThemes.length > 0;
+    const clubsReady = userClubIds.length > 0;
+    if (!themedReady && !clubsReady) return;
+    const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
+    const inAnyClub = userClubIds.includes(activeClubTheme);
+    if (!inThemed && !inAnyClub) {
+      setActiveClubTheme(null);
     }
-  }, [activeClubTheme, availableClubThemes]);
+  }, [activeClubTheme, availableClubThemes, userClubIds]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
