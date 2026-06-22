@@ -1129,16 +1129,16 @@ export function AppHeader() {
                         <LogoImage
                           src={displayLogoUrl}
                           alt={rawName}
-                          className="h-9 w-9 rounded-lg object-cover"
+                          className="h-[72px] w-[72px] rounded-xl object-cover"
                           fallback={
-                            <div className="p-1.5 rounded-lg bg-primary">
-                              <Flame className="h-5 w-5 text-primary-foreground" />
+                            <div className="p-3 rounded-xl bg-primary">
+                              <Flame className="h-10 w-10 text-primary-foreground" />
                             </div>
                           }
                         />
                         {shouldShowClubTheming && (
-                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm ring-2 ring-background" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
-                            <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
+                          <div className="absolute -bottom-1.5 -right-1.5 p-1 rounded-full shadow-sm ring-2 ring-background" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                            <Flame className="h-4 w-4" style={{ color: 'white' }} />
                           </div>
                         )}
                       </div>
