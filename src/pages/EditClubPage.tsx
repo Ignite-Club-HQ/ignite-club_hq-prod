@@ -387,6 +387,28 @@ export default function EditClubPage() {
         </CardContent>
       </Card>
 
+      {/* Events sponsor strip toggle (pilot — Riverside FC only) */}
+      {showEventsStripToggle && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Sponsor / ad strip on Events</Label>
+                <p className="text-sm text-muted-foreground">
+                  Show a rotating sponsor or ad strip above the events list and on each event detail page.
+                </p>
+              </div>
+              <Switch
+                checked={eventsSponsorStripEnabled}
+                onCheckedChange={setEventsSponsorStripEnabled}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
+
 
       {/* Submit Button */}
       <Button
