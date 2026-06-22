@@ -5,9 +5,13 @@ import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
 
 interface SponsorOrAdCarouselProps {
-  location: "home" | "events" | "messages";
+  location: "home" | "events" | "messages" | "event-detail";
   activeClubFilter?: string | null;
 }
+
+// Phase 1: events sponsor strip is restricted to this club while we pilot it.
+// Other clubs see the legacy bottom-of-page placement / nothing on event detail.
+const EVENTS_STRIP_PILOT_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10"; // Riverside FC
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
   // Check Pro status per-club (filtered club) or globally (no filter)
