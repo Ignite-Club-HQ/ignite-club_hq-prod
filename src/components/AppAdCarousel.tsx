@@ -98,10 +98,11 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     return () => clearInterval(interval);
   }, [ads]);
 
-  // Track view when ad is displayed
+  // Track view when ad is displayed (event-detail rolls up into events_page analytics)
   useEffect(() => {
     if (shouldShowAds && ads && ads[currentIndex]) {
-      const context = `${location}_page` as "home_page" | "events_page" | "messages_page";
+      const analyticsLocation = location === "event-detail" ? "events" : location;
+      const context = `${analyticsLocation}_page` as "home_page" | "events_page" | "messages_page";
       trackView(ads[currentIndex].id, context);
     }
   }, [shouldShowAds, ads, currentIndex, location, trackView]);
