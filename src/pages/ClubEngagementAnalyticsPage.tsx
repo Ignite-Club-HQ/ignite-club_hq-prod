@@ -379,6 +379,33 @@ export default function ClubEngagementAnalyticsPage({
     [msgVolume]
   );
 
+  // ---------- RSVP completion % per day (RPC) ----------
+  const { data: rsvpSeries = [] } = useQuery({
+    queryKey: ["club-engagement-rsvp-series", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_rsvp_completion_series", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; completion_pct: number | null; responded: number; expected: number }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const rsvpSeriesChart = useMemo(
+    () =>
+      rsvpSeries.map((r) => ({
+        day: r.day,
+        pct: r.completion_pct == null ? null : Number(r.completion_pct),
+        responded: Number(r.responded || 0),
+        expected: Number(r.expected || 0),
+      })),
+    [rsvpSeries]
+  );
+  const rsvpSeriesHasData = rsvpSeriesChart.some((d) => d.pct != null);
+
   const clubMsgsCount = totals?.clubMsgs ?? 0;
   const teamMsgsCount = totals?.teamMsgs ?? 0;
   const reactionCount = totals?.reactions ?? 0;
