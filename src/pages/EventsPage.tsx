@@ -1159,8 +1159,6 @@ export default function EventsPage() {
         </div>
       )}
 
-      {/* Sponsor/Ad Carousel */}
-      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
     </div>
   );
 }
