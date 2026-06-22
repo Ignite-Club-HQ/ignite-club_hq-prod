@@ -161,15 +161,48 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
 
   return (
     <div className="w-full">
-      <div 
+      <div
         className="relative rounded-lg overflow-hidden cursor-pointer group"
         onClick={handleClick}
       >
-        <img 
-          src={currentAd.image_url} 
-          alt={currentAd.name}
-          className="w-full h-28 object-contain transition-transform group-hover:scale-[1.02]"
-        />
+        {currentAd.ad_type === "logo_text" ? (
+          <div
+            className="w-full h-28 flex items-center gap-3 px-4 transition-transform group-hover:scale-[1.02]"
+            style={{
+              backgroundColor: currentAd.bg_color || "hsl(var(--card))",
+              color: currentAd.text_color || "hsl(var(--card-foreground))",
+            }}
+          >
+            {currentAd.logo_url && (
+              <img
+                src={currentAd.logo_url}
+                alt=""
+                className="h-16 w-16 rounded-md object-contain bg-white/10 shrink-0"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-base leading-tight truncate">
+                {currentAd.headline || currentAd.name}
+              </div>
+              {currentAd.subtext && (
+                <div className="text-sm opacity-80 line-clamp-2 mt-0.5">{currentAd.subtext}</div>
+              )}
+            </div>
+            {currentAd.cta_label && (
+              <span
+                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full bg-white/20"
+              >
+                {currentAd.cta_label}
+              </span>
+            )}
+          </div>
+        ) : (
+          <img
+            src={currentAd.image_url || ""}
+            alt={currentAd.name}
+            className="w-full h-28 object-contain transition-transform group-hover:scale-[1.02]"
+          />
+        )}
         <div className="absolute top-2 right-2">
           <span className="text-[10px] bg-black/40 text-white/70 px-1.5 py-0.5 rounded">Ad</span>
         </div>
