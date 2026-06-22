@@ -239,14 +239,35 @@ function LogoClubThemeDropdown() {
       {/* Default / all clubs */}
       <DropdownMenuItem
         onClick={() => setActiveClubTheme(null)}
-        className="flex items-center gap-3 py-2"
+        className={
+          "flex items-center gap-3 py-2 my-0.5 rounded-md " +
+          (!activeClubTheme ? "bg-primary/15 ring-1 ring-primary/40 focus:bg-primary/20" : "")
+        }
       >
-        <img src={defaultLogo} alt="Ignite" className="h-8 w-8 rounded-lg object-cover" />
+        <img
+          src={defaultLogo}
+          alt="Ignite"
+          className={
+            "h-8 w-8 rounded-lg object-cover " +
+            (!activeClubTheme ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")
+          }
+        />
         <div className="flex-1">
-          <p className="text-sm font-medium">Default</p>
+          <div className="flex items-center gap-1.5">
+            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default</p>
+            {!activeClubTheme && (
+              <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
+                Current
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
         </div>
-        {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
+        {!activeClubTheme && (
+          <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </div>
+        )}
       </DropdownMenuItem>
 
       {mergedClubs.length > 0 && <DropdownMenuSeparator />}
