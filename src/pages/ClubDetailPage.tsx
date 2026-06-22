@@ -911,6 +911,7 @@ export default function ClubDetailPage() {
 
   const { hasProFootball } = useClubProAccess(id);
   const clubHasThemeEntitlement = !!(
+    club?.is_pro ||
     clubSubscription?.is_pro ||
     clubSubscription?.is_pro_football ||
     clubSubscription?.admin_pro_override ||
