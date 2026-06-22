@@ -175,16 +175,20 @@ const clearAllThemeCSS = () => {
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const root = document.documentElement;
 
+  // Central theme resolver: only apply custom colours when the club has a
+  // Pro entitlement AND a theme. Otherwise fall back to default Ignite theme.
+  const shouldApplyCustomTheme = !!theme && theme.isProTheme && !theme.logoOnlyMode;
+
   // Build a stable signature representing the resolved theme + mode
-  const signature = !theme || theme.logoOnlyMode
+  const signature = !shouldApplyCustomTheme
     ? `none|${isDarkMode}`
     : JSON.stringify({
-        c: theme.clubId,
+        c: theme!.clubId,
         d: isDarkMode,
-        p: isDarkMode ? (theme.darkPrimary || theme.primary) : theme.primary,
-        s: isDarkMode ? (theme.darkSecondary || theme.secondary) : theme.secondary,
-        a: isDarkMode ? (theme.darkAccent || theme.accent) : theme.accent,
-        lo: theme.logoOnlyMode,
+        p: isDarkMode ? (theme!.darkPrimary || theme!.primary) : theme!.primary,
+        s: isDarkMode ? (theme!.darkSecondary || theme!.secondary) : theme!.secondary,
+        a: isDarkMode ? (theme!.darkAccent || theme!.accent) : theme!.accent,
+        lo: theme!.logoOnlyMode,
       });
 
   // Skip if nothing changed since the last application
@@ -193,7 +197,7 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   }
   lastAppliedThemeSignature = signature;
 
-  if (!theme || theme.logoOnlyMode) {
+  if (!shouldApplyCustomTheme) {
     clearAllThemeCSS();
     return;
   }
