@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type EventType = "view" | "click";
-type Context = "home_page" | "events_page" | "messages_page";
+type Context = "home_page" | "events_page" | "event_detail_page" | "messages_page";
 
 // Track which ads have been viewed to avoid duplicate tracking in a session
 const viewedAds = new Set<string>();
