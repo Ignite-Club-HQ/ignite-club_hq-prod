@@ -74,7 +74,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
   // Check Pro status per-club (filtered club) or globally (no filter)
   const { data: proStatus, isLoading: isProLoading } = useQuery({
-    queryKey: ["user-pro-status-per-club", activeClubFilter],
+    queryKey: ["user-pro-status-per-club", effectiveClubFilter],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { isProFiltered: false, hasAnyPro: false };
