@@ -51,9 +51,12 @@ const tierKey = (t: SponsorTier): keyof typeof TIER_WEIGHT =>
 interface AppAdLite {
   id: string;
   name: string;
-  image_url: string;
+  image_url: string | null;
   link_url: string | null;
   description: string | null;
+  ad_type: "image" | "logo_text";
+  logo_url: string | null;
+  headline: string | null;
 }
 
 /**
@@ -189,7 +192,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("app_ads")
-        .select("id, name, image_url, link_url, description")
+        .select("id, name, image_url, link_url, description, ad_type, logo_url, headline")
         .eq("is_active", true)
         .order("display_order", { ascending: true });
       if (error) throw error;
@@ -329,12 +332,12 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
             Sponsor
           </span>
           <Avatar className="h-6 w-6 rounded-md shrink-0">
-            <AvatarImage src={activeAd.image_url} className="object-cover" />
+            <AvatarImage src={activeAd.logo_url || activeAd.image_url || undefined} className="object-cover" />
             <AvatarFallback className="text-[10px] bg-secondary rounded-md">
-              {activeAd.name.charAt(0).toUpperCase()}
+              {(activeAd.headline || activeAd.name).charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="text-sm font-medium truncate flex-1 min-w-0">{activeAd.name}</span>
+          <span className="text-sm font-medium truncate flex-1 min-w-0">{activeAd.headline || activeAd.name}</span>
           {clickable && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
         </button>
       </div>

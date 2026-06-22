@@ -209,36 +209,57 @@ export type Database = {
       }
       app_ads: {
         Row: {
+          ad_type: string
+          bg_color: string | null
           created_at: string
+          cta_label: string | null
           description: string | null
           display_order: number
+          headline: string | null
           id: string
-          image_url: string
+          image_url: string | null
           is_active: boolean
           link_url: string | null
+          logo_url: string | null
           name: string
+          subtext: string | null
+          text_color: string | null
           updated_at: string
         }
         Insert: {
+          ad_type?: string
+          bg_color?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number
+          headline?: string | null
           id?: string
-          image_url: string
+          image_url?: string | null
           is_active?: boolean
           link_url?: string | null
+          logo_url?: string | null
           name: string
+          subtext?: string | null
+          text_color?: string | null
           updated_at?: string
         }
         Update: {
+          ad_type?: string
+          bg_color?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number
+          headline?: string | null
           id?: string
-          image_url?: string
+          image_url?: string | null
           is_active?: boolean
           link_url?: string | null
+          logo_url?: string | null
           name?: string
+          subtext?: string | null
+          text_color?: string | null
           updated_at?: string
         }
         Relationships: []
