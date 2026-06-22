@@ -894,7 +894,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const themeToApply = theme || cachedThemeData;
     
     if (!themeToApply) {
-      // No theme data available yet - will be applied when data loads
+      // If user selected a free / non-themed club, clear overrides; otherwise wait for data.
+      if (availableClubThemes.length > 0 && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
+        clearAllThemeCSS();
+      }
       return;
     }
 
