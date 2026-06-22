@@ -115,6 +115,7 @@ export default function ClubEngagementAnalyticsPage({
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
+  const [adoptionGranularity, setAdoptionGranularity] = useState<"daily" | "weekly" | "monthly">("daily");
 
   const range: RangeBounds = useMemo(() => {
     if (customStart && customEnd) {
@@ -259,24 +260,47 @@ export default function ClubEngagementAnalyticsPage({
     return { d7: s7.size, d30: s30.size, range: sRange.size, prev: sPrev.size };
   }, [fixed30Rows, activityRows, prevActivityRows]);
 
-  // DAU timeline (per day in range)
-  const dauSeries = useMemo(() => {
+  // Adoption timeline: DAU / WAU / MAU (per day in range)
+  const adoptionSeries = useMemo(() => {
     const days = differenceInDays(range.end, range.start) + 1;
-    const byDay = new Map<string, Set<string>>();
+    const dayKeys: string[] = [];
     for (let i = 0; i < days; i++) {
-      byDay.set(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"), new Set());
+      dayKeys.push(format(subDays(range.end, days - 1 - i), "yyyy-MM-dd"));
     }
+
+    const dayUsers = new Map<string, Set<string>>();
+    for (const key of dayKeys) dayUsers.set(key, new Set());
     for (const r of activityRows) {
       if (!r.user_id || !r.day) continue;
-      byDay.get(r.day)?.add(r.user_id);
+      dayUsers.get(r.day)?.add(r.user_id);
     }
+
     const todayKey = format(new Date(), "yyyy-MM-dd");
-    const sorted = Array.from(byDay.entries())
-      .filter(([day]) => day < todayKey)
-      .map(([day, set]) => ({ day, dau: set.size }));
-    const firstNonZero = sorted.findIndex((d) => d.dau > 0);
-    return firstNonZero === -1 ? [] : sorted.slice(firstNonZero);
-  }, [activityRows, range]);
+    const result: { day: string; value: number }[] = [];
+
+    for (let i = 0; i < dayKeys.length; i++) {
+      const day = dayKeys[i];
+      if (day >= todayKey) continue;
+
+      let users: Set<string>;
+      if (adoptionGranularity === "daily") {
+        users = dayUsers.get(day) || new Set();
+      } else {
+        const windowSize = adoptionGranularity === "weekly" ? 7 : 30;
+        users = new Set<string>();
+        for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
+          const set = dayUsers.get(dayKeys[j]);
+          if (set) {
+            for (const uid of set) users.add(uid);
+          }
+        }
+      }
+      result.push({ day, value: users.size });
+    }
+
+    const firstNonZero = result.findIndex((d) => d.value > 0);
+    return firstNonZero === -1 ? [] : result.slice(firstNonZero);
+  }, [activityRows, range, adoptionGranularity]);
 
   // ---------- New members ----------
   // Defined as: pending_invites that were accepted within the date range
@@ -767,22 +791,52 @@ export default function ClubEngagementAnalyticsPage({
       {benchmarksError ? <AnalyticsErrorCard /> : <ReadRatesGrid b={benchmarks} />}
 
       {/* Section 2: Member Adoption */}
-      <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
+      <SectionHeader
+        icon={Users}
+        title="Member Adoption"
+        description={
+          adoptionGranularity === "daily"
+            ? "Daily active users over time"
+            : adoptionGranularity === "weekly"
+              ? "Weekly active users over time"
+              : "Monthly active users over time"
+        }
+      />
       <Card>
         <CardContent className="pt-4">
+          <Tabs value={adoptionGranularity} onValueChange={(v) => setAdoptionGranularity(v as typeof adoptionGranularity)} className="mb-3">
+            <TabsList className="grid grid-cols-3 w-full max-w-xs">
+              <TabsTrigger value="daily">Daily</TabsTrigger>
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+            </TabsList>
+          </Tabs>
           {actLoading ? (
             <Skeleton className="h-56 w-full" />
-          ) : dauSeries.every((d) => d.dau === 0) ? (
+          ) : adoptionSeries.every((d) => d.value === 0) ? (
             <EmptyState label="No member activity logged in this period yet." />
           ) : (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dauSeries}>
+                <LineChart data={adoptionSeries}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
                   <YAxis fontSize={11} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="dau" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Daily active" />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    name={
+                      adoptionGranularity === "daily"
+                        ? "Daily active"
+                        : adoptionGranularity === "weekly"
+                          ? "Weekly active"
+                          : "Monthly active"
+                    }
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
