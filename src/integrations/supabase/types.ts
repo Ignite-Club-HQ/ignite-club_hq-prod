@@ -2033,6 +2033,7 @@ export type Database = {
           logo_url: string | null
           longitude: number | null
           max_guests_per_member_default: number
+          media_header_sponsors_enabled: boolean
           media_sponsors_enabled: boolean
           member_count: number | null
           member_payments_enabled: boolean
@@ -2108,6 +2109,7 @@ export type Database = {
           logo_url?: string | null
           longitude?: number | null
           max_guests_per_member_default?: number
+          media_header_sponsors_enabled?: boolean
           media_sponsors_enabled?: boolean
           member_count?: number | null
           member_payments_enabled?: boolean
@@ -2183,6 +2185,7 @@ export type Database = {
           logo_url?: string | null
           longitude?: number | null
           max_guests_per_member_default?: number
+          media_header_sponsors_enabled?: boolean
           media_sponsors_enabled?: boolean
           member_count?: number | null
           member_payments_enabled?: boolean

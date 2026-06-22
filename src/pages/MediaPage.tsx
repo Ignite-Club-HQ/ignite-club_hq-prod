@@ -47,6 +47,7 @@ import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { MediaSponsorTile } from "@/components/media/MediaSponsorTile";
+import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorStrip";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
@@ -1300,6 +1301,13 @@ export default function MediaPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Header sponsor / ad strip — Pro: Riverside only (admin toggle, defaults off). Free: always on. */}
+      <div className="max-w-lg mx-auto">
+        <MediaHeaderSponsorStrip
+          clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
+        />
       </div>
 
       {/* Filter Drawer */}
