@@ -489,7 +489,7 @@ export default function ClubEngagementAnalyticsPage({
   }, [sponsorAnalytics, sponsorRows]);
 
   // ---------- Benchmark metrics (Active%, DAU/WAU/MAU, Message Participation, Read Rates) ----------
-  const { data: benchmarks } = useQuery({
+  const { data: benchmarks, error: benchmarksError } = useQuery({
     queryKey: ["club-engagement-benchmarks", clubId, mode, range.start.toISOString(), range.end.toISOString(), prevRange.start.toISOString(), prevRange.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("club_engagement_benchmarks", {
@@ -698,19 +698,19 @@ export default function ClubEngagementAnalyticsPage({
 
       {/* Benchmark: Active Member % */}
       <SectionHeader icon={Users} title="Active Member Rate" description="Members with any meaningful action in this period" />
-      <ActiveMemberCard b={benchmarks} />
+      {benchmarksError ? <AnalyticsErrorCard /> : <ActiveMemberCard b={benchmarks} />}
 
       {/* Benchmark: DAU / WAU / MAU */}
       <SectionHeader icon={Activity} title="Engagement (DAU / WAU / MAU)" description="Industry-standard active-user metrics" />
-      <EngagementBenchmarkCards b={benchmarks} />
+      {benchmarksError ? <AnalyticsErrorCard /> : <EngagementBenchmarkCards b={benchmarks} />}
 
       {/* Benchmark: Message Participation */}
       <SectionHeader icon={MessageSquare} title="Message Participation" description="How members engage with chat" />
-      <MessageParticipationCard b={benchmarks} />
+      {benchmarksError ? <AnalyticsErrorCard /> : <MessageParticipationCard b={benchmarks} />}
 
       {/* Benchmark: Read Rates */}
       <SectionHeader icon={Eye} title="Read Rates" description="Communication effectiveness — viewers within 7 days" />
-      <ReadRatesGrid b={benchmarks} />
+      {benchmarksError ? <AnalyticsErrorCard /> : <ReadRatesGrid b={benchmarks} />}
 
       {/* Section 2: Member Adoption */}
       <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
