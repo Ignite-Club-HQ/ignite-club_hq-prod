@@ -13,12 +13,34 @@ interface ChatThreadSponsorStripProps {
   clubId: string | null | undefined;
 }
 
+type SponsorTier = "platinum" | "gold" | "silver" | "bronze" | null;
+
 interface SponsorLite {
   id: string;
   name: string;
   logo_url: string | null;
   website_url: string | null;
+  tier: SponsorTier;
 }
+
+// Tier-based rotation weights & on-screen durations.
+// Higher tier = appears more often AND stays visible longer.
+const TIER_WEIGHT: Record<Exclude<SponsorTier, null> | "default", number> = {
+  platinum: 6,
+  gold: 4,
+  silver: 2,
+  bronze: 1,
+  default: 2, // untiered sponsors behave like silver
+};
+const TIER_DURATION_MS: Record<Exclude<SponsorTier, null> | "default", number> = {
+  platinum: 20_000,
+  gold: 18_000,
+  silver: 12_000,
+  bronze: 8_000,
+  default: 12_000,
+};
+const tierKey = (t: SponsorTier): keyof typeof TIER_WEIGHT =>
+  t && t in TIER_WEIGHT ? (t as keyof typeof TIER_WEIGHT) : "default";
 
 interface AppAdLite {
   id: string;
