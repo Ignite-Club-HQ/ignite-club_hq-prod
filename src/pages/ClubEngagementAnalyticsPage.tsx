@@ -115,6 +115,7 @@ export default function ClubEngagementAnalyticsPage({
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(ALL_TEAMS);
+  const [adoptionGranularity, setAdoptionGranularity] = useState<"daily" | "weekly" | "monthly">("daily");
 
   const range: RangeBounds = useMemo(() => {
     if (customStart && customEnd) {
