@@ -121,11 +121,6 @@ export function EventSponsorSelector({ eventId, clubId }: EventSponsorSelectorPr
 
   const isLoading = sponsorsLoading || eventSponsorsLoading;
 
-  // Set initial values when data loads
-  if (!isLoading && eventSponsorIds && selectedIds.length === 0 && eventSponsorIds.length > 0) {
-    setSelectedIds(eventSponsorIds);
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-4">
