@@ -14,9 +14,16 @@ interface AppAdCarouselProps {
 interface AppAd {
   id: string;
   name: string;
-  image_url: string;
+  image_url: string | null;
   link_url: string | null;
   description: string | null;
+  ad_type: "image" | "logo_text";
+  logo_url: string | null;
+  headline: string | null;
+  subtext: string | null;
+  cta_label: string | null;
+  bg_color: string | null;
+  text_color: string | null;
 }
 
 export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
