@@ -14,6 +14,23 @@ interface SponsorOrAdCarouselProps {
 const EVENTS_STRIP_PILOT_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10"; // Riverside FC
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
+  // Events-placement gate: pilot-club only AND club admin has opted in.
+  const isEventsPlacement = location === "events" || location === "event-detail";
+  const { data: eventsStripAllowed, isLoading: isStripGateLoading } = useQuery({
+    queryKey: ["events-sponsor-strip-allowed", activeClubFilter],
+    queryFn: async () => {
+      if (!activeClubFilter) return false;
+      if (activeClubFilter !== EVENTS_STRIP_PILOT_CLUB_ID) return false;
+      const { data } = await supabase
+        .from("clubs")
+        .select("events_sponsor_strip_enabled")
+        .eq("id", activeClubFilter)
+        .maybeSingle();
+      return !!(data as any)?.events_sponsor_strip_enabled;
+    },
+    enabled: isEventsPlacement,
+  });
+
   // Check Pro status per-club (filtered club) or globally (no filter)
   const { data: proStatus, isLoading: isProLoading } = useQuery({
     queryKey: ["user-pro-status-per-club", activeClubFilter],
