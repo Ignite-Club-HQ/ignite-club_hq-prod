@@ -9836,6 +9836,15 @@ export type Database = {
           team_count: number
         }[]
       }
+      club_engagement_rsvp_completion_series: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: {
+          completion_pct: number
+          day: string
+          expected: number
+          responded: number
+        }[]
+      }
       club_engagement_sponsor_performance: {
         Args: {
           _club_id: string
