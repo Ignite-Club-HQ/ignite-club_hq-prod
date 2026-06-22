@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -228,15 +228,118 @@ function LogoClubThemeDropdown() {
     return a.clubName.localeCompare(b.clubName);
   });
 
+  // Pin the active club at the very top so the dropdown opens with the
+  // current selection visible without scrolling.
+  const sortedClubs = [...mergedClubs].sort((a, b) => {
+    if (a.clubId === activeClubTheme && b.clubId !== activeClubTheme) return -1;
+    if (b.clubId === activeClubTheme && a.clubId !== activeClubTheme) return 1;
+    const aHas = a.theme ? 1 : 0;
+    const bHas = b.theme ? 1 : 0;
+    if (aHas !== bHas) return bHas - aHas;
+    return a.clubName.localeCompare(b.clubName);
+  });
+
+  const renderClubRow = (club: MergedClub) => {
+    const theme = club.theme;
+    const selected = activeClubTheme === club.clubId;
+    const isFree = !theme;
+    return (
+      <DropdownMenuItem
+        key={club.clubId}
+        onClick={() => setActiveClubTheme(club.clubId)}
+        className={
+          "flex items-center gap-3 py-2 my-0.5 rounded-md " +
+          (selected ? "bg-primary/15 ring-1 ring-primary/40 focus:bg-primary/20" : "")
+        }
+      >
+        <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
+          <AvatarImage src={club.logoUrl || undefined} />
+          <AvatarFallback
+            className="text-xs"
+            style={{
+              backgroundColor: theme?.primary
+                ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
+                : undefined,
+              color: theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
+            }}
+          >
+            {club.clubName.charAt(0)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className={"text-sm truncate " + (selected ? "font-semibold text-foreground" : "font-medium")}>
+              {club.clubName}
+            </p>
+            {selected && (
+              <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
+                Current
+              </span>
+            )}
+          </div>
+          {isFree ? (
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span className="text-[11px]">Default theme</span>
+            </div>
+          ) : theme?.primary ? (
+            <div className="flex gap-1 mt-0.5">
+              <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }} />
+              {theme.secondary && (
+                <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }} />
+              )}
+              {theme.accent && (
+                <div className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }} />
+              )}
+            </div>
+          ) : null}
+        </div>
+        {selected && (
+          <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </div>
+        )}
+      </DropdownMenuItem>
+    );
+  };
+
+  const activeClub = sortedClubs.find((c) => c.clubId === activeClubTheme) || null;
+  const otherClubs = sortedClubs.filter((c) => c.clubId !== activeClubTheme);
+
   return (
-    <DropdownMenuContent align="start" className="w-64">
+    <DropdownMenuContent align="start" className="w-72">
       <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Switch club</p>
         <p className="text-xs text-muted-foreground">Choose which club to view</p>
       </div>
       <DropdownMenuSeparator />
 
-      {/* Default / all clubs */}
+      {/* Active club pinned at top */}
+      {activeClub && (
+        <>
+          <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Current club
+          </p>
+          {renderClubRow(activeClub)}
+        </>
+      )}
+
+      {/* Other clubs */}
+      {otherClubs.length > 0 && (
+        <>
+          <DropdownMenuSeparator />
+          <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Your clubs
+          </p>
+          {otherClubs.map(renderClubRow)}
+        </>
+      )}
+
+      {/* Default Ignite theme — its own section so it's never confused with a club */}
+      <DropdownMenuSeparator />
+      <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Workspace
+      </p>
       <DropdownMenuItem
         onClick={() => setActiveClubTheme(null)}
         className={
@@ -254,14 +357,14 @@ function LogoClubThemeDropdown() {
         />
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
-            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default</p>
+            <p className={"text-sm " + (!activeClubTheme ? "font-semibold text-foreground" : "font-medium")}>Default Ignite theme</p>
             {!activeClubTheme && (
               <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
                 Current
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
+          <p className="text-xs text-muted-foreground">View all clubs together</p>
         </div>
         {!activeClubTheme && (
           <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
@@ -269,94 +372,16 @@ function LogoClubThemeDropdown() {
           </div>
         )}
       </DropdownMenuItem>
-
-      {mergedClubs.length > 0 && <DropdownMenuSeparator />}
-
-      {mergedClubs.map((club) => {
-        const theme = club.theme;
-        const selected = activeClubTheme === club.clubId;
-        const isFree = !theme;
-        return (
-          <DropdownMenuItem
-            key={club.clubId}
-            onClick={() => setActiveClubTheme(club.clubId)}
-            className={
-              "flex items-center gap-3 py-2 my-0.5 rounded-md " +
-              (selected
-                ? "bg-primary/15 ring-1 ring-primary/40 focus:bg-primary/20"
-                : "")
-            }
-          >
-            <Avatar className={"h-8 w-8 " + (selected ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "")}>
-              <AvatarImage src={club.logoUrl || undefined} />
-              <AvatarFallback
-                className="text-xs"
-                style={{
-                  backgroundColor:
-                    theme?.primary
-                      ? `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)`
-                      : undefined,
-                  color:
-                    theme?.primary && theme.primary.l > 50 ? "#1a1a1a" : undefined,
-                }}
-              >
-                {club.clubName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className={"text-sm truncate " + (selected ? "font-semibold text-foreground" : "font-medium")}>
-                  {club.clubName}
-                </p>
-                {selected && (
-                  <span className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold uppercase tracking-wide">
-                    Current
-                  </span>
-                )}
-              </div>
-              {isFree ? (
-                <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
-                  <Lock className="h-3 w-3" />
-                  <span className="text-[11px]">Default theme</span>
-                </div>
-              ) : theme?.primary ? (
-                <div className="flex gap-1 mt-0.5">
-                  <div
-                    className="h-3 w-3 rounded-full border border-border"
-                    style={{ backgroundColor: `hsl(${theme.primary.h}, ${theme.primary.s}%, ${theme.primary.l}%)` }}
-                  />
-                  {theme.secondary && (
-                    <div
-                      className="h-3 w-3 rounded-full border border-border"
-                      style={{ backgroundColor: `hsl(${theme.secondary.h}, ${theme.secondary.s}%, ${theme.secondary.l}%)` }}
-                    />
-                  )}
-                  {theme.accent && (
-                    <div
-                      className="h-3 w-3 rounded-full border border-border"
-                      style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }}
-                    />
-                  )}
-                </div>
-              ) : null}
-            </div>
-            {selected && (
-              <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                <Check className="h-3 w-3" strokeWidth={3} />
-              </div>
-            )}
-          </DropdownMenuItem>
-        );
-      })}
     </DropdownMenuContent>
   );
 }
+
 
 export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
-  const { activeThemeData, activeClubTheme, activeClubFilter } = useClubTheme();
+  const { activeThemeData, activeClubTheme, activeClubFilter, availableClubThemes } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -1057,74 +1082,87 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
-              {shouldShowClubTheming ? (
-                <>
-                  {showClubLogo ? (
-                    <div className="relative">
-                      <LogoImage 
-                        src={activeThemeData.logoUrl!} 
-                        alt={activeThemeData.clubName}
-                        className="h-8 w-auto max-w-[32px] object-contain"
-                        fallback={
-                          <div className="p-1.5 rounded-lg bg-primary">
-                            <Flame className="h-5 w-5 text-primary-foreground" />
-                          </div>
-                        }
-                      />
-                      <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
-                        <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-1.5 rounded-lg bg-primary">
-                      <Flame className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                  )}
-                  {activeThemeData.showNameInHeader && !activeThemeData.logoOnlyMode && clubNameParts?.mainName && (
-                    <div className="flex flex-col leading-tight items-start">
-                      <div className="flex items-center gap-1.5">
-                      <span 
-                          className="font-bold text-lg truncate max-w-[140px]"
-                          style={{ 
-                            color: getBestContrastColor(
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
-                              effectiveTheme === 'dark'
-                            )
-                          }}
-                        >
-                          {clubNameParts.mainName}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <img
-                    src={igniteIcon}
-                    alt="Ignite"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 shrink-0 rounded-full object-contain"
-                    loading="eager"
-                    decoding="sync"
-                    fetchPriority="high"
-                  />
-                  <div className="flex flex-col leading-tight items-start">
-                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
-                    <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
-                  </div>
-                </>
+            <button
+              className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors max-w-[78%]"
+              aria-label="Switch club"
+              key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
+            >
+              {(() => {
+                // Always show the active club (themed or free). Falls back to Ignite default.
+                const activeClubInfo = activeClubTheme
+                  ? availableClubThemes.find((t) => t.clubId === activeClubTheme)
+                  : null;
+                const displayLogoUrl = (shouldShowClubTheming && showClubLogo)
+                  ? activeThemeData!.logoUrl!
+                  : activeClubInfo?.logoUrl || null;
+                const displayName = activeClubInfo?.clubName
+                  || (shouldShowClubTheming && clubNameParts?.mainName ? `${clubNameParts.mainName}${clubNameParts.suffix ? ' ' + clubNameParts.suffix : ''}` : null)
+                  || 'Ignite Club HQ';
+                const nameColor = shouldShowClubTheming
+                  ? getBestContrastColor(
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
+                      effectiveTheme === 'dark'
+                    )
+                  : undefined;
 
-              )}
+                return (
+                  <>
+                    {displayLogoUrl ? (
+                      <div className="relative shrink-0">
+                        <LogoImage
+                          src={displayLogoUrl}
+                          alt={displayName}
+                          className="h-8 w-8 rounded-lg object-cover"
+                          fallback={
+                            <div className="p-1.5 rounded-lg bg-primary">
+                              <Flame className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                          }
+                        />
+                        {shouldShowClubTheming && (
+                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                            <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
+                          </div>
+                        )}
+                      </div>
+                    ) : activeClubTheme ? (
+                      <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 text-sm font-semibold">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                    ) : (
+                      <img
+                        src={igniteIcon}
+                        alt="Ignite"
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 shrink-0 rounded-full object-contain"
+                        loading="eager"
+                        decoding="sync"
+                        fetchPriority="high"
+                      />
+                    )}
+                    <div className="flex flex-col leading-tight items-start min-w-0">
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">
+                        {activeClubTheme ? 'Club' : 'Workspace'}
+                      </span>
+                      <span
+                        className="font-bold text-[15px] truncate max-w-[160px] leading-tight mt-0.5"
+                        style={nameColor ? { color: nameColor } : undefined}
+                      >
+                        {displayName}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" strokeWidth={2.5} />
+                  </>
+                );
+              })()}
             </button>
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
+
 
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
