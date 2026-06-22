@@ -356,7 +356,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
-  const { activeThemeData, activeClubTheme, activeClubFilter } = useClubTheme();
+  const { activeThemeData, activeClubTheme, activeClubFilter, availableClubThemes } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
