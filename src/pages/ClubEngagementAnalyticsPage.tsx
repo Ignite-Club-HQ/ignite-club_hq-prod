@@ -389,7 +389,7 @@ export default function ClubEngagementAnalyticsPage({
         _end: range.end.toISOString(),
       });
       if (error) throw error;
-      return (data || []) as { day: string; completion_pct: number | null; responded: number; expected: number }[];
+      return (data || []) as { week: string; completion_pct: number | null; responded: number; expected: number }[];
     },
     enabled: queryReady && !!access?.isAdmin,
   });
