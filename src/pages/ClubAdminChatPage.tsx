@@ -906,6 +906,8 @@ export default function ClubAdminChatPage() {
         </div>
       </div>
 
+      <ChatThreadSponsorStrip clubId={conversation?.club_id ?? null} />
+
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
