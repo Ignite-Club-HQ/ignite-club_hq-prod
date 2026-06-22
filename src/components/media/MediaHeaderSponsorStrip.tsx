@@ -29,8 +29,11 @@ interface SponsorLite {
 interface AppAdLite {
   id: string;
   name: string;
-  image_url: string;
+  image_url: string | null;
   link_url: string | null;
+  ad_type: "image" | "logo_text";
+  logo_url: string | null;
+  headline: string | null;
 }
 
 const TIER_WEIGHT: Record<Exclude<SponsorTier, null> | "default", number> = {
