@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+// Pro club sponsor strip dismissal — 24h hide, user+club scoped.
+// Free clubs (app ads) cannot dismiss.
+const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
+const dismissKey = (userId: string | undefined, clubId: string) =>
+  `ignite_chat_sponsor_dismissed_${userId || "anon"}_${clubId}`;
 
 interface ChatThreadSponsorStripProps {
   /** The club this chat thread belongs to. Pass `null` for DMs / unscoped chats — strip will hide. */
