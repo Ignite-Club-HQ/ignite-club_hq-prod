@@ -3663,7 +3663,7 @@ export default function EventDetailPage() {
       )}
 
       {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Generate Matches) */}
-      {event.type === "game" && !isMiniLeagueEvent && (
+      {event.type === "game" && !isMiniLeagueEvent && (isAppAdmin || hasTeamPro === true) && (
         <>
           <section className="space-y-3">
             <div className="flex items-center justify-between">
