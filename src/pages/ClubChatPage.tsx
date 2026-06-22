@@ -1556,6 +1556,8 @@ export default function ClubChatPage() {
         />
       )}
 
+      <ChatThreadSponsorStrip clubId={clubId ?? null} />
+
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
