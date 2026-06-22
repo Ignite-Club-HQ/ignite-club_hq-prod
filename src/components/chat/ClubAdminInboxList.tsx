@@ -76,9 +76,6 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
   ]);
 
   const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
-  const profileMap = new Map(
-    (profilesRes.data || []).map((p: any) => [p.id, p]),
-  );
   const latestByConv = new Map<string, any>();
   for (const m of msgsRes.data || []) {
     if (!latestByConv.has(m.conversation_id)) {
@@ -91,7 +88,7 @@ export async function fetchClubAdminConversations(userId: string, clubFilter?: s
     // Hide empty conversations — only show threads where a member has actually messaged
     if (!last) return [];
     const club = clubMap.get(c.club_id) as any;
-    const profile = profileMap.get(c.member_user_id) as any;
+    const profile = profilesMap.get(c.member_user_id) as any;
     return [{
       id: c.id,
       club_id: c.club_id,
