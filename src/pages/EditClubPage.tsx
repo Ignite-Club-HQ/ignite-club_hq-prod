@@ -74,6 +74,7 @@ export default function EditClubPage() {
       setClassModeEnabled(club.class_mode_enabled || false);
       setAllowGuestsDefault(club.allow_guests_default || false);
       setMaxGuestsDefault(club.max_guests_per_member_default || 2);
+      setEventsSponsorStripEnabled((club as any).events_sponsor_strip_enabled || false);
     }
   }, [club]);
 
