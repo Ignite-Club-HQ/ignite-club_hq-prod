@@ -219,23 +219,45 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // Always-on 30-day window so the "Active (7d)" and "Active (30d)" tiles
+  // remain stable regardless of the user's selected time-range filter.
+  const { data: fixed30Rows = [] } = useQuery({
+    queryKey: ["club-engagement-activity-fixed30-rpc", clubId, mode],
+    queryFn: async () => {
+      const end = new Date();
+      const start = subDays(end, 30);
+      const { data, error } = await supabase.rpc("club_engagement_active_users", {
+        _club_id: clubId as any,
+        _start: start.toISOString(),
+        _end: end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; user_id: string }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
   const activeMembers = useMemo(() => {
     const now = new Date();
     const d7Cutoff = format(subDays(now, 7), "yyyy-MM-dd");
     const d30Cutoff = format(subDays(now, 30), "yyyy-MM-dd");
     const s7 = new Set<string>();
     const s30 = new Set<string>();
-    const sRange = new Set<string>();
-    for (const r of activityRows) {
+    // d7/d30 use the fixed 30-day window so they don't shrink/grow with the filter.
+    for (const r of fixed30Rows) {
       if (!r.user_id) continue;
       if (r.day >= d7Cutoff) s7.add(r.user_id);
       if (r.day >= d30Cutoff) s30.add(r.user_id);
-      sRange.add(r.user_id);
+    }
+    // "Active in range" stays tied to the selected filter.
+    const sRange = new Set<string>();
+    for (const r of activityRows) {
+      if (r.user_id) sRange.add(r.user_id);
     }
     const sPrev = new Set<string>();
     for (const r of prevActivityRows) if (r.user_id) sPrev.add(r.user_id);
     return { d7: s7.size, d30: s30.size, range: sRange.size, prev: sPrev.size };
-  }, [activityRows, prevActivityRows]);
+  }, [fixed30Rows, activityRows, prevActivityRows]);
 
   // DAU timeline (per day in range)
   const dauSeries = useMemo(() => {
