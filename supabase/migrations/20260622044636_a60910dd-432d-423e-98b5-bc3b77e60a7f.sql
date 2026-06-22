@@ -1,0 +1,1 @@
+ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS chat_thread_ads_enabled boolean NOT NULL DEFAULT false;
