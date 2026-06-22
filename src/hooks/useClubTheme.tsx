@@ -921,9 +921,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
   // Use server data if available, otherwise fall back to cached data
-  const activeThemeData = activeClubTheme 
+  const unresolvedActiveThemeData = activeClubTheme 
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
     : null;
+  const activeThemeData = unresolvedActiveThemeData?.isProTheme ? unresolvedActiveThemeData : null;
 
   // Pre-warm the club logo decode cache the instant we know the URL.
   // The header consults the same module-level cache, so when AppHeader
