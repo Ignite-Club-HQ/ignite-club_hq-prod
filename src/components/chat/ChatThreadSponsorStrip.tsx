@@ -262,6 +262,8 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   if (!clubId || !clubEnabled || !placementEnabled) return null;
   if (isProClub === undefined) return null; // still loading
   if (!activeSponsor && !activeAd) return null;
+  // Pro clubs can dismiss the strip; free clubs cannot (app ads always show).
+  if (isProClub && dismissed) return null;
 
   // Pro club: sponsor row
   if (activeSponsor) {
@@ -272,12 +274,12 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
       safeOpenUrl(activeSponsor.website_url!);
     };
     return (
-      <div className="shrink-0 border-b bg-card">
+      <div className="shrink-0 border-b bg-card flex items-center">
         <button
           type="button"
           onClick={onClick}
           disabled={!clickable}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-left ${
+          className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-left ${
             clickable ? "hover:bg-muted/50 transition-colors cursor-pointer" : "cursor-default"
           }`}
         >
@@ -292,6 +294,14 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
           </Avatar>
           <span className="text-sm font-medium truncate flex-1 min-w-0">{activeSponsor.name}</span>
           {clickable && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss club sponsor"
+          className="shrink-0 p-2 mr-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     );
