@@ -271,9 +271,11 @@ export default function ClubEngagementAnalyticsPage({
       byDay.get(r.day)?.add(r.user_id);
     }
     const todayKey = format(new Date(), "yyyy-MM-dd");
-    return Array.from(byDay.entries())
+    const sorted = Array.from(byDay.entries())
       .filter(([day]) => day < todayKey)
       .map(([day, set]) => ({ day, dau: set.size }));
+    const firstNonZero = sorted.findIndex((d) => d.dau > 0);
+    return firstNonZero === -1 ? [] : sorted.slice(firstNonZero);
   }, [activityRows, range]);
 
   // ---------- New members ----------
