@@ -1036,7 +1036,10 @@ export function AppHeader() {
                     fetchPriority="high"
                   />
                   <div className="flex flex-col leading-tight items-start">
-                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                    </div>
                     <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
                   </div>
                 </>
