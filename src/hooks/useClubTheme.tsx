@@ -21,6 +21,10 @@ interface ClubTheme {
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
+  // Whether the club has Pro entitlement AND a custom theme to apply.
+  // Free clubs are still selectable (for content filtering) but render
+  // with the default Ignite theme instead of custom colours.
+  isProTheme: boolean;
   // Light mode colors
   primary: HSLColor | null;
   secondary: HSLColor | null;
@@ -40,6 +44,7 @@ interface CachedThemeData {
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
   sport: string | null;
+  isProTheme?: boolean; // optional for backwards-compat with old caches
   primary: HSLColor | null;
   secondary: HSLColor | null;
   accent: HSLColor | null;
@@ -57,12 +62,33 @@ const toCacheableTheme = (theme: ClubTheme): CachedThemeData => ({
   showNameInHeader: theme.showNameInHeader,
   logoOnlyMode: theme.logoOnlyMode,
   sport: theme.sport,
+  isProTheme: theme.isProTheme,
   primary: theme.primary,
   secondary: theme.secondary,
   accent: theme.accent,
   darkPrimary: theme.darkPrimary,
   darkSecondary: theme.darkSecondary,
   darkAccent: theme.darkAccent,
+});
+
+// Hydrate a ClubTheme from a possibly-old cached object.
+const fromCachedTheme = (parsed: CachedThemeData): ClubTheme => ({
+  clubId: parsed.clubId,
+  clubName: parsed.clubName,
+  logoUrl: parsed.logoUrl ?? null,
+  showLogoInHeader: parsed.showLogoInHeader,
+  showNameInHeader: parsed.showNameInHeader,
+  logoOnlyMode: parsed.logoOnlyMode,
+  sport: parsed.sport ?? null,
+  // Old caches predate the Pro/theme split — default true so existing
+  // cached themes keep applying until the DB load corrects them.
+  isProTheme: parsed.isProTheme ?? true,
+  primary: parsed.primary,
+  secondary: parsed.secondary,
+  accent: parsed.accent,
+  darkPrimary: parsed.darkPrimary,
+  darkSecondary: parsed.darkSecondary,
+  darkAccent: parsed.darkAccent,
 });
 
 // Safe localStorage setter that handles quota errors
