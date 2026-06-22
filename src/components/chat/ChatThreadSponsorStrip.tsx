@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+// Pro club sponsor strip dismissal — 24h hide, user+club scoped.
+// Free clubs (app ads) cannot dismiss.
+const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
+const dismissKey = (userId: string | undefined, clubId: string) =>
+  `ignite_chat_sponsor_dismissed_${userId || "anon"}_${clubId}`;
 
 interface ChatThreadSponsorStripProps {
   /** The club this chat thread belongs to. Pass `null` for DMs / unscoped chats — strip will hide. */
@@ -70,6 +76,39 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [adIndex, setAdIndex] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Load dismissal state (Pro-only feature, but we read it whenever clubId/user changes)
+  useEffect(() => {
+    if (!clubId) return;
+    try {
+      const raw = localStorage.getItem(dismissKey(user?.id, clubId));
+      if (!raw) {
+        setDismissed(false);
+        return;
+      }
+      const ts = parseInt(raw, 10);
+      if (Number.isFinite(ts) && Date.now() - ts < DISMISS_TTL_MS) {
+        setDismissed(true);
+      } else {
+        localStorage.removeItem(dismissKey(user?.id, clubId));
+        setDismissed(false);
+      }
+    } catch {
+      setDismissed(false);
+    }
+  }, [clubId, user?.id]);
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!clubId) return;
+    try {
+      localStorage.setItem(dismissKey(user?.id, clubId), String(Date.now()));
+    } catch {
+      // ignore quota errors
+    }
+    setDismissed(true);
+  };
 
   // 1. Club-level opt-in
   const { data: clubFlag } = useQuery({
@@ -223,6 +262,8 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
   if (!clubId || !clubEnabled || !placementEnabled) return null;
   if (isProClub === undefined) return null; // still loading
   if (!activeSponsor && !activeAd) return null;
+  // Pro clubs can dismiss the strip; free clubs cannot (app ads always show).
+  if (isProClub && dismissed) return null;
 
   // Pro club: sponsor row
   if (activeSponsor) {
@@ -233,12 +274,12 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
       safeOpenUrl(activeSponsor.website_url!);
     };
     return (
-      <div className="shrink-0 border-b bg-card">
+      <div className="shrink-0 border-b bg-card flex items-center">
         <button
           type="button"
           onClick={onClick}
           disabled={!clickable}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-left ${
+          className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-left ${
             clickable ? "hover:bg-muted/50 transition-colors cursor-pointer" : "cursor-default"
           }`}
         >
@@ -253,6 +294,14 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
           </Avatar>
           <span className="text-sm font-medium truncate flex-1 min-w-0">{activeSponsor.name}</span>
           {clickable && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss club sponsor"
+          className="shrink-0 p-2 mr-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     );
