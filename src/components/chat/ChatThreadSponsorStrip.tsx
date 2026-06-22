@@ -243,7 +243,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
           }`}
         >
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium shrink-0">
-            Club Sponsors
+            Club Sponsor
           </span>
           <Avatar className="h-6 w-6 shrink-0">
             <AvatarImage src={activeSponsor.logo_url || undefined} />
