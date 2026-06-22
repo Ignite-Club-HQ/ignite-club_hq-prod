@@ -167,7 +167,8 @@ export default function EditClubPage() {
         class_mode_enabled: classModeEnabled,
         allow_guests_default: allowGuestsDefault,
         max_guests_per_member_default: maxGuestsDefault,
-      })
+        ...(showEventsStripToggle ? { events_sponsor_strip_enabled: eventsSponsorStripEnabled } : {}),
+      } as any)
       .eq("id", id!);
 
     setSaving(false);
