@@ -1186,12 +1186,12 @@ function ReadRatesGrid({ b }: { b: Benchmarks }) {
         emptyLabel="No club messages in this period."
       />
       <ReadRateTile
-        title="Broadcasts"
-        viewed={Number(b.bcast_reads || 0)}
-        possible={Number(b.bcast_possible || 0)}
-        prevViewed={Number(b.prev_bcast_reads || 0)}
-        prevPossible={Number(b.prev_bcast_possible || 0)}
-        emptyLabel="No broadcast activity in selected period."
+        title="Team Messages"
+        viewed={Number(b.team_msg_reads || 0)}
+        possible={Number(b.team_msg_possible || 0)}
+        prevViewed={Number(b.prev_team_msg_reads || 0)}
+        prevPossible={Number(b.prev_team_msg_possible || 0)}
+        emptyLabel="No team messages in this period."
       />
       <ReadRateTile
         title="Event Announcements"
