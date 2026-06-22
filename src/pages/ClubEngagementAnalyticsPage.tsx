@@ -30,6 +30,7 @@ import {
   differenceInDays,
   parseISO,
   isPast,
+  startOfWeek,
 } from "date-fns";
 import {
   ResponsiveContainer,
@@ -423,16 +424,17 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
-  const rsvpSeriesChart = useMemo(
-    () =>
-      rsvpSeries.map((r) => ({
+  const rsvpSeriesChart = useMemo(() => {
+    const currentWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+    return rsvpSeries
+      .filter((r) => r.week < currentWeekStart)
+      .map((r) => ({
         week: r.week,
         pct: r.completion_pct == null ? null : Number(r.completion_pct),
         responded: Number(r.responded || 0),
         expected: Number(r.expected || 0),
-      })),
-    [rsvpSeries]
-  );
+      }));
+  }, [rsvpSeries]);
   const rsvpSeriesHasData = rsvpSeriesChart.some((d) => d.pct != null);
 
   const clubMsgsCount = totals?.clubMsgs ?? 0;
