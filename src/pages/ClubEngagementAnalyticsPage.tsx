@@ -379,6 +379,33 @@ export default function ClubEngagementAnalyticsPage({
     [msgVolume]
   );
 
+  // ---------- RSVP completion % per day (RPC) ----------
+  const { data: rsvpSeries = [] } = useQuery({
+    queryKey: ["club-engagement-rsvp-series", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_rsvp_completion_series", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []) as { day: string; completion_pct: number | null; responded: number; expected: number }[];
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
+  const rsvpSeriesChart = useMemo(
+    () =>
+      rsvpSeries.map((r) => ({
+        day: r.day,
+        pct: r.completion_pct == null ? null : Number(r.completion_pct),
+        responded: Number(r.responded || 0),
+        expected: Number(r.expected || 0),
+      })),
+    [rsvpSeries]
+  );
+  const rsvpSeriesHasData = rsvpSeriesChart.some((d) => d.pct != null);
+
   const clubMsgsCount = totals?.clubMsgs ?? 0;
   const teamMsgsCount = totals?.teamMsgs ?? 0;
   const reactionCount = totals?.reactions ?? 0;
@@ -809,6 +836,44 @@ export default function ClubEngagementAnalyticsPage({
         <Metric icon={Users} label="Going rate" value={`${rsvpStats.attendanceRate}%`} />
         <Metric icon={RefreshCcw} label="Pending RSVPs" value={rsvpStats.pending} />
       </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">RSVP completion % over time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!rsvpSeriesHasData ? (
+            <EmptyState label="No events with eligible rosters in this period." />
+          ) : (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={rsvpSeriesChart}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
+                  <YAxis fontSize={11} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value: any, _name, props: any) => {
+                      if (value == null) return ["—", "Completion"];
+                      const { responded, expected } = props?.payload || {};
+                      return [`${value}% (${responded}/${expected})`, "Completion"];
+                    }}
+                    labelFormatter={(d) => format(parseISO(d as string), "EEE, MMM d")}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="pct"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                    name="Completion"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Section 5: Media Engagement */}
       <SectionHeader icon={ImageIcon} title="Media" description="Photo uploads & viewer engagement" />
