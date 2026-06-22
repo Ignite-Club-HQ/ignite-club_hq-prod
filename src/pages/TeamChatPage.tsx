@@ -10,6 +10,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
