@@ -1198,7 +1198,7 @@ function ReadRateTile({ title, viewed, possible, prevViewed, prevPossible, empty
 function ReadRatesGrid({ b }: { b: Benchmarks }) {
   if (!b) return <Skeleton className="h-24 w-full" />;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
       <ReadRateTile
         title="Club Messages"
         viewed={Number(b.club_msg_reads || 0)}
@@ -1214,14 +1214,6 @@ function ReadRatesGrid({ b }: { b: Benchmarks }) {
         prevViewed={Number(b.prev_team_msg_reads || 0)}
         prevPossible={Number(b.prev_team_msg_possible || 0)}
         emptyLabel="No team messages in this period."
-      />
-      <ReadRateTile
-        title="Event Announcements"
-        viewed={Number(b.ann_views || 0)}
-        possible={Number(b.ann_possible || 0)}
-        prevViewed={Number(b.prev_ann_views || 0)}
-        prevPossible={Number(b.prev_ann_possible || 0)}
-        emptyLabel="No events created in this period."
       />
     </div>
   );
