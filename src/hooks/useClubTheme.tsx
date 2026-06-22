@@ -811,6 +811,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         if (themeData) {
           safeSetItem(dataKey, JSON.stringify(toCacheableTheme(themeData)));
           setCachedThemeData(themeData);
+        } else {
+          // Free / non-themed club — keep selection as active filter but clear theme overrides
+          localStorage.removeItem(dataKey);
+          setCachedThemeData(null);
+          clearAllThemeCSS();
         }
       } else {
         localStorage.removeItem(key);
