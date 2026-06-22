@@ -70,6 +70,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
