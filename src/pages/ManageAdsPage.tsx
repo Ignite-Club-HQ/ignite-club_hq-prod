@@ -368,7 +368,8 @@ export default function ManageAdsPage() {
 
   const locationLabels: Record<string, string> = {
     home: "Home Page",
-    events: "Events Page",
+    events: "Events Page (list)",
+    "event-detail": "Event Detail Page",
     messages: "Messages Page",
     "chat-thread": "Chat Threads (inside conversations)",
     "media-header": "Media Page (top strip)",
