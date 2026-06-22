@@ -41,7 +41,11 @@ export default function EditClubPage() {
   const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
   const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
+  const [eventsSponsorStripEnabled, setEventsSponsorStripEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const EVENTS_STRIP_PILOT_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10"; // Riverside FC
+  const showEventsStripToggle = id === EVENTS_STRIP_PILOT_CLUB_ID;
 
   const { data: club, isLoading } = useQuery({
     queryKey: ["club", id],
@@ -70,6 +74,7 @@ export default function EditClubPage() {
       setClassModeEnabled(club.class_mode_enabled || false);
       setAllowGuestsDefault(club.allow_guests_default || false);
       setMaxGuestsDefault(club.max_guests_per_member_default || 2);
+      setEventsSponsorStripEnabled((club as any).events_sponsor_strip_enabled || false);
     }
   }, [club]);
 
@@ -162,7 +167,8 @@ export default function EditClubPage() {
         class_mode_enabled: classModeEnabled,
         allow_guests_default: allowGuestsDefault,
         max_guests_per_member_default: maxGuestsDefault,
-      })
+        ...(showEventsStripToggle ? { events_sponsor_strip_enabled: eventsSponsorStripEnabled } : {}),
+      } as any)
       .eq("id", id!);
 
     setSaving(false);
@@ -380,6 +386,28 @@ export default function EditClubPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Events sponsor strip toggle (pilot — Riverside FC only) */}
+      {showEventsStripToggle && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Sponsor / ad strip on Events</Label>
+                <p className="text-sm text-muted-foreground">
+                  Show a rotating sponsor or ad strip above the events list and on each event detail page.
+                </p>
+              </div>
+              <Switch
+                checked={eventsSponsorStripEnabled}
+                onCheckedChange={setEventsSponsorStripEnabled}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
 
 
       {/* Submit Button */}

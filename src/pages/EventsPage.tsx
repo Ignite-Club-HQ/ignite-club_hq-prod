@@ -1111,6 +1111,9 @@ export default function EventsPage() {
         </div>
       ) : (
         <div className="space-y-3">
+          {/* Sponsor/Ad strip (above tabs for visibility; per-club opt-in) */}
+          <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
+
           <Tabs defaultValue="upcoming" className="w-full">
               <TabsList className="w-full">
                 <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
@@ -1156,8 +1159,6 @@ export default function EventsPage() {
         </div>
       )}
 
-      {/* Sponsor/Ad Carousel */}
-      <SponsorOrAdCarousel location="events" activeClubFilter={activeClubFilter} />
     </div>
   );
 }
