@@ -791,22 +791,52 @@ export default function ClubEngagementAnalyticsPage({
       {benchmarksError ? <AnalyticsErrorCard /> : <ReadRatesGrid b={benchmarks} />}
 
       {/* Section 2: Member Adoption */}
-      <SectionHeader icon={Users} title="Member Adoption" description="Daily active users over time" />
+      <SectionHeader
+        icon={Users}
+        title="Member Adoption"
+        description={
+          adoptionGranularity === "daily"
+            ? "Daily active users over time"
+            : adoptionGranularity === "weekly"
+              ? "Weekly active users over time"
+              : "Monthly active users over time"
+        }
+      />
       <Card>
         <CardContent className="pt-4">
+          <Tabs value={adoptionGranularity} onValueChange={(v) => setAdoptionGranularity(v as typeof adoptionGranularity)} className="mb-3">
+            <TabsList className="grid grid-cols-3 w-full max-w-xs">
+              <TabsTrigger value="daily">Daily</TabsTrigger>
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+            </TabsList>
+          </Tabs>
           {actLoading ? (
             <Skeleton className="h-56 w-full" />
-          ) : dauSeries.every((d) => d.dau === 0) ? (
+          ) : adoptionSeries.every((d) => d.value === 0) ? (
             <EmptyState label="No member activity logged in this period yet." />
           ) : (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dauSeries}>
+                <LineChart data={adoptionSeries}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tickFormatter={(d) => format(parseISO(d), "M/d")} fontSize={11} />
                   <YAxis fontSize={11} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="dau" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Daily active" />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    name={
+                      adoptionGranularity === "daily"
+                        ? "Daily active"
+                        : adoptionGranularity === "weekly"
+                          ? "Weekly active"
+                          : "Monthly active"
+                    }
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
