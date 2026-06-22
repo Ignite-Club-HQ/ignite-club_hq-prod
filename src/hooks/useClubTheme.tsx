@@ -326,11 +326,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       try {
         const parsedData = JSON.parse(storedData) as CachedThemeData;
         if (parsedData.clubId === storedId) {
-          const themeFromCache: ClubTheme = { 
-            ...parsedData, 
-            logoUrl: parsedData.logoUrl ?? null, 
-            sport: parsedData.sport ?? null 
-          };
+          const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
           // Apply theme CSS immediately during initialization
           // CRITICAL: Use getEffectiveTheme() instead of resolvedTheme here because
           // resolvedTheme is undefined during initial render before next-themes hydrates
@@ -418,11 +414,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId) {
-            const themeFromCache: ClubTheme = { 
-              ...parsedData, 
-              logoUrl: parsedData.logoUrl ?? null, 
-              sport: parsedData.sport ?? null 
-            };
+            const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
             setActiveClubThemeState(storedId);
             setCachedThemeData(themeFromCache);
             applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
@@ -471,11 +463,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           try {
             const parsedData = JSON.parse(storedData) as CachedThemeData;
             if (parsedData.clubId === storedId) {
-              const themeFromCache: ClubTheme = { 
-                ...parsedData, 
-                logoUrl: parsedData.logoUrl ?? null, 
-                sport: parsedData.sport ?? null 
-              };
+              const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
               setCachedThemeData(themeFromCache);
               applyThemeCSS(themeFromCache, isDarkMode);
             }
@@ -549,11 +537,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   const parsedData = JSON.parse(freshStoredData) as CachedThemeData;
                   // Only use cached data if it matches the club ID from database
                   if (parsedData.clubId === data.active_club_theme_id) {
-                    const themeFromCache: ClubTheme = { 
-                      ...parsedData, 
-                      logoUrl: parsedData.logoUrl ?? null, 
-                      sport: parsedData.sport ?? null 
-                    };
+                    const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
                     setCachedThemeData(themeFromCache);
                     applyThemeCSS(themeFromCache, isDarkMode);
                     themeApplied = true;
@@ -868,11 +852,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId && parsedData.primary) {
             // Apply the cached theme instead of clearing
-            const themeFromCache: ClubTheme = { 
-              ...parsedData, 
-              logoUrl: parsedData.logoUrl ?? null, 
-              sport: parsedData.sport ?? null 
-            };
+            const themeFromCache: ClubTheme = fromCachedTheme(parsedData);
             applyThemeCSS(themeFromCache, isDarkMode);
             // Update state to sync with localStorage
             setActiveClubThemeState(storedId);
