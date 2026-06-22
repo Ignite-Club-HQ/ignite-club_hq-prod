@@ -1302,6 +1302,13 @@ export default function MediaPage() {
         </div>
       </div>
 
+      {/* Header sponsor / ad strip — Pro: Riverside only (admin toggle, defaults off). Free: always on. */}
+      <div className="max-w-lg mx-auto">
+        <MediaHeaderSponsorStrip
+          clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
+        />
+      </div>
+
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
         <DrawerContent>
