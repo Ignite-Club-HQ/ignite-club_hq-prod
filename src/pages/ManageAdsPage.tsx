@@ -331,6 +331,8 @@ export default function ManageAdsPage() {
     home: "Home Page",
     events: "Events Page",
     messages: "Messages Page",
+    "chat-thread": "Chat Threads (inside conversations)",
+    "media-header": "Media Page (top strip)",
   };
 
   return (

@@ -135,10 +135,27 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
     },
   });
 
+  // Free app-ad placement gate — controlled by app admin in /admin/ads
+  const { data: placementSettings } = useQuery({
+    queryKey: ["app-ad-settings", "media-header"],
+    enabled: isProClub === false,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ad_settings")
+        .select("is_enabled")
+        .eq("location", "media-header")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const freePlacementEnabled = !!placementSettings?.is_enabled;
+
   // Free app ads
   const { data: appAds = [] } = useQuery({
     queryKey: ["media-header-app-ads"],
-    enabled: isProClub === false,
+    enabled: isProClub === false && freePlacementEnabled,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
