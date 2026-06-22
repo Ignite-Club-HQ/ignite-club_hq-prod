@@ -192,7 +192,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("app_ads")
-        .select("id, name, image_url, link_url, description")
+        .select("id, name, image_url, link_url, description, ad_type, logo_url, headline")
         .eq("is_active", true)
         .order("display_order", { ascending: true });
       if (error) throw error;
