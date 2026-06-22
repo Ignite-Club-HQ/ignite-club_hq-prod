@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
 interface AppAdCarouselProps {
-  location: "home" | "events" | "messages";
+  location: "home" | "events" | "messages" | "event-detail";
   hasSponsorAds: boolean;
 }
 
