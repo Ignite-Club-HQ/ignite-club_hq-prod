@@ -43,7 +43,6 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
@@ -1045,8 +1044,10 @@ export default function EventsPage() {
         ))}
       </div>
 
-      {/* Slim sponsor strip (matches Messages/Media header strip; per-club opt-in) */}
-      <EventsHeaderSponsorStrip activeClubFilter={activeClubFilter} />
+      {/* Slim sponsor strip (matches Media header width/style; per-club opt-in) */}
+      <div className="max-w-lg mx-auto w-full">
+        <EventsHeaderSponsorStrip activeClubFilter={activeClubFilter} />
+      </div>
 
       {viewMode === "calendar" ? (
 
