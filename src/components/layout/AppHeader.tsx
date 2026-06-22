@@ -1057,74 +1057,87 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
-              {shouldShowClubTheming ? (
-                <>
-                  {showClubLogo ? (
-                    <div className="relative">
-                      <LogoImage 
-                        src={activeThemeData.logoUrl!} 
-                        alt={activeThemeData.clubName}
-                        className="h-8 w-auto max-w-[32px] object-contain"
-                        fallback={
-                          <div className="p-1.5 rounded-lg bg-primary">
-                            <Flame className="h-5 w-5 text-primary-foreground" />
-                          </div>
-                        }
-                      />
-                      <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
-                        <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-1.5 rounded-lg bg-primary">
-                      <Flame className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                  )}
-                  {activeThemeData.showNameInHeader && !activeThemeData.logoOnlyMode && clubNameParts?.mainName && (
-                    <div className="flex flex-col leading-tight items-start">
-                      <div className="flex items-center gap-1.5">
-                      <span 
-                          className="font-bold text-lg truncate max-w-[140px]"
-                          style={{ 
-                            color: getBestContrastColor(
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
-                              effectiveTheme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
-                              effectiveTheme === 'dark'
-                            )
-                          }}
-                        >
-                          {clubNameParts.mainName}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <img
-                    src={igniteIcon}
-                    alt="Ignite"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 shrink-0 rounded-full object-contain"
-                    loading="eager"
-                    decoding="sync"
-                    fetchPriority="high"
-                  />
-                  <div className="flex flex-col leading-tight items-start">
-                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
-                    <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
-                  </div>
-                </>
+            <button
+              className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-muted/60 active:bg-muted transition-colors max-w-[78%]"
+              aria-label="Switch club"
+              key={activeClubTheme ? `club-${activeClubTheme}` : 'ignite'}
+            >
+              {(() => {
+                // Always show the active club (themed or free). Falls back to Ignite default.
+                const activeClubInfo = activeClubTheme
+                  ? availableClubThemes.find((t) => t.clubId === activeClubTheme)
+                  : null;
+                const displayLogoUrl = (shouldShowClubTheming && showClubLogo)
+                  ? activeThemeData!.logoUrl!
+                  : activeClubInfo?.logoUrl || null;
+                const displayName = activeClubInfo?.clubName
+                  || (shouldShowClubTheming && clubNameParts?.mainName ? `${clubNameParts.mainName}${clubNameParts.suffix ? ' ' + clubNameParts.suffix : ''}` : null)
+                  || 'Ignite Club HQ';
+                const nameColor = shouldShowClubTheming
+                  ? getBestContrastColor(
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
+                      effectiveTheme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
+                      effectiveTheme === 'dark'
+                    )
+                  : undefined;
 
-              )}
+                return (
+                  <>
+                    {displayLogoUrl ? (
+                      <div className="relative shrink-0">
+                        <LogoImage
+                          src={displayLogoUrl}
+                          alt={displayName}
+                          className="h-8 w-8 rounded-lg object-cover"
+                          fallback={
+                            <div className="p-1.5 rounded-lg bg-primary">
+                              <Flame className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                          }
+                        />
+                        {shouldShowClubTheming && (
+                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                            <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />
+                          </div>
+                        )}
+                      </div>
+                    ) : activeClubTheme ? (
+                      <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 text-sm font-semibold">
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                    ) : (
+                      <img
+                        src={igniteIcon}
+                        alt="Ignite"
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 shrink-0 rounded-full object-contain"
+                        loading="eager"
+                        decoding="sync"
+                        fetchPriority="high"
+                      />
+                    )}
+                    <div className="flex flex-col leading-tight items-start min-w-0">
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">
+                        {activeClubTheme ? 'Club' : 'Workspace'}
+                      </span>
+                      <span
+                        className="font-bold text-[15px] truncate max-w-[160px] leading-tight mt-0.5"
+                        style={nameColor ? { color: nameColor } : undefined}
+                      >
+                        {displayName}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" strokeWidth={2.5} />
+                  </>
+                );
+              })()}
             </button>
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
+
 
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
