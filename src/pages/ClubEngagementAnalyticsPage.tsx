@@ -1191,7 +1191,7 @@ function MessageParticipationCard({ b }: { b: Benchmarks }) {
   const inactive = Number(b.inactive_msg || 0);
   const participation = pct(posted, total);
   const segments = [
-    { key: "Posted", val: posted, color: "bg-primary" },
+    { key: "Posted a message", val: posted, color: "bg-primary" },
     { key: "Reacted only", val: reacted, color: "bg-emerald-500" },
     { key: "Read only", val: readOnly, color: "bg-amber-500" },
     { key: "Inactive", val: inactive, color: "bg-muted-foreground/30" },
@@ -1204,7 +1204,11 @@ function MessageParticipationCard({ b }: { b: Benchmarks }) {
           <div>
             <div className="text-3xl font-bold text-primary">{participation}%</div>
             <div className="text-xs text-muted-foreground">
-              Message Participation Rate <InfoTip>Percentage of members who sent at least one message</InfoTip>
+              Message Participation Rate{" "}
+              <InfoTip>
+                Share of club members who sent at least one chat message in this period.
+                The numbers below count <strong>members</strong> (not messages) out of {total.toLocaleString()} total.
+              </InfoTip>
             </div>
           </div>
         </div>
@@ -1212,6 +1216,9 @@ function MessageParticipationCard({ b }: { b: Benchmarks }) {
           {segments.map((s) => (
             <div key={s.key} className={cn("h-full", s.color)} style={{ width: `${(s.val / sum) * 100}%` }} />
           ))}
+        </div>
+        <div className="text-[11px] text-muted-foreground -mt-1">
+          Member breakdown (of {total.toLocaleString()} total members)
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           {segments.map((s) => (
