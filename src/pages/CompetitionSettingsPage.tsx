@@ -15,6 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
