@@ -1163,6 +1163,11 @@ export default function EventsPage() {
         </div>
       )}
 
+      {/* Bottom-of-page sponsor / app-ad strip */}
+      <div className="max-w-lg mx-auto w-full pt-2">
+        <SponsorOrAdCarousel location="schedule" activeClubFilter={activeClubFilter} />
+      </div>
+
     </div>
   );
 }
