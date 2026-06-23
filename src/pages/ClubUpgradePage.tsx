@@ -263,7 +263,7 @@ export default function ClubUpgradePage() {
   }, [clubId, queryClient]);
 
   const handleGetSponsored = () => {
-    const sponsorUrl = `https://igniteclubhq.com/club/${clubId}`;
+    const sponsorUrl = "https://igniteclubhq.com/marketplace/sponsorship";
     import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(sponsorUrl));
   };
 
