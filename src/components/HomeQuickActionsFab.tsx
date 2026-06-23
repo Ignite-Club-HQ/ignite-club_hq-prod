@@ -137,6 +137,7 @@ export function HomeQuickActionsFab({
       label: "Create Competition",
       icon: Trophy,
       onClick: () => go("/competitions/new"),
+      proLocked,
     },
     ...(!activeClubFilter
       ? [
