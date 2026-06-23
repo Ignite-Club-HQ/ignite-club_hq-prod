@@ -9,8 +9,6 @@ interface UsageMeterProps {
   limit: number;
   /** Format used/limit as bytes (MB) instead of integer counts. */
   bytes?: boolean;
-  /** Optional second-row meter (e.g. storage alongside count). */
-  secondary?: { label: string; used: number; limit: number; bytes?: boolean };
   /** When at cap, show an inline upgrade affordance pointing here. */
   clubId?: string | null;
   /** Optional benefit-led message shown under the meter when at cap. */
@@ -35,7 +33,6 @@ export function UsageMeter({
   used,
   limit,
   bytes,
-  secondary,
   clubId,
   capMessage,
   className,
@@ -43,14 +40,6 @@ export function UsageMeter({
   const navigate = useNavigate();
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const atCap = used >= limit;
-
-  const secondPct =
-    secondary && secondary.limit > 0
-      ? Math.min(100, Math.round((secondary.used / secondary.limit) * 100))
-      : 0;
-  const secondAtCap = !!secondary && secondary.used >= secondary.limit;
-
-  const anyAtCap = atCap || secondAtCap;
 
   return (
     <div
@@ -72,31 +61,11 @@ export function UsageMeter({
       </div>
       <Progress value={pct} className="h-1.5" />
 
-      {secondary && (
-        <>
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <span className="text-xs text-muted-foreground">{secondary.label}</span>
-            <span
-              className={cn(
-                "tabular-nums text-xs",
-                secondAtCap
-                  ? "text-destructive font-semibold"
-                  : "text-muted-foreground",
-              )}
-            >
-              {fmt(secondary.used, secondary.bytes)} /{" "}
-              {fmt(secondary.limit, secondary.bytes)}
-            </span>
-          </div>
-          <Progress value={secondPct} className="h-1.5" />
-        </>
-      )}
-
-      {anyAtCap && capMessage && (
+      {atCap && capMessage && (
         <p className="text-xs text-muted-foreground pt-1">{capMessage}</p>
       )}
 
-      {anyAtCap && clubId && (
+      {atCap && clubId && (
         <button
           type="button"
           onClick={() => navigate(`/clubs/${clubId}/upgrade`)}
