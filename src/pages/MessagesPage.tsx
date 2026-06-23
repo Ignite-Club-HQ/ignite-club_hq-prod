@@ -2759,7 +2759,7 @@ export default function MessagesPage() {
                       aria-label={showCount ? `${chip.label}, ${chip.unread} unread` : chip.label}
                       className={`shrink-0 inline-flex items-center gap-2 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
                         active
-                          ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
+                          ? `font-semibold ${accent ? '' : 'bg-primary text-primary-foreground border-primary'}`
                           : `${showCount ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'} bg-background border-border hover:text-foreground`
                       }`}
                     >
