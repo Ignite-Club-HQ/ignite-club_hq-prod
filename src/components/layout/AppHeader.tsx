@@ -1031,22 +1031,12 @@ export function AppHeader() {
                 </>
               ) : activeFreeClubData && freeClubNameParts?.mainName ? (
                 <>
-                  {activeFreeClubData.logo_url ? (
-                    <LogoImage
-                      src={activeFreeClubData.logo_url}
-                      alt={activeFreeClubData.name}
-                      className="h-8 w-8 rounded-lg object-contain"
-                      fallback={
-                        <div className="p-1.5 rounded-lg bg-primary">
-                          <Flame className="h-5 w-5 text-primary-foreground" />
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <div className="p-1.5 rounded-lg bg-primary">
-                      <Flame className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                  )}
+                  <div
+                    className="p-1.5 rounded-lg"
+                    style={{ backgroundColor: freeClubAccent ?? 'hsl(var(--primary))' }}
+                  >
+                    <Flame className="h-5 w-5 text-white" />
+                  </div>
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
                       <span
