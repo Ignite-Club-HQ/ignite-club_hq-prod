@@ -15,6 +15,7 @@ import {
 import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-content";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
@@ -973,6 +974,7 @@ export function AppHeader() {
   );
 
   const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
+  const freeClubAccent = useLogoAccentColor(activeFreeClubData?.logo_url, effectiveTheme === 'dark');
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
@@ -1029,15 +1031,26 @@ export function AppHeader() {
                 </>
               ) : activeFreeClubData && freeClubNameParts?.mainName ? (
                 <>
-                  <div className="p-1.5 rounded-lg bg-primary">
-                    <Flame className="h-5 w-5 text-primary-foreground" />
+                  <div
+                    className="p-1.5 rounded-lg"
+                    style={{ backgroundColor: freeClubAccent ?? 'hsl(var(--primary))' }}
+                  >
+                    <Flame className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg truncate max-w-[200px] text-foreground">
+                      <span
+                        className="font-bold text-lg truncate max-w-[200px]"
+                        style={freeClubAccent ? { color: freeClubAccent } : undefined}
+                      >
                         {freeClubNameParts.mainName}
                       </span>
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                      <ChevronDown
+                        className="h-3.5 w-3.5 shrink-0"
+                        strokeWidth={2.5}
+                        aria-hidden="true"
+                        style={freeClubAccent ? { color: freeClubAccent } : undefined}
+                      />
                     </div>
                     {freeClubNameParts.suffix && (
                       <span className="text-[10px] text-muted-foreground -mt-1 text-left">{freeClubNameParts.suffix}</span>
