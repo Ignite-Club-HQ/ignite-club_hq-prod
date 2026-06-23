@@ -108,7 +108,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     if (shouldShowAds && ads && ads[currentIndex]) {
       const context = (
         location === "event-detail" ? "event_detail_page" : `${location}_page`
-      ) as "home_page" | "events_page" | "event_detail_page" | "messages_page";
+      ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
       trackView(ads[currentIndex].id, context);
     }
   }, [shouldShowAds, ads, currentIndex, location, trackView]);
