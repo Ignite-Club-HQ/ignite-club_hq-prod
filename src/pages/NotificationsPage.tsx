@@ -439,10 +439,16 @@ export default function NotificationsPage() {
 
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      let q = supabase
         .from("notifications")
         .delete()
         .eq("user_id", user!.id);
+      if (activeClubFilter) {
+        q = q.or(
+          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
+        );
+      }
+      const { error } = await q;
       if (error) throw error;
     },
     onMutate: async () => {
@@ -450,11 +456,11 @@ export default function NotificationsPage() {
       await queryClient.cancelQueries({ queryKey: ["notifications", user?.id] });
       await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
       await queryClient.cancelQueries({ queryKey: ["unread-count"] });
-      // Optimistic update - clear all
+      // Optimistic update - clear visible notifications
       queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
     },
     onSuccess: () => {
-      clearUnreadCount();
+      if (!activeClubFilter) clearUnreadCount();
       setDisplayCount(NOTIFICATIONS_PER_PAGE);
       // Invalidate all notification-related queries for consistency
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
@@ -467,6 +473,7 @@ export default function NotificationsPage() {
       setTimeout(() => refreshUnreadCount(), 300);
     },
   });
+
 
   type AppRole = Database["public"]["Enums"]["app_role"];
 
