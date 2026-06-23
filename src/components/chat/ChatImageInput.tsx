@@ -103,6 +103,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     },
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
+  const { usage } = useClubFreeUsage(effectiveClubId);
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
