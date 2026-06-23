@@ -225,7 +225,22 @@ export default function CompetitionDetailPage() {
         })()}
       </header>
 
-      {isAdmin && competition.status === "draft" && (
+      {isAdmin && !organizerHasPro && !proLoading && organizerClubId && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+          <Crown className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Managing competitions is a Pro feature</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Upgrade the organiser club to Pro to edit settings, invite teams, manage fixtures and send broadcasts.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => navigate(`/clubs/${organizerClubId}/upgrade`)} className="shrink-0">
+            Upgrade
+          </Button>
+        </div>
+      )}
+
+      {canManage && competition.status === "draft" && (
         <DraftSetupProgress
           competitionId={id!}
           divisionsCount={divisions.length}
