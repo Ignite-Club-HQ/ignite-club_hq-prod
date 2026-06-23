@@ -2659,13 +2659,7 @@ export default function MessagesPage() {
           </Button>
           <CreateActionButton
             ariaLabel="New message"
-            onClick={() => {
-              if (proGateFails && !isAppAdmin) {
-                navigate(upgradeClubId ? `/clubs/${upgradeClubId}/upgrade` : "/clubs");
-                return;
-              }
-              setShowNewMessageSheet(true);
-            }}
+            onClick={() => setShowNewMessageSheet(true)}
           />
         </div>
       </div>
