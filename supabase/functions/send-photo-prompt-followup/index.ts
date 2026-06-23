@@ -49,12 +49,13 @@ Deno.serve(async (req) => {
     // Pro gate: drop prompts whose team (or its club) is not Pro / Pro Football.
     const proPromptIds = new Set<string>();
     const teamIdsForPro = [...new Set((prompts ?? []).map((p: any) => p.team_id).filter(Boolean))];
+    const teamClub = new Map<string, string | null>();
     if (teamIdsForPro.length) {
       const { data: teamRows } = await supabase
         .from("teams").select("id, club_id").in("id", teamIdsForPro);
-      const teamClub = new Map<string, string | null>(
-        (teamRows ?? []).map((t: any) => [t.id, t.club_id]),
-      );
+      for (const t of teamRows ?? []) {
+        teamClub.set((t as any).id, (t as any).club_id ?? null);
+      }
       const clubIds = [...new Set((teamRows ?? []).map((t: any) => t.club_id).filter(Boolean) as string[])];
 
       const [teamSubsRes, clubSubsRes] = await Promise.all([
@@ -95,6 +96,7 @@ Deno.serve(async (req) => {
       promptId: string;
       eventId: string;
       teamId: string;
+      clubId: string | null;
       eventLabel: string;
       titleQualifier: string;
       url: string;
@@ -208,6 +210,7 @@ Deno.serve(async (req) => {
           promptId: prompt.id,
           eventId: event.id,
           teamId: prompt.team_id,
+          clubId: teamClub.get(prompt.team_id) ?? null,
           eventLabel,
           titleQualifier,
           url: `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`,
@@ -242,6 +245,7 @@ Deno.serve(async (req) => {
               type: "photo_prompt_reminder",
               message: `Be the first to share photos from ${c.eventLabel}`,
               related_id: c.eventId,
+              club_id: c.clubId,
             }),
           ),
         );
