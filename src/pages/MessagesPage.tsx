@@ -2653,7 +2653,14 @@ export default function MessagesPage() {
           </Button>
           <CreateActionButton
             ariaLabel="New message"
-            onClick={() => setShowNewMessageSheet(true)}
+            onClick={() => {
+              if (proGateFails && !isAppAdmin) {
+                const targetClub = activeClubFilter || displayMemberClubs[0]?.id;
+                navigate(targetClub ? `/clubs/${targetClub}/upgrade` : "/clubs");
+                return;
+              }
+              setShowNewMessageSheet(true);
+            }}
           />
         </div>
       </div>
