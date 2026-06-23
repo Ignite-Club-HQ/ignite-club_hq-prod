@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
     // Pro gate: drop prompts whose team (or its club) is not Pro / Pro Football.
     const proPromptIds = new Set<string>();
     const teamIdsForPro = [...new Set((prompts ?? []).map((p: any) => p.team_id).filter(Boolean))];
+    const teamClub = new Map<string, string | null>();
     if (teamIdsForPro.length) {
       const { data: teamRows } = await supabase
         .from("teams").select("id, club_id").in("id", teamIdsForPro);
