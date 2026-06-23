@@ -627,14 +627,24 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                 }
               }
             } else {
-              // Database has null/undefined active_club_theme_id - user chose "Ignite Mode"
-              // Clear localStorage to match DB and prevent stale club mode on re-login
-              console.log('[ClubTheme] DB has no active club theme - clearing localStorage to match');
-              safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
-              localStorage.removeItem(getStorageDataKey(user.id));
+              // Database has null/undefined active_club_theme_id.
+              // Only write the explicit "no club" sentinel when the user
+              // previously had a real club selected on this device (i.e.
+              // localStorage already had a value). For brand-new users
+              // (storedPreference === null) we must NOT pin them to the
+              // sentinel — the invite-accept flow on CompleteProfilePage
+              // is about to seed their active club from the invite, and
+              // a sentinel here would race it and win.
+              const hadPriorPreference = storedPreference !== null;
+              if (hadPriorPreference) {
+                console.log('[ClubTheme] DB has no active club theme - syncing local sentinel to match');
+                safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
+                localStorage.removeItem(getStorageDataKey(user.id));
+              } else {
+                console.log('[ClubTheme] DB has no active club theme and no local preference - leaving unset for invite seeding');
+              }
               setActiveClubThemeState(null);
               setCachedThemeData(null);
-              // User explicitly has no club theme in DB - respect that choice
               setHasCheckedDefault(true);
             }
           } else if (storedId) {

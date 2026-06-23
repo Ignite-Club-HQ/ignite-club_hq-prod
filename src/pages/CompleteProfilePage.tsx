@@ -20,6 +20,8 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
 import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 
 interface PendingInvite {
   id: string;
@@ -41,6 +43,7 @@ interface PendingInvite {
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { setActiveClubTheme } = useClubTheme();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -807,18 +810,17 @@ export default function CompleteProfilePage() {
 
       // Profile completed - no toast needed, navigating to home
 
-      // Seed the active club filter from the inviting club, BUT only for
-      // brand-new users who don't already have a preference. We never
-      // overwrite an existing user-controlled choice.
-      try {
-        const themeStorageKey = `ignite-club-theme-${user.id}`;
-        const existingPreference = localStorage.getItem(themeStorageKey);
-        if (firstInvitedClubId && existingPreference === null) {
-          localStorage.setItem(themeStorageKey, firstInvitedClubId);
-          console.log("[CompleteProfile] Seeded active club filter from invite:", firstInvitedClubId);
+      // Seed the active club filter from the inviting club for brand-new
+      // users (or users still on the post-signup sentinel). Goes through
+      // setActiveClubTheme so state, localStorage, AND
+      // profiles.active_club_theme_id (cross-device) all stay in sync.
+      // This is a user-driven action — they accepted the invite — so it
+      // does not violate the "filter only changes by user action" rule.
+      if (firstInvitedClubId) {
+        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
+        if (seeded) {
+          console.log("[CompleteProfile] Applied club filter from invite:", firstInvitedClubId);
         }
-      } catch (e) {
-        console.warn("[CompleteProfile] Failed to seed club filter:", e);
       }
 
       // Invalidate club theme queries so they refetch with new user roles

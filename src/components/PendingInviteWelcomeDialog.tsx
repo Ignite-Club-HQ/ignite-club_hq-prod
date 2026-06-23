@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -11,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 export function PendingInviteWelcomeDialog() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { setActiveClubTheme } = useClubTheme();
 
   const { data: pendingInvites = [] } = useQuery({
     queryKey: ["pending-invites-for-user", user?.id],
@@ -146,12 +149,17 @@ export function PendingInviteWelcomeDialog() {
     if (!user || pendingInvites.length === 0) return;
 
     const autoAcceptInvites = async () => {
+      let firstInvitedClubId: string | null = null;
+
       for (const invite of pendingInvites) {
         try {
           // Resolve club_id
           let clubId: string | null = invite.club_id ?? null;
           if (!clubId && invite.team_id) {
             clubId = (invite.teams as any)?.club_id ?? null;
+          }
+          if (clubId && !firstInvitedClubId) {
+            firstInvitedClubId = clubId;
           }
 
           // Check if role already exists
@@ -548,10 +556,20 @@ export function PendingInviteWelcomeDialog() {
       // Refresh roles/membership queries after processing
       queryClient.invalidateQueries({ queryKey: ["user-roles"] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites-for-user"] });
+
+      // Apply the inviting club's theme — only seeds when user has no
+      // existing preference (or is still on the post-signup sentinel).
+      // Never overrides an explicit user choice.
+      if (firstInvitedClubId && user) {
+        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
+        if (seeded) {
+          console.log("[InviteAutoAccept] Applied club filter from invite:", firstInvitedClubId);
+        }
+      }
     };
 
     autoAcceptInvites();
-  }, [user, pendingInvites, queryClient]);
+  }, [user, pendingInvites, queryClient, setActiveClubTheme]);
 
   // No UI rendered — purely background logic
   return null;
