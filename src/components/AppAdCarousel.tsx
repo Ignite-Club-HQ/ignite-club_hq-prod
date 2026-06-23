@@ -138,25 +138,32 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     
     // Special handling for upgrade ads
     if (isUpgradeAd) {
-      // If user is not an admin, show message to contact admin
+      // Non-admins can't upgrade — nudge them to contact their admin instead of bouncing to profile.
       if (!isAdmin) {
         toast({
-          title: "Contact Your Admin",
-          description: "Please contact your club or team admin to upgrade to Pro.",
+          title: "Contact your club admin",
+          description: "Only club or team admins can upgrade to Pro. Please ask your admin to upgrade for your club.",
         });
         return;
       }
-      
-      // Admin users - navigate to profile and scroll to manage plans
-      navigate('/profile');
-      setTimeout(() => {
-        const managePlansSection = document.getElementById('manage-plans-section');
-        if (managePlansSection) {
-          managePlansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 300);
+
+      // Admin users go straight to the relevant upgrade page.
+      if (adminScopes?.clubId) {
+        navigate(`/clubs/${adminScopes.clubId}/upgrade`);
+        return;
+      }
+      if (adminScopes?.teamId) {
+        navigate(`/teams/${adminScopes.teamId}/upgrade`);
+        return;
+      }
+      // Fallback if scopes haven't resolved yet
+      toast({
+        title: "Upgrade unavailable",
+        description: "We couldn't find a club or team to upgrade. Please try again from your club page.",
+      });
       return;
     }
+
     
     if (currentAd.link_url) {
       // For other ads, check if it's an internal or external link
