@@ -72,7 +72,11 @@ export default function CompetitionDetailPage() {
       const { data } = await supabase.rpc("is_competition_admin", {
         _user_id: user!.id,
         _competition_id: id!,
-      });
+  });
+
+  const organizerClubId = (competition as any)?.organizer_club_id ?? null;
+  const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(organizerClubId);
+  const canManage = isAdmin && organizerHasPro;
       return !!data;
     },
   });
