@@ -334,14 +334,28 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
         </div>
 
         <ResponsiveDialogFooter>
-          <Button className="w-full" onClick={handleCreate} disabled={create.isPending}>
-            {create.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <BarChart3 className="h-4 w-4 mr-2" />
-            )}
-            Create poll
-          </Button>
+          {atPollCap && clubId ? (
+            <Button
+              className="w-full"
+              variant="default"
+              onClick={() => {
+                onOpenChange(false);
+                navigate(`/clubs/${clubId}/upgrade`);
+              }}
+            >
+              <Crown className="h-4 w-4 mr-2" />
+              Upgrade to Pro
+            </Button>
+          ) : (
+            <Button className="w-full" onClick={handleCreate} disabled={create.isPending || atPollCap}>
+              {create.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <BarChart3 className="h-4 w-4 mr-2" />
+              )}
+              Create poll
+            </Button>
+          )}
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
