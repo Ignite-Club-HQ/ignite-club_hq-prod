@@ -939,15 +939,34 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // nor any club the user belongs to.
   useEffect(() => {
     if (!activeClubTheme) return;
-    const themedReady = availableClubThemes.length > 0;
-    const clubsReady = userClubs.length > 0;
-    if (!themedReady && !clubsReady) return;
+    // Wait until the themed-clubs query has finished — otherwise we'd evict
+    // a still-valid themed cache before server data arrives.
+    if (isLoading) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
     const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
+
     if (!inThemed && !inAnyClub) {
-      setActiveClubTheme(null);
+      // Not a member at all → reset selection entirely.
+      // Only act once userClubs has also loaded, to avoid a false negative.
+      if (userClubs.length > 0) {
+        setActiveClubTheme(null);
+      }
+      return;
     }
-  }, [activeClubTheme, availableClubThemes, userClubs]);
+
+    if (!inThemed) {
+      // Club is a free / non-themed club (e.g. lost Pro since last login).
+      // Evict any stale themed cache so the header drops the logo + colours
+      // and renders the free-club branch (name only, default Ignite icon).
+      if (cachedThemeData) {
+        setCachedThemeData(null);
+        clearAllThemeCSS();
+        if (user?.id) {
+          localStorage.removeItem(getStorageDataKey(user.id));
+        }
+      }
+    }
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
@@ -960,9 +979,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
-  // Use server data if available, otherwise fall back to cached data
-  const activeThemeData = activeClubTheme 
-    ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
+  // Use server data if available. Only fall back to cached data while the
+  // themed-clubs query is still loading — once loaded, if the active club
+  // isn't a themed Pro club, we treat it as a free club (no logo, no colours).
+  const serverThemeMatch = activeClubTheme
+    ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
+    : null;
+  const activeThemeData = activeClubTheme
+    ? serverThemeMatch ?? (isLoading ? cachedThemeData : null)
     : null;
 
   // Free club data: when a club is selected but has no theme (Pro + theme required)
