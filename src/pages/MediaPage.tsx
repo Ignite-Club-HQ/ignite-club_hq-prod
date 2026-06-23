@@ -1293,21 +1293,18 @@ export default function MediaPage() {
             </Button>
           )}
 
-          {hasProAccess && (
-            <>
-              <CreateActionButton
-                ariaLabel="Add photo"
-                onClick={() => setUploadDialogOpen(true)}
-              />
-              <UploadPhotoSheet
-                open={uploadDialogOpen}
-                onOpenChange={setUploadDialogOpen}
-                onUploadingCountChange={setUploadingCount}
-                defaultTeamId={searchParams.get("team")}
-                defaultEventId={searchParams.get("event")}
-              />
-            </>
-          )}
+          <CreateActionButton
+            ariaLabel="Add photo"
+            onClick={() => setUploadDialogOpen(true)}
+          />
+          <UploadPhotoSheet
+            open={uploadDialogOpen}
+            onOpenChange={setUploadDialogOpen}
+            onUploadingCountChange={setUploadingCount}
+            defaultTeamId={searchParams.get("team")}
+            defaultEventId={searchParams.get("event")}
+          />
+
         </div>
       </div>
 
