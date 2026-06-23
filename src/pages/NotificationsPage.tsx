@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
+import { useClubTheme } from "@/hooks/useClubTheme";
 
 /**
  * Belt-and-braces: when navigating from a notification tap to a chat that
@@ -187,6 +188,7 @@ const NOTIFICATIONS_PER_PAGE = 30;
 
 export default function NotificationsPage() {
   const { user, refreshUnreadCount, clearUnreadCount } = useAuth();
+  const { activeClubFilter } = useClubTheme();
   usePageTitle("Notifications");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -244,14 +246,23 @@ export default function NotificationsPage() {
   }, [pullDistance, isRefreshing, handleRefresh]);
 
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ["notifications", user?.id],
+    queryKey: ["notifications", user?.id, activeClubFilter ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("notifications")
-        .select("id, user_id, type, message, related_id, is_read, created_at")
+        .select("id, user_id, type, message, related_id, is_read, created_at, club_id")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(500); // Cap at 500 for performance
+
+      // When the user has filtered the app to a specific club, only show
+      // notifications tagged to that club. Untagged notifications (DMs,
+      // cross-club / system) are always shown so they aren't lost.
+      if (activeClubFilter) {
+        q = q.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
+      }
+
+      const { data, error } = await q;
 
       if (error) throw error;
       return (data || []).map(n => ({ ...n, read: n.is_read })) as Notification[];
@@ -285,8 +296,8 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const newNotification: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old ? [newNotification, ...old] : [newNotification]
           );
           
@@ -304,8 +315,8 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const updated: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old?.map(n => n.id === updated.id ? updated : n) || []
           );
         }
@@ -320,8 +331,8 @@ export default function NotificationsPage() {
         },
         (payload) => {
           const deleted = payload.old as { id: string };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old?.filter(n => n.id !== deleted.id) || []
           );
         }
@@ -344,8 +355,8 @@ export default function NotificationsPage() {
     },
     onMutate: async (id) => {
       // Optimistic update
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || []
       );
     },
@@ -365,8 +376,8 @@ export default function NotificationsPage() {
     },
     onMutate: async () => {
       // Optimistic update - mark all as read
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.map(n => ({ ...n, read: true })) || []
       );
     },
@@ -393,8 +404,8 @@ export default function NotificationsPage() {
     },
     onMutate: async (id) => {
       // Optimistic update - remove from list
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.filter(n => n.id !== id) || []
       );
     },
@@ -417,7 +428,7 @@ export default function NotificationsPage() {
       await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
       await queryClient.cancelQueries({ queryKey: ["unread-count"] });
       // Optimistic update - clear all
-      queryClient.setQueryData<Notification[]>(["notifications", user?.id], []);
+      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
     },
     onSuccess: () => {
       clearUnreadCount();
