@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,7 @@ import {
 import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-content";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
@@ -188,8 +189,8 @@ function LogoClubThemeDropdown() {
           className="h-8 w-8 rounded-lg object-cover"
         />
         <div className="flex-1">
-          <p className="text-sm font-medium">Default</p>
-          <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
+          <p className="text-sm font-medium">All Clubs</p>
+          <p className="text-xs text-muted-foreground">Default theme — all clubs view</p>
         </div>
         {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
       </DropdownMenuItem>
@@ -249,8 +250,8 @@ function LogoClubThemeDropdown() {
       {lockedClubs.map((club) => (
         <DropdownMenuItem
           key={club.clubId}
-          disabled
-          className="flex items-center gap-3 py-2 opacity-60 cursor-not-allowed"
+          onClick={() => setActiveClubTheme(club.clubId)}
+          className="flex items-center gap-3 py-2"
         >
           <Avatar className="h-8 w-8">
             <AvatarImage src={club.logoUrl || undefined} />
@@ -260,11 +261,12 @@ function LogoClubThemeDropdown() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{club.clubName}</p>
-            <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
               <Lock className="h-3 w-3" />
-              <span className="text-xs">Pro only</span>
+              <span className="text-xs">Free — no club theme</span>
             </div>
           </div>
+          {activeClubTheme === club.clubId && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
       ))}
     </DropdownMenuContent>
@@ -275,7 +277,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
-  const { activeThemeData, activeClubTheme, activeClubFilter } = useClubTheme();
+  const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -432,7 +434,7 @@ export function AppHeader() {
   // Parse club name to split into main name and suffix (e.g., "Bridgewater Soccer Club" -> ["Bridgewater", "Soccer Club"])
   const parseClubName = (name: string): { mainName: string; suffix: string } => {
     const suffixes = [
-      'Soccer Club', 'Football Club', 'Cricket Club', 'Basketball Club', 'Tennis Club',
+      'Soccer Club', 'Football Club', 'Cricket Club', 'Basketball Club', 'Basketball League', 'Tennis Club',
       'Rugby Club', 'Hockey Club', 'Netball Club', 'Volleyball Club', 'Baseball Club',
       'Swimming Club', 'Athletics Club', 'Golf Club', 'Rowing Club', 'Lacrosse Club',
       'SC', 'FC', 'CC', 'BC', 'TC', 'RC', 'HC', 'NC', 'AFC', 'United', 'City', 'Town'
@@ -447,8 +449,8 @@ export function AppHeader() {
       }
     }
     
-    // No suffix found - just use the full name
-    return { mainName: name, suffix: 'Club' };
+    // No suffix found - render full name without a subtitle line
+    return { mainName: name, suffix: '' };
   };
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
@@ -971,12 +973,15 @@ export function AppHeader() {
     <NotificationIcon type={type} mode="emoji" />
   );
 
+  const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
+  const freeClubAccent = useLogoAccentColor(activeFreeClubData?.logo_url, effectiveTheme === 'dark');
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
+            <button className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
@@ -1016,30 +1021,65 @@ export function AppHeader() {
                         >
                           {clubNameParts.mainName}
                         </span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                       </div>
-                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      {clubNameParts.suffix && (
+                        <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      )}
                     </div>
                   )}
+                </>
+              ) : activeFreeClubData && freeClubNameParts?.mainName ? (
+                <>
+                  <div
+                    className="p-1.5 rounded-lg"
+                    style={{ backgroundColor: 'hsl(var(--primary))' }}
+                  >
+                    <Flame className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex flex-col leading-tight items-start">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="font-bold text-lg truncate max-w-[200px]"
+                        style={{ color: 'hsl(var(--primary))' }}
+                      >
+                        {freeClubNameParts.mainName}
+                      </span>
+                      <ChevronDown
+                        className="h-3.5 w-3.5 shrink-0"
+                        strokeWidth={2.5}
+                        aria-hidden="true"
+                        style={{ color: 'hsl(var(--primary))' }}
+                      />
+                    </div>
+                    {freeClubNameParts.suffix && (
+                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{freeClubNameParts.suffix}</span>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
                   <img
                     src={igniteIcon}
                     alt="Ignite"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 shrink-0 rounded-full object-contain"
+                    width={40}
+                    height={40}
+                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-contain"
                     loading="eager"
                     decoding="sync"
                     fetchPriority="high"
                   />
-                  <div className="flex flex-col leading-tight items-start">
-                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
-                    <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
+                  <div className="flex flex-col items-start leading-none">
+                    <div className="flex items-center">
+                      <span className="font-bold text-[19px] tracking-tight text-gradient-emerald leading-none">Ignite</span>
+                      <ChevronDown className="h-4 w-4 ml-1 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                    </div>
+                    <span className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground leading-none">Club HQ</span>
                   </div>
                 </>
 
               )}
+
             </button>
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />

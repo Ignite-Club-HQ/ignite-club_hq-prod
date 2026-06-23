@@ -22,6 +22,9 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
 import CompetitionPlayerStatsPanel from "@/components/competitions/CompetitionPlayerStatsPanel";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
+import { Crown } from "lucide-react";
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -73,6 +76,10 @@ export default function CompetitionDetailPage() {
       return !!data;
     },
   });
+
+  const organizerClubId = (competition as any)?.organizer_club_id ?? null;
+  const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(organizerClubId);
+  const canManage = isAdmin && organizerHasPro;
 
   const { data: divisions = [], isLoading: divisionsLoading } = useQuery({
     queryKey: ["competition-divisions", id],
@@ -168,7 +175,7 @@ export default function CompetitionDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
-          {isAdmin && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
+          {canManage && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -196,7 +203,7 @@ export default function CompetitionDetailPage() {
               </SheetContent>
             </Sheet>
           )}
-          {isAdmin && (
+          {canManage && (
             <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
@@ -218,7 +225,22 @@ export default function CompetitionDetailPage() {
         })()}
       </header>
 
-      {isAdmin && competition.status === "draft" && (
+      {isAdmin && !organizerHasPro && !proLoading && organizerClubId && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+          <Crown className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Managing competitions is a Pro feature</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Upgrade the organiser club to Pro to edit settings, invite teams, manage fixtures and send broadcasts.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => navigate(`/clubs/${organizerClubId}/upgrade`)} className="shrink-0">
+            Upgrade
+          </Button>
+        </div>
+      )}
+
+      {canManage && competition.status === "draft" && (
         <DraftSetupProgress
           competitionId={id!}
           divisionsCount={divisions.length}
@@ -248,12 +270,12 @@ export default function CompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} source={competition.source} />
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} />
         </TabsContent>
 
         {canViewLadder && (
           <TabsContent value="ladder" className="space-y-2">
-            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
+            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={canManage} />
           </TabsContent>
         )}
 
@@ -265,7 +287,7 @@ export default function CompetitionDetailPage() {
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-2 mt-2">
-            {competition.source !== "playhq" && (
+            {canManage && competition.source !== "playhq" && (
               <>
                 {/* Primary actions — equal-weight recruitment CTAs */}
                 <div className="flex gap-2">
@@ -302,7 +324,7 @@ export default function CompetitionDetailPage() {
               entries={entries}
               myAdminTeamIds={myAdminTeamIds}
               onRespond={respondToInvite}
-              isAdmin={isAdmin}
+              isAdmin={canManage}
             />
           </TabsContent>
         )}

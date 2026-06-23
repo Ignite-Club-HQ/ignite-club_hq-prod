@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, X, Check, Loader2, Camera, Crown, ImagePlus, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { Upload, X, Check, Loader2, Camera, Crown, ImagePlus, CheckCircle2, XCircle, Zap, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -362,9 +362,9 @@ export function UploadPhotoSheet({
     });
   }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
 
-  // Also filter by activeClubFilter when in filtered mode
+  // Show all clubs; free ones are visually locked so users know they need Pro
   const availableClubs = (() => {
-    let clubs = isAppAdmin ? userClubs : userClubs?.filter(club => club.has_pro_access);
+    let clubs = userClubs;
     if (activeClubFilter && clubs) {
       clubs = clubs.filter(club => club.id === activeClubFilter);
     }
@@ -1195,52 +1195,62 @@ export function UploadPhotoSheet({
                   <div className="rounded-xl bg-muted/50 p-4 text-center">
                     <Crown className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      No clubs with Pro access available.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Upgrade a club or team to Pro to upload photos.
+                      No clubs available.
                     </p>
                   </div>
                 ) : (
                   <div className="grid gap-2">
-                    {availableClubs.map((club) => (
-                      <button
-                        key={club.id}
-                        type="button"
-                        disabled={uploading || !!activeClubFilter}
-                        onClick={() => {
-                          setSelectedClubId(club.id);
-                          setSelectedTeamId("");
-                          setSelectedMiniLeagueId("");
-                        }}
-                        className={cn(
-                          "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left w-full",
-                          selectedClubId === club.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:border-muted-foreground/50",
-                          (uploading || !!activeClubFilter) && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "h-10 w-10 rounded-full flex items-center justify-center text-lg font-semibold",
+                    {availableClubs.map((club) => {
+                      const isLocked = !club.has_pro_access && !isAppAdmin;
+                      return (
+                        <button
+                          key={club.id}
+                          type="button"
+                          disabled={uploading || !!activeClubFilter || isLocked}
+                          onClick={() => {
+                            if (isLocked) return;
+                            setSelectedClubId(club.id);
+                            setSelectedTeamId("");
+                            setSelectedMiniLeagueId("");
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left w-full",
                             selectedClubId === club.id
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            {club.name.charAt(0).toUpperCase()}
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:border-muted-foreground/50",
+                            isLocked && "opacity-60 cursor-not-allowed border-dashed",
+                            (uploading || !!activeClubFilter) && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "h-10 w-10 rounded-full flex items-center justify-center text-lg font-semibold",
+                              selectedClubId === club.id
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                            )}>
+                              {club.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-medium">{club.name}</p>
+                              {isLocked && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  Pro access required to upload
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{club.name}</p>
-                          </div>
-                        </div>
-                        {selectedClubId === club.id && (
-                          <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-4 w-4 text-primary-foreground" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                          {isLocked ? (
+                            <Lock className="h-5 w-5 text-muted-foreground" />
+                          ) : selectedClubId === club.id ? (
+                            <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-4 w-4 text-primary-foreground" />
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

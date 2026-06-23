@@ -47,6 +47,7 @@ import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponso
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
+import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 
 type EventType = "game" | "training" | "social";
 
@@ -1162,6 +1163,11 @@ export default function EventsPage() {
           </Tabs>
         </div>
       )}
+
+      {/* Bottom-of-page sponsor / app-ad strip */}
+      <div className="max-w-lg mx-auto w-full pt-2">
+        <SponsorOrAdCarousel location="schedule" activeClubFilter={activeClubFilter} />
+      </div>
 
     </div>
   );

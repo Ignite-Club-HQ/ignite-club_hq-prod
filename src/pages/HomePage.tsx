@@ -755,6 +755,11 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
+  // Rewards are per-club. Lock if none of the user's relevant clubs have Pro
+  // (scoped to activeClubFilter when set, otherwise any club). App admins bypass.
+  const hasAnyRewardClubPro = rewardClubs.some((c: any) => c.hasPro);
+  const isRewardsProLocked = !isAppAdmin && userClubs.length > 0 && rewardClubs.length > 0 && !hasAnyRewardClubPro;
+
   // Fetch rewards for selected club
   const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
     queryKey: ["home-available-rewards", selectedRewardClubId],
@@ -2037,6 +2042,7 @@ export default function HomePage() {
           isAppAdmin={isAppAdmin}
           activeClubFilter={activeClubFilter}
           activeClubName={activeClubName}
+          hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
         />
 
       </div>
@@ -2429,32 +2435,36 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label="View points and rewards" onClick={() => navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/profile?section=points-history"); } }}>
-        <CardContent className="px-4 py-2.5">
+      <Card className={`border overflow-hidden cursor-pointer ${isRewardsProLocked ? 'bg-muted/30 border-dashed' : 'bg-primary/[0.06]'}`} role="button" tabIndex={0} aria-label={isRewardsProLocked ? "Upgrade to Pro to unlock club rewards" : "View points and rewards"} onClick={() => isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history"); } }}>
+        <CardContent className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
-              <Flame className="h-4 w-4 text-primary" />
+            <div className={`p-1.5 rounded-lg shrink-0 ${isRewardsProLocked ? 'bg-muted' : 'bg-primary/15'}`}>
+              {isRewardsProLocked ? <Lock className="h-4 w-4 text-muted-foreground" /> : <Flame className="h-4 w-4 text-primary" />}
             </div>
             <div className="min-w-0 flex-1">
-              {latestPendingRedemption ? (
+              {latestPendingRedemption && !isRewardsProLocked ? (
                 <p className="text-sm font-semibold leading-tight text-primary truncate">
                   🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
                 </p>
-              ) : minRewardThreshold !== null && myPoints >= minRewardThreshold ? (
+              ) : minRewardThreshold !== null && myPoints >= minRewardThreshold && !isRewardsProLocked ? (
                 <p className="text-sm font-semibold leading-tight text-primary">
                   🎉 Rewards Available
                 </p>
               ) : (
-                <p className="text-sm font-semibold leading-tight">
-                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
-                </p>
+              <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold leading-tight">
+                    {isRewardsProLocked ? 'Member Rewards' : ((userClubs[0] as any)?.points_display_name || 'Reward Points')}
+                  </p>
+                  {isRewardsProLocked && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">Pro Only</Badge>
+                  )}
+                </div>
               )}
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {myPoints} Point{myPoints === 1 ? '' : 's'}
-                {showProBadge ? ' · Pro' : ''}
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                {isRewardsProLocked ? 'Earn points for RSVPs, volunteering & participation' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
               </p>
             </div>
-            {latestPendingRedemption ? (
+            {latestPendingRedemption && !isRewardsProLocked ? (
               <Button
                 size="sm"
                 className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium shrink-0"
@@ -2462,6 +2472,15 @@ export default function HomePage() {
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Claim
+              </Button>
+            ) : isRewardsProLocked ? (
+              <Button
+                size="sm"
+                className="gap-1 h-8 text-xs font-medium shrink-0 px-2"
+                onClick={(e) => { e.stopPropagation(); handleUpgradeClick(); }}
+              >
+                <Crown className="h-3.5 w-3.5" />
+                Upgrade
               </Button>
             ) : (
               <Button

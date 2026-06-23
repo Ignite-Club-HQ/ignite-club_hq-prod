@@ -1,0 +1,2 @@
+UPDATE public.clubs SET chat_thread_ads_enabled = true WHERE chat_thread_ads_enabled = false OR chat_thread_ads_enabled IS NULL;
+ALTER TABLE public.clubs ALTER COLUMN chat_thread_ads_enabled SET DEFAULT true;

@@ -332,7 +332,7 @@ export default function VaultPage() {
   useEffect(() => {
     if (activeClubFilter && currentView.type === "root" && userClubs && userClubs.length > 0 && !hasAutoNavigatedRef.current) {
       const club = userClubs.find(c => c.id === activeClubFilter);
-      if (club) {
+      if (club && club.is_pro) {
         hasAutoNavigatedRef.current = true;
         setCurrentView({ type: "club", clubId: activeClubFilter, clubName: club.name });
       }
@@ -447,7 +447,7 @@ export default function VaultPage() {
   }, [userRoles]);
 
   // Check if the current club has Pro
-  const { data: currentClubHasPro } = useQuery({
+  const { data: currentClubHasPro, isLoading: isLoadingClubHasPro } = useQuery({
     queryKey: ["vault-club-has-pro", (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") ? currentView.clubId : null],
     queryFn: async () => {
       if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
@@ -463,7 +463,7 @@ export default function VaultPage() {
   });
 
   // Check if the current team has Pro (for teams in non-Pro clubs)
-  const { data: currentTeamHasPro } = useQuery({
+  const { data: currentTeamHasPro, isLoading: isLoadingTeamHasPro } = useQuery({
     queryKey: ["vault-team-has-pro", currentView.type === "team" ? currentView.teamId : null],
     queryFn: async () => {
       if (currentView.type !== "team") return false;
@@ -1083,9 +1083,10 @@ export default function VaultPage() {
   });
 
   const hasProClub = proAccessInfo ?? false;
-  const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub || isLoadingRoles;
-  // Vault access requires: 1) Pro subscription AND 2) Admin/coach role
-  const canAccessVault = (isAppAdmin || hasProClub) && hasVaultRoleAccess;
+  const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub || isLoadingRoles || isLoadingClubHasPro || isLoadingTeamHasPro;
+  // Vault access requires: 1) Pro subscription in current context AND 2) Admin/coach role
+  const vaultAccessContextHasPro = currentView.type === "root" ? hasProClub : currentContextHasPro;
+  const canAccessVault = (isAppAdmin || vaultAccessContextHasPro) && hasVaultRoleAccess;
 
   // Handle storage purchase success redirect
   useEffect(() => {
@@ -3160,7 +3161,7 @@ export default function VaultPage() {
 
   if (!canAccessVault) {
     // Determine if it's a role issue or a Pro subscription issue
-    const hasProButNoRole = hasProClub && !hasVaultRoleAccess;
+    const hasProButNoRole = vaultAccessContextHasPro && !hasVaultRoleAccess;
     
     return (
       <div className="py-6 space-y-6">
@@ -3887,26 +3888,40 @@ export default function VaultPage() {
               </CardContent>
             </Card>
           ) : (
-            (activeClubFilter ? userClubs.filter(c => c.id === activeClubFilter) : userClubs).map((club) => (
-              <Card
-                key={club.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => {
-                  setFolderPath([]);
-                  setCurrentView({ type: "club", clubId: club.id, clubName: club.name });
-                }}
-              >
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <FolderOpen className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{club.name}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            ))
+            (activeClubFilter ? userClubs.filter(c => c.id === activeClubFilter) : userClubs).map((club) => {
+              const isPro = club.is_pro;
+              return (
+                <Card
+                  key={club.id}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => {
+                    if (!isPro) {
+                      navigate(`/clubs/${club.id}/upgrade`);
+                      return;
+                    }
+                    setFolderPath([]);
+                    setCurrentView({ type: "club", clubId: club.id, clubName: club.name });
+                  }}
+                >
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FolderOpen className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{club.name}</p>
+                      {!isPro && (
+                        <p className="text-xs text-muted-foreground">Pro feature — Upgrade to unlock vault</p>
+                      )}
+                    </div>
+                    {!isPro ? (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}

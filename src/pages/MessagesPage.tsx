@@ -2241,20 +2241,39 @@ export default function MessagesPage() {
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
       const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      const allowedRoles: string[] = group.allowed_roles || [];
+      const isClubRoleGroup =
+        !!group.club_id &&
+        !group.team_id &&
+        !group.mini_league_id &&
+        allowedRoles.some((r) =>
+          ["coach", "team_admin", "committee_member", "club_admin"].includes(r)
+        );
+      const proStatusKnown =
+        !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
+      const clubHasPro = group.club_id
+        ? proStatusKnown
+          ? clubProStatus?.[group.club_id] === true
+          : true
+        : true;
+      const isLocked =
+        isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
       items.push({
         type: 'group',
         id: group.id,
         key: `group-${group.id}`,
         name: group.name,
-        link: `/groups/${group.id}`,
+        link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
+        isLocked,
       });
     });
+
 
     // DM conversations
     filteredDMs.forEach((conv: any) => {
@@ -2563,18 +2582,18 @@ export default function MessagesPage() {
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Crown className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Unlock Pro Messaging Features</p>
-                <p className="text-sm text-muted-foreground">Create custom message groups and access team chat with a Pro subscription. Club chat requires a Club Pro subscription.</p>
-              </div>
+          <CardContent className="flex items-center gap-3 py-3 px-3">
+            <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
+              <Crown className="h-4 w-4 text-primary" />
             </div>
-            <Button 
-              size="sm" 
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-sm leading-tight">Unlock Pro Messaging</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                Team & club chat, custom groups, polls, photos, file sharing, event links & more.
+              </p>
+            </div>
+            <Button
+              size="sm"
               onClick={() => {
                 if (adminClubs?.length && adminClubs[0]?.id) {
                   navigate(`/clubs/${adminClubs[0].id}/upgrade`);
@@ -2584,9 +2603,9 @@ export default function MessagesPage() {
                   navigate("/profile");
                 }
               }}
-              className="shrink-0"
+              className="shrink-0 h-8"
             >
-              Upgrade to Pro
+              Upgrade
             </Button>
           </CardContent>
         </Card>
@@ -2634,7 +2653,14 @@ export default function MessagesPage() {
           </Button>
           <CreateActionButton
             ariaLabel="New message"
-            onClick={() => setShowNewMessageSheet(true)}
+            onClick={() => {
+              if (proGateFails && !isAppAdmin) {
+                const targetClub = activeClubFilter || displayMemberClubs[0]?.id;
+                navigate(targetClub ? `/clubs/${targetClub}/upgrade` : "/clubs");
+                return;
+              }
+              setShowNewMessageSheet(true);
+            }}
           />
         </div>
       </div>
@@ -2655,6 +2681,10 @@ export default function MessagesPage() {
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
+        hasAdminRoleForGroups={!!(adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember)}
+        hasPro={!!hasAnyProAccess}
+        isAppAdmin={!!isAppAdmin}
+        upgradeClubId={activeClubFilter || displayMemberClubs[0]?.id || null}
         onPickDM={() => setShowDMDialog(true)}
         onPickGroup={() => setShowGroupTypeSheet(true)}
       />
@@ -2674,8 +2704,10 @@ export default function MessagesPage() {
         />
       )}
 
-      {/* DM and Group dialogs */}
-      <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
+      {/* DM and Group dialogs — DM creation is Pro-gated */}
+      {(!!hasAnyProAccess || !!isAppAdmin) && (
+        <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
+      )}
       {canCreateGroups && (
         <StartDMDialog
           open={showCustomGroupDialog}
@@ -2759,7 +2791,7 @@ export default function MessagesPage() {
                       aria-label={showCount ? `${chip.label}, ${chip.unread} unread` : chip.label}
                       className={`shrink-0 inline-flex items-center gap-2 px-4 h-10 min-h-[40px] rounded-full text-sm border transition-colors touch-manipulation ${
                         active
-                          ? `font-semibold ${accent ? '' : 'bg-foreground text-background border-foreground'}`
+                          ? `font-semibold ${accent ? '' : 'bg-primary text-primary-foreground border-primary'}`
                           : `${showCount ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'} bg-background border-border hover:text-foreground`
                       }`}
                     >

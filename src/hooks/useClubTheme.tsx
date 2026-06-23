@@ -91,10 +91,17 @@ const safeSetItem = (key: string, value: string) => {
   }
 };
 
+interface FreeClubData {
+  id: string;
+  name: string;
+  logo_url: string | null;
+}
+
 interface ClubThemeContextType {
   availableClubThemes: ClubTheme[];
   activeClubTheme: string | null; // club ID or null - also acts as content filter
   activeThemeData: ClubTheme | null;
+  activeFreeClubData: FreeClubData | null;
   setActiveClubTheme: (clubId: string | null) => void;
   isLoading: boolean;
   isThemeReady: boolean; // True when theme loading from DB is complete
@@ -107,6 +114,7 @@ const ClubThemeContext = createContext<ClubThemeContextType>({
   availableClubThemes: [],
   activeClubTheme: null,
   activeThemeData: null,
+  activeFreeClubData: null,
   setActiveClubTheme: () => {},
   isLoading: false,
   isThemeReady: false,
@@ -749,6 +757,33 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id,
   });
 
+  // ALL clubs the user belongs to (Pro + free) — used to validate active club
+  // selections that aren't themed and to display free club names in the header.
+  const { data: userClubs = [] } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+    queryKey: ["user-clubs-for-switcher", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const [rolesRes, teamRolesRes] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase.from("user_roles").select("teams!inner(club_id)").eq("user_id", user.id).not("team_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      (rolesRes.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      (teamRolesRes.data || []).forEach((r: any) => {
+        const cid = r.teams?.club_id;
+        if (cid) ids.add(cid);
+      });
+      if (!ids.size) return [];
+      const { data: clubs } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url")
+        .in("id", Array.from(ids))
+        .is("deleted_at", null);
+      return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
+    },
+    enabled: !!user?.id,
+  });
+
   // Auto-set theme for new members who haven't set a preference yet
   useEffect(() => {
     if (!user?.id || hasCheckedDefault || isLoading || isLoadingFromDb) return;
@@ -789,6 +824,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         if (themeData) {
           safeSetItem(dataKey, JSON.stringify(toCacheableTheme(themeData)));
           setCachedThemeData(themeData);
+        } else {
+          // Free / non-themed club — keep selection as active filter but clear theme overrides
+          localStorage.removeItem(dataKey);
+          setCachedThemeData(null);
+          clearAllThemeCSS();
         }
       } else {
         localStorage.removeItem(key);
@@ -867,7 +907,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const themeToApply = theme || cachedThemeData;
     
     if (!themeToApply) {
-      // No theme data available yet - will be applied when data loads
+      // If user selected a free / non-themed club, clear overrides; otherwise wait for data.
+      if (availableClubThemes.length > 0 && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
+        clearAllThemeCSS();
+      }
       return;
     }
 
@@ -890,15 +933,40 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     applyThemeCSS(themeToApply, isDarkMode);
   }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
 
-  // Validate stored theme exists and user is a member
+  // Validate stored theme exists and user is a member.
+  // Allow free / non-themed clubs (id present in userClubIds) to remain selected
+  // as the active club filter; only reset when the id is neither a themed club
+  // nor any club the user belongs to.
   useEffect(() => {
-    if (activeClubTheme && availableClubThemes.length > 0) {
-      const exists = availableClubThemes.some(t => t.clubId === activeClubTheme);
-      if (!exists) {
+    if (!activeClubTheme) return;
+    // Wait until the themed-clubs query has finished — otherwise we'd evict
+    // a still-valid themed cache before server data arrives.
+    if (isLoading) return;
+    const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
+    const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
+
+    if (!inThemed && !inAnyClub) {
+      // Not a member at all → reset selection entirely.
+      // Only act once userClubs has also loaded, to avoid a false negative.
+      if (userClubs.length > 0) {
         setActiveClubTheme(null);
       }
+      return;
     }
-  }, [activeClubTheme, availableClubThemes]);
+
+    if (!inThemed) {
+      // Club is a free / non-themed club (e.g. lost Pro since last login).
+      // Evict any stale themed cache so the header drops the logo + colours
+      // and renders the free-club branch (name only, default Ignite icon).
+      if (cachedThemeData) {
+        setCachedThemeData(null);
+        clearAllThemeCSS();
+        if (user?.id) {
+          localStorage.removeItem(getStorageDataKey(user.id));
+        }
+      }
+    }
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
@@ -911,9 +979,19 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
-  // Use server data if available, otherwise fall back to cached data
-  const activeThemeData = activeClubTheme 
-    ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
+  // Use server data if available. Only fall back to cached data while the
+  // themed-clubs query is still loading — once loaded, if the active club
+  // isn't a themed Pro club, we treat it as a free club (no logo, no colours).
+  const serverThemeMatch = activeClubTheme
+    ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
+    : null;
+  const activeThemeData = activeClubTheme
+    ? serverThemeMatch ?? (isLoading ? cachedThemeData : null)
+    : null;
+
+  // Free club data: when a club is selected but has no theme (Pro + theme required)
+  const activeFreeClubData = activeClubTheme && !activeThemeData
+    ? userClubs.find(c => c.id === activeClubTheme) ?? null
     : null;
 
   // Pre-warm the club logo decode cache the instant we know the URL.
@@ -987,6 +1065,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       availableClubThemes,
       activeClubTheme,
       activeThemeData,
+      activeFreeClubData,
       setActiveClubTheme,
       isLoading,
       isThemeReady: themeIsReady,

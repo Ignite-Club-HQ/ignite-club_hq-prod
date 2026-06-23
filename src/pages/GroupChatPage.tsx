@@ -22,7 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight, Lock } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -2054,6 +2054,51 @@ export default function GroupChatPage() {
         <Button variant="outline" onClick={() => navigate("/messages")}>
           Back to Messages
         </Button>
+      </div>
+    );
+  }
+
+  // Pro gate: club-level role groups (Coaches / Team Admins / Club Committee, etc.)
+  // require the club to have Pro, mirroring the club-wide chat gate.
+  const isClubRoleGroup =
+    !!group.club_id &&
+    !group.team_id &&
+    !group.mini_league_id &&
+    !(group as any).competition_id &&
+    Array.isArray((group as any).allowed_roles) &&
+    ((group as any).allowed_roles as string[]).some((r) =>
+      ["coach", "team_admin", "committee_member", "club_admin"].includes(r),
+    );
+  if (isClubRoleGroup && !groupClubProLoading && !groupClubHasPro) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-3 p-4 border-b">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="font-semibold">{group.name}</h1>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center py-12 px-4">
+            <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-lg font-medium text-foreground mb-2">Club Pro Feature</p>
+            <p className="text-muted-foreground">
+              {group.name} chat is available with a Club Pro subscription
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Contact your club admin to upgrade the club to Pro for role-based group messaging
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => group.club_id && navigate(`/clubs/${group.club_id}/upgrade`)}
+            >
+              View Upgrade Options
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
