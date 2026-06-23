@@ -1,74 +1,82 @@
-## Goal
-A single, lightweight sponsor/ad strip pinned at the top of every chat thread:
-- **Pro club** → rotates that club's own sponsors (existing `MessagesSponsorCarousel`)
-- **Free club** → rotates app-level paid ads (existing `AppAdCarousel`)
-- **Never** sends notifications, **never** enters the message stream, **zero** virtualisation impact.
+## Audit findings: invite signup → club filter
 
-## What already exists (reused as-is)
-- `SponsorOrAdCarousel` — resolves Pro status per-club and renders sponsor or app ad. Already in use on Home, Events, Messages inbox.
-- `MessagesSponsorCarousel` (Pro path) and `AppAdCarousel` (Free path).
-- `app_ad_settings` (location-keyed enable/disable) and `app_ad_analytics` (impressions/clicks).
+Traced the end-to-end flow for a brand new user accepting a Bridgewater SC invite. **It will NOT auto-apply today.** Two independent bugs cancel my recent seeding fix.
 
-## New work
+### Bug 1 — Sentinel is written before CompleteProfilePage seeds
 
-### 1. New ad-settings location key: `"chat-thread"`
-- Insert a row into `app_ad_settings` for `location = 'chat-thread'`, `is_enabled = true`.
-- This lets app admins disable the new placement independently of the inbox.
-- `SponsorOrAdCarousel`'s `location` prop type extends to include `"chat-thread"`.
-
-### 2. New wrapper: `ChatThreadSponsorStrip`
-- Props: `clubId: string | null` (the club this thread belongs to).
-- Renders `SponsorOrAdCarousel` with `location="chat-thread"` and `activeClubFilter={clubId}` inside a fixed-height container (`h-14` or so) with `border-b` and solid `bg-background` (no backdrop-blur — Android WebView freeze rule).
-- Hidden entirely (returns `null`) when there's nothing to show, so it never reserves empty space.
-- Lives as a normal sibling **above** the message scroller — not `position: sticky` (sticky over Virtuoso causes layout-jank on scroll measurement). Because the scroller below has its own internal scroll, the strip stays visible naturally.
-
-### 3. Mount it on all 6 chat thread pages
-For each page, derive the thread's club id and drop `<ChatThreadSponsorStrip clubId={...} />` between the page header and the `ChatMessagesScroller`:
+Order of events on signup:
 
 ```text
-┌──────────────────────────┐
-│ Thread header            │
-├──────────────────────────┤
-│ ChatThreadSponsorStrip   │  ← new, fixed height, solid bg
-├──────────────────────────┤
-│                          │
-│ ChatMessagesScroller     │  ← Virtuoso, untouched
-│ (virtualised)            │
-│                          │
-├──────────────────────────┤
-│ Composer                 │
-└──────────────────────────┘
+sign up → SIGNED_IN
+  ↓ useAuth.fetchProfile reads profiles.active_club_theme_id = null
+  ↓ setAuthThemeHint(userId, null)
+useClubTheme loadThemeFromDb runs
+  ↓ consumeAuthThemeHint → { value: null }
+  ↓ localStorage stored = null, DB = null
+  ↓ ELSE branch (useClubTheme.tsx:629-639)
+  ↓ writes NO_CLUB_THEME_SENTINEL into ignite-club-theme-<uid>
+CompleteProfilePage finishes invites
+  ↓ my seed code: `existingPreference !== null` (it’s the sentinel)
+  ↓ skip → club is never seeded
 ```
 
-Pages + clubId source:
-- `TeamChatPage` → `team.club_id`
-- `ClubChatPage` → `clubId` (already in route)
-- `GroupChatPage` → `group.club_id` (or null for personal groups; strip hides)
-- `BroadcastChatPage` → broadcast's `club_id`
-- `ClubAdminChatPage` → `clubId`
-- `DirectMessagePage` → `null` (DMs aren't club-scoped → strip hides; no ads in DMs)
+Net effect: sentinel pins the user to “All Clubs” regardless of invite.
 
-### 4. Notification safety (already done previous turn)
-- `team_messages.is_sponsor` column + trigger guard remain in place.
-- The new strip does NOT insert any chat-message rows, so there's no notification fan-out path to worry about. The column stays as a defence-in-depth measure for any legacy/manual sponsor inserts.
+### Bug 2 — Seed happens after useClubTheme already initialised
 
-### 5. Analytics
-- `MessagesSponsorCarousel` and `AppAdCarousel` already log impressions/clicks to `sponsor_analytics` and `app_ad_analytics`. We get per-thread visibility metrics for free; can later filter by `location='chat-thread'` for placement comparison.
+Even if Bug 1 were fixed, `useClubTheme`’s `loadThemeFromDb` and localStorage-read effects depend on `[user?.id, isDarkMode]`. The user is the same across CompleteProfilePage and the home redirect, so the hook never re-reads my new localStorage value. It would only show up after a full reload.
 
-## Virtualisation impact audit (per chat memory rules)
-- Strip is a **sibling above** the Virtuoso scroller, not inside it → row identity, height cache, prepend/append behaviour all untouched.
-- No `backdrop-blur` or CSS `filter: blur` used.
-- Fixed-height container → no mid-scroll layout shift.
-- Strip mounts once per thread; internal rotation re-renders only the strip subtree.
+### Bug 3 — Home invite-accept path also bypassed
 
-## Non-goals
-- No inline sponsor messages in the chat stream (rejected previously).
-- No bottom-of-thread placement (invisible — rejected).
-- No DM ads (not club-scoped; would feel intrusive).
-- No new tables; reuses `sponsors`, `app_ads`, `app_ad_settings`, analytics tables.
+Invites accepted via `HomeInviteFlow` / `PendingInviteCard` / `PendingInvitesList` (the on-home “accept” buttons used by users who already completed their profile but get invited to a second club later) never go through CompleteProfilePage, so they also have no seeding hook.
 
-## Rollout
-1. Migration: add `'chat-thread'` row to `app_ad_settings` (enabled by default).
-2. Build `ChatThreadSponsorStrip` + extend `SponsorOrAdCarousel` location type.
-3. Mount in all 6 chat thread pages.
-4. Verify in preview that strip renders for Riverside (Free club → app ad) and Bridgewater (Pro club with sponsors → sponsor) at the top of a thread, doesn't bump unread counts, and doesn't appear in DMs.
+### Bug 4 — DB never learns about it
+
+The seed only writes to localStorage. `profiles.active_club_theme_id` stays null, so on another device the invited user lands with no club filter — and on this device the SIGNED_IN sentinel write would resurface.
+
+---
+
+## Fix plan
+
+Three small, surgical changes — all keep the “never auto-switch after signup” rule intact.
+
+### 1. `src/pages/CompleteProfilePage.tsx`
+
+- Pull `setActiveClubTheme` from `useClubTheme()`.
+- Keep the existing `firstInvitedClubId` collection.
+- After invites finish, **only when `firstInvitedClubId` is set AND the user came in via the invite flow** (`pendingInvites.length > 0 && acceptInvites`):
+  - call `setActiveClubTheme(firstInvitedClubId)` — this writes localStorage, updates state, and syncs `profiles.active_club_theme_id` in one place.
+- Remove the manual `localStorage.setItem` block I added — `setActiveClubTheme` already handles it correctly and triggers a re-render.
+
+This is user-driven (they accepted the invite), so it does not violate the “only manual changes” rule.
+
+### 2. `src/hooks/useClubTheme.tsx` — stop the premature sentinel write for new users
+
+In `loadThemeFromDb` (around line 629), tighten the “DB has null → write sentinel” branch:
+
+- Only write `NO_CLUB_THEME_SENTINEL` when **the localStorage key already exists** (i.e. an explicit prior preference). For brand-new users (`storedPreference === null` AND `data.active_club_theme_id === null`), leave localStorage untouched so CompleteProfilePage’s `setActiveClubTheme(invitedClubId)` can win the race without being overwritten.
+
+This keeps cross-device “Ignite Mode” sync working for existing users while removing the false sentinel-on-signup.
+
+### 3. Home-side invite acceptance (Bug 3)
+
+Centralise the seeding so any invite-accept path benefits:
+
+- Add a tiny helper `src/lib/seedClubFilterFromInvite.ts` exporting `seedClubFilterFromInvite(clubId, setActiveClubTheme, opts)`:
+  - reads the current localStorage key for the user;
+  - if it equals the sentinel **and was written within the current session** (track an in-memory flag on `useClubTheme`), or is null, call `setActiveClubTheme(clubId)`;
+  - otherwise leaves the user’s existing choice alone.
+- Wire it into:
+  - `CompleteProfilePage` invite loop (step 1).
+  - `HomeInviteFlow` / `PendingInviteCard` / `PendingInvitesList` accept handlers — pass the club id resolved the same way CompleteProfilePage does (invite.club_id or `teams.club_id`).
+
+For users who already have a chosen club, this never overrides; for first-time invite accepts it applies the inviting club’s theme.
+
+### Verification
+
+- Cold signup via Bridgewater invite link → land on home with Bridgewater theme applied (logo, colours), `localStorage['ignite-club-theme-<uid>']` = Bridgewater id, `profiles.active_club_theme_id` = Bridgewater id.
+- Existing user with Club A selected accepts a new invite to Club B → stays on Club A (no override).
+- Existing user with explicit “All Clubs” (sentinel) accepts first ever invite → applies the inviting club.
+- Logout/login still preserves the user’s last manual choice (covered by the existing audit).
+
+No edge function or schema changes; no migrations.

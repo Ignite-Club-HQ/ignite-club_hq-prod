@@ -2535,6 +2535,12 @@ export default function MessagesPage() {
     ? clubProQueryReady && scopedClubIsPro === false
     : proAccessQueryReady && hasAnyProAccess === false;
   const hasAdminRoleButNoPro = proAccessQueryReady && clubProQueryReady && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
+  const scopedAdminClubId = effectiveClubFilter
+    ? displayAdminClubs.find((club: any) => club.id === effectiveClubFilter)?.id ?? null
+    : null;
+  const upgradeClubId = effectiveClubFilter
+    ? scopedAdminClubId ?? effectiveClubFilter
+    : displayAdminClubs[0]?.id ?? displayMemberClubs[0]?.id ?? null;
 
   // Type label map
   const typeLabels: Record<string, string> = {
@@ -2595,12 +2601,12 @@ export default function MessagesPage() {
             <Button
               size="sm"
               onClick={() => {
-                if (adminClubs?.length && adminClubs[0]?.id) {
-                  navigate(`/clubs/${adminClubs[0].id}/upgrade`);
+                if (upgradeClubId) {
+                  navigate(`/clubs/${upgradeClubId}/upgrade`);
                 } else if (adminTeamIds?.length && adminTeamIds[0]) {
                   navigate(`/teams/${adminTeamIds[0]}/upgrade`);
                 } else {
-                  navigate("/profile");
+                  navigate("/clubs");
                 }
               }}
               className="shrink-0 h-8"
@@ -2655,8 +2661,7 @@ export default function MessagesPage() {
             ariaLabel="New message"
             onClick={() => {
               if (proGateFails && !isAppAdmin) {
-                const targetClub = activeClubFilter || displayMemberClubs[0]?.id;
-                navigate(targetClub ? `/clubs/${targetClub}/upgrade` : "/clubs");
+                navigate(upgradeClubId ? `/clubs/${upgradeClubId}/upgrade` : "/clubs");
                 return;
               }
               setShowNewMessageSheet(true);
@@ -2682,9 +2687,9 @@ export default function MessagesPage() {
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
         hasAdminRoleForGroups={!!(adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember)}
-        hasPro={!!hasAnyProAccess}
+        hasPro={effectiveClubFilter ? scopedClubIsPro === true : !!hasAnyProAccess}
         isAppAdmin={!!isAppAdmin}
-        upgradeClubId={activeClubFilter || displayMemberClubs[0]?.id || null}
+        upgradeClubId={upgradeClubId}
         onPickDM={() => setShowDMDialog(true)}
         onPickGroup={() => setShowGroupTypeSheet(true)}
       />

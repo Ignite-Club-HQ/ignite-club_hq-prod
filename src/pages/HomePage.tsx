@@ -1024,7 +1024,18 @@ export default function HomePage() {
     // Check if user is team admin but NOT club admin - navigate to team upgrade
     const isClubAdmin = userRoles?.some(r => r.role === "club_admin");
     const teamAdminRole = userRoles?.find(r => r.role === "team_admin" && r.team_id);
-    
+
+    // Prefer the currently active club filter so the upgrade page matches the club shown in the header
+    if (activeClubFilter) {
+      if (userClubs.some(c => c.id === activeClubFilter)) {
+        navigate(`/clubs/${activeClubFilter}/upgrade`);
+        return;
+      }
+      // Filtered club not found in user's clubs — fallback to no club
+      navigate("/clubs");
+      return;
+    }
+
     if (!isClubAdmin && teamAdminRole?.team_id) {
       // Team admin only - go to team upgrade page
       navigate(`/teams/${teamAdminRole.team_id}/upgrade`);

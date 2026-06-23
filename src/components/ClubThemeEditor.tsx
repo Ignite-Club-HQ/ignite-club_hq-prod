@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useClubTheme } from "@/hooks/useClubTheme";
 import { Palette, RotateCcw, Loader2, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -222,7 +221,6 @@ export function ClubThemeEditor({
 }: ClubThemeEditorProps) {
   const { toast } = useToast();
   const { resolvedTheme } = useTheme();
-  const { activeClubTheme, setActiveClubTheme } = useClubTheme();
   const [saving, setSaving] = useState(false);
   
   // Light mode colors
@@ -408,11 +406,6 @@ export function ClubThemeEditor({
                 });
                 setThemeEnabled(!checked);
                 return;
-              }
-              
-              // If disabling and this club's theme is currently active, revert to default
-              if (!checked && activeClubTheme === clubId) {
-                setActiveClubTheme(null);
               }
               
               toast({

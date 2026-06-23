@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
+import { useClubTheme } from "@/hooks/useClubTheme";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -89,6 +90,7 @@ export default function ClubUpgradePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeClubFilter } = useClubTheme();
   const [promoCode, setPromoCode] = useState("");
   const [promoCodeFootball, setPromoCodeFootball] = useState("");
   const [isValidating, setIsValidating] = useState(false);
@@ -99,6 +101,12 @@ export default function ClubUpgradePage() {
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [teamSelectOpen, setTeamSelectOpen] = useState(false);
+
+  useEffect(() => {
+    if (!activeClubFilter || !clubId || activeClubFilter === clubId) return;
+    const query = searchParams.toString();
+    navigate(`/clubs/${activeClubFilter}/upgrade${query ? `?${query}` : ""}`, { replace: true });
+  }, [activeClubFilter, clubId, navigate, searchParams]);
 
   // Handle payment success/cancelled from URL params
   useEffect(() => {
@@ -212,7 +220,7 @@ export default function ClubUpgradePage() {
   const isNearExpiry = daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0;
   const isNative = isNativePlatform();
   const isClassMode = !!(club as any)?.class_mode_enabled;
-  const showSponsorOption = (isExpired || isNearExpiry) && !isNative && !isClassMode;
+  const showSponsorOption = false;
 
   // Query active sponsors for this club to determine if sponsor-funded
   const { data: activeSponsors = [] } = useQuery({
@@ -255,7 +263,7 @@ export default function ClubUpgradePage() {
   }, [clubId, queryClient]);
 
   const handleGetSponsored = () => {
-    const sponsorUrl = `https://igniteclubhq.com/club/${clubId}`;
+    const sponsorUrl = "https://igniteclubhq.com/marketplace/sponsorship";
     import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(sponsorUrl));
   };
 
@@ -710,15 +718,6 @@ export default function ClubUpgradePage() {
                 </p>
               </div>
             </div>
-            {!isNative && !isClassMode && (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={handleGetSponsored} className="flex-1">
-                  <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                  Get Sponsored
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       );
@@ -738,7 +737,7 @@ export default function ClubUpgradePage() {
               </p>
               {isNearExpiry && (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  Expiring in {daysUntilExpiry} days — renew{!isClassMode ? " or find a sponsor" : ""}
+                  Expiring in {daysUntilExpiry} days — renew
                 </p>
               )}
             </div>
@@ -940,15 +939,8 @@ export default function ClubUpgradePage() {
           {isExpired && !isOnTrial && (
             <div className="space-y-2">
               <p className="text-sm text-destructive text-center">
-                Your payment failed. Please update your payment method{!isNative && !isClassMode ? " or find a sponsor" : ""}.
+                Your payment failed. Please update your payment method.
               </p>
-              {!isNative && !isClassMode && (
-                <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
-                  <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                  Get Sponsored
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </Button>
-              )}
             </div>
           )}
 
@@ -1149,23 +1141,6 @@ export default function ClubUpgradePage() {
               <p className="text-xs text-center text-muted-foreground">
                 ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} AUD • Cancel anytime
               </p>
-              {!isNative && !isClassMode && (
-                <>
-                  <div className="relative flex items-center justify-center gap-2 py-1">
-                    <div className="flex-1 border-t border-border" />
-                    <span className="text-xs text-muted-foreground px-2">or</span>
-                    <div className="flex-1 border-t border-border" />
-                  </div>
-                  <Button variant="outline" className="w-full" size="lg" onClick={handleGetSponsored}>
-                    <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                    Get Sponsored
-                    <ExternalLink className="h-3 w-3 ml-1" />
-                  </Button>
-                  <p className="text-xs text-center text-muted-foreground">
-                    Let a local sponsor pay for your subscription
-                  </p>
-                </>
-              )}
               <SubscriptionLegalLinks />
             </div>
           </CardContent>

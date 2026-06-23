@@ -20,6 +20,8 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
 import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 
 interface PendingInvite {
   id: string;
@@ -41,6 +43,7 @@ interface PendingInvite {
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { setActiveClubTheme } = useClubTheme();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -337,6 +340,10 @@ export default function CompleteProfilePage() {
         console.warn("[CompleteProfile] Error calling welcome DM function:", err);
       });
 
+      // Track the first club from invites so we can seed the active club filter
+      // ONLY for brand-new users who have no club preference yet.
+      let firstInvitedClubId: string | null = null;
+
       // Process pending invites if user opted in
       if (acceptInvites && pendingInvites.length > 0) {
         console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);
@@ -353,6 +360,9 @@ export default function CompleteProfilePage() {
               .eq("id", invite.team_id)
               .single();
             clubId = team?.club_id;
+          }
+          if (clubId && !firstInvitedClubId) {
+            firstInvitedClubId = clubId;
           }
 
           // Check if role already exists
@@ -757,117 +767,6 @@ export default function CompleteProfilePage() {
         console.log("[CompleteProfile] No pending invites to process");
       }
 
-      // Auto-apply club branding for new users joining Pro clubs
-      // Find the first club with Pro subscription and theme enabled
-      let appliedClubId: string | null = null;
-      if (acceptInvites && pendingInvites.length > 0) {
-        const clubIdsToCheck = new Set<string>();
-        
-        for (const invite of pendingInvites) {
-          let clubId = invite.club_id;
-          if (invite.team_id && !clubId) {
-            const { data: team } = await supabase
-              .from("teams")
-              .select("club_id")
-              .eq("id", invite.team_id)
-              .single();
-            clubId = team?.club_id;
-          }
-          if (clubId) clubIdsToCheck.add(clubId);
-        }
-
-        if (clubIdsToCheck.size > 0) {
-          // Check which clubs have Pro subscription and theme enabled
-          const { data: proClubs } = await supabase
-            .from("clubs")
-            .select(`
-              id,
-              name,
-              logo_url,
-              theme_enabled,
-              theme_primary_h,
-              theme_primary_s,
-              theme_primary_l,
-              theme_dark_primary_h,
-              theme_dark_primary_s,
-              theme_dark_primary_l,
-              club_subscriptions!inner(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
-            `)
-            .in("id", Array.from(clubIdsToCheck))
-            .eq("theme_enabled", true);
-
-          // Find first club with active Pro subscription
-          const proClubWithTheme = proClubs?.find((club: any) => {
-            const sub = club.club_subscriptions;
-            const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
-            const notExpired = !sub?.expires_at || new Date(sub.expires_at) > new Date();
-            return hasPro && notExpired && club.theme_primary_h !== null;
-          });
-
-          if (proClubWithTheme) {
-            console.log("[CompleteProfile] Auto-applying club theme for:", proClubWithTheme.id);
-            appliedClubId = proClubWithTheme.id;
-            
-            // Update profile with active club theme
-            await supabase
-              .from("profiles")
-              .update({ active_club_theme_id: proClubWithTheme.id })
-              .eq("id", user.id);
-            
-            // Store full localStorage keys so useClubTheme picks it up immediately
-            localStorage.setItem(`ignite-club-theme-${user.id}`, proClubWithTheme.id);
-            
-            // Build theme data for caching and immediate application
-            const primary = proClubWithTheme.theme_primary_h !== null ? {
-              h: proClubWithTheme.theme_primary_h,
-              s: proClubWithTheme.theme_primary_s,
-              l: proClubWithTheme.theme_primary_l,
-            } : null;
-            const darkPrimary = proClubWithTheme.theme_dark_primary_h !== null ? {
-              h: proClubWithTheme.theme_dark_primary_h,
-              s: proClubWithTheme.theme_dark_primary_s,
-              l: proClubWithTheme.theme_dark_primary_l,
-            } : null;
-            
-            // Cache the theme data for instant display on next page
-            const cacheData = {
-              clubId: proClubWithTheme.id,
-              clubName: proClubWithTheme.name,
-              logoUrl: proClubWithTheme.logo_url,
-              showLogoInHeader: false,
-              showNameInHeader: true,
-              logoOnlyMode: false,
-              sport: null,
-              primary,
-              secondary: null,
-              accent: null,
-              darkPrimary,
-              darkSecondary: null,
-              darkAccent: null,
-            };
-            try {
-              localStorage.setItem(`ignite-club-theme-data-${user.id}`, JSON.stringify(cacheData));
-            } catch {
-              // Ignore localStorage errors
-            }
-            
-            // IMMEDIATELY apply theme CSS so it's visible on navigation
-            const root = document.documentElement;
-            const isDarkMode = root.classList.contains('dark');
-            const activeColor = isDarkMode ? (darkPrimary || primary) : primary;
-            if (activeColor) {
-              root.style.setProperty("--primary", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
-              const fgL = activeColor.l > 50 ? 10 : 98;
-              root.style.setProperty("--primary-foreground", `${activeColor.h} 10% ${fgL}%`);
-              root.style.setProperty("--ring", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
-            }
-            
-            // Dispatch event to notify ClubThemeProvider to re-read from localStorage
-            window.dispatchEvent(new CustomEvent('club-theme-updated'));
-          }
-        }
-      }
-
       // If user opted in for push notifications, subscribe them
       if (pushEnabled && pushSupported) {
         setPushLoading(true);
@@ -910,20 +809,26 @@ export default function CompleteProfilePage() {
       clearInviteFlowContext();
 
       // Profile completed - no toast needed, navigating to home
-      
+
+      // Seed the active club filter from the inviting club for brand-new
+      // users (or users still on the post-signup sentinel). Goes through
+      // setActiveClubTheme so state, localStorage, AND
+      // profiles.active_club_theme_id (cross-device) all stay in sync.
+      // This is a user-driven action — they accepted the invite — so it
+      // does not violate the "filter only changes by user action" rule.
+      if (firstInvitedClubId) {
+        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
+        if (seeded) {
+          console.log("[CompleteProfile] Applied club filter from invite:", firstInvitedClubId);
+        }
+      }
+
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
       await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
       
       // Force refresh profile in auth context so theme is picked up
       await refreshProfile();
-      
-      // Dispatch event AGAIN right before navigation to ensure ClubThemeProvider picks it up
-      // This handles the case where the earlier event was processed before localStorage was fully set
-      window.dispatchEvent(new CustomEvent('club-theme-updated'));
-      
-      // Small delay to allow React to process the event before navigation
-      await new Promise(resolve => setTimeout(resolve, 50));
       
       // Navigate to home - all invites were already processed above
       navigate("/", { replace: true });
