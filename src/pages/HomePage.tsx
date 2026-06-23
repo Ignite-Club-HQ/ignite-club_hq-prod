@@ -2451,17 +2451,17 @@ export default function HomePage() {
                   🎉 Rewards Available
                 </p>
               ) : (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold leading-tight">
-                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                    {isRewardsProLocked ? 'Member Rewards' : ((userClubs[0] as any)?.points_display_name || 'Reward Points')}
                   </p>
                   {isRewardsProLocked && (
-                    <Badge variant="outline" className="text-[10px] h-4 px-1.5">Pro Only</Badge>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">Pro Only</Badge>
                   )}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {isRewardsProLocked ? 'Unlock points for RSVPs, duties, player of the match & more with Pro' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                {isRewardsProLocked ? 'Earn points for RSVPs, volunteering & participation' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
               </p>
             </div>
             {latestPendingRedemption && !isRewardsProLocked ? (
