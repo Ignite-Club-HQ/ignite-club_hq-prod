@@ -1201,7 +1201,7 @@ export function UploadPhotoSheet({
                 ) : (
                   <div className="grid gap-2">
                     {availableClubs.map((club) => {
-                      const isLocked = !club.has_pro_access && !isAppAdmin;
+                      const isLocked = false; // Free clubs can upload (capped); cap check happens at submit.
                       return (
                         <button
                           key={club.id}
