@@ -356,6 +356,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   }
 
   return (
+    <Card className="border-dashed shadow-none">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
