@@ -145,7 +145,9 @@ export function HomeQuickActionsFab({
             label: "Create Organisation",
             icon: Building2,
             onClick: () => go("/associations/new"),
+            proLocked,
           } as ActionItem,
+
         ]
       : []),
     ...(activeClubFilter && canCreateTeam
