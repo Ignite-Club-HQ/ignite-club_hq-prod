@@ -2588,14 +2588,11 @@ export default function MessagesPage() {
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center gap-3 py-3 px-3">
-            <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
-              <Crown className="h-4 w-4 text-primary" />
-            </div>
+          <CardContent className="flex items-center gap-3 py-2 px-3">
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm leading-tight">Unlock Pro Messaging</p>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                Team & club chat, custom groups, polls, photos, file sharing, event links & more.
+              <p className="font-semibold text-sm leading-tight">Unlock Pro Communication</p>
+              <p className="text-xs text-muted-foreground leading-snug">
+                Unlimited team & club chat, unlimited photos, unlimited file sharing and custom groups.
               </p>
             </div>
             <Button
