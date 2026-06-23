@@ -91,10 +91,17 @@ const safeSetItem = (key: string, value: string) => {
   }
 };
 
+interface FreeClubData {
+  id: string;
+  name: string;
+  logo_url: string | null;
+}
+
 interface ClubThemeContextType {
   availableClubThemes: ClubTheme[];
   activeClubTheme: string | null; // club ID or null - also acts as content filter
   activeThemeData: ClubTheme | null;
+  activeFreeClubData: FreeClubData | null;
   setActiveClubTheme: (clubId: string | null) => void;
   isLoading: boolean;
   isThemeReady: boolean; // True when theme loading from DB is complete
@@ -107,6 +114,7 @@ const ClubThemeContext = createContext<ClubThemeContextType>({
   availableClubThemes: [],
   activeClubTheme: null,
   activeThemeData: null,
+  activeFreeClubData: null,
   setActiveClubTheme: () => {},
   isLoading: false,
   isThemeReady: false,
@@ -750,10 +758,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   });
 
   // ALL clubs the user belongs to (Pro + free) — used to validate active club
-  // selections that aren't themed. Free clubs can be selected as the active
-  // club filter but won't apply theme overrides.
-  const { data: userClubIds = [] } = useQuery<string[]>({
-    queryKey: ["user-club-ids-for-switcher", user?.id],
+  // selections that aren't themed and to display free club names in the header.
+  const { data: userClubs = [] } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+    queryKey: ["user-clubs-for-switcher", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       const [rolesRes, teamRolesRes] = await Promise.all([
@@ -766,7 +773,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         const cid = r.teams?.club_id;
         if (cid) ids.add(cid);
       });
-      return Array.from(ids);
+      if (!ids.size) return [];
+      const { data: clubs } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url")
+        .in("id", Array.from(ids))
+        .is("deleted_at", null);
+      return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
     },
     enabled: !!user?.id,
   });
@@ -927,14 +940,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!activeClubTheme) return;
     const themedReady = availableClubThemes.length > 0;
-    const clubsReady = userClubIds.length > 0;
+    const clubsReady = userClubs.length > 0;
     if (!themedReady && !clubsReady) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
-    const inAnyClub = userClubIds.includes(activeClubTheme);
+    const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
     if (!inThemed && !inAnyClub) {
       setActiveClubTheme(null);
     }
-  }, [activeClubTheme, availableClubThemes, userClubIds]);
+  }, [activeClubTheme, availableClubThemes, userClubs]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
@@ -950,6 +963,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Use server data if available, otherwise fall back to cached data
   const activeThemeData = activeClubTheme 
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
+    : null;
+
+  // Free club data: when a club is selected but has no theme (Pro + theme required)
+  const activeFreeClubData = activeClubTheme && !activeThemeData
+    ? userClubs.find(c => c.id === activeClubTheme) ?? null
     : null;
 
   // Pre-warm the club logo decode cache the instant we know the URL.
@@ -1023,6 +1041,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       availableClubThemes,
       activeClubTheme,
       activeThemeData,
+      activeFreeClubData,
       setActiveClubTheme,
       isLoading,
       isThemeReady: themeIsReady,
