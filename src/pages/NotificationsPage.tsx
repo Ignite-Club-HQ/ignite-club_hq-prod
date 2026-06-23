@@ -296,8 +296,8 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const newNotification: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old ? [newNotification, ...old] : [newNotification]
           );
           
@@ -315,8 +315,8 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const updated: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old?.map(n => n.id === updated.id ? updated : n) || []
           );
         }
@@ -331,8 +331,8 @@ export default function NotificationsPage() {
         },
         (payload) => {
           const deleted = payload.old as { id: string };
-          queryClient.setQueryData<Notification[]>(
-            ["notifications", user.id],
+          queryClient.setQueriesData<Notification[]>(
+            { queryKey: ["notifications", user.id] },
             (old) => old?.filter(n => n.id !== deleted.id) || []
           );
         }
