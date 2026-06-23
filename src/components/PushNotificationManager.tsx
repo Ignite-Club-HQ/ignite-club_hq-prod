@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useClubTheme } from "@/hooks/useClubTheme";
 import { usePushSubscriptionHealth } from "@/hooks/usePushSubscriptionHealth";
 import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
@@ -32,7 +31,6 @@ export function PushNotificationManager() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setActiveClubTheme, activeClubFilter } = useClubTheme();
 
   // Merge preloaded notification messages directly into the live React Query
   // cache so an already-mounted chat page reflects the new push instantly,
@@ -74,27 +72,14 @@ export function PushNotificationManager() {
   // Sample realtime delivery latency (10% of sessions, batched writes)
   useRealtimePerfSampler(user?.id);
 
-  // BUG-8 + BUG-3: react to centralized notification taps for cross-cutting
-  // concerns (switch active club so multi-club users land in the right context,
-  // and open the pitch board for kickoff/sub/half-time/etc pushes). The actual
-  // navigation is performed by notificationLaunchHandler.ts.
+  // React to centralized notification taps for cross-cutting concerns that do
+  // not mutate the user's selected club filter. Navigation is performed by
+  // notificationLaunchHandler.ts.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
-      const data = detail.data || {};
       const isPitchBoard = !!detail.isPitchBoard;
       const type = detail.type;
-
-      // Switch active club if the notification targets a specific club the
-      // user belongs to and it's not already active.
-      const clubId: string | null = data.club_id || data.clubId || null;
-      if (clubId && clubId !== activeClubFilter) {
-        try {
-          setActiveClubTheme(clubId);
-        } catch (err) {
-          console.warn("[PushManager] Failed to switch active club:", err);
-        }
-      }
 
       if (isPitchBoard) {
         if (type) {
@@ -108,7 +93,7 @@ export function PushNotificationManager() {
 
     window.addEventListener("ignite:notification-tapped", handler);
     return () => window.removeEventListener("ignite:notification-tapped", handler);
-  }, [activeClubFilter, setActiveClubTheme]);
+  }, []);
 
   
   // Helper to navigate from a push notification URL
