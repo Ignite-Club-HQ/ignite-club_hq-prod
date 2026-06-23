@@ -1033,7 +1033,7 @@ export function AppHeader() {
                 <>
                   <div
                     className="p-1.5 rounded-lg"
-                    style={{ backgroundColor: freeClubAccent ?? 'hsl(var(--primary))' }}
+                    style={{ backgroundColor: 'hsl(var(--primary))' }}
                   >
                     <Flame className="h-5 w-5 text-white" />
                   </div>
@@ -1041,7 +1041,7 @@ export function AppHeader() {
                     <div className="flex items-center gap-1.5">
                       <span
                         className="font-bold text-lg truncate max-w-[200px]"
-                        style={{ color: freeClubAccent ?? 'hsl(var(--primary))' }}
+                        style={{ color: 'hsl(var(--primary))' }}
                       >
                         {freeClubNameParts.mainName}
                       </span>
@@ -1049,7 +1049,7 @@ export function AppHeader() {
                         className="h-3.5 w-3.5 shrink-0"
                         strokeWidth={2.5}
                         aria-hidden="true"
-                        style={{ color: freeClubAccent ?? 'hsl(var(--primary))' }}
+                        style={{ color: 'hsl(var(--primary))' }}
                       />
                     </div>
                     {freeClubNameParts.suffix && (
