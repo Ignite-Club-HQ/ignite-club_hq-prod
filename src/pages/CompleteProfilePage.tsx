@@ -337,6 +337,10 @@ export default function CompleteProfilePage() {
         console.warn("[CompleteProfile] Error calling welcome DM function:", err);
       });
 
+      // Track the first club from invites so we can seed the active club filter
+      // ONLY for brand-new users who have no club preference yet.
+      let firstInvitedClubId: string | null = null;
+
       // Process pending invites if user opted in
       if (acceptInvites && pendingInvites.length > 0) {
         console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);
@@ -353,6 +357,9 @@ export default function CompleteProfilePage() {
               .eq("id", invite.team_id)
               .single();
             clubId = team?.club_id;
+          }
+          if (clubId && !firstInvitedClubId) {
+            firstInvitedClubId = clubId;
           }
 
           // Check if role already exists
@@ -799,7 +806,21 @@ export default function CompleteProfilePage() {
       clearInviteFlowContext();
 
       // Profile completed - no toast needed, navigating to home
-      
+
+      // Seed the active club filter from the inviting club, BUT only for
+      // brand-new users who don't already have a preference. We never
+      // overwrite an existing user-controlled choice.
+      try {
+        const themeStorageKey = `ignite-club-theme-${user.id}`;
+        const existingPreference = localStorage.getItem(themeStorageKey);
+        if (firstInvitedClubId && existingPreference === null) {
+          localStorage.setItem(themeStorageKey, firstInvitedClubId);
+          console.log("[CompleteProfile] Seeded active club filter from invite:", firstInvitedClubId);
+        }
+      } catch (e) {
+        console.warn("[CompleteProfile] Failed to seed club filter:", e);
+      }
+
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
       await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
