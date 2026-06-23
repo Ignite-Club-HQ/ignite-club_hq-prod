@@ -15,6 +15,7 @@ import {
 import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-content";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
