@@ -162,6 +162,7 @@ export function HomeQuickActionsFab({
             label: "File Vault",
             icon: Folder,
             onClick: () => go("/vault"),
+            proLocked,
           } as ActionItem,
         ]
       : []),
