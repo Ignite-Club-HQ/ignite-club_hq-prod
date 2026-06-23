@@ -972,6 +972,8 @@ export function AppHeader() {
     <NotificationIcon type={type} mode="emoji" />
   );
 
+  const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
