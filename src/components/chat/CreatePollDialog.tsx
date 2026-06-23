@@ -209,6 +209,10 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
   const handleCreate = () => {
     setSubmitAttempted(true);
     if (validation.questionError || validation.optionsError) return;
+    if (atPollCap) {
+      toast.error(FREE_UPGRADE_MESSAGES.pollCount);
+      return;
+    }
     create.mutate();
   };
 
