@@ -1883,114 +1883,106 @@ export default function ClubDetailPage() {
           {(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
             <AccordionContent>
               <div className="pt-2 space-y-4">
-                {/* Media sponsors toggle — Riverside FC only, defaults to OFF */}
-                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
-                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Show sponsors in Media feed</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Interleaves a club sponsor tile every 8 photos in the Media feed. Tier-weighted (Gold &gt; Silver &gt; Bronze). Off by default.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={!!(club as any)?.media_sponsors_enabled}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase
-                          .from("clubs")
-                          .update({ media_sponsors_enabled: checked } as any)
-                          .eq("id", id!);
-                        if (error) {
-                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
-                          return;
-                        }
-                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
-                        await queryClient.invalidateQueries({ queryKey: ["riverside-media-sponsors-enabled"] });
-                        toast({ title: checked ? "Media sponsors enabled" : "Media sponsors disabled" });
-                      }}
-                    />
+                {/* Media sponsors toggle — defaults to OFF */}
+                <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Show sponsors in Media feed</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Interleaves a club sponsor tile every 8 photos in the Media feed. Tier-weighted (Gold &gt; Silver &gt; Bronze). Off by default.
+                    </p>
                   </div>
-                )}
-                {/* Media header sponsor strip toggle — Riverside FC only, defaults to OFF */}
-                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
-                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Show sponsor strip at top of Media</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Shows a slim, dismissible club sponsor bar above the Media feed. Tier-weighted rotation. Off by default.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={!!(club as any)?.media_header_sponsors_enabled}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase
-                          .from("clubs")
-                          .update({ media_header_sponsors_enabled: checked } as any)
-                          .eq("id", id!);
-                        if (error) {
-                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
-                          return;
-                        }
-                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
-                        await queryClient.invalidateQueries({ queryKey: ["riverside-media-header-sponsors-enabled"] });
-                        toast({ title: checked ? "Media header strip enabled" : "Media header strip disabled" });
-                      }}
-                    />
+                  <Switch
+                    checked={!!(club as any)?.media_sponsors_enabled}
+                    onCheckedChange={async (checked) => {
+                      const { error } = await supabase
+                        .from("clubs")
+                        .update({ media_sponsors_enabled: checked } as any)
+                        .eq("id", id!);
+                      if (error) {
+                        toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                        return;
+                      }
+                      await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                      await queryClient.invalidateQueries({ queryKey: ["riverside-media-sponsors-enabled"] });
+                      toast({ title: checked ? "Media sponsors enabled" : "Media sponsors disabled" });
+                    }}
+                  />
+                </div>
+                {/* Media header sponsor strip toggle — defaults to OFF */}
+                <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Show sponsor strip at top of Media</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Shows a slim, dismissible club sponsor bar above the Media feed. Tier-weighted rotation. Off by default.
+                    </p>
                   </div>
-                )}
-                {/* Chat thread sponsor strip toggle — Riverside FC only, defaults to OFF */}
-                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
-                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Show sponsor strip in chat threads</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Shows a slim, dismissible club sponsor bar at the top of every chat thread. Tier-weighted rotation. Off by default.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={!!(club as any)?.chat_thread_ads_enabled}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase
-                          .from("clubs")
-                          .update({ chat_thread_ads_enabled: checked } as any)
-                          .eq("id", id!);
-                        if (error) {
-                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
-                          return;
-                        }
-                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
-                        await queryClient.invalidateQueries({ queryKey: ["club-chat-thread-ads-enabled", id] });
-                        toast({ title: checked ? "Chat sponsor strip enabled" : "Chat sponsor strip disabled" });
-                      }}
-                    />
+                  <Switch
+                    checked={!!(club as any)?.media_header_sponsors_enabled}
+                    onCheckedChange={async (checked) => {
+                      const { error } = await supabase
+                        .from("clubs")
+                        .update({ media_header_sponsors_enabled: checked } as any)
+                        .eq("id", id!);
+                      if (error) {
+                        toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                        return;
+                      }
+                      await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                      await queryClient.invalidateQueries({ queryKey: ["riverside-media-header-sponsors-enabled"] });
+                      toast({ title: checked ? "Media header strip enabled" : "Media header strip disabled" });
+                    }}
+                  />
+                </div>
+                {/* Chat thread sponsor strip toggle — defaults to OFF */}
+                <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Show sponsor strip in chat threads</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Shows a slim, dismissible club sponsor bar at the top of every chat thread. Tier-weighted rotation. Off by default.
+                    </p>
                   </div>
-                 )}
-                {/* Events sponsor strip toggle — Riverside FC only, defaults to OFF */}
-                {id === "36231b76-5313-478e-b8d5-23ac4f5e8b10" && (
-                  <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">Show sponsor strip on Events</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Shows a rotating sponsor or ad strip above the events list and on each event detail page. Off by default.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={!!(club as any)?.events_sponsor_strip_enabled}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase
-                          .from("clubs")
-                          .update({ events_sponsor_strip_enabled: checked } as any)
-                          .eq("id", id!);
-                        if (error) {
-                          toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
-                          return;
-                        }
-                        await queryClient.invalidateQueries({ queryKey: ["club", id] });
-                        await queryClient.invalidateQueries({ queryKey: ["events-sponsor-strip-allowed", id] });
-                        toast({ title: checked ? "Events sponsor strip enabled" : "Events sponsor strip disabled" });
-                      }}
-                    />
+                  <Switch
+                    checked={!!(club as any)?.chat_thread_ads_enabled}
+                    onCheckedChange={async (checked) => {
+                      const { error } = await supabase
+                        .from("clubs")
+                        .update({ chat_thread_ads_enabled: checked } as any)
+                        .eq("id", id!);
+                      if (error) {
+                        toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                        return;
+                      }
+                      await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                      await queryClient.invalidateQueries({ queryKey: ["club-chat-thread-ads-enabled", id] });
+                      toast({ title: checked ? "Chat sponsor strip enabled" : "Chat sponsor strip disabled" });
+                    }}
+                  />
+                </div>
+                {/* Events sponsor strip toggle — defaults to OFF */}
+                <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Show sponsor strip on Events</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Shows a rotating sponsor or ad strip above the events list and on each event detail page. Off by default.
+                    </p>
                   </div>
-                )}
+                  <Switch
+                    checked={!!(club as any)?.events_sponsor_strip_enabled}
+                    onCheckedChange={async (checked) => {
+                      const { error } = await supabase
+                        .from("clubs")
+                        .update({ events_sponsor_strip_enabled: checked } as any)
+                        .eq("id", id!);
+                      if (error) {
+                        toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+                        return;
+                      }
+                      await queryClient.invalidateQueries({ queryKey: ["club", id] });
+                      await queryClient.invalidateQueries({ queryKey: ["events-sponsor-strip-allowed", id] });
+                      toast({ title: checked ? "Events sponsor strip enabled" : "Events sponsor strip disabled" });
+                    }}
+                  />
+                </div>
                 <SponsorsManager 
                   clubId={id!} 
                   currentPrimarySponsorId={club?.primary_sponsor_id || null}
