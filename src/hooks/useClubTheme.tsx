@@ -124,9 +124,11 @@ const ClubThemeContext = createContext<ClubThemeContextType>({
 
 const STORAGE_KEY_PREFIX = "ignite-club-theme-";
 const STORAGE_DATA_KEY_PREFIX = "ignite-club-theme-data-";
+const NO_CLUB_THEME_SENTINEL = "__ignite_no_club__";
 
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}${userId}`;
 const getStorageDataKey = (userId: string) => `${STORAGE_DATA_KEY_PREFIX}${userId}`;
+const isNoClubThemePreference = (value: string | null) => value === NO_CLUB_THEME_SENTINEL;
 
 // Track last applied signature to avoid redundant CSS variable writes
 let lastAppliedThemeSignature: string | null = null;
@@ -300,6 +302,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const storedId = localStorage.getItem(getStorageKey(user.id));
     const storedData = localStorage.getItem(getStorageDataKey(user.id));
     
+    if (isNoClubThemePreference(storedId)) {
+      return { themeId: null, themeData: null };
+    }
+
     if (storedId && storedData) {
       try {
         const parsedData = JSON.parse(storedData) as CachedThemeData;
@@ -392,7 +398,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
       let cacheApplied = false;
-      if (storedId && storedData) {
+      if (isNoClubThemePreference(storedId)) {
+        setActiveClubThemeState(null);
+        setCachedThemeData(null);
+        localStorage.removeItem(getStorageDataKey(user.id));
+        clearAllThemeCSS();
+        cacheApplied = true;
+      } else if (storedId && storedData) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId) {
@@ -442,7 +454,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
       // If localStorage has theme data for THIS user, sync state
-      if (storedId) {
+      if (isNoClubThemePreference(storedId)) {
+        setActiveClubThemeState(null);
+        setCachedThemeData(null);
+        localStorage.removeItem(getStorageDataKey(user.id));
+        clearAllThemeCSS();
+      } else if (storedId) {
         setActiveClubThemeState(storedId);
         
         if (storedData) {
