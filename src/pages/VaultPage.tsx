@@ -3888,26 +3888,40 @@ export default function VaultPage() {
               </CardContent>
             </Card>
           ) : (
-            (activeClubFilter ? userClubs.filter(c => c.id === activeClubFilter) : userClubs).map((club) => (
-              <Card
-                key={club.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => {
-                  setFolderPath([]);
-                  setCurrentView({ type: "club", clubId: club.id, clubName: club.name });
-                }}
-              >
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <FolderOpen className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{club.name}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            ))
+            (activeClubFilter ? userClubs.filter(c => c.id === activeClubFilter) : userClubs).map((club) => {
+              const isPro = club.is_pro;
+              return (
+                <Card
+                  key={club.id}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => {
+                    if (!isPro) {
+                      navigate(`/clubs/${club.id}/upgrade`);
+                      return;
+                    }
+                    setFolderPath([]);
+                    setCurrentView({ type: "club", clubId: club.id, clubName: club.name });
+                  }}
+                >
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FolderOpen className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{club.name}</p>
+                      {!isPro && (
+                        <p className="text-xs text-muted-foreground">Pro feature — Upgrade to unlock vault</p>
+                      )}
+                    </div>
+                    {!isPro ? (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}
