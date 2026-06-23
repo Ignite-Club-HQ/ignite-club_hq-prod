@@ -448,8 +448,8 @@ export function AppHeader() {
       }
     }
     
-    // No suffix found - just use the full name
-    return { mainName: name, suffix: 'Club' };
+    // No suffix found - render full name without a subtitle line
+    return { mainName: name, suffix: '' };
   };
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
