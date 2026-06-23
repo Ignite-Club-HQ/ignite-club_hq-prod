@@ -965,26 +965,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     applyThemeCSS(themeToApply, isDarkMode);
   }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
 
-  // Validate stored theme exists and user is a member.
-  // Allow free / non-themed clubs (id present in userClubIds) to remain selected
-  // as the active club filter; only reset when the id is neither a themed club
-  // nor any club the user belongs to.
+  // Validate theme data only. This must never change activeClubTheme: the club
+  // filter is user-controlled and can only be changed through setActiveClubTheme.
   useEffect(() => {
     if (!activeClubTheme) return;
     // Wait until the themed-clubs query has finished — otherwise we'd evict
     // a still-valid themed cache before server data arrives.
     if (isLoading || isUserClubsLoading) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
-    const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
-
-    if (!inThemed && !inAnyClub) {
-      // Not a member at all → reset selection entirely.
-      setActiveClubTheme(null);
-      return;
-    }
 
     if (!inThemed) {
-      // Club is a free / non-themed club (e.g. lost Pro since last login).
+      // Club is free/non-themed/inaccessible for theme rendering.
       // Evict any stale themed cache so the header drops the logo + colours
       // and renders the free-club branch (name only, default Ignite icon).
       if (cachedThemeData) {
@@ -995,7 +986,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, isUserClubsLoading, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, isLoading, isUserClubsLoading, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
