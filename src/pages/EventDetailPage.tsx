@@ -603,20 +603,9 @@ export default function EventDetailPage() {
   // Pro feature check for RSVP reminders - check team OR club subscription
   const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;
 
-  // Pro gate for event sharing
-  const canShareEvent = !!isAppAdmin || hasTeamPro === true;
-  const gateEventShare = (): boolean => {
-    if (canShareEvent) return true;
-    toast({
-      title: "Event sharing is a Pro feature",
-      description: event?.club_id
-        ? "Upgrade your club to Pro to share events."
-        : "Contact your club admin to upgrade to Pro.",
-      variant: "destructive",
-    });
-    if (event?.club_id) navigate(`/clubs/${event.club_id}/upgrade`);
-    return false;
-  };
+  // Event sharing is available on Free and Pro — no gate.
+  const canShareEvent = true;
+  const gateEventShare = (): boolean => true;
 
   const gateReminders = (): boolean => {
     if (isLoadingHasTeamPro) return false;
