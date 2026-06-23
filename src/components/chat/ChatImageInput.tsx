@@ -967,6 +967,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 });
               }
               return (
+                <>
                 <div className="grid grid-cols-2 gap-1.5">
                   {actions.map((a) => (
                     <button
