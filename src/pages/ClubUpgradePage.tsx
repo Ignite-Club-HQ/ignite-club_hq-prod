@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
+import { useClubTheme } from "@/hooks/useClubTheme";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -89,6 +90,7 @@ export default function ClubUpgradePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeClubFilter } = useClubTheme();
   const [promoCode, setPromoCode] = useState("");
   const [promoCodeFootball, setPromoCodeFootball] = useState("");
   const [isValidating, setIsValidating] = useState(false);
@@ -99,6 +101,12 @@ export default function ClubUpgradePage() {
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [teamSelectOpen, setTeamSelectOpen] = useState(false);
+
+  useEffect(() => {
+    if (!activeClubFilter || !clubId || activeClubFilter === clubId) return;
+    const query = searchParams.toString();
+    navigate(`/clubs/${activeClubFilter}/upgrade${query ? `?${query}` : ""}`, { replace: true });
+  }, [activeClubFilter, clubId, navigate, searchParams]);
 
   // Handle payment success/cancelled from URL params
   useEffect(() => {
