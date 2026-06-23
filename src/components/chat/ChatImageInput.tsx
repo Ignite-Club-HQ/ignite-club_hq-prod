@@ -290,6 +290,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (docInputRef.current) docInputRef.current.value = "";
       return;
     }
+    // Free-tier file cap check (skipped automatically for Pro clubs).
+    if (clubId) {
+      try {
+        const { data: usageRow } = await supabase.rpc("get_club_free_usage", { _club_id: clubId });
+        const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+        if (usage && !usage.is_pro) {
+          const FREE_FILES = 10;
+          const FREE_FILE_BYTES = 100 * 1024 * 1024;
+          if (Number(usage.file_count ?? 0) >= FREE_FILES) {
+            toast.error("Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage.");
+            if (docInputRef.current) docInputRef.current.value = "";
+            return;
+          }
+          if (Number(usage.file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
+            toast.error("Your club has used its 100 MB free file storage. Upgrade to Pro for unlimited document storage.");
+            if (docInputRef.current) docInputRef.current.value = "";
+            return;
+          }
+        }
+      } catch (capErr) {
+        console.warn("[ChatImageInput] file cap check failed, continuing", capErr);
+      }
+    }
     setUploading(true);
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
