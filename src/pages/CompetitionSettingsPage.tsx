@@ -15,6 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +50,10 @@ export default function CompetitionSettingsPage() {
       return !!data;
     },
   });
+
+  const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(
+    (competition as any)?.organizer_club_id ?? null,
+  );
 
   const [name, setName] = useState("");
   const [status, setStatus] = useState("");
@@ -138,6 +144,21 @@ export default function CompetitionSettingsPage() {
           <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
         </Button>
         <p className="text-sm text-muted-foreground">You don't have permission to manage this competition.</p>
+      </div>
+    );
+  }
+
+  if (!organizerHasPro && !proLoading) {
+    return (
+      <div className="container max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
+          <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
+        </Button>
+        <ProFeatureLock
+          title="Managing competitions is a Pro feature"
+          description="Upgrade the organiser club to Pro to edit competition settings, fixtures and broadcasts."
+          clubId={(competition as any).organizer_club_id}
+        />
       </div>
     );
   }
