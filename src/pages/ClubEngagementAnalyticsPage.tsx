@@ -135,6 +135,9 @@ export default function ClubEngagementAnalyticsPage({
 
   const queryReady = isPlatform || !!clubId;
 
+  // Pro gating (skip for platform-wide admin view)
+  const { hasPro, isLoading: proLoading } = useClubProAccess(clubId, { enabled: !isPlatform });
+
   // ---------- Access control ----------
   const { data: access, isLoading: accessLoading } = useQuery({
     queryKey: ["club-engagement-access", user?.id, clubId, mode],
