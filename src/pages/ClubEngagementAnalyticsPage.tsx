@@ -660,7 +660,7 @@ export default function ClubEngagementAnalyticsPage({
 
 
   // ---------- UI ----------
-  if (accessLoading) {
+  if (accessLoading || (!isPlatform && proLoading)) {
     return (
       <div className="py-6 space-y-4">
         <Skeleton className="h-8 w-48" />
@@ -681,6 +681,24 @@ export default function ClubEngagementAnalyticsPage({
         <p className="text-muted-foreground text-center py-12">
           Access denied. Club admin or committee role required.
         </p>
+      </div>
+    );
+  }
+
+  if (!isPlatform && !hasPro) {
+    return (
+      <div className="py-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Engagement</h1>
+        </div>
+        <ProFeatureLock
+          title="Engagement Analytics is a Pro feature"
+          featureLabel="Engagement Analytics"
+          clubId={clubId}
+        />
       </div>
     );
   }
