@@ -127,7 +127,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   const currentAd = ads[currentIndex];
   const context = (
     location === "event-detail" ? "event_detail_page" : `${location}_page`
-  ) as "home_page" | "events_page" | "event_detail_page" | "messages_page";
+  ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
 
   const isUpgradeAd = currentAd.link_url?.includes("upgrade") || 
                       currentAd.name.toLowerCase().includes("upgrade") ||
