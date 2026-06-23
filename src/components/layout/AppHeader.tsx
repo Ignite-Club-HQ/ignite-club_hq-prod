@@ -977,7 +977,7 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
+            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
@@ -1022,6 +1022,21 @@ export function AppHeader() {
                       <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
                     </div>
                   )}
+                </>
+              ) : activeFreeClubData && freeClubNameParts?.mainName ? (
+                <>
+                  <div className="p-1.5 rounded-lg bg-primary">
+                    <Flame className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <div className="flex flex-col leading-tight items-start">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-lg truncate max-w-[140px] leading-none text-foreground">
+                        {freeClubNameParts.mainName}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground -mt-1 text-left">{freeClubNameParts.suffix}</span>
+                  </div>
                 </>
               ) : (
                 <>
