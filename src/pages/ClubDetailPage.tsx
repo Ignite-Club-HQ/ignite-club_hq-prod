@@ -2208,6 +2208,12 @@ export default function ClubDetailPage() {
                       <div className="font-medium">Engagement Analytics</div>
                       <div className="text-xs text-muted-foreground">Health, adoption, communication & more</div>
                     </div>
+                    {!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
+                      <div className="flex items-center gap-1.5">
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                        <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </Link>
