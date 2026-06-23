@@ -811,7 +811,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // ALL clubs the user belongs to (Pro + free) — used to validate active club
   // selections that aren't themed and to display free club names in the header.
-  const { data: userClubs = [] } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+  const { data: userClubs = [], isLoading: isUserClubsLoading } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
     queryKey: ["user-clubs-for-switcher", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -994,16 +994,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (!activeClubTheme) return;
     // Wait until the themed-clubs query has finished — otherwise we'd evict
     // a still-valid themed cache before server data arrives.
-    if (isLoading) return;
+    if (isLoading || isUserClubsLoading) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
     const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
 
     if (!inThemed && !inAnyClub) {
       // Not a member at all → reset selection entirely.
-      // Only act once userClubs has also loaded, to avoid a false negative.
-      if (userClubs.length > 0) {
-        setActiveClubTheme(null);
-      }
+      setActiveClubTheme(null);
       return;
     }
 
@@ -1019,7 +1016,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, isUserClubsLoading, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
