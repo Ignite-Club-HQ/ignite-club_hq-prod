@@ -973,6 +973,7 @@ export function AppHeader() {
   );
 
   const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
+  const freeClubAccent = useLogoAccentColor(activeFreeClubData?.logo_url, effectiveTheme === 'dark');
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
