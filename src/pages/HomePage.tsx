@@ -721,6 +721,7 @@ export default function HomePage() {
   });
   
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
+  const isRewardsProLocked = hasProAccess === false && !isAppAdmin && userClubs.length > 0;
 
   // Fetch clubs for rewards with Pro status - uses memberships data
   const { data: rewardClubs = [] } = useQuery({
