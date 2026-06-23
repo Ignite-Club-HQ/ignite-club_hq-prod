@@ -874,13 +874,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               actions.push({
                 key: "photo",
                 label: "Photo / Video",
-                hint: hasProAccess ? "Camera roll" : "Pro feature",
+                hint: "Camera roll",
                 icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                 tone: "primary",
                 disabled: disabled || uploading,
-                locked: !hasProAccess,
                 onClick: (e) => {
-                  if (requirePro(e)) return;
                   setMenuOpen(false);
                   handleImageButtonClick(e);
                 },
@@ -890,13 +888,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: hasProAccess ? "Device or vault" : "Pro feature",
+                  hint: "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
@@ -906,13 +902,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "event",
                   label: "Share Event",
-                  hint: hasProAccess ? "Training or game" : "Pro feature",
+                  hint: "Training or game",
                   icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onEventSelect("");
                   },
@@ -923,13 +917,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "poll",
                   label: "Create Poll",
-                  hint: hasProAccess ? "Ask the group" : "Pro feature",
+                  hint: "Ask the group",
                   icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onPollCreate();
                   },
