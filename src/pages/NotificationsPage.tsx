@@ -375,24 +375,36 @@ export default function NotificationsPage() {
     },
   });
 
+  const CROSS_CLUB_TYPES = [
+    "direct_message",
+    "streak_progress",
+    "reward_unlocked",
+  ];
+
   const markAllAsRead = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      let q = supabase
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", user!.id)
         .eq("is_read", false);
+      if (activeClubFilter) {
+        q = q.or(
+          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
+        );
+      }
+      const { error } = await q;
       if (error) throw error;
     },
     onMutate: async () => {
-      // Optimistic update - mark all as read
+      // Optimistic update - mark visible notifications as read
       queryClient.setQueriesData<Notification[]>(
         { queryKey: ["notifications", user?.id] },
         (old) => old?.map(n => ({ ...n, read: true })) || []
       );
     },
     onSuccess: () => {
-      clearUnreadCount();
+      if (!activeClubFilter) clearUnreadCount();
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
@@ -402,6 +414,7 @@ export default function NotificationsPage() {
       setTimeout(() => refreshUnreadCount(), 300);
     },
   });
+
 
   const deleteNotification = useMutation({
     mutationFn: async (id: string) => {
