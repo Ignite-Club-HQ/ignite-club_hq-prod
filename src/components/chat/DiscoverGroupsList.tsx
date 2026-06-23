@@ -109,7 +109,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
 
   const { data: groups = [] } = useQuery({
     queryKey: ["discover-open-groups", user?.id, activeClubFilter ?? null],
-    enabled: !!user?.id,
+    enabled: !!user?.id && (!activeClubFilter || hasPro),
     staleTime: 60_000,
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
