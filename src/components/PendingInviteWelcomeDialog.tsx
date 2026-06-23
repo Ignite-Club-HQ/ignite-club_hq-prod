@@ -149,12 +149,17 @@ export function PendingInviteWelcomeDialog() {
     if (!user || pendingInvites.length === 0) return;
 
     const autoAcceptInvites = async () => {
+      let firstInvitedClubId: string | null = null;
+
       for (const invite of pendingInvites) {
         try {
           // Resolve club_id
           let clubId: string | null = invite.club_id ?? null;
           if (!clubId && invite.team_id) {
             clubId = (invite.teams as any)?.club_id ?? null;
+          }
+          if (clubId && !firstInvitedClubId) {
+            firstInvitedClubId = clubId;
           }
 
           // Check if role already exists
