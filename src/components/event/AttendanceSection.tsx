@@ -238,7 +238,7 @@ export function AttendanceSection({
   // Sharing a reminder link is always available to admins (no Pro required).
   // Push/email reminders require Pro (canSendReminders).
   const hasNonResponders = counts.notResponded > 0 && notRespondedUserIds.length > 0;
-  const showReminderAction = isAdmin && hasNonResponders && (canSendReminders || !!onShareLink);
+  const showReminderAction = isAdmin && hasNonResponders;
 
   return (
     <section className="space-y-4">
