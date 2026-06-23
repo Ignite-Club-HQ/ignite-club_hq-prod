@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Crown, Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -18,6 +19,9 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
+import { UsageMeter } from "@/components/subscription/UsageMeter";
+import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import type { Database } from "@/integrations/supabase/types";
 
 export type PollChatType = Database["public"]["Enums"]["poll_chat_type"];
@@ -28,6 +32,8 @@ interface CreatePollDialogProps {
   chatType: PollChatType;
   chatId: string;
   onCreated: (pollId: string) => void;
+  /** Optional — when omitted, the dialog resolves the club id from chatType/chatId. */
+  clubId?: string | null;
 }
 
 const MAX_OPTIONS = 10;
