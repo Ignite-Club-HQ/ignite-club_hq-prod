@@ -245,6 +245,7 @@ Deno.serve(async (req) => {
               type: "photo_prompt_reminder",
               message: `Be the first to share photos from ${c.eventLabel}`,
               related_id: c.eventId,
+              club_id: c.clubId,
             }),
           ),
         );
