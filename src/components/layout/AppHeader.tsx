@@ -1021,7 +1021,9 @@ export function AppHeader() {
                         </span>
                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                       </div>
-                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      {clubNameParts.suffix && (
+                        <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      )}
                     </div>
                   )}
                 </>
