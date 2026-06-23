@@ -10090,6 +10090,19 @@ export type Database = {
           type: string
         }[]
       }
+      get_club_free_usage: {
+        Args: { _club_id: string }
+        Returns: {
+          cycle_end: string
+          cycle_start: string
+          file_count: number
+          file_storage_bytes: number
+          is_pro: boolean
+          photo_storage_bytes: number
+          photo_uploads_this_cycle: number
+          polls_this_cycle: number
+        }[]
+      }
       get_club_invite_by_token: {
         Args: { _token: string }
         Returns: {
