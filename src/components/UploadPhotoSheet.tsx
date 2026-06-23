@@ -656,6 +656,39 @@ export function UploadPhotoSheet({
 
   const handleUpload = async () => {
     if (selectedPhotos.length === 0 || !selectedClubId) return;
+
+    // Free-tier cap check (Pro returns isPro=true and bypasses).
+    try {
+      const { data: usageRow } = await supabase.rpc("get_club_free_usage", {
+        _club_id: selectedClubId,
+      });
+      const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+      if (usage && !usage.is_pro) {
+        const FREE_PHOTOS = 20;
+        const FREE_STORAGE = 500 * 1024 * 1024;
+        const usedCount = Number(usage.photo_uploads_this_cycle ?? 0);
+        const usedBytes = Number(usage.photo_storage_bytes ?? 0);
+        const incomingBytes = selectedPhotos.reduce(
+          (sum, p: any) => sum + (p?.file?.size ?? 0),
+          0,
+        );
+        if (usedCount + selectedPhotos.length > FREE_PHOTOS) {
+          toast.error(
+            "You've used your 20 free photo uploads this cycle. Upgrade to Pro for unlimited uploads and storage.",
+          );
+          return;
+        }
+        if (usedBytes + incomingBytes > FREE_STORAGE) {
+          toast.error(
+            "Your club has used its 500 MB free photo storage. Upgrade to Pro for unlimited media storage.",
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("[UploadPhotoSheet] cap check failed, continuing", e);
+    }
+
     
     const totalPhotos = selectedPhotos.length;
     const photosToUpload = [...selectedPhotos]; // Copy the array before closing
