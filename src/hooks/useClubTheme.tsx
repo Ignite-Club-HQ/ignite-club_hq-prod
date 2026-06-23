@@ -836,33 +836,26 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id,
   });
 
-  // Auto-set theme for new members who haven't set a preference yet
+  // Establish an explicit default for users who haven't set a preference yet.
+  // Never auto-pick the first available club: multi-club users must not come
+  // back from logout with a different club selected just because ordering or
+  // DB/local cache hydration changed.
   useEffect(() => {
     if (!user?.id || hasCheckedDefault || isLoading || isLoadingFromDb) return;
     
     // Check if user has any stored preference (including explicit "none")
     const hasStoredPreference = localStorage.getItem(getStorageKey(user.id)) !== null;
     
-    if (!hasStoredPreference && availableClubThemes.length > 0) {
-      // New member - default to first available club theme
-      const firstTheme = availableClubThemes[0];
-      setActiveClubThemeState(firstTheme.clubId);
-      safeSetItem(getStorageKey(user.id), firstTheme.clubId);
-      safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
-      setCachedThemeData(firstTheme);
-      applyThemeCSS(firstTheme, isDarkMode);
-      if (firstTheme.logoUrl) { const img = new Image(); img.src = firstTheme.logoUrl; }
-      
-      // Also save to database for cross-device sync
-      supabase
-        .from('profiles')
-        .update({ active_club_theme_id: firstTheme.clubId })
-        .eq('id', user.id)
-        .then(() => console.log('Auto-set club theme saved to profile'));
+    if (!hasStoredPreference) {
+      safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
+      localStorage.removeItem(getStorageDataKey(user.id));
+      setActiveClubThemeState(null);
+      setCachedThemeData(null);
+      clearAllThemeCSS();
     }
     
     setHasCheckedDefault(true);
-  }, [user?.id, availableClubThemes, isLoading, isLoadingFromDb, hasCheckedDefault, isDarkMode]);
+  }, [user?.id, isLoading, isLoadingFromDb, hasCheckedDefault]);
 
   const setActiveClubTheme = (clubId: string | null) => {
     setActiveClubThemeState(clubId);
