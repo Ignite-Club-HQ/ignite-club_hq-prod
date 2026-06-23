@@ -1923,4 +1923,3 @@ function ProFeatureGate({ feature, clubId, teamId }: { feature: string; clubId?:
     </Card>
   );
 }
-}
