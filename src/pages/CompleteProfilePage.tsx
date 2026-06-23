@@ -358,6 +358,9 @@ export default function CompleteProfilePage() {
               .single();
             clubId = team?.club_id;
           }
+          if (clubId && !firstInvitedClubId) {
+            firstInvitedClubId = clubId;
+          }
 
           // Check if role already exists
           const roleQuery = supabase
