@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
-export const FREE_PHOTO_STORAGE_BYTES = 500 * 1024 * 1024; // 500 MB
 export const FREE_FILE_COUNT = 10;
 export const FREE_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
 export const FREE_POLLS_PER_CYCLE = 2;
@@ -14,10 +13,7 @@ export interface ClubFreeUsage {
   photo: {
     used: number;
     limit: number;
-    storageUsed: number;
-    storageLimit: number;
     atCountCap: boolean;
-    atStorageCap: boolean;
     atCap: boolean;
   };
   file: {
@@ -59,7 +55,6 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       if (!row) return null;
 
       const photoUsed = Number(row.photo_uploads_this_cycle ?? 0);
-      const photoBytes = Number(row.photo_storage_bytes ?? 0);
       const fileUsed = Number(row.file_count ?? 0);
       const fileBytes = Number(row.file_storage_bytes ?? 0);
       const pollUsed = Number(row.polls_this_cycle ?? 0);
@@ -72,10 +67,7 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
         photo: {
           used: photoUsed,
           limit: FREE_PHOTO_UPLOADS_PER_CYCLE,
-          storageUsed: photoBytes,
-          storageLimit: FREE_PHOTO_STORAGE_BYTES,
           atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
-          atStorageCap: false,
           atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
         },
         file: {
