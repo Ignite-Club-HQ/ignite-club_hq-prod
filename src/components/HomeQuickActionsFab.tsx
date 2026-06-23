@@ -37,6 +37,7 @@ interface HomeQuickActionsFabProps {
   isAppAdmin?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
+  hasProContext?: boolean;
 }
 
 type ActionItem = {
@@ -44,6 +45,7 @@ type ActionItem = {
   description?: string;
   icon: typeof Plus;
   onClick: () => void;
+  proLocked?: boolean;
 };
 
 export function HomeQuickActionsFab({
