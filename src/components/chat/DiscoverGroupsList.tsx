@@ -320,8 +320,42 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   };
 
 
+  // Pro-gate: Discover (Operations / Volunteers) groups are a Pro club feature.
+  // When the active club is not Pro, render a locked CTA that routes to upgrade.
+  if (activeClubFilter && !proLoading && !hasPro) {
+    return (
+      <Card
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate(`/clubs/${activeClubFilter}/upgrade`)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            navigate(`/clubs/${activeClubFilter}/upgrade`);
+          }
+        }}
+        className="border-dashed shadow-none cursor-pointer hover:bg-muted/40 transition-colors"
+      >
+        <div className="flex items-center gap-3 px-3 py-3">
+          <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
+            <Lock className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-tight flex items-center gap-1.5">
+              Discover groups
+              <span className="text-[10px] uppercase tracking-wide font-semibold text-primary">Pro</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+              Operations &amp; Volunteers groups are a Pro feature. Tap to upgrade and unlock club-wide open groups.
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="border-dashed shadow-none">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
