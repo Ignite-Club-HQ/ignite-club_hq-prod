@@ -16,6 +16,7 @@ import {
   Folder,
   Settings,
   Shield,
+  Lock,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -36,6 +37,7 @@ interface HomeQuickActionsFabProps {
   isAppAdmin?: boolean;
   activeClubFilter?: string | null;
   activeClubName?: string | null;
+  hasProContext?: boolean;
 }
 
 type ActionItem = {
@@ -43,6 +45,7 @@ type ActionItem = {
   description?: string;
   icon: typeof Plus;
   onClick: () => void;
+  proLocked?: boolean;
 };
 
 export function HomeQuickActionsFab({
@@ -55,7 +58,9 @@ export function HomeQuickActionsFab({
   isAppAdmin = false,
   activeClubFilter,
   activeClubName,
+  hasProContext = false,
 }: HomeQuickActionsFabProps) {
+  const proLocked = !hasProContext && !isAppAdmin;
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
@@ -78,6 +83,7 @@ export function HomeQuickActionsFab({
       label: "Post Photo/Video",
       icon: ImagePlus,
       onClick: () => go("/media?upload=1"),
+      proLocked,
     },
     ...(canCreateEvent
       ? [
@@ -156,6 +162,7 @@ export function HomeQuickActionsFab({
             label: "File Vault",
             icon: Folder,
             onClick: () => go("/vault"),
+            proLocked,
           } as ActionItem,
         ]
       : []),
@@ -181,8 +188,13 @@ export function HomeQuickActionsFab({
         <item.icon className="h-[18px] w-[18px]" />
       </span>
       <span className="flex-1 min-w-0">
-        <span className="block text-[15px] font-semibold text-foreground truncate">
-          {item.label}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="block text-[15px] font-semibold text-foreground truncate">
+            {item.label}
+          </span>
+          {item.proLocked && (
+            <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Pro only" />
+          )}
         </span>
         {item.description && (
           <span className="block text-[12px] text-muted-foreground truncate">
@@ -203,8 +215,13 @@ export function HomeQuickActionsFab({
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
         <item.icon className="h-[18px] w-[18px]" />
       </span>
-      <span className="text-[15px] font-medium text-foreground/80 truncate">
-        {item.label}
+      <span className="flex-1 min-w-0 flex items-center gap-1.5">
+        <span className="text-[15px] font-medium text-foreground/80 truncate">
+          {item.label}
+        </span>
+        {item.proLocked && (
+          <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Pro only" />
+        )}
       </span>
     </button>
   );
