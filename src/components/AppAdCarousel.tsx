@@ -32,22 +32,27 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Check if user has admin roles
-  const { data: isAdmin } = useQuery({
-    queryKey: ["user-is-admin", user?.id],
+  // Fetch user's admin scopes so we can route upgrade ads to a real upgrade URL
+  const { data: adminScopes } = useQuery({
+    queryKey: ["user-admin-upgrade-scopes", user?.id],
     queryFn: async () => {
-      if (!user?.id) return false;
-      
+      if (!user?.id) return { clubId: null as string | null, teamId: null as string | null };
+
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, club_id, team_id")
         .eq("user_id", user.id)
-        .in("role", ["club_admin", "team_admin", "app_admin"]);
-      
-      return (roles?.length ?? 0) > 0;
+        .in("role", ["club_admin", "team_admin"]);
+
+      const clubId = roles?.find((r) => r.role === "club_admin" && r.club_id)?.club_id ?? null;
+      const teamId = roles?.find((r) => r.role === "team_admin" && r.team_id)?.team_id ?? null;
+      return { clubId, teamId };
     },
     enabled: !!user?.id,
   });
+
+  const isAdmin = !!(adminScopes?.clubId || adminScopes?.teamId);
+
 
   // Fetch ad settings for this location
   const { data: settings } = useQuery({
