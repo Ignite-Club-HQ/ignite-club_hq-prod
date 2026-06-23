@@ -721,10 +721,6 @@ export default function HomePage() {
   });
   
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
-  // Rewards are per-club. Lock if none of the user's relevant clubs have Pro
-  // (scoped to activeClubFilter when set, otherwise any club). App admins bypass.
-  const hasAnyRewardClubPro = rewardClubs.some((c: any) => c.hasPro);
-  const isRewardsProLocked = !isAppAdmin && userClubs.length > 0 && rewardClubs.length > 0 && !hasAnyRewardClubPro;
 
   // Fetch clubs for rewards with Pro status - uses memberships data
   const { data: rewardClubs = [] } = useQuery({
