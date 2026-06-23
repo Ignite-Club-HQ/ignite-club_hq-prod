@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -11,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 export function PendingInviteWelcomeDialog() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { setActiveClubTheme } = useClubTheme();
 
   const { data: pendingInvites = [] } = useQuery({
     queryKey: ["pending-invites-for-user", user?.id],
