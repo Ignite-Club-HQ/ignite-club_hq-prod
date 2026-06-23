@@ -337,6 +337,10 @@ export default function CompleteProfilePage() {
         console.warn("[CompleteProfile] Error calling welcome DM function:", err);
       });
 
+      // Track the first club from invites so we can seed the active club filter
+      // ONLY for brand-new users who have no club preference yet.
+      let firstInvitedClubId: string | null = null;
+
       // Process pending invites if user opted in
       if (acceptInvites && pendingInvites.length > 0) {
         console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);
