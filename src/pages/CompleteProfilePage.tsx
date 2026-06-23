@@ -806,7 +806,21 @@ export default function CompleteProfilePage() {
       clearInviteFlowContext();
 
       // Profile completed - no toast needed, navigating to home
-      
+
+      // Seed the active club filter from the inviting club, BUT only for
+      // brand-new users who don't already have a preference. We never
+      // overwrite an existing user-controlled choice.
+      try {
+        const themeStorageKey = `ignite-club-theme-${user.id}`;
+        const existingPreference = localStorage.getItem(themeStorageKey);
+        if (firstInvitedClubId && existingPreference === null) {
+          localStorage.setItem(themeStorageKey, firstInvitedClubId);
+          console.log("[CompleteProfile] Seeded active club filter from invite:", firstInvitedClubId);
+        }
+      } catch (e) {
+        console.warn("[CompleteProfile] Failed to seed club filter:", e);
+      }
+
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
       await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
