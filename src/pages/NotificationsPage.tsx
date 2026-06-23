@@ -428,7 +428,7 @@ export default function NotificationsPage() {
       await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
       await queryClient.cancelQueries({ queryKey: ["unread-count"] });
       // Optimistic update - clear all
-      queryClient.setQueryData<Notification[]>(["notifications", user?.id], []);
+      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
     },
     onSuccess: () => {
       clearUnreadCount();
