@@ -1315,6 +1315,9 @@ export default function MediaPage() {
         />
       </div>
 
+      <FreeMediaUsageMeter clubId={scopedClubFilterId ?? null} />
+
+
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
         <DrawerContent>
