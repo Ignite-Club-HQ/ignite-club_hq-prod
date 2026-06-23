@@ -144,6 +144,21 @@ export default function CompetitionSettingsPage() {
     );
   }
 
+  if (!organizerHasPro && !proLoading) {
+    return (
+      <div className="container max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <Button asChild variant="ghost" size="icon" className="-ml-2 h-11 w-11" aria-label={`Back to ${competition.name}`}>
+          <Link to={`/competitions/${id}`}><ArrowLeft className="h-5 w-5" /></Link>
+        </Button>
+        <ProFeatureLock
+          title="Managing competitions is a Pro feature"
+          description="Upgrade the organiser club to Pro to edit competition settings, fixtures and broadcasts."
+          clubId={(competition as any).organizer_club_id}
+        />
+      </div>
+    );
+  }
+
   // Map DB status values to simplified UI options
   const statusOptions: { value: string; label: string }[] = [
     { value: "draft", label: "Draft" },
