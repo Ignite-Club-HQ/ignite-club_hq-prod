@@ -979,9 +979,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
-  // Use server data if available, otherwise fall back to cached data
-  const activeThemeData = activeClubTheme 
-    ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
+  // Use server data if available. Only fall back to cached data while the
+  // themed-clubs query is still loading — once loaded, if the active club
+  // isn't a themed Pro club, we treat it as a free club (no logo, no colours).
+  const serverThemeMatch = activeClubTheme
+    ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
+    : null;
+  const activeThemeData = activeClubTheme
+    ? serverThemeMatch ?? (isLoading ? cachedThemeData : null)
     : null;
 
   // Free club data: when a club is selected but has no theme (Pro + theme required)
