@@ -16,6 +16,7 @@ import {
   Folder,
   Settings,
   Shield,
+  Lock,
 } from "lucide-react";
 import {
   ResponsiveDialog,
