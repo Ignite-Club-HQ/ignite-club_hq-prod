@@ -556,10 +556,20 @@ export function PendingInviteWelcomeDialog() {
       // Refresh roles/membership queries after processing
       queryClient.invalidateQueries({ queryKey: ["user-roles"] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites-for-user"] });
+
+      // Apply the inviting club's theme — only seeds when user has no
+      // existing preference (or is still on the post-signup sentinel).
+      // Never overrides an explicit user choice.
+      if (firstInvitedClubId && user) {
+        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
+        if (seeded) {
+          console.log("[InviteAutoAccept] Applied club filter from invite:", firstInvitedClubId);
+        }
+      }
     };
 
     autoAcceptInvites();
-  }, [user, pendingInvites, queryClient]);
+  }, [user, pendingInvites, queryClient, setActiveClubTheme]);
 
   // No UI rendered — purely background logic
   return null;
