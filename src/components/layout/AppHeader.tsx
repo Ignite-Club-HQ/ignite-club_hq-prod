@@ -1032,7 +1032,7 @@ export function AppHeader() {
                   </div>
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg truncate max-w-[140px] leading-none text-foreground">
+                      <span className="font-bold text-lg truncate max-w-[140px] text-foreground">
                         {freeClubNameParts.mainName}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
