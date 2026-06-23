@@ -210,16 +210,11 @@ export default function MessagesPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("new") === "picker") {
+      setShowNewMessageSheet(true);
       params.delete("new");
       navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
-      if (!hasAnyProAccess && !isAppAdmin) {
-        const targetClub = activeClubFilter || displayMemberClubs[0]?.id;
-        navigate(targetClub ? `/clubs/${targetClub}/upgrade` : "/clubs");
-        return;
-      }
-      setShowNewMessageSheet(true);
     }
-  }, [location.search, location.pathname, navigate, hasAnyProAccess, isAppAdmin, activeClubFilter, displayMemberClubs]);
+  }, [location.search, location.pathname, navigate]);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level
