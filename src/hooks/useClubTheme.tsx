@@ -124,9 +124,11 @@ const ClubThemeContext = createContext<ClubThemeContextType>({
 
 const STORAGE_KEY_PREFIX = "ignite-club-theme-";
 const STORAGE_DATA_KEY_PREFIX = "ignite-club-theme-data-";
+const NO_CLUB_THEME_SENTINEL = "__ignite_no_club__";
 
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}${userId}`;
 const getStorageDataKey = (userId: string) => `${STORAGE_DATA_KEY_PREFIX}${userId}`;
+const isNoClubThemePreference = (value: string | null) => value === NO_CLUB_THEME_SENTINEL;
 
 // Track last applied signature to avoid redundant CSS variable writes
 let lastAppliedThemeSignature: string | null = null;
@@ -300,6 +302,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const storedId = localStorage.getItem(getStorageKey(user.id));
     const storedData = localStorage.getItem(getStorageDataKey(user.id));
     
+    if (isNoClubThemePreference(storedId)) {
+      return { themeId: null, themeData: null };
+    }
+
     if (storedId && storedData) {
       try {
         const parsedData = JSON.parse(storedData) as CachedThemeData;
@@ -392,7 +398,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
       let cacheApplied = false;
-      if (storedId && storedData) {
+      if (isNoClubThemePreference(storedId)) {
+        setActiveClubThemeState(null);
+        setCachedThemeData(null);
+        localStorage.removeItem(getStorageDataKey(user.id));
+        clearAllThemeCSS();
+        cacheApplied = true;
+      } else if (storedId && storedData) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
           if (parsedData.clubId === storedId) {
@@ -442,7 +454,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
       // If localStorage has theme data for THIS user, sync state
-      if (storedId) {
+      if (isNoClubThemePreference(storedId)) {
+        setActiveClubThemeState(null);
+        setCachedThemeData(null);
+        localStorage.removeItem(getStorageDataKey(user.id));
+        clearAllThemeCSS();
+      } else if (storedId) {
         setActiveClubThemeState(storedId);
         
         if (storedData) {
@@ -509,6 +526,41 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           }
 
           if (!error && data) {
+            const storedPreference = localStorage.getItem(getStorageKey(user.id));
+
+            if (isNoClubThemePreference(storedPreference)) {
+              // Same-device explicit "All Clubs" choice wins over any older DB value.
+              // This prevents logout/login from resurrecting a previous club filter.
+              if (data.active_club_theme_id) {
+                supabase
+                  .from('profiles')
+                  .update({ active_club_theme_id: null })
+                  .eq('id', user.id)
+                  .then(({ error }) => {
+                    if (error) console.error('Failed to sync no-club preference:', error);
+                  });
+              }
+              localStorage.removeItem(getStorageDataKey(user.id));
+              setActiveClubThemeState(null);
+              setCachedThemeData(null);
+              clearAllThemeCSS();
+              setHasCheckedDefault(true);
+              return;
+            }
+
+            if (storedPreference && storedPreference !== data.active_club_theme_id) {
+              // Local selection is the last same-device action. If the user logs out
+              // immediately after switching clubs, the DB update may not have won
+              // the race; never let an older DB value select a different club.
+              data = { active_club_theme_id: storedPreference };
+              supabase
+                .from('profiles')
+                .update({ active_club_theme_id: storedPreference })
+                .eq('id', user.id)
+                .then(({ error }) => {
+                  if (error) console.error('Failed to sync local club preference:', error);
+                });
+            }
 
             // We successfully fetched profile data
             if (data.active_club_theme_id) {
@@ -592,7 +644,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // Database has null/undefined active_club_theme_id - user chose "Ignite Mode"
               // Clear localStorage to match DB and prevent stale club mode on re-login
               console.log('[ClubTheme] DB has no active club theme - clearing localStorage to match');
-              localStorage.removeItem(getStorageKey(user.id));
+              safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
               localStorage.removeItem(getStorageDataKey(user.id));
               setActiveClubThemeState(null);
               setCachedThemeData(null);
@@ -759,7 +811,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // ALL clubs the user belongs to (Pro + free) — used to validate active club
   // selections that aren't themed and to display free club names in the header.
-  const { data: userClubs = [] } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+  const { data: userClubs = [], isLoading: isUserClubsLoading } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
     queryKey: ["user-clubs-for-switcher", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -784,33 +836,26 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id,
   });
 
-  // Auto-set theme for new members who haven't set a preference yet
+  // Establish an explicit default for users who haven't set a preference yet.
+  // Never auto-pick the first available club: multi-club users must not come
+  // back from logout with a different club selected just because ordering or
+  // DB/local cache hydration changed.
   useEffect(() => {
     if (!user?.id || hasCheckedDefault || isLoading || isLoadingFromDb) return;
     
     // Check if user has any stored preference (including explicit "none")
     const hasStoredPreference = localStorage.getItem(getStorageKey(user.id)) !== null;
     
-    if (!hasStoredPreference && availableClubThemes.length > 0) {
-      // New member - default to first available club theme
-      const firstTheme = availableClubThemes[0];
-      setActiveClubThemeState(firstTheme.clubId);
-      safeSetItem(getStorageKey(user.id), firstTheme.clubId);
-      safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
-      setCachedThemeData(firstTheme);
-      applyThemeCSS(firstTheme, isDarkMode);
-      if (firstTheme.logoUrl) { const img = new Image(); img.src = firstTheme.logoUrl; }
-      
-      // Also save to database for cross-device sync
-      supabase
-        .from('profiles')
-        .update({ active_club_theme_id: firstTheme.clubId })
-        .eq('id', user.id)
-        .then(() => console.log('Auto-set club theme saved to profile'));
+    if (!hasStoredPreference) {
+      safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
+      localStorage.removeItem(getStorageDataKey(user.id));
+      setActiveClubThemeState(null);
+      setCachedThemeData(null);
+      clearAllThemeCSS();
     }
     
     setHasCheckedDefault(true);
-  }, [user?.id, availableClubThemes, isLoading, isLoadingFromDb, hasCheckedDefault, isDarkMode]);
+  }, [user?.id, isLoading, isLoadingFromDb, hasCheckedDefault]);
 
   const setActiveClubTheme = (clubId: string | null) => {
     setActiveClubThemeState(clubId);
@@ -831,9 +876,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           clearAllThemeCSS();
         }
       } else {
-        localStorage.removeItem(key);
+        safeSetItem(key, NO_CLUB_THEME_SENTINEL);
         localStorage.removeItem(dataKey);
         setCachedThemeData(null);
+        clearAllThemeCSS();
       }
       
       // Save preference to database for cross-device sync
@@ -941,16 +987,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (!activeClubTheme) return;
     // Wait until the themed-clubs query has finished — otherwise we'd evict
     // a still-valid themed cache before server data arrives.
-    if (isLoading) return;
+    if (isLoading || isUserClubsLoading) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
     const inAnyClub = userClubs.some(c => c.id === activeClubTheme);
 
     if (!inThemed && !inAnyClub) {
       // Not a member at all → reset selection entirely.
-      // Only act once userClubs has also loaded, to avoid a false negative.
-      if (userClubs.length > 0) {
-        setActiveClubTheme(null);
-      }
+      setActiveClubTheme(null);
       return;
     }
 
@@ -966,7 +1009,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, isUserClubsLoading, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
