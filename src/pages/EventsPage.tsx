@@ -47,6 +47,7 @@ import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponso
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
+import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 
 type EventType = "game" | "training" | "social";
 
