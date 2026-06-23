@@ -1866,6 +1866,33 @@ export default function MediaPage() {
   );
 }
 
+function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
+  const { usage } = useClubFreeUsage(clubId);
+  if (!clubId || !usage || usage.isPro) return null;
+  return (
+    <div className="max-w-lg mx-auto px-4 pb-2">
+      <UsageMeter
+        label="Free plan — photos this cycle"
+        used={usage.photo.used}
+        limit={usage.photo.limit}
+        secondary={{
+          label: "Media storage",
+          used: usage.photo.storageUsed,
+          limit: usage.photo.storageLimit,
+          bytes: true,
+        }}
+        clubId={clubId}
+        capMessage={
+          usage.photo.atStorageCap
+            ? FREE_UPGRADE_MESSAGES.photoStorage
+            : usage.photo.atCountCap
+              ? FREE_UPGRADE_MESSAGES.photoCount
+              : undefined
+        }
+      />
+    </div>
+  );
+
 function ProFeatureGate({ feature, clubId, teamId }: { feature: string; clubId?: string; teamId?: string }) {
   return (
     <Card className="border-primary/20 bg-primary/5 max-w-lg mx-auto">
