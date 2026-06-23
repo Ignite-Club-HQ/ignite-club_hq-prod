@@ -404,8 +404,8 @@ export default function NotificationsPage() {
     },
     onMutate: async (id) => {
       // Optimistic update - remove from list
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.filter(n => n.id !== id) || []
       );
     },
