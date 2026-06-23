@@ -2655,6 +2655,10 @@ export default function MessagesPage() {
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
+        hasAdminRoleForGroups={!!(adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember)}
+        hasPro={!!hasAnyProAccess}
+        isAppAdmin={!!isAppAdmin}
+        upgradeClubId={activeClubFilter || displayMemberClubs[0]?.id || null}
         onPickDM={() => setShowDMDialog(true)}
         onPickGroup={() => setShowGroupTypeSheet(true)}
       />
@@ -2674,8 +2678,10 @@ export default function MessagesPage() {
         />
       )}
 
-      {/* DM and Group dialogs */}
-      <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
+      {/* DM and Group dialogs — DM creation is Pro-gated */}
+      {(!!hasAnyProAccess || !!isAppAdmin) && (
+        <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
+      )}
       {canCreateGroups && (
         <StartDMDialog
           open={showCustomGroupDialog}
