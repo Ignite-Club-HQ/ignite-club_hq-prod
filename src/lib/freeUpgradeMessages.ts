@@ -5,8 +5,6 @@
 export const FREE_UPGRADE_MESSAGES = {
   photoCount:
     "You've used your 20 free photo uploads this cycle. Upgrade to Pro for unlimited uploads and storage.",
-  photoStorage:
-    "Your club has used its 500 MB free photo storage. Upgrade to Pro for unlimited media storage.",
   fileCount:
     "Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage.",
   fileStorage:
