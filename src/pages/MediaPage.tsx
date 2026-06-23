@@ -1875,19 +1875,9 @@ function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
         label="Free plan — photos this cycle"
         used={usage.photo.used}
         limit={usage.photo.limit}
-        secondary={{
-          label: "Media storage",
-          used: usage.photo.storageUsed,
-          limit: usage.photo.storageLimit,
-          bytes: true,
-        }}
         clubId={clubId}
         capMessage={
-          usage.photo.atStorageCap
-            ? FREE_UPGRADE_MESSAGES.photoStorage
-            : usage.photo.atCountCap
-              ? FREE_UPGRADE_MESSAGES.photoCount
-              : undefined
+          usage.photo.atCountCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined
         }
       />
     </div>
