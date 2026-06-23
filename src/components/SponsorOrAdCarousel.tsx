@@ -5,7 +5,7 @@ import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
 
 interface SponsorOrAdCarouselProps {
-  location: "home" | "events" | "messages" | "event-detail";
+  location: "home" | "events" | "messages" | "event-detail" | "schedule";
   activeClubFilter?: string | null;
 }
 

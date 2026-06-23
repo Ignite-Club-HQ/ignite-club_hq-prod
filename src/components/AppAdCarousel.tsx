@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
 interface AppAdCarouselProps {
-  location: "home" | "events" | "messages" | "event-detail";
+  location: "home" | "events" | "messages" | "event-detail" | "schedule";
   hasSponsorAds: boolean;
 }
 
@@ -108,7 +108,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     if (shouldShowAds && ads && ads[currentIndex]) {
       const context = (
         location === "event-detail" ? "event_detail_page" : `${location}_page`
-      ) as "home_page" | "events_page" | "event_detail_page" | "messages_page";
+      ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
       trackView(ads[currentIndex].id, context);
     }
   }, [shouldShowAds, ads, currentIndex, location, trackView]);
@@ -127,7 +127,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   const currentAd = ads[currentIndex];
   const context = (
     location === "event-detail" ? "event_detail_page" : `${location}_page`
-  ) as "home_page" | "events_page" | "event_detail_page" | "messages_page";
+  ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
 
   const isUpgradeAd = currentAd.link_url?.includes("upgrade") || 
                       currentAd.name.toLowerCase().includes("upgrade") ||
