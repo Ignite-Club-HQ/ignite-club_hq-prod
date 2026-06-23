@@ -75,11 +75,8 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
           storageUsed: photoBytes,
           storageLimit: FREE_PHOTO_STORAGE_BYTES,
           atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
-          atStorageCap: !isPro && photoBytes >= FREE_PHOTO_STORAGE_BYTES,
-          atCap:
-            !isPro &&
-            (photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE ||
-              photoBytes >= FREE_PHOTO_STORAGE_BYTES),
+          atStorageCap: false,
+          atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
         },
         file: {
           used: fileUsed,
