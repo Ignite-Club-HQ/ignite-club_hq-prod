@@ -270,12 +270,12 @@ export default function CompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} source={competition.source} />
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} />
         </TabsContent>
 
         {canViewLadder && (
           <TabsContent value="ladder" className="space-y-2">
-            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={isAdmin} />
+            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={canManage} />
           </TabsContent>
         )}
 
@@ -287,7 +287,7 @@ export default function CompetitionDetailPage() {
 
         {isAdmin && (
           <TabsContent value="teams" className="space-y-2 mt-2">
-            {competition.source !== "playhq" && (
+            {canManage && competition.source !== "playhq" && (
               <>
                 {/* Primary actions — equal-weight recruitment CTAs */}
                 <div className="flex gap-2">
@@ -324,7 +324,7 @@ export default function CompetitionDetailPage() {
               entries={entries}
               myAdminTeamIds={myAdminTeamIds}
               onRespond={respondToInvite}
-              isAdmin={isAdmin}
+              isAdmin={canManage}
             />
           </TabsContent>
         )}
