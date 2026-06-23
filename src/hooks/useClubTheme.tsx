@@ -526,6 +526,41 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           }
 
           if (!error && data) {
+            const storedPreference = localStorage.getItem(getStorageKey(user.id));
+
+            if (isNoClubThemePreference(storedPreference)) {
+              // Same-device explicit "All Clubs" choice wins over any older DB value.
+              // This prevents logout/login from resurrecting a previous club filter.
+              if (data.active_club_theme_id) {
+                supabase
+                  .from('profiles')
+                  .update({ active_club_theme_id: null })
+                  .eq('id', user.id)
+                  .then(({ error }) => {
+                    if (error) console.error('Failed to sync no-club preference:', error);
+                  });
+              }
+              localStorage.removeItem(getStorageDataKey(user.id));
+              setActiveClubThemeState(null);
+              setCachedThemeData(null);
+              clearAllThemeCSS();
+              setHasCheckedDefault(true);
+              return;
+            }
+
+            if (storedPreference && storedPreference !== data.active_club_theme_id) {
+              // Local selection is the last same-device action. If the user logs out
+              // immediately after switching clubs, the DB update may not have won
+              // the race; never let an older DB value select a different club.
+              data = { active_club_theme_id: storedPreference };
+              supabase
+                .from('profiles')
+                .update({ active_club_theme_id: storedPreference })
+                .eq('id', user.id)
+                .then(({ error }) => {
+                  if (error) console.error('Failed to sync local club preference:', error);
+                });
+            }
 
             // We successfully fetched profile data
             if (data.active_club_theme_id) {
@@ -609,7 +644,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // Database has null/undefined active_club_theme_id - user chose "Ignite Mode"
               // Clear localStorage to match DB and prevent stale club mode on re-login
               console.log('[ClubTheme] DB has no active club theme - clearing localStorage to match');
-              localStorage.removeItem(getStorageKey(user.id));
+              safeSetItem(getStorageKey(user.id), NO_CLUB_THEME_SENTINEL);
               localStorage.removeItem(getStorageDataKey(user.id));
               setActiveClubThemeState(null);
               setCachedThemeData(null);
