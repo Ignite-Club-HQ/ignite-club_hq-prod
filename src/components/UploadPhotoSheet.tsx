@@ -282,22 +282,9 @@ export function UploadPhotoSheet({
       const clubSub = clubSubResult.data;
       const clubData = clubDataResult.data;
       
-      const clubHasProAccess =
-        clubSub?.is_pro ||
-        clubSub?.is_pro_football ||
-        clubSub?.admin_pro_override ||
-        clubSub?.admin_pro_football_override ||
-        clubData?.is_pro ||
-        false;
-      
-      if (clubHasProAccess) {
-        return teams.map(team => ({ ...team, is_pro: true }));
-      }
-      
-      return teams.filter(team => {
-        const teamSub = subscriptions?.find(s => s.team_id === team.id);
-        return teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override;
-      }).map(team => ({ ...team, is_pro: true }));
+      // Photos are now Free-with-caps: every team the user has a role in is selectable.
+      // Cap enforcement happens at upload submit time against get_club_free_usage.
+      return teams.map((team) => ({ ...team, is_pro: true }));
     },
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
