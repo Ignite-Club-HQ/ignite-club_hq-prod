@@ -246,14 +246,23 @@ export default function NotificationsPage() {
   }, [pullDistance, isRefreshing, handleRefresh]);
 
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ["notifications", user?.id],
+    queryKey: ["notifications", user?.id, activeClubFilter ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("notifications")
-        .select("id, user_id, type, message, related_id, is_read, created_at")
+        .select("id, user_id, type, message, related_id, is_read, created_at, club_id")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(500); // Cap at 500 for performance
+
+      // When the user has filtered the app to a specific club, only show
+      // notifications tagged to that club. Untagged notifications (DMs,
+      // cross-club / system) are always shown so they aren't lost.
+      if (activeClubFilter) {
+        q = q.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
+      }
+
+      const { data, error } = await q;
 
       if (error) throw error;
       return (data || []).map(n => ({ ...n, read: n.is_read })) as Notification[];
