@@ -238,6 +238,15 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
         </ResponsiveDialogHeader>
 
         <div className="space-y-4 pt-2">
+          {usage && !usage.isPro && (
+            <UsageMeter
+              label="Free plan — polls this cycle"
+              used={usage.poll.used}
+              limit={usage.poll.limit}
+              clubId={clubId}
+              capMessage={atPollCap ? FREE_UPGRADE_MESSAGES.pollCount : undefined}
+            />
+          )}
           <div>
             <Label htmlFor="poll-question">Question</Label>
             <Input
