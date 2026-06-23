@@ -1362,6 +1362,7 @@ export default function TeamDetailPage() {
       {isMember && (() => {
         const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
+        const mediaLocked = !(isSubscriptionLoading || isTeamPro);
         const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
           // Netball / basketball game boards are still in beta — hidden from
@@ -1416,7 +1417,7 @@ export default function TeamDetailPage() {
           beta?: boolean;
         }> = [
           { key: "schedule", icon: Calendar, label: "Schedule", to: `/events?team=${team.id}` },
-          { key: "media", icon: ImageIcon, label: "Media", to: `/media?team=${team.id}` },
+          { key: "media", icon: ImageIcon, label: "Media", to: mediaLocked ? undefined : `/media?team=${team.id}`, locked: mediaLocked },
         ];
         if (showVault) {
           tiles.push({
