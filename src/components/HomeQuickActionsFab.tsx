@@ -58,7 +58,9 @@ export function HomeQuickActionsFab({
   isAppAdmin = false,
   activeClubFilter,
   activeClubName,
+  hasProContext = false,
 }: HomeQuickActionsFabProps) {
+  const proLocked = !hasProContext && !isAppAdmin;
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
