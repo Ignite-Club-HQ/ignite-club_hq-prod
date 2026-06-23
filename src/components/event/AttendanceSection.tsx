@@ -451,17 +451,6 @@ export function AttendanceSection({
                     <Lock className="h-3.5 w-3.5" />
                     Upgrade to Pro
                   </Button>
-                  {onShareLink && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onShareLink()}
-                      className="gap-1.5"
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                      Share link…
-                    </Button>
-                  )}
                 </div>
               </div>
             )
