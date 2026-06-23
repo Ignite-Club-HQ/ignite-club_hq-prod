@@ -220,6 +220,8 @@ export default function MediaPage() {
     // Otherwise: leave persisted filter intact across tab navigation
   }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
+  const scopedClubFilterId = activeClubFilter || (selectedClubId !== "all" ? selectedClubId : null);
+
 
   // Scroll to highlighted photo once it actually appears in the rendered list.
   // Re-arms whenever the photo arrives later (e.g. after a refetch resolves),
@@ -808,9 +810,9 @@ export default function MediaPage() {
 
   // Pro access check - don't show content until we've confirmed Pro status on FIRST load.
   // Once resolved, never re-show skeletons on background refetch (prevents jolt on resume/unlock).
-  const { hasPro: activeClubIsPro, isLoading: activeClubProLoading } = useClubProAccess(activeClubFilter);
+  const { hasPro: scopedClubIsPro, isLoading: activeClubProLoading } = useClubProAccess(scopedClubFilterId);
   // When scoped to a specific club, that club must be Pro. Otherwise user needs any Pro club.
-  const hasProAccess = isAppAdmin || (activeClubFilter ? activeClubIsPro : hasProClub === true);
+  const hasProAccess = isAppAdmin || (scopedClubFilterId ? scopedClubIsPro : hasProClub === true);
   const hasProAccessQueryFailed = !!proAccessError;
   const proAccessEverResolved = useRef(false);
   // Only mark as resolved when the query ran with REAL role data (not empty due to auth race).
@@ -1377,7 +1379,7 @@ export default function MediaPage() {
           </CardContent>
         </Card>
       ) : !hasProAccess ? (
-        <ProFeatureGate feature="Photos" clubId={activeClubFilter || adminUpgradeInfo.clubId} teamId={adminUpgradeInfo.teamId} />
+        <ProFeatureGate feature="Photos" clubId={scopedClubFilterId || adminUpgradeInfo.clubId} teamId={adminUpgradeInfo.teamId} />
       ) : photos.length === 0 && !hasActiveFilters ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
