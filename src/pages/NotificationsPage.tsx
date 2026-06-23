@@ -256,10 +256,20 @@ export default function NotificationsPage() {
         .limit(500); // Cap at 500 for performance
 
       // When the user has filtered the app to a specific club, only show
-      // notifications tagged to that club. Untagged notifications (DMs,
-      // cross-club / system) are always shown so they aren't lost.
+      // notifications tagged to that club. Truly cross-club / user-global
+      // types (DMs, streaks, rewards) are always shown so they aren't lost,
+      // but null-club notifications belonging to other clubs (chat replies,
+      // reactions, photo-prompt nudges, club-admin messages, etc.) are
+      // hidden when scoped to a single club.
       if (activeClubFilter) {
-        q = q.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
+        const CROSS_CLUB_TYPES = [
+          "direct_message",
+          "streak_progress",
+          "reward_unlocked",
+        ];
+        q = q.or(
+          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
+        );
       }
 
       const { data, error } = await q;
