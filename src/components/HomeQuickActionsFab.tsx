@@ -188,8 +188,13 @@ export function HomeQuickActionsFab({
         <item.icon className="h-[18px] w-[18px]" />
       </span>
       <span className="flex-1 min-w-0">
-        <span className="block text-[15px] font-semibold text-foreground truncate">
-          {item.label}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="block text-[15px] font-semibold text-foreground truncate">
+            {item.label}
+          </span>
+          {item.proLocked && (
+            <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Pro only" />
+          )}
         </span>
         {item.description && (
           <span className="block text-[12px] text-muted-foreground truncate">
@@ -210,8 +215,13 @@ export function HomeQuickActionsFab({
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
         <item.icon className="h-[18px] w-[18px]" />
       </span>
-      <span className="text-[15px] font-medium text-foreground/80 truncate">
-        {item.label}
+      <span className="flex-1 min-w-0 flex items-center gap-1.5">
+        <span className="text-[15px] font-medium text-foreground/80 truncate">
+          {item.label}
+        </span>
+        {item.proLocked && (
+          <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Pro only" />
+        )}
       </span>
     </button>
   );
