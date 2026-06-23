@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
+import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -102,6 +103,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     },
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
+  const { usage } = useClubFreeUsage(effectiveClubId);
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
@@ -965,6 +967,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 });
               }
               return (
+                <>
                 <div className="grid grid-cols-2 gap-1.5">
                   {actions.map((a) => (
                     <button
@@ -994,6 +997,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     </button>
                   ))}
                 </div>
+                {usage && !usage.isPro && (
+                  <div className="mt-1.5 px-1">
+                    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
+                      <span>{usage.photo.used}/{usage.photo.limit} photos</span>
+                      {showVaultPicker && <span>{usage.file.used}/{usage.file.limit} files</span>}
+                      {showPollCreator && <span>{usage.poll.used}/{usage.poll.limit} polls</span>}
+                    </div>
+                  </div>
+                )}
+              </>
               );
             })()}
           </PopoverContent>
