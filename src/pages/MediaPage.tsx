@@ -808,7 +808,9 @@ export default function MediaPage() {
 
   // Pro access check - don't show content until we've confirmed Pro status on FIRST load.
   // Once resolved, never re-show skeletons on background refetch (prevents jolt on resume/unlock).
-  const hasProAccess = isAppAdmin || hasProClub === true;
+  const { hasPro: activeClubIsPro, isLoading: activeClubProLoading } = useClubProAccess(activeClubFilter);
+  // When scoped to a specific club, that club must be Pro. Otherwise user needs any Pro club.
+  const hasProAccess = isAppAdmin || (activeClubFilter ? activeClubIsPro : hasProClub === true);
   const hasProAccessQueryFailed = !!proAccessError;
   const proAccessEverResolved = useRef(false);
   // Only mark as resolved when the query ran with REAL role data (not empty due to auth race).
@@ -822,7 +824,7 @@ export default function MediaPage() {
   const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
   const waitingOnRolesWithoutFallback = !!user && !userRoles && !activeClubFilter;
   // Only show loading state on initial resolution — never on refetch/resume
-  const isCheckingProAccess = !proAccessEverResolved.current && (!user || loadingProAccess || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
+  const isCheckingProAccess = !proAccessEverResolved.current && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
