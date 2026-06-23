@@ -3651,15 +3651,50 @@ export default function EventDetailPage() {
               />
             );
           })()}
-          <PlayerOfMatchSelector
-            eventId={id!}
-            clubId={event.club_id}
-            teamId={event.team_id}
-            isAdmin={isAdmin || isAppAdmin || false}
-            rsvps={rsvps || []}
-            childrenOnTeam={allChildrenOnTeam || childrenOnTeam}
-          />
+          {(isAppAdmin || hasTeamPro === true) && (
+            <PlayerOfMatchSelector
+              eventId={id!}
+              clubId={event.club_id}
+              teamId={event.team_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+              rsvps={rsvps || []}
+              childrenOnTeam={allChildrenOnTeam || childrenOnTeam}
+            />
+          )}
         </>
+      )}
+
+      {/* Player of Match Pro upgrade prompt — shown to admins on free clubs */}
+      {event.type === "game" && event.team_id && isAdmin && !isAppAdmin && !isLoadingHasTeamPro && hasTeamPro !== true && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Player of the Match
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex items-start gap-2">
+              <Lock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Player of the Match is a Pro feature</p>
+                <p className="text-xs text-muted-foreground">
+                  Upgrade to Pro to select and award Player of the Match, complete with points, vouchers, and automatic notifications.
+                </p>
+              </div>
+            </div>
+            {event.club_id && (
+              <Button
+                size="sm"
+                onClick={() => navigate(`/clubs/${event.club_id}/upgrade`)}
+                className="gap-1.5"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Upgrade to Pro
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Duties Pro upgrade prompt — shown to admins on free clubs so they know duties exist behind Pro */}
