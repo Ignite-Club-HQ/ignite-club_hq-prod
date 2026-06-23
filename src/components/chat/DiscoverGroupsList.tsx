@@ -105,6 +105,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const [search, setSearch] = useState("");
   const [chip, setChip] = useState<(typeof FILTER_CHIPS)[number]["key"]>("all");
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const { hasPro, isLoading: proLoading } = useClubProAccess(activeClubFilter ?? null);
 
   const { data: groups = [] } = useQuery({
     queryKey: ["discover-open-groups", user?.id, activeClubFilter ?? null],
