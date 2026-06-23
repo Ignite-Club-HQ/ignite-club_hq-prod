@@ -2431,31 +2431,36 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label={isRewardsProLocked ? "Upgrade to Pro to unlock club rewards" : "View points and rewards"} onClick={() => isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history"); } }}>
-        <CardContent className="px-4 py-2.5">
+      <Card className={`border overflow-hidden cursor-pointer ${isRewardsProLocked ? 'bg-muted/30 border-dashed' : 'bg-primary/[0.06]'}`} role="button" tabIndex={0} aria-label={isRewardsProLocked ? "Upgrade to Pro to unlock club rewards" : "View points and rewards"} onClick={() => isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history"); } }}>
+        <CardContent className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
-              <Flame className="h-4 w-4 text-primary" />
+            <div className={`p-1.5 rounded-lg shrink-0 ${isRewardsProLocked ? 'bg-muted' : 'bg-primary/15'}`}>
+              {isRewardsProLocked ? <Lock className="h-4 w-4 text-muted-foreground" /> : <Flame className="h-4 w-4 text-primary" />}
             </div>
             <div className="min-w-0 flex-1">
-              {latestPendingRedemption ? (
+              {latestPendingRedemption && !isRewardsProLocked ? (
                 <p className="text-sm font-semibold leading-tight text-primary truncate">
                   🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
                 </p>
-              ) : minRewardThreshold !== null && myPoints >= minRewardThreshold ? (
+              ) : minRewardThreshold !== null && myPoints >= minRewardThreshold && !isRewardsProLocked ? (
                 <p className="text-sm font-semibold leading-tight text-primary">
                   🎉 Rewards Available
                 </p>
               ) : (
-                <p className="text-sm font-semibold leading-tight">
-                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold leading-tight">
+                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                  </p>
+                  {isRewardsProLocked && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5">Pro Only</Badge>
+                  )}
+                </div>
               )}
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {isRewardsProLocked ? 'Pro feature — Upgrade to unlock club rewards' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
+                {isRewardsProLocked ? 'Unlock points for RSVPs, duties, player of the match & more with Pro' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
               </p>
             </div>
-            {latestPendingRedemption ? (
+            {latestPendingRedemption && !isRewardsProLocked ? (
               <Button
                 size="sm"
                 className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium shrink-0"
@@ -2467,12 +2472,11 @@ export default function HomePage() {
             ) : isRewardsProLocked ? (
               <Button
                 size="sm"
-                variant="ghost"
-                className="gap-1 h-8 text-xs font-medium text-primary shrink-0 px-2"
+                className="gap-1 h-8 text-xs font-medium shrink-0 px-2"
                 onClick={(e) => { e.stopPropagation(); handleUpgradeClick(); }}
               >
+                <Crown className="h-3.5 w-3.5" />
                 Upgrade
-                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             ) : (
               <Button
