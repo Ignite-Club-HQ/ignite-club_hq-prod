@@ -514,7 +514,14 @@ export default function ClubAdminChatPage() {
         reply_to: replyToId && replyTo ? { text: replyTo.text, author: replyTo.author } : null,
       };
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
-      setTimeout(scrollToBottom, 50);
+      // Pin to bottom in stages so the new bubble lands tight to the composer
+      // as the row's late-arriving metadata (timestamp + Sent strip) hydrates.
+      // Mirrors Team chat: immediate forced pin bypasses the "finger still in
+      // contact" guard, then 180/480ms re-pins absorb composer reflow.
+      virtualHandleRef.current?.scrollToBottom("auto", { force: true });
+      [120, 320, 600].forEach((delay) => {
+        setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto", { force: true }), delay);
+      });
     },
     onSuccess: (newMessage) => {
       const currentReplyTo = replyToRef.current;
