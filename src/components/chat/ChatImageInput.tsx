@@ -1006,6 +1006,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     </div>
                   </div>
                 )}
+              </>
               );
             })()}
           </PopoverContent>
