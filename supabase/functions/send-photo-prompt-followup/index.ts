@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
       promptId: string;
       eventId: string;
       teamId: string;
+      clubId: string | null;
       eventLabel: string;
       titleQualifier: string;
       url: string;
