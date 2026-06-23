@@ -2241,20 +2241,39 @@ export default function MessagesPage() {
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
       const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      const allowedRoles: string[] = group.allowed_roles || [];
+      const isClubRoleGroup =
+        !!group.club_id &&
+        !group.team_id &&
+        !group.mini_league_id &&
+        allowedRoles.some((r) =>
+          ["coach", "team_admin", "committee_member", "club_admin"].includes(r)
+        );
+      const proStatusKnown =
+        !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
+      const clubHasPro = group.club_id
+        ? proStatusKnown
+          ? clubProStatus?.[group.club_id] === true
+          : true
+        : true;
+      const isLocked =
+        isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
       items.push({
         type: 'group',
         id: group.id,
         key: `group-${group.id}`,
         name: group.name,
-        link: `/groups/${group.id}`,
+        link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
+        isLocked,
       });
     });
+
 
     // DM conversations
     filteredDMs.forEach((conv: any) => {

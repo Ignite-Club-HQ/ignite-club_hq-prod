@@ -167,7 +167,11 @@ function ConversationRowImpl({
     );
   }
 
-  if (item.type === 'club' && item.isLocked) {
+  if ((item.type === 'club' || item.type === 'group') && item.isLocked) {
+    const lockSubtitle =
+      item.type === 'club'
+        ? 'Club Pro required for club-wide chat'
+        : 'Club Pro required for this group';
     return (
       <Link to={item.link} onClick={handleOpen}>
         <Card className="opacity-70 hover:border-primary/50 transition-colors">
@@ -192,7 +196,7 @@ function ConversationRowImpl({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground truncate">
-                Club Pro required for club-wide chat
+                {lockSubtitle}
               </p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -201,6 +205,7 @@ function ConversationRowImpl({
       </Link>
     );
   }
+
 
   if (item.type === 'dm') {
     const conv = item.dmData;
