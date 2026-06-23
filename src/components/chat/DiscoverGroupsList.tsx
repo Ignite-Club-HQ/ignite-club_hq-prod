@@ -10,11 +10,13 @@ import {
   Coins,
   HandHeart,
   HelpCircle,
+  Lock,
   Search,
   Shield,
   Sparkles,
   Trophy,
 } from "lucide-react";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
