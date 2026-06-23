@@ -3675,6 +3675,7 @@ export default function EventDetailPage() {
                 </Button>
               )}
             </div>
+
             
             <AddDutySheet
               open={addDutyOpen}
