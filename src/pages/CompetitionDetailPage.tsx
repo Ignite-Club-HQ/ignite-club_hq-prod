@@ -175,7 +175,7 @@ export default function CompetitionDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg sm:text-xl font-bold break-words flex-1 min-w-0 leading-tight">{competition.name}</h1>
-          {isAdmin && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
+          {canManage && !(competition.source === "playhq" && competition.clubs?.kind !== "association") && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -203,7 +203,7 @@ export default function CompetitionDetailPage() {
               </SheetContent>
             </Sheet>
           )}
-          {isAdmin && (
+          {canManage && (
             <Button asChild variant="ghost" size="icon" className="h-9 w-9 min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 shrink-0" aria-label="Competition settings" title="Competition settings">
               <Link to={`/competitions/${id}/settings`}><Settings className="h-[18px] w-[18px]" /></Link>
             </Button>
