@@ -22,6 +22,9 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
 import CompetitionPlayerStatsPanel from "@/components/competitions/CompetitionPlayerStatsPanel";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
+import { Crown } from "lucide-react";
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
