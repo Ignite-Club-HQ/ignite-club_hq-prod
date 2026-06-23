@@ -1892,6 +1892,8 @@ function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
       />
     </div>
   );
+}
+
 
 function ProFeatureGate({ feature, clubId, teamId }: { feature: string; clubId?: string; teamId?: string }) {
   return (
