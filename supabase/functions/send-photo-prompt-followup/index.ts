@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
     if (teamIdsForPro.length) {
       const { data: teamRows } = await supabase
         .from("teams").select("id, club_id").in("id", teamIdsForPro);
-      const teamClub = new Map<string, string | null>(
-        (teamRows ?? []).map((t: any) => [t.id, t.club_id]),
-      );
+      for (const t of teamRows ?? []) {
+        teamClub.set((t as any).id, (t as any).club_id ?? null);
+      }
       const clubIds = [...new Set((teamRows ?? []).map((t: any) => t.club_id).filter(Boolean) as string[])];
 
       const [teamSubsRes, clubSubsRes] = await Promise.all([
