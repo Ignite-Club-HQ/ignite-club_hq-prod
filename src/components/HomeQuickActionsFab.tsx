@@ -125,14 +125,7 @@ export function HomeQuickActionsFab({
     {
       label: "New Thread",
       icon: MessageCircle,
-      onClick: () =>
-        go(
-          proLocked
-            ? activeClubFilter
-              ? `/clubs/${activeClubFilter}/upgrade`
-              : "/clubs"
-            : "/messages?new=picker",
-        ),
+      onClick: () => go("/messages?new=picker"),
       proLocked,
     },
   ];
