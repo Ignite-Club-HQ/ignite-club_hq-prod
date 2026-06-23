@@ -20,6 +20,8 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
 import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 
 interface PendingInvite {
   id: string;
