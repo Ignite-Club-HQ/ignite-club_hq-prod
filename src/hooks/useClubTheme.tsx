@@ -883,9 +883,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           clearAllThemeCSS();
         }
       } else {
-        localStorage.removeItem(key);
+        safeSetItem(key, NO_CLUB_THEME_SENTINEL);
         localStorage.removeItem(dataKey);
         setCachedThemeData(null);
+        clearAllThemeCSS();
       }
       
       // Save preference to database for cross-device sync
