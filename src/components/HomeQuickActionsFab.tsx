@@ -83,6 +83,7 @@ export function HomeQuickActionsFab({
       label: "Post Photo/Video",
       icon: ImagePlus,
       onClick: () => go("/media?upload=1"),
+      proLocked,
     },
     ...(canCreateEvent
       ? [
