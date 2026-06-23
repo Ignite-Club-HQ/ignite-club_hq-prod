@@ -355,8 +355,8 @@ export default function NotificationsPage() {
     },
     onMutate: async (id) => {
       // Optimistic update
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || []
       );
     },
