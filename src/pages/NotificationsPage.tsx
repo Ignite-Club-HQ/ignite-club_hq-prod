@@ -376,8 +376,8 @@ export default function NotificationsPage() {
     },
     onMutate: async () => {
       // Optimistic update - mark all as read
-      queryClient.setQueryData<Notification[]>(
-        ["notifications", user?.id],
+      queryClient.setQueriesData<Notification[]>(
+        { queryKey: ["notifications", user?.id] },
         (old) => old?.map(n => ({ ...n, read: true })) || []
       );
     },
