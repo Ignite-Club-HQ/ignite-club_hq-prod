@@ -82,8 +82,32 @@ function validatePoll(question: string, options: string[]) {
   };
 }
 
-export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated, clubId: clubIdProp }: CreatePollDialogProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Resolve the owning club so we can show the Free-tier usage meter & enforce caps.
+  const { data: resolvedClubId } = useQuery({
+    queryKey: ["poll-club-resolve", chatType, chatId, clubIdProp],
+    enabled: open && !clubIdProp && !!chatId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (clubIdProp) return clubIdProp;
+      if (chatType === "club") return chatId;
+      if (chatType === "team") {
+        const { data } = await supabase.from("teams").select("club_id").eq("id", chatId).maybeSingle();
+        return (data?.club_id as string) ?? null;
+      }
+      if (chatType === "group") {
+        const { data } = await supabase.from("chat_groups").select("club_id").eq("id", chatId).maybeSingle();
+        return (data?.club_id as string) ?? null;
+      }
+      return null;
+    },
+  });
+  const clubId = clubIdProp ?? resolvedClubId ?? null;
+  const { usage } = useClubFreeUsage(clubId);
+  const atPollCap = !!usage && !usage.isPro && usage.poll.atCap;
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
   // Stable per-row identifiers so React keys don't reuse a torn-down input's
