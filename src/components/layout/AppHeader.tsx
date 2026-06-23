@@ -433,7 +433,7 @@ export function AppHeader() {
   // Parse club name to split into main name and suffix (e.g., "Bridgewater Soccer Club" -> ["Bridgewater", "Soccer Club"])
   const parseClubName = (name: string): { mainName: string; suffix: string } => {
     const suffixes = [
-      'Soccer Club', 'Football Club', 'Cricket Club', 'Basketball Club', 'Tennis Club',
+      'Soccer Club', 'Football Club', 'Cricket Club', 'Basketball Club', 'Basketball League', 'Tennis Club',
       'Rugby Club', 'Hockey Club', 'Netball Club', 'Volleyball Club', 'Baseball Club',
       'Swimming Club', 'Athletics Club', 'Golf Club', 'Rowing Club', 'Lacrosse Club',
       'SC', 'FC', 'CC', 'BC', 'TC', 'RC', 'HC', 'NC', 'AFC', 'United', 'City', 'Town'
