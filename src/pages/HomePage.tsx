@@ -759,11 +759,6 @@ export default function HomePage() {
   // (scoped to activeClubFilter when set, otherwise any club). App admins bypass.
   const hasAnyRewardClubPro = rewardClubs.some((c: any) => c.hasPro);
   const isRewardsProLocked = !isAppAdmin && userClubs.length > 0 && rewardClubs.length > 0 && !hasAnyRewardClubPro;
-  const _spacer_rewards_pro = null;
-  const _2 = null;
-  const _3 = null;
-    placeholderData: (prev) => prev,
-  });
 
   // Fetch rewards for selected club
   const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
