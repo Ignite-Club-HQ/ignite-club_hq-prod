@@ -2431,7 +2431,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label="View points and rewards" onClick={() => navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/profile?section=points-history"); } }}>
+      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label={isRewardsProLocked ? "Upgrade to Pro to unlock club rewards" : "View points and rewards"} onClick={() => isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isRewardsProLocked ? handleUpgradeClick() : navigate("/profile?section=points-history"); } }}>
         <CardContent className="px-4 py-2.5">
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
@@ -2452,8 +2452,7 @@ export default function HomePage() {
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {myPoints} Point{myPoints === 1 ? '' : 's'}
-                {showProBadge ? ' · Pro' : ''}
+                {isRewardsProLocked ? 'Pro feature — Upgrade to unlock club rewards' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
               </p>
             </div>
             {latestPendingRedemption ? (
@@ -2464,6 +2463,16 @@ export default function HomePage() {
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Claim
+              </Button>
+            ) : isRewardsProLocked ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1 h-8 text-xs font-medium text-primary shrink-0 px-2"
+                onClick={(e) => { e.stopPropagation(); handleUpgradeClick(); }}
+              >
+                Upgrade
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             ) : (
               <Button
