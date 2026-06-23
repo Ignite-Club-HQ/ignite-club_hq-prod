@@ -2037,6 +2037,7 @@ export default function HomePage() {
           isAppAdmin={isAppAdmin}
           activeClubFilter={activeClubFilter}
           activeClubName={activeClubName}
+          hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
         />
 
       </div>
