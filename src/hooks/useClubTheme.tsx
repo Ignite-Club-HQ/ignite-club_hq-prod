@@ -354,20 +354,6 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Track if cached theme was applied on fresh login - allows instant rendering without waiting for DB
   const [hasCacheAppliedOnLogin, setHasCacheAppliedOnLogin] = useState(false);
 
-  // Counter to force re-read from localStorage (incremented by custom event)
-  const [localStorageVersion, setLocalStorageVersion] = useState(0);
-
-  // Listen for theme-updated events from CompleteProfilePage
-  useEffect(() => {
-    const handleThemeUpdate = () => {
-      console.log('[ClubTheme] Received theme-updated event, forcing re-read');
-      setLocalStorageVersion(v => v + 1);
-    };
-    
-    window.addEventListener('club-theme-updated', handleThemeUpdate);
-    return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
-  }, []);
-
   // CRITICAL: Detect user switch and reset ALL theme state
   // Only clear cache on actual user SWITCH (different user ID), not fresh login (same user returning)
   // Fresh login: restore from localStorage cache for instant logo display
@@ -445,7 +431,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, lastUserId]);
 
-  // Re-read from localStorage when user changes OR when localStorageVersion changes
+  // Re-read from localStorage when the authenticated user changes.
   // Use useLayoutEffect to ensure this runs synchronously before browser paint
   // This handles subsequent updates after initial render
   useLayoutEffect(() => {
@@ -484,7 +470,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         setCachedThemeData(null);
       }
     }
-  }, [user?.id, localStorageVersion, isDarkMode]);
+  }, [user?.id, isDarkMode]);
 
   // Ensure loading state is set when user becomes available (before DB fetch)
   useEffect(() => {
