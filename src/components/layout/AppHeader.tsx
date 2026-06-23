@@ -981,7 +981,7 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
+            <button className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
@@ -1062,23 +1062,24 @@ export function AppHeader() {
                   <img
                     src={igniteIcon}
                     alt="Ignite"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 shrink-0 rounded-full object-contain"
+                    width={40}
+                    height={40}
+                    className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-contain"
                     loading="eager"
                     decoding="sync"
                     fetchPriority="high"
                   />
-                  <div className="flex flex-col leading-tight items-start">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-none">
+                    <div className="flex items-center">
+                      <span className="font-bold text-[19px] tracking-tight text-gradient-emerald leading-none">Ignite</span>
+                      <ChevronDown className="h-4 w-4 ml-1 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                     </div>
-                    <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
+                    <span className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground leading-none">Club HQ</span>
                   </div>
                 </>
 
               )}
+
             </button>
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
