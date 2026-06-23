@@ -1381,8 +1381,6 @@ export default function MediaPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : !hasProAccess ? (
-        <ProFeatureGate feature="Photos" clubId={scopedClubFilterId || adminUpgradeInfo.clubId} teamId={adminUpgradeInfo.teamId} />
       ) : photos.length === 0 && !hasActiveFilters ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
