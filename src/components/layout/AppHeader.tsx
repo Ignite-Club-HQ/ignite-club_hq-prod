@@ -448,8 +448,8 @@ export function AppHeader() {
       }
     }
     
-    // No suffix found - just use the full name
-    return { mainName: name, suffix: 'Club' };
+    // No suffix found - render full name without a subtitle line
+    return { mainName: name, suffix: '' };
   };
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
@@ -1021,7 +1021,9 @@ export function AppHeader() {
                         </span>
                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                       </div>
-                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      {clubNameParts.suffix && (
+                        <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
+                      )}
                     </div>
                   )}
                 </>
@@ -1032,12 +1034,14 @@ export function AppHeader() {
                   </div>
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg truncate max-w-[140px] text-foreground">
+                      <span className="font-bold text-lg truncate max-w-[200px] text-foreground">
                         {freeClubNameParts.mainName}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground -mt-1 text-left">{freeClubNameParts.suffix}</span>
+                    {freeClubNameParts.suffix && (
+                      <span className="text-[10px] text-muted-foreground -mt-1 text-left">{freeClubNameParts.suffix}</span>
+                    )}
                   </div>
                 </>
               ) : (
