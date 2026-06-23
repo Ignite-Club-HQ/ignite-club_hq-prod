@@ -51,6 +51,10 @@ export default function CompetitionSettingsPage() {
     },
   });
 
+  const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(
+    (competition as any)?.organizer_club_id ?? null,
+  );
+
   const [name, setName] = useState("");
   const [status, setStatus] = useState("");
   const [visibility, setVisibility] = useState("");
