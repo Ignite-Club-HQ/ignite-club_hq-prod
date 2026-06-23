@@ -1,82 +1,112 @@
-## Audit findings: invite signup → club filter
+## Goal
 
-Traced the end-to-end flow for a brand new user accepting a Bridgewater SC invite. **It will NOT auto-apply today.** Two independent bugs cancel my recent seeding fix.
+Free clubs should be able to *use* photos, file sharing, polls, and event-sharing — but bump into clearly-shown caps. Pro removes the caps. Vault, on-demand RSVP reminders, and advanced broadcasts stay Pro-only.
 
-### Bug 1 — Sentinel is written before CompleteProfilePage seeds
+## Limits (per club, Free tier)
 
-Order of events on signup:
+| Feature        | Limit                          | Reset                          |
+| -------------- | ------------------------------ | ------------------------------ |
+| Photo uploads  | 20/cycle                       | 30-day cycle anchored to `clubs.created_at` |
+| Media storage  | 500 MB total (photos)          | Cumulative                     |
+| File uploads   | 10 files total                 | Cumulative                     |
+| File storage   | 100 MB total                   | Cumulative                     |
+| Polls          | 2/cycle                        | 30-day cycle anchored to `clubs.created_at` |
+| Event sharing  | unlimited (no gate)            | —                              |
 
-```text
-sign up → SIGNED_IN
-  ↓ useAuth.fetchProfile reads profiles.active_club_theme_id = null
-  ↓ setAuthThemeHint(userId, null)
-useClubTheme loadThemeFromDb runs
-  ↓ consumeAuthThemeHint → { value: null }
-  ↓ localStorage stored = null, DB = null
-  ↓ ELSE branch (useClubTheme.tsx:629-639)
-  ↓ writes NO_CLUB_THEME_SENTINEL into ignite-club-theme-<uid>
-CompleteProfilePage finishes invites
-  ↓ my seed code: `existingPreference !== null` (it’s the sentinel)
-  ↓ skip → club is never seeded
+Existing rows above caps are grandfathered read-only: clubs already over a limit see their content but cannot add new content until under cap or upgraded.
+
+## Database
+
+One SQL function to centralize quota math, used by client + edge functions:
+
+```sql
+public.get_club_free_usage(club_id uuid)
+  returns table(
+    cycle_start timestamptz, cycle_end timestamptz,
+    photo_uploads_this_cycle int, photo_storage_bytes bigint,
+    file_count int, file_storage_bytes bigint,
+    polls_this_cycle int,
+    is_pro boolean
+  )
 ```
 
-Net effect: sentinel pins the user to “All Clubs” regardless of invite.
+- Cycle math: `cycle_start = clubs.created_at + floor(extract(epoch from now()-created_at)/(30*86400))*'30 days'`.
+- `photo_uploads_this_cycle` = `count(*) from photos where club_id=$ and created_at>=cycle_start`.
+- `photo_storage_bytes` = `sum(file_size) from photos where club_id=$`.
+- File count/storage: `vault_files where club_id=$ and (uploader's chat-attachment files — i.e. not gated by Pro vault feature)`. Need to confirm exact scope during implementation; if vault is the only file store, we count non-vault-folder files (chat attachments folder).
+- `polls_this_cycle`: `count(*) from polls where club_id=$ and created_at>=cycle_start`.
+- `is_pro`: existing logic (`is_pro OR is_pro_football OR admin overrides`, not expired).
 
-### Bug 2 — Seed happens after useClubTheme already initialised
+Optional `pre-insert` trigger on `photos`/`polls` for hard server-side enforcement (denies insert when free + over cap). Client checks are advisory; trigger is the source of truth.
 
-Even if Bug 1 were fixed, `useClubTheme`’s `loadThemeFromDb` and localStorage-read effects depend on `[user?.id, isDarkMode]`. The user is the same across CompleteProfilePage and the home redirect, so the hook never re-reads my new localStorage value. It would only show up after a full reload.
+## Frontend
 
-### Bug 3 — Home invite-accept path also bypassed
+### New hook `useClubFreeUsage(clubId)`
+Wraps `get_club_free_usage` via RPC, 60s stale. Returns `{ isPro, photo: {used, limit, storageUsed, storageLimit, atCap, storageAtCap}, file: {...}, poll: {used, limit, atCap}, cycleEnd }`.
 
-Invites accepted via `HomeInviteFlow` / `PendingInviteCard` / `PendingInvitesList` (the on-home “accept” buttons used by users who already completed their profile but get invited to a second club later) never go through CompleteProfilePage, so they also have no seeding hook.
+### `<UsageMeter />` component
+Compact progress bar + "X / Y used" label + small "Upgrade" link when atCap. Used inline on Media page header, Vault Files tab, and CreatePollDialog.
 
-### Bug 4 — DB never learns about it
+### MediaPage (`src/pages/MediaPage.tsx`)
+- Remove `!hasProAccess` lock screen (the "Photos is a Pro Feature" block ~L1875).
+- Always render the gallery for any role-having user.
+- Show `<UsageMeter />` for the active club when Free.
+- Disable upload FAB when `photo.atCap || photo.storageAtCap`; tap shows upgrade sheet with benefit copy.
 
-The seed only writes to localStorage. `profiles.active_club_theme_id` stays null, so on another device the invited user lands with no club filter — and on this device the SIGNED_IN sentinel write would resurface.
+### UploadPhotoSheet (`src/components/UploadPhotoSheet.tsx`)
+- Strip the `has_pro_access` filter that hides Free clubs from the destination picker (lines ~189–300).
+- Before each upload, re-check `useClubFreeUsage(selectedClubId)` — if would exceed cap, block with upgrade dialog.
+- Track per-file size; reject batch when cumulative would push `storage_used_bytes + sum > 500MB`.
 
----
+### Polls (`src/components/chat/CreatePollDialog.tsx` + chat composer)
+- Remove Pro gate from Poll attach action in `ChatImageInput.tsx`.
+- On dialog open, show "X of 2 free polls used this cycle". When atCap, replace form with upgrade CTA.
 
-## Fix plan
+### Files
+- Allow Free clubs into the file-upload UI in `ChatImageInput.tsx` (the "Attach file" item — currently `locked: !hasProAccess`).
+- Gate at upload-time with usage check, not at menu level.
+- Vault page: keep the Pro lock on the **Vault folder structure** feature (folders, drive sync) — that's the "Vault Pro feature". But the basic chat-attached file store remains accessible to Free under the 10/100MB cap. (If implementation shows files only live in vault_files, we'll need a `kind`/`source` discriminator already present — to check during build.)
 
-Three small, surgical changes — all keep the “never auto-switch after signup” rule intact.
+### Event sharing
+- `EventDetailPage.tsx`: remove `canShareEvent` Pro check (L607-613). Share is always allowed.
+- `ChatImageInput.tsx`: remove `locked: !hasProAccess` on the "Share Event" action (L909-913).
 
-### 1. `src/pages/CompleteProfilePage.tsx`
+### Keep Pro-only (no change)
+- Vault folders/drive-sync UI in `VaultPage.tsx`
+- Schedule message Pro check in `ScheduledMessagesPage.tsx`
+- Broadcast composer (broadcast_messages / club_messages)
+- On-demand RSVP reminders (`useScheduleProAccess` for the send-reminder action stays)
 
-- Pull `setActiveClubTheme` from `useClubTheme()`.
-- Keep the existing `firstInvitedClubId` collection.
-- After invites finish, **only when `firstInvitedClubId` is set AND the user came in via the invite flow** (`pendingInvites.length > 0 && acceptInvites`):
-  - call `setActiveClubTheme(firstInvitedClubId)` — this writes localStorage, updates state, and syncs `profiles.active_club_theme_id` in one place.
-- Remove the manual `localStorage.setItem` block I added — `setActiveClubTheme` already handles it correctly and triggers a re-render.
+### Composer image attach
+- `ChatImageInput.tsx` image attach (Camera / Camera roll) currently Pro-gated via `useScheduleProAccess`. Per spec, photos are now Free with caps — unlock these too, gate at upload time against the photo cap.
 
-This is user-driven (they accepted the invite), so it does not violate the “only manual changes” rule.
+## Upgrade messaging
 
-### 2. `src/hooks/useClubTheme.tsx` — stop the premature sentinel write for new users
+New helper `getUpgradeMessage(feature, club)` returns benefit-led copy:
 
-In `loadThemeFromDb` (around line 629), tighten the “DB has null → write sentinel” branch:
+- Photos cap: "You've used your 20 free photo uploads this cycle. Upgrade to Pro for unlimited uploads and storage."
+- Photos storage: "Your club has used its 500 MB free photo storage. Upgrade to Pro for unlimited media storage."
+- Files: "Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage."
+- Files storage: "Your club has used its 100 MB free file storage. Upgrade to Pro for unlimited document storage."
+- Polls: "You've used your 2 free polls this cycle. Upgrade to Pro for unlimited polls."
 
-- Only write `NO_CLUB_THEME_SENTINEL` when **the localStorage key already exists** (i.e. an explicit prior preference). For brand-new users (`storedPreference === null` AND `data.active_club_theme_id === null`), leave localStorage untouched so CompleteProfilePage’s `setActiveClubTheme(invitedClubId)` can win the race without being overwritten.
+Replace the existing generic "This is a Pro feature" toasts at the relevant call sites only.
 
-This keeps cross-device “Ignite Mode” sync working for existing users while removing the false sentinel-on-signup.
+## Out of scope
 
-### 3. Home-side invite acceptance (Bug 3)
+- Repricing or plan-tier changes
+- Pro Football specific gates (unchanged)
+- Migrating already-uploaded photos out for over-cap clubs (grandfathered read-only)
+- Email/push notification of cap reached (future)
 
-Centralise the seeding so any invite-accept path benefits:
+## Rollout
 
-- Add a tiny helper `src/lib/seedClubFilterFromInvite.ts` exporting `seedClubFilterFromInvite(clubId, setActiveClubTheme, opts)`:
-  - reads the current localStorage key for the user;
-  - if it equals the sentinel **and was written within the current session** (track an in-memory flag on `useClubTheme`), or is null, call `setActiveClubTheme(clubId)`;
-  - otherwise leaves the user’s existing choice alone.
-- Wire it into:
-  - `CompleteProfilePage` invite loop (step 1).
-  - `HomeInviteFlow` / `PendingInviteCard` / `PendingInvitesList` accept handlers — pass the club id resolved the same way CompleteProfilePage does (invite.club_id or `teams.club_id`).
+1. Migration: `get_club_free_usage` RPC + optional enforcement triggers.
+2. Hook + UsageMeter component.
+3. MediaPage + UploadPhotoSheet unlock + cap UI.
+4. CreatePollDialog + composer poll unlock + cap UI.
+5. File upload unlock + cap UI in ChatImageInput.
+6. EventDetail + composer event-share unlock.
+7. Verify Vault / Scheduled messages / Broadcasts remain gated.
 
-For users who already have a chosen club, this never overrides; for first-time invite accepts it applies the inviting club’s theme.
-
-### Verification
-
-- Cold signup via Bridgewater invite link → land on home with Bridgewater theme applied (logo, colours), `localStorage['ignite-club-theme-<uid>']` = Bridgewater id, `profiles.active_club_theme_id` = Bridgewater id.
-- Existing user with Club A selected accepts a new invite to Club B → stays on Club A (no override).
-- Existing user with explicit “All Clubs” (sentinel) accepts first ever invite → applies the inviting club.
-- Logout/login still preserves the user’s last manual choice (covered by the existing audit).
-
-No edge function or schema changes; no migrations.
+Shipping in that order keeps each step independently revertable.
