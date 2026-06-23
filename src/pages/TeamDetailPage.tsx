@@ -1362,6 +1362,7 @@ export default function TeamDetailPage() {
       {isMember && (() => {
         const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
+        const mediaLocked = !(isSubscriptionLoading || isTeamPro);
         const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
           // Netball / basketball game boards are still in beta — hidden from
