@@ -43,6 +43,7 @@ interface PendingInvite {
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { setActiveClubTheme } = useClubTheme();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploading, setUploading] = useState(false);
