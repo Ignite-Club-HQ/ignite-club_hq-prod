@@ -1041,7 +1041,7 @@ export function AppHeader() {
                     <div className="flex items-center gap-1.5">
                       <span
                         className="font-bold text-lg truncate max-w-[200px]"
-                        style={freeClubAccent ? { color: freeClubAccent } : undefined}
+                        style={{ color: freeClubAccent ?? 'hsl(var(--primary))' }}
                       >
                         {freeClubNameParts.mainName}
                       </span>
@@ -1049,7 +1049,7 @@ export function AppHeader() {
                         className="h-3.5 w-3.5 shrink-0"
                         strokeWidth={2.5}
                         aria-hidden="true"
-                        style={freeClubAccent ? { color: freeClubAccent } : undefined}
+                        style={{ color: freeClubAccent ?? 'hsl(var(--primary))' }}
                       />
                     </div>
                     {freeClubNameParts.suffix && (
