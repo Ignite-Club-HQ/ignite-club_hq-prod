@@ -210,6 +210,7 @@ Deno.serve(async (req) => {
           promptId: prompt.id,
           eventId: event.id,
           teamId: prompt.team_id,
+          clubId: teamClub.get(prompt.team_id) ?? null,
           eventLabel,
           titleQualifier,
           url: `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`,
