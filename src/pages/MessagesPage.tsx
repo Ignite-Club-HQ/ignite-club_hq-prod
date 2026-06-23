@@ -2563,18 +2563,18 @@ export default function MessagesPage() {
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Crown className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Unlock Pro Messaging Features</p>
-                <p className="text-sm text-muted-foreground">Create custom message groups and access team chat with a Pro subscription. Club chat requires a Club Pro subscription.</p>
-              </div>
+          <CardContent className="flex items-center gap-3 py-3 px-3">
+            <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
+              <Crown className="h-4 w-4 text-primary" />
             </div>
-            <Button 
-              size="sm" 
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-sm leading-tight">Unlock Pro Messaging</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                Team & club chat, custom groups, polls, photos, file sharing, event links & more.
+              </p>
+            </div>
+            <Button
+              size="sm"
               onClick={() => {
                 if (adminClubs?.length && adminClubs[0]?.id) {
                   navigate(`/clubs/${adminClubs[0].id}/upgrade`);
@@ -2584,9 +2584,9 @@ export default function MessagesPage() {
                   navigate("/profile");
                 }
               }}
-              className="shrink-0"
+              className="shrink-0 h-8"
             >
-              Upgrade to Pro
+              Upgrade
             </Button>
           </CardContent>
         </Card>
