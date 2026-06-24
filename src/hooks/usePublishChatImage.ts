@@ -5,6 +5,7 @@ import {
   unpublishGalleryPhoto,
   type PublishChatImageArgs,
 } from "@/lib/publishChatImageToGallery";
+import { notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
 import {
   shouldShowGalleryNudge,
   markGalleryNudgeShown,
