@@ -1,8 +1,11 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { CatchMeUpCard } from "./CatchMeUpCard";
 import { CatchMeUpSheet } from "./CatchMeUpSheet";
 import { useChatCatchUp, type ChatScopeType } from "@/hooks/useChatCatchUp";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ChatCatchUpProps {
   scope_type: ChatScopeType;
