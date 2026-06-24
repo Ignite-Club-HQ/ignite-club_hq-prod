@@ -298,13 +298,13 @@ serve(async (req) => {
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
     const summary = {
-      headline: typeof parsed.headline === "string" ? parsed.headline : "",
-      important_updates: Array.isArray(parsed.important_updates) ? parsed.important_updates.slice(0, 5) : [],
-      actions_needed: Array.isArray(parsed.actions_needed) ? parsed.actions_needed.slice(0, 5) : [],
-      schedule_changes: Array.isArray(parsed.schedule_changes) ? parsed.schedule_changes.slice(0, 5) : [],
-      people_mentioned: Array.isArray(parsed.people_mentioned) ? parsed.people_mentioned.slice(0, 8) : [],
-      files_shared: Array.isArray(parsed.files_shared) ? parsed.files_shared.slice(0, 5) : [],
-      unanswered_questions: Array.isArray(parsed.unanswered_questions) ? parsed.unanswered_questions.slice(0, 5) : [],
+      headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
+      important_updates: rehydrateArr(parsed.important_updates).slice(0, 5),
+      actions_needed: rehydrateArr(parsed.actions_needed).slice(0, 5),
+      schedule_changes: rehydrateArr(parsed.schedule_changes).slice(0, 5),
+      people_mentioned: rehydrateArr(parsed.people_mentioned).slice(0, 8),
+      files_shared: rehydrateArr(parsed.files_shared).slice(0, 5),
+      unanswered_questions: rehydrateArr(parsed.unanswered_questions).slice(0, 5),
     };
 
     // Upsert cache
