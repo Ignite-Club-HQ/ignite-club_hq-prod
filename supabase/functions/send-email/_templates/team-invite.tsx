@@ -165,10 +165,12 @@ export const TeamInviteEmail = ({
                   </>
                 ) : roleName === 'Committee Member' ? (
                   <>
-                    <Text style={bulletItem}>• Access and participate in committee chat</Text>
-                    <Text style={bulletItem}>• Store and manage club documents in the vault</Text>
+                    <Text style={bulletItem}>• Access and participate in committee and sub-committee chats</Text>
+                    <Text style={bulletItem}>• Store, organise and share club documents in the file vault</Text>
+                    <Text style={bulletItem}>• Promote and manage club sponsors across the app</Text>
                     <Text style={bulletItem}>• Stay across club updates and announcements</Text>
                   </>
+
                 ) : roleName === 'Coach' ? (
                   <>
                     <Text style={bulletItem}>• Set up and manage training sessions and fixtures</Text>
