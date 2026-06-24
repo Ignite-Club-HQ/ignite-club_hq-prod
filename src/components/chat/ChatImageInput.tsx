@@ -90,6 +90,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { hasAccess: hasProAccess } = useScheduleProAccess({ team_id: teamId ?? null, club_id: clubId ?? null } as any);
 
   // Resolve the clubId for upgrade navigation when only teamId is known.
@@ -104,6 +105,37 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
   const { usage } = useClubFreeUsage(effectiveClubId);
+
+  const refreshClubFreeUsage = (changedClubId: string | null | undefined = effectiveClubId) => {
+    notifyClubFreeUsageChanged(changedClubId ?? null);
+    if (changedClubId) {
+      void queryClient.invalidateQueries({ queryKey: ["club-free-usage", changedClubId] });
+      void queryClient.refetchQueries({ queryKey: ["club-free-usage", changedClubId], type: "active" });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+  };
+
+  const optimisticallyBumpChatFileUsage = (changedClubId: string | null | undefined, fileSize: number) => {
+    if (!changedClubId) return;
+    queryClient.setQueryData<ClubFreeUsage | null>(["club-free-usage", changedClubId], (current) => {
+      if (!current || current.isPro) return current;
+
+      const used = current.chatFile.used + 1;
+      const storageUsed = current.chatFile.storageUsed + fileSize;
+
+      return {
+        ...current,
+        chatFile: {
+          ...current.chatFile,
+          used,
+          storageUsed,
+          atCountCap: used >= current.chatFile.limit,
+          atStorageCap: storageUsed >= current.chatFile.storageLimit,
+          atCap: used >= current.chatFile.limit || storageUsed >= current.chatFile.storageLimit,
+        },
+      };
+    });
+  };
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
