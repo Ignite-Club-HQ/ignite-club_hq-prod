@@ -1398,7 +1398,7 @@ type SponsorPerfRow = {
   tracking_started: string | null;
 };
 
-function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow[]; totalSponsors: number }) {
+function SponsorPerformanceBlock({ rows, totalSponsors, totalUniqueReach }: { rows: SponsorPerfRow[]; totalSponsors: number; totalUniqueReach: number }) {
   if (rows.length === 0) {
     return (
       <Card>
