@@ -213,14 +213,42 @@ serve(async (req) => {
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Strip identifying PII outright (not placeholder) before sending to Gemini.
+    // We deliberately KEEP venue / location names (Bridgewater Oval, etc.) because
+    // they're useful context for sport summaries. We REMOVE: emails, phone numbers,
+    // URLs, street addresses (number + street word), postcodes (UK/AU/US/CA),
+    // long digit runs (card / account / licence numbers), IBAN-like tokens,
+    // dates of birth, and @handles.
+    const STREET_WORDS =
+      "(?:st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|cres|crescent|pl|place|blvd|boulevard|way|terr|terrace|hwy|highway|cl|close|pde|parade|sq|square)";
     const redactPII = (raw: string): string => {
       let t = raw;
       // Emails
-      t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]");
-      // URLs
-      t = t.replace(/https?:\/\/\S+/g, "[link]");
+      t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "");
+      // URLs (full + bare www domain)
+      t = t.replace(/https?:\/\/\S+/gi, "");
+      t = t.replace(/\bwww\.[^\s]+/gi, "");
+      // Social @handles
+      t = t.replace(/(^|\s)@[\w.]{2,}/g, "$1");
+      // Street addresses: "12 Smith Street", "4/22 Park Rd"
+      t = t.replace(
+        new RegExp(`\\b\\d{1,5}[a-z]?(?:\\/\\d{1,5})?\\s+[A-Z][\\w'-]+(?:\\s+[A-Z][\\w'-]+)?\\s+${STREET_WORDS}\\b\\.?`, "gi"),
+        "",
+      );
+      // PO Box
+      t = t.replace(/\bP\.?O\.?\s*Box\s+\d+\b/gi, "");
+      // Postcodes — UK (SW1A 1AA), US ZIP, CA (A1A 1A1)
+      t = t.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/g, "");
+      t = t.replace(/\b\d{5}(?:-\d{4})?\b/g, "");
+      t = t.replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/g, "");
       // Phone numbers (loose: 7+ digits with optional separators, allow leading +)
-      t = t.replace(/\+?\d[\d\s().-]{6,}\d/g, "[phone]");
+      t = t.replace(/\+?\d[\d\s().-]{6,}\d/g, "");
+      // IBAN-ish (2 letters + 13+ alnum)
+      t = t.replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "");
+      // Dates of birth ("dob 12/03/1990", "born 12-3-90")
+      t = t.replace(/\b(?:dob|d\.o\.b\.?|born)[\s:]*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi, "");
+      // Remaining long digit runs (account / licence / member numbers)
+      t = t.replace(/\b\d{6,}\b/g, "");
       // Replace known real names with pseudonyms (longest first to avoid partial overlaps)
       const names = Array.from(pseudoByRealName.keys()).sort((a, b) => b.length - a.length);
       for (const name of names) {
@@ -228,7 +256,8 @@ serve(async (req) => {
         const re = new RegExp(`\\b${escapeRe(name)}\\b`, "gi");
         t = t.replace(re, pseudoByRealName.get(name)!);
       }
-      return t;
+      // Collapse whitespace left by removals
+      return t.replace(/\s{2,}/g, " ").trim();
     };
 
     const transcript = messages
@@ -238,8 +267,10 @@ serve(async (req) => {
         const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
         const imgNote = m.image_url ? " [shared a photo]" : "";
-        return `[${ts}] ${speaker}: ${t}${imgNote}`;
+        return { line: `[${ts}] ${speaker}: ${t}${imgNote}`, keep: !!(t || m.image_url) };
       })
+      .filter((x) => x.keep)
+      .map((x) => x.line)
       .join("\n");
 
     // Rehydrate pseudonyms back to real names in any string the model returns.
