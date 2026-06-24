@@ -4,7 +4,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock, X } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
