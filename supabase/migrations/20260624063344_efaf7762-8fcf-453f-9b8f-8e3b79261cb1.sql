@@ -1,0 +1,1 @@
+ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS force_disable_message_previews boolean NOT NULL DEFAULT false;

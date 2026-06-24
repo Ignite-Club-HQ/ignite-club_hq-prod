@@ -699,6 +699,49 @@ Deno.serve(async (req) => {
       } catch (err) {
         console.warn('[PUSH] Could not read show_message_preview, defaulting to show:', err);
       }
+
+      // Club-level override: a club admin can force previews off for everyone
+      // in their club, regardless of personal preference.
+      try {
+        let clubId: string | undefined = (data as any)?.club_id;
+        if (!clubId && (data as any)?.team_id) {
+          const { data: t } = await supabase
+            .from('teams')
+            .select('club_id')
+            .eq('id', (data as any).team_id)
+            .maybeSingle();
+          clubId = (t as any)?.club_id;
+        }
+        if (!clubId && (data as any)?.group_id) {
+          const { data: g } = await supabase
+            .from('chat_groups')
+            .select('club_id, team_id')
+            .eq('id', (data as any).group_id)
+            .maybeSingle();
+          clubId = (g as any)?.club_id;
+          if (!clubId && (g as any)?.team_id) {
+            const { data: t2 } = await supabase
+              .from('teams')
+              .select('club_id')
+              .eq('id', (g as any).team_id)
+              .maybeSingle();
+            clubId = (t2 as any)?.club_id;
+          }
+        }
+        if (clubId) {
+          const { data: clubRow } = await supabase
+            .from('clubs')
+            .select('force_disable_message_previews')
+            .eq('id', clubId)
+            .maybeSingle();
+          if ((clubRow as any)?.force_disable_message_previews) {
+            effectiveTitle = 'Ignite';
+            effectiveBody = 'New message';
+          }
+        }
+      } catch (err) {
+        console.warn('[PUSH] Could not evaluate club preview override:', err);
+      }
     }
 
     // Send to native apps via FCM (parallel with web push)

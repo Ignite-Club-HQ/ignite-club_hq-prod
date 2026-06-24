@@ -2046,6 +2046,7 @@ export type Database = {
           deleted_by: string | null
           description: string | null
           events_sponsor_strip_enabled: boolean
+          force_disable_message_previews: boolean
           id: string
           is_pro: boolean
           kind: string
@@ -2123,6 +2124,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           events_sponsor_strip_enabled?: boolean
+          force_disable_message_previews?: boolean
           id?: string
           is_pro?: boolean
           kind?: string
@@ -2200,6 +2202,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           events_sponsor_strip_enabled?: boolean
+          force_disable_message_previews?: boolean
           id?: string
           is_pro?: boolean
           kind?: string

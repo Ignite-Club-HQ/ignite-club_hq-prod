@@ -82,6 +82,7 @@ import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator"
 import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
+import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
 import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
@@ -2039,6 +2040,23 @@ export default function ClubDetailPage() {
           <AccordionContent>
             <div className="pt-2">
               <ClubDMSettings clubId={id!} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+      {/* Message Privacy - Admin only */}
+      {isAdmin && (
+        <AccordionItem value="message-privacy" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Message Privacy</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubMessagePrivacySettings clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
