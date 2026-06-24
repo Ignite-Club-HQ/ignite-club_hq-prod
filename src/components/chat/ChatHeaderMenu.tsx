@@ -17,6 +17,8 @@ interface ChatHeaderMenuProps {
   onSearch?: () => void;
   /** Open the schedule-message dialog for the current conversation. */
   onScheduleMessage?: () => void;
+  /** When true, show Schedule message as a Pro-locked entry (Crown + Pro badge). */
+  scheduleMessageLocked?: boolean;
   /** Open the pinned-vault management sheet (admins only). */
   onManagePinnedVault?: () => void;
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
