@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crown, Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -85,6 +85,7 @@ function validatePoll(question: string, options: string[]) {
 export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated, clubId: clubIdProp }: CreatePollDialogProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Resolve the owning club so we can show the Free-tier usage meter & enforce caps.
   const { data: resolvedClubId } = useQuery({
@@ -195,7 +196,12 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
       return poll.id as string;
     },
     onSuccess: (pollId) => {
-      notifyClubFreeUsageChanged(clubIdProp ?? null);
+      notifyClubFreeUsageChanged(clubId);
+      if (clubId) {
+        queryClient.invalidateQueries({ queryKey: ["club-free-usage", clubId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+      }
       onCreated(pollId);
       reset();
       onOpenChange(false);
