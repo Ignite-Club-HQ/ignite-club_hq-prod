@@ -10,7 +10,6 @@ import {
   Crown,
   CalendarClock,
   Sparkles,
-  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,10 +17,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
