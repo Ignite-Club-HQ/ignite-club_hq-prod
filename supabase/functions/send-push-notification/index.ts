@@ -686,8 +686,23 @@ Deno.serve(async (req) => {
     let effectiveTitle = title;
     let effectiveBody = body;
     if (notificationType && MESSAGE_TYPES.has(notificationType)) {
-      // Club-level override: a club admin can force previews off for everyone
-      // in their club. Only the body text is redacted; sender name in title stays.
+      // Per-user opt-out: hide message text on lock screen (sender name stays).
+      try {
+        const { data: prefRow } = await supabase
+          .from('notification_preferences')
+          .select('show_message_preview')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const showPreview = (prefRow as any)?.show_message_preview ?? false;
+        if (!showPreview) {
+          effectiveBody = 'New message';
+        }
+      } catch (err) {
+        console.warn('[PUSH] Could not read show_message_preview, defaulting to hide:', err);
+        effectiveBody = 'New message';
+      }
+
+
       try {
         let clubId: string | undefined = (data as any)?.club_id;
         if (!clubId && (data as any)?.team_id) {
