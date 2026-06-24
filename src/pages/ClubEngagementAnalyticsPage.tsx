@@ -985,7 +985,7 @@ export default function ClubEngagementAnalyticsPage({
 
       {/* Section 6: Sponsor Performance */}
       <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
-      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} />
+      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} totalUniqueReach={totalUniqueReach} />
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
