@@ -202,6 +202,7 @@ export default function ClubChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (clubId) markChatOpened("club", clubId); }, [clubId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club", clubId);
   const { data: clubUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!clubId,
     select: (d) => (clubId ? d.clubs[clubId] ?? 0 : 0),
