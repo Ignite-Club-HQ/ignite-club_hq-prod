@@ -10103,6 +10103,8 @@ export type Database = {
       get_club_free_usage: {
         Args: { _club_id: string }
         Returns: {
+          chat_file_storage_bytes: number
+          chat_file_uploads_this_cycle: number
           chat_photo_uploads_this_cycle: number
           cycle_end: string
           cycle_start: string
