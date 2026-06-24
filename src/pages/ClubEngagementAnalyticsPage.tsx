@@ -1408,7 +1408,7 @@ function SponsorPerformanceBlock({ rows, totalSponsors, totalUniqueReach }: { ro
       </Card>
     );
   }
-  const totalReach = rows.reduce((a, r) => a + r.unique_reach, 0);
+  const totalReach = totalUniqueReach;
   const totalClicks = rows.reduce((a, r) => a + r.clicks, 0);
   const totalViews = rows.reduce((a, r) => a + r.views, 0);
   const totalRawViews = rows.reduce((a, r) => a + (r.raw_views || 0), 0);
