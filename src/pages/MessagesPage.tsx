@@ -4,7 +4,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock, X } from "lucide-react";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
@@ -229,6 +229,28 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+  const bannerDismissKey = useMemo(() => {
+    const clubPart = effectiveClubFilter || "global";
+    return `ignite_upgrade_banner_dismissed_${clubPart}`;
+  }, [effectiveClubFilter]);
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem(bannerDismissKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (bannerDismissed) {
+        window.localStorage.setItem(bannerDismissKey, "1");
+      } else {
+        window.localStorage.removeItem(bannerDismissKey);
+      }
+    } catch {
+      // ignore
+    }
+  }, [bannerDismissed, bannerDismissKey]);
 
   const { data: clubAdminConversations = [] } = useQuery({
     queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
@@ -2585,39 +2607,6 @@ export default function MessagesPage() {
 
   return (
     <div className="py-4 space-y-4">
-      {/* Pro upgrade banner for non-Pro admin users */}
-      {hasAdminRoleButNoPro && (
-        <Card className="border-primary/10 bg-primary/[0.03]">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 py-1.5 px-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0">
-                  PRO
-                </Badge>
-                <p className="font-bold text-sm leading-tight">Unlock Pro Communication</p>
-              </div>
-              <p className="text-[11px] text-muted-foreground/70 leading-snug mt-0.5">
-                Club-wide chats, photo sharing, file uploads and unlimited polls.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }}
-              className="shrink-0 h-7 rounded-full text-xs font-semibold"
-            >
-              Upgrade to Pro
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Header with search and create group */}
       <div className="flex items-center justify-between gap-4">
@@ -2734,6 +2723,69 @@ export default function MessagesPage() {
           className="pl-9"
         />
       </div>
+
+      {/* Pro upgrade banner for non-Pro admin users — compact, dismissible */}
+      {hasAdminRoleButNoPro && !bannerDismissed && (
+        <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
+          <CardContent className="flex items-center gap-2 py-2 px-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Badge
+                  variant="secondary"
+                  className="text-[9px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none"
+                >
+                  PRO
+                </Badge>
+                <p className="font-bold text-sm leading-tight">
+                  Unlock Club-Wide Communication
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {[
+                  { icon: "📢", label: "Club Chats" },
+                  { icon: "📷", label: "Photos" },
+                  { icon: "📁", label: "Files" },
+                  { icon: "📊", label: "Polls" },
+                ].map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap"
+                  >
+                    <span className="leading-none">{chip.icon}</span>
+                    <span className="leading-none">{chip.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (upgradeClubId) {
+                    navigate(`/clubs/${upgradeClubId}/upgrade`);
+                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                  } else {
+                    navigate("/clubs");
+                  }
+                }}
+                className="h-6 rounded-full text-[11px] font-semibold px-2.5 border-primary/20 text-primary hover:bg-primary/5"
+              >
+                Upgrade
+              </Button>
+              <button
+                type="button"
+                onClick={() => setBannerDismissed(true)}
+                className="h-6 w-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on
