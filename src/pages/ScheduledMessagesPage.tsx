@@ -41,7 +41,6 @@ import {
 } from "@/hooks/useScheduledMessages";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
-import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 interface ThreadInfo {
   label: string;
