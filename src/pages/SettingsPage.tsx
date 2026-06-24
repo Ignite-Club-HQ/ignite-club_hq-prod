@@ -157,6 +157,36 @@ export default function SettingsPage() {
     loadPreferences();
   }, [user]);
 
+  // Load AI Catch Me Up preference from profile
+  useEffect(() => {
+    const loadAiPref = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data) setAiCatchUpEnabled((data as any).ai_catch_up_enabled ?? true);
+    };
+    loadAiPref();
+  }, [user]);
+
+  const handleAiCatchUpChange = async (value: boolean) => {
+    if (!user) return;
+    setAiCatchUpLoading(true);
+    const prev = aiCatchUpEnabled;
+    setAiCatchUpEnabled(value);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ ai_catch_up_enabled: value } as any)
+      .eq("id", user.id);
+    setAiCatchUpLoading(false);
+    if (error) {
+      setAiCatchUpEnabled(prev);
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+    }
+  };
+
   // Check push notification status
   useEffect(() => {
     if (SKIP_WEB_PUSH) return;
