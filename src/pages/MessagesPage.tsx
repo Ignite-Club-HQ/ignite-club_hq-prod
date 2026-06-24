@@ -2702,8 +2702,8 @@ export default function MessagesPage() {
         />
       </div>
 
-      {/* Pro upgrade banner for non-Pro admin users — compact, dismissible */}
-      {hasAdminRoleButNoPro && !bannerDismissed && (
+      {/* Pro upgrade banner for non-Pro admin users — compact */}
+      {hasAdminRoleButNoPro && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
           <CardContent className="flex items-center gap-3 py-3 px-3">
             <div className="min-w-0 flex-1">
@@ -2729,32 +2729,22 @@ export default function MessagesPage() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (upgradeClubId) {
-                    navigate(`/clubs/${upgradeClubId}/upgrade`);
-                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                  } else {
-                    navigate("/clubs");
-                  }
-                }}
-                className="h-7 rounded-full text-xs font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5"
-              >
-                Upgrade
-              </Button>
-              <button
-                type="button"
-                onClick={() => setBannerDismissed(true)}
-                className="h-7 w-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
-                aria-label="Dismiss"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (upgradeClubId) {
+                  navigate(`/clubs/${upgradeClubId}/upgrade`);
+                } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                } else {
+                  navigate("/clubs");
+                }
+              }}
+              className="h-7 rounded-full text-xs font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+            >
+              Upgrade
+            </Button>
           </CardContent>
         </Card>
       )}
