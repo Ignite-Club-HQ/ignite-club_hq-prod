@@ -146,7 +146,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
   // Auto-jump to a role that already has a link the first time we load,
   // so users land on a usable link instead of an empty Generate state.
   if (!autoSelected && links) {
-    const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
+    const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"].filter(r => roleOptions.some(o => o.value === r));
     const existing = order.find((r) => links[r]);
     if (existing && existing !== activeRole) {
       setActiveRole(existing);
