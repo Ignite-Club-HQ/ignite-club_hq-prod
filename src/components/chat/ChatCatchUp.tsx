@@ -39,6 +39,39 @@ export function ChatCatchUp({
   registerTrigger,
 }: ChatCatchUpProps) {
   const navigate = useNavigate();
+
+  // Resolve the owning club for this scope so we can honour the club-level
+  // "AI Catch Me Up" admin toggle. Direct messages have no single club, so
+  // they're never disabled by this flag.
+  const { data: clubDisabled } = useQuery({
+    queryKey: ["club-ai-catchup-flag", scope_type, scope_id],
+    enabled: !!scope_id && scope_type !== "direct",
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      let clubId: string | null = null;
+      if (scope_type === "club") clubId = scope_id!;
+      else if (scope_type === "team") {
+        const { data } = await supabase.from("teams").select("club_id").eq("id", scope_id!).maybeSingle();
+        clubId = (data?.club_id as string) ?? null;
+      } else if (scope_type === "group") {
+        const { data } = await supabase.from("chat_groups").select("club_id").eq("id", scope_id!).maybeSingle();
+        clubId = (data?.club_id as string) ?? null;
+      } else if (scope_type === "club_admin") {
+        const { data } = await supabase.from("club_admin_conversations").select("club_id").eq("id", scope_id!).maybeSingle();
+        clubId = (data?.club_id as string) ?? null;
+      }
+      if (!clubId) return false;
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("ai_catch_up_enabled")
+        .eq("id", clubId)
+        .maybeSingle();
+      return (club as any)?.ai_catch_up_enabled === false;
+    },
+  });
+
+  const featureDisabled = clubDisabled === true;
+
   const {
     eligible, loading, error, result, sheetOpen, setSheetOpen,
     summarize, openSheet, dismissCard,
@@ -46,7 +79,7 @@ export function ChatCatchUp({
     scope_type,
     scope_id,
     unreadCount,
-    cardEnabled: !proLocked,
+    cardEnabled: !proLocked && !featureDisabled,
     latestMessageId,
   });
 
@@ -54,19 +87,23 @@ export function ChatCatchUp({
   useEffect(() => {
     if (!registerTrigger) return;
     registerTrigger(() => {
+      if (featureDisabled) {
+        toast.info("AI Catch Me Up has been turned off for this club");
+        return;
+      }
       if (proLocked) {
         if (upgradeHref) navigate(upgradeHref);
         return;
       }
       openSheet();
     });
-  }, [registerTrigger, proLocked, upgradeHref, navigate, openSheet]);
+  }, [registerTrigger, proLocked, featureDisabled, upgradeHref, navigate, openSheet]);
 
   if (!scope_id) return null;
 
   return (
     <>
-      {eligible && !proLocked && (
+      {eligible && !proLocked && !featureDisabled && (
         <CatchMeUpCard
           unreadCount={unreadCount}
           teaser={result?.summary?.headline ?? null}
