@@ -197,6 +197,16 @@ export default function ClubChatPage() {
       refreshUnreadCount,
     });
   }, [user, clubId, refreshUnreadCount, decrementUnreadCount, queryClient]);
+
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (clubId) markChatOpened("club", clubId); }, [clubId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: clubUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!clubId,
+    select: (d) => (clubId ? d.clubs[clubId] ?? 0 : 0),
+  });
+
+
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
