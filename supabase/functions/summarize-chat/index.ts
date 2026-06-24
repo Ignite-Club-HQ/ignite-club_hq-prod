@@ -191,15 +191,71 @@ serve(async (req) => {
     const nameMap = new Map<string, string>();
     (profiles || []).forEach((p: any) => nameMap.set(p.id, p.display_name || "Someone"));
 
+    // ---------- Privacy: anonymise transcript before sending to Gemini ----------
+    // Replace real names with stable pseudonyms (Person 1, Person 2…) and redact
+    // emails / phone numbers / URLs / long digit strings. We keep a reverse map
+    // so the model's output can be re-hydrated with real names before caching.
+    const pseudoByRealName = new Map<string, string>(); // real -> "Person N"
+    const realByPseudo = new Map<string, string>();     // "Person N" -> real
+    let personCounter = 0;
+    const getPseudo = (real: string) => {
+      const key = real.trim();
+      if (!key) return "Someone";
+      const existing = pseudoByRealName.get(key);
+      if (existing) return existing;
+      personCounter += 1;
+      const p = `Person ${personCounter}`;
+      pseudoByRealName.set(key, p);
+      realByPseudo.set(p, key);
+      return p;
+    };
+    // Pre-seed with author display names so mentions in body match the speaker label.
+    Array.from(nameMap.values()).forEach((n) => getPseudo(n));
+
+    const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const redactPII = (raw: string): string => {
+      let t = raw;
+      // Emails
+      t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]");
+      // URLs
+      t = t.replace(/https?:\/\/\S+/g, "[link]");
+      // Phone numbers (loose: 7+ digits with optional separators, allow leading +)
+      t = t.replace(/\+?\d[\d\s().-]{6,}\d/g, "[phone]");
+      // Replace known real names with pseudonyms (longest first to avoid partial overlaps)
+      const names = Array.from(pseudoByRealName.keys()).sort((a, b) => b.length - a.length);
+      for (const name of names) {
+        if (name.length < 2) continue;
+        const re = new RegExp(`\\b${escapeRe(name)}\\b`, "gi");
+        t = t.replace(re, pseudoByRealName.get(name)!);
+      }
+      return t;
+    };
+
     const transcript = messages
       .map((m: any) => {
-        const name = nameMap.get(m.author_id) || "Someone";
+        const real = nameMap.get(m.author_id) || "Someone";
+        const speaker = getPseudo(real);
         const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
-        const t = (m.text || "").replace(/\s+/g, " ").trim();
+        const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
         const imgNote = m.image_url ? " [shared a photo]" : "";
-        return `[${ts}] ${name}: ${t}${imgNote}`;
+        return `[${ts}] ${speaker}: ${t}${imgNote}`;
       })
       .join("\n");
+
+    // Rehydrate pseudonyms back to real names in any string the model returns.
+    const rehydrate = (s: string): string => {
+      if (!s) return s;
+      let out = s;
+      // Replace longer pseudonyms first (Person 10 before Person 1).
+      const pseudos = Array.from(realByPseudo.keys()).sort((a, b) => b.length - a.length);
+      for (const p of pseudos) {
+        const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
+        out = out.replace(re, realByPseudo.get(p)!);
+      }
+      return out;
+    };
+    const rehydrateArr = (arr: any): string[] =>
+      Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
     // Call Google Gemini directly (Generative Language API).
     const GEMINI_MODEL = "gemini-2.0-flash";
@@ -242,13 +298,13 @@ serve(async (req) => {
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
     const summary = {
-      headline: typeof parsed.headline === "string" ? parsed.headline : "",
-      important_updates: Array.isArray(parsed.important_updates) ? parsed.important_updates.slice(0, 5) : [],
-      actions_needed: Array.isArray(parsed.actions_needed) ? parsed.actions_needed.slice(0, 5) : [],
-      schedule_changes: Array.isArray(parsed.schedule_changes) ? parsed.schedule_changes.slice(0, 5) : [],
-      people_mentioned: Array.isArray(parsed.people_mentioned) ? parsed.people_mentioned.slice(0, 8) : [],
-      files_shared: Array.isArray(parsed.files_shared) ? parsed.files_shared.slice(0, 5) : [],
-      unanswered_questions: Array.isArray(parsed.unanswered_questions) ? parsed.unanswered_questions.slice(0, 5) : [],
+      headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
+      important_updates: rehydrateArr(parsed.important_updates).slice(0, 5),
+      actions_needed: rehydrateArr(parsed.actions_needed).slice(0, 5),
+      schedule_changes: rehydrateArr(parsed.schedule_changes).slice(0, 5),
+      people_mentioned: rehydrateArr(parsed.people_mentioned).slice(0, 8),
+      files_shared: rehydrateArr(parsed.files_shared).slice(0, 5),
+      unanswered_questions: rehydrateArr(parsed.unanswered_questions).slice(0, 5),
     };
 
     // Upsert cache
