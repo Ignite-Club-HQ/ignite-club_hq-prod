@@ -552,8 +552,6 @@ export default function ScheduledMessagesPage() {
           </section>
         )}
       </div>
-      )}
-
 
       <ScheduleMessageDialog
         open={!!editingRow}
