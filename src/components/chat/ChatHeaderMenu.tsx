@@ -44,6 +44,8 @@ export function ChatHeaderMenu({
   pinnedVaultEnabled,
   onTogglePinnedVault,
   pinnedVaultLocked = false,
+  onSummarizeMessages,
+  summarizeLocked = false,
 }: ChatHeaderMenuProps) {
   const hasAnyAction =
     !!onRefresh
@@ -51,7 +53,8 @@ export function ChatHeaderMenu({
     || !!onDeleteGroup
     || !!onSearch
     || !!onScheduleMessage
-    || !!onManagePinnedVault;
+    || !!onManagePinnedVault
+    || !!onSummarizeMessages;
   if (!hasAnyAction) return null;
 
   // If refresh is the only action, render it as a direct button instead of a dropdown.
@@ -61,7 +64,8 @@ export function ChatHeaderMenu({
     && !onDeleteGroup
     && !onSearch
     && !onScheduleMessage
-    && !onManagePinnedVault;
+    && !onManagePinnedVault
+    && !onSummarizeMessages;
   if (isRefreshOnly) {
     return (
       <Button
