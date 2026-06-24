@@ -999,7 +999,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   ))}
                 </div>
                 {usage && !usage.isPro && (() => {
-                  const photoAtCap = usage.photo.used >= usage.photo.limit;
+                  const photoAtCap = usage.chatPhoto.used >= usage.chatPhoto.limit;
                   const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
                   const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
                   const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
@@ -1021,7 +1021,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   return (
                     <div className="mt-1.5 px-1 space-y-0.5">
                       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
-                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.photo.used}/{usage.photo.limit} photos</span>
+                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.chatPhoto.used}/{usage.chatPhoto.limit} photos</span>
                         {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.file.used}/{usage.file.limit} files</span>}
                         {showPollCreator && <span className={pollAtCap ? "text-destructive font-medium" : undefined}>{usage.poll.used}/{usage.poll.limit} polls</span>}
                       </div>
