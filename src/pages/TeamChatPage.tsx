@@ -1727,6 +1727,8 @@ export default function TeamChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 isAdmin
                   ? () => {
