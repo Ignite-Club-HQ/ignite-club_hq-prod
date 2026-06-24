@@ -1,5 +1,20 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+const REFRESH_EVENT = "club-free-usage:refresh";
+
+/**
+ * Trigger an immediate refresh of the Free-tier usage meter for a club.
+ * Call this after any action that affects the cycle counters (photo
+ * upload, file upload, poll create, chat image send) so the meter
+ * reflects the new count without waiting for staleTime to elapse.
+ */
+export function notifyClubFreeUsageChanged(clubId?: string | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REFRESH_EVENT, { detail: { clubId: clubId ?? null } }));
+}
+
 
 export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
 export const FREE_FILE_COUNT = 10;
