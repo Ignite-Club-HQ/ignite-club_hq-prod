@@ -832,6 +832,24 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // For team invites, rewrite any trailing sport emoji on the caller-supplied
+    // subject so a cricket club doesn't get "⚽" (etc.). Falls back to keeping
+    // the existing emoji if no sport is on record.
+    if ((template === 'team-invite' || template === 'invite-reminder') && templateData?.clubName) {
+      try {
+        const { sport } = await resolveSportAndTeamType(
+          adminClient,
+          templateData.clubName,
+          templateData.teamName,
+        );
+        if (sport) {
+          subject = swapTrailingSportEmoji(subject, sport);
+        }
+      } catch (e) {
+        console.warn('[send-email] subject emoji rewrite failed:', (e as Error)?.message);
+      }
+    }
+
     // Generate HTML from template or use provided HTML
     let emailHtml = html;
     if (template && templateData) {
@@ -846,6 +864,7 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
     }
+
 
     // Build sender: use senderName if provided, otherwise fall back to from or default
     let sender: string;
