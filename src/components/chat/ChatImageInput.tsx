@@ -1029,6 +1029,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                           {resetLine}
                         </div>
                       )}
+                      {effectiveClubId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            navigate(`/clubs/${effectiveClubId}/upgrade`);
+                          }}
+                          className="w-full text-center text-[10.5px] text-muted-foreground/60 hover:text-primary transition-colors inline-flex items-center justify-center gap-1"
+                        >
+                          <Crown className="h-3 w-3" />
+                          Upgrade for unlimited
+                        </button>
+                      )}
                     </div>
                   );
                 })()}

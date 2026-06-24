@@ -102,14 +102,19 @@ export function UsageMeter({
         </p>
       )}
 
-      {atCap && clubId && (
+      {clubId && (
         <button
           type="button"
           onClick={() => navigate(`/clubs/${clubId}/upgrade`)}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+          className={cn(
+            "inline-flex items-center gap-1.5",
+            atCap
+              ? "text-xs font-semibold text-primary hover:underline"
+              : "text-[11px] text-muted-foreground/60 hover:text-primary transition-colors"
+          )}
         >
-          <Crown className="h-3.5 w-3.5" />
-          Upgrade to Pro
+          <Crown className={cn(atCap ? "h-3.5 w-3.5" : "h-3 w-3")} />
+          {atCap ? "Upgrade to Pro" : "Upgrade for unlimited"}
         </button>
       )}
     </div>
