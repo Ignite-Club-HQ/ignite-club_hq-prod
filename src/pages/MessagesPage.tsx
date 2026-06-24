@@ -224,28 +224,6 @@ export default function MessagesPage() {
   ) as 'all' | 'teams' | 'groups' | 'dms';
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
-  const bannerDismissKey = useMemo(() => {
-    const clubPart = effectiveClubFilter || "global";
-    return `ignite_upgrade_banner_dismissed_${clubPart}`;
-  }, [effectiveClubFilter]);
-  const [bannerDismissed, setBannerDismissed] = useState(() => {
-    try {
-      return window.localStorage.getItem(bannerDismissKey) === "1";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      if (bannerDismissed) {
-        window.localStorage.setItem(bannerDismissKey, "1");
-      } else {
-        window.localStorage.removeItem(bannerDismissKey);
-      }
-    } catch {
-      // ignore
-    }
-  }, [bannerDismissed, bannerDismissKey]);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
   // Effective club filter: use theme filter if active, otherwise use local filter
