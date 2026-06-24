@@ -11,12 +11,12 @@ function replaceScopeTokens(path: string, scope: AdLinkScope): string | null {
 
   if (resolved.includes(":clubId")) {
     if (!scope.clubId) return null;
-    resolved = resolved.replaceAll(":clubId", scope.clubId);
+    resolved = resolved.split(":clubId").join(scope.clubId);
   }
 
   if (resolved.includes(":teamId")) {
     if (!scope.teamId) return null;
-    resolved = resolved.replaceAll(":teamId", scope.teamId);
+    resolved = resolved.split(":teamId").join(scope.teamId);
   }
 
   return resolved;
