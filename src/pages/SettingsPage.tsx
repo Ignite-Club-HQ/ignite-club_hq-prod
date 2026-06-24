@@ -118,6 +118,7 @@ export default function SettingsPage() {
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
   const [aiCatchUpEnabled, setAiCatchUpEnabled] = useState(true);
   const [aiCatchUpLoading, setAiCatchUpLoading] = useState(false);
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
   
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -757,7 +758,7 @@ export default function SettingsPage() {
       )}
 
       {/* AI Catch Me Up */}
-      {user && (
+      {user && hasAICatchUpClub && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
