@@ -2244,7 +2244,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             {/* Persistent team join link — primary action on first open. */}
             {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
+              <TeamJoinLinkCard teamId={teamId} teamName={teamName} teamType={teamType} />
             )}
 
             {/* Secondary "Invite by name" toggle — collapsed by default. */}

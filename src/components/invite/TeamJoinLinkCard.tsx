@@ -28,10 +28,11 @@ const DEFAULT_EXPIRY_DAYS = 30;
 const TOKEN_METADATA_KIND = "team_join_link";
 
 type RoleVariant = "parent" | "player" | "coach" | "team_admin";
+type TeamType = "junior" | "senior" | "mixed";
 
-const ROLE_OPTIONS: { value: RoleVariant; label: string }[] = [
-  { value: "parent", label: "Parent" },
-  { value: "player", label: "Player" },
+const ALL_ROLE_OPTIONS: { value: RoleVariant; label: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
+  { value: "parent", label: "Parent", juniorOnly: true },
+  { value: "player", label: "Player", seniorOnly: true },
   { value: "coach", label: "Coach" },
   { value: "team_admin", label: "Admin" },
 ];
@@ -48,6 +49,7 @@ const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
 interface TeamJoinLinkCardProps {
   teamId: string;
   teamName: string;
+  teamType?: TeamType;
 }
 
 interface JoinLinkRow {
@@ -69,11 +71,19 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeRole, setActiveRole] = useState<RoleVariant>("parent");
+
+  const roleOptions = ALL_ROLE_OPTIONS.filter(opt => {
+    if (teamType === "junior") return !opt.seniorOnly;
+    if (teamType === "senior") return !opt.juniorOnly;
+    return true;
+  });
+
+  const defaultRole: RoleVariant = teamType === "junior" ? "parent" : "player";
+  const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
@@ -136,7 +146,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   // Auto-jump to a role that already has a link the first time we load,
   // so users land on a usable link instead of an empty Generate state.
   if (!autoSelected && links) {
-    const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
+    const order = (["parent", "player", "coach", "team_admin"] as RoleVariant[]).filter(r => roleOptions.some(o => o.value === r));
     const existing = order.find((r) => links[r]);
     if (existing && existing !== activeRole) {
       setActiveRole(existing);
@@ -174,7 +184,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     },
     onSuccess: ({ role }) => {
       queryClient.invalidateQueries({ queryKey });
-      toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
+      toast({ title: "Join link ready", description: `Share it with anyone joining as ${ALL_ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
       toast({ title: "Couldn't create link", description: err?.message ?? "Try again", variant: "destructive" });
@@ -200,7 +210,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
   const fullUrl = useMemo(() => (link ? `${APP_URL}/join/${link.token}` : ""), [link]);
   const isSensitive = SENSITIVE_ROLES.includes(activeRole);
-  const activeRoleLabel = ROLE_OPTIONS.find((r) => r.value === activeRole)?.label ?? "";
+  const activeRoleLabel = ALL_ROLE_OPTIONS.find((r) => r.value === activeRole)?.label ?? "";
 
   const handleCopy = async () => {
     if (!fullUrl) return;
@@ -307,9 +317,11 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         <div
           role="radiogroup"
           aria-label="Default role for this link"
-          className="grid grid-cols-4 gap-1 rounded-lg bg-background border border-border p-1"
+          className={`grid gap-1 rounded-lg bg-background border border-border p-1 ${
+            roleOptions.length === 2 ? "grid-cols-2" : roleOptions.length === 3 ? "grid-cols-3" : "grid-cols-4"
+          }`}
         >
-          {ROLE_OPTIONS.map((opt) => {
+          {roleOptions.map((opt) => {
             const isActive = activeRole === opt.value;
             const sensitive = SENSITIVE_ROLES.includes(opt.value);
             return (
