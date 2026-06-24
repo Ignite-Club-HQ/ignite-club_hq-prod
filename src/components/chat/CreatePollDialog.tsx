@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 import { UsageMeter } from "@/components/subscription/UsageMeter";
-import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
 import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import type { Database } from "@/integrations/supabase/types";
 
