@@ -154,7 +154,7 @@ export function ChatHeaderMenu({
                     More actions
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
-                    <DropdownMenuSubContent className="bg-popover min-w-[200px]">
+                    <DropdownMenuSubContent side="bottom" align="end" className="bg-popover min-w-[200px]">
                       {onManagePinnedVault && (
                         <>
                           <DropdownMenuItem onClick={onManagePinnedVault}>
