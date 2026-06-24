@@ -106,6 +106,26 @@ export function ChatDetailsSheet({
   const showParticipants =
     chatType === "team" || chatType === "club" || chatType === "group";
 
+  // Resolve a clubId for Pro gating when not explicitly provided (e.g. team chats).
+  const resolvedTeamIdForClub = chatType === "team" ? chatId : teamId;
+  const { data: derivedClubId } = useQuery({
+    queryKey: ["chat-details-sheet-club-id", resolvedTeamIdForClub, clubId, chatType, chatId],
+    enabled: open && !clubId && (chatType === "team" || (chatType === "group" && !!resolvedTeamIdForClub)),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!resolvedTeamIdForClub) return null;
+      const { data } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", resolvedTeamIdForClub)
+        .maybeSingle();
+      return data?.club_id ?? null;
+    },
+  });
+  const proClubId =
+    (chatType === "club" ? chatId : clubId) || derivedClubId || null;
+  const { hasPro, hasProFootball } = useClubProAccess(proClubId, { enabled: open });
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
