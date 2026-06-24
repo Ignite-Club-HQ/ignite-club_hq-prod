@@ -76,6 +76,7 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
         if (result.alreadyPublished) {
           toast.success("Already in the media gallery");
         } else {
+          notifyClubFreeUsageChanged(clubId);
           toast.success("Added to media gallery", {
             duration: 6000,
             action: {
