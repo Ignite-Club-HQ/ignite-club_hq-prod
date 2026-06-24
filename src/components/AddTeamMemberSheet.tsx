@@ -1255,7 +1255,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           title: "Added to team",
           description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
         });
-        onMemberAdded?.();
+        queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
         setNameInput("");
         setCustomEmail("");
         return;
