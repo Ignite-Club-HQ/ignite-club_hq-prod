@@ -101,6 +101,7 @@ export default function SettingsPage() {
     membership_enabled: true,
     pitch_board_enabled: true,
     rewards_enabled: true,
+    show_message_preview: true,
   });
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
     email_messages_enabled: true,
