@@ -20,6 +20,45 @@ import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
 import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
 import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
 import { JoinRequestResponseEmail } from "./_templates/join-request-response.tsx";
+import { sportEmoji, swapTrailingSportEmoji } from "./_templates/sport-meta.ts";
+
+/**
+ * Look up the club's sport and the team's team_type for sport-aware /
+ * audience-aware email rendering. Best-effort; failures are non-fatal.
+ */
+async function resolveSportAndTeamType(
+  supabaseAdmin: any,
+  clubName?: string,
+  teamName?: string,
+): Promise<{ sport: string | null; teamType: string | null }> {
+  if (!supabaseAdmin || !clubName) return { sport: null, teamType: null };
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('id, sport')
+      .eq('name', clubName)
+      .maybeSingle();
+    let sport: string | null = club?.sport ?? null;
+    let teamType: string | null = null;
+    if (club?.id && teamName) {
+      const { data: team } = await supabaseAdmin
+        .from('teams')
+        .select('team_type, sport')
+        .eq('club_id', club.id)
+        .eq('name', teamName)
+        .maybeSingle();
+      if (team) {
+        teamType = team.team_type ?? null;
+        sport = team.sport ?? sport;
+      }
+    }
+    return { sport, teamType };
+  } catch (e) {
+    console.warn('[send-email] sport/teamType lookup failed:', (e as Error)?.message);
+    return { sport: null, teamType: null };
+  }
+}
+
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
