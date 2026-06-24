@@ -2068,6 +2068,7 @@ export type Database = {
       clubs: {
         Row: {
           admin_user_id: string | null
+          ai_catch_up_enabled: boolean
           allow_guests_default: boolean
           auto_reward_threshold: number | null
           bot_user_id: string | null
@@ -2146,6 +2147,7 @@ export type Database = {
         }
         Insert: {
           admin_user_id?: string | null
+          ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null
@@ -2224,6 +2226,7 @@ export type Database = {
         }
         Update: {
           admin_user_id?: string | null
+          ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null

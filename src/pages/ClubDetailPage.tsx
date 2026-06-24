@@ -83,6 +83,7 @@ import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
+import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
 import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
@@ -2055,8 +2056,9 @@ export default function ClubDetailPage() {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
               <ClubMessagePrivacySettings clubId={id!} />
+              <ClubAICatchUpSettings clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
