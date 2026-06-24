@@ -792,24 +792,38 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     <span className="text-[12px] text-muted-foreground">PDF, doc, sheet</span>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    setAttachChooserOpen(false);
-                    setVaultPickerOpen(true);
-                  }}
-                  className="group flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
-                  aria-label="Choose from vault"
-                >
-                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center group-active:bg-primary/15 transition-colors">
-                    <FolderOpen className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex flex-col items-center leading-tight gap-0.5">
-                    <span className="text-[15px] font-medium text-foreground">From Vault</span>
-                    <span className="text-[12px] text-muted-foreground">Existing file or folder</span>
-                  </div>
-                </button>
+                {(() => {
+                  const vaultLocked = !!usage && !usage.isPro;
+                  return (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setAttachChooserOpen(false);
+                        if (vaultLocked) {
+                          navigate("/upgrade");
+                          return;
+                        }
+                        setVaultPickerOpen(true);
+                      }}
+                      className="group relative flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
+                      aria-label={vaultLocked ? "From Vault (Pro only)" : "Choose from vault"}
+                    >
+                      {vaultLocked && (
+                        <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
+                          <Crown className="h-2.5 w-2.5" /> PRO
+                        </span>
+                      )}
+                      <div className={`h-14 w-14 rounded-full flex items-center justify-center transition-colors ${vaultLocked ? "bg-muted" : "bg-primary/10 group-active:bg-primary/15"}`}>
+                        <FolderOpen className={`h-6 w-6 ${vaultLocked ? "text-muted-foreground" : "text-primary"}`} />
+                      </div>
+                      <div className="flex flex-col items-center leading-tight gap-0.5">
+                        <span className={`text-[15px] font-medium ${vaultLocked ? "text-muted-foreground" : "text-foreground"}`}>From Vault</span>
+                        <span className="text-[12px] text-muted-foreground">{vaultLocked ? "Upgrade to unlock" : "Existing file or folder"}</span>
+                      </div>
+                    </button>
+                  );
+                })()}
               </div>
             </SheetContent>
           </Sheet>
@@ -947,7 +961,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: "Device or vault",
+                  hint: usage && !usage.isPro ? "From device" : "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
