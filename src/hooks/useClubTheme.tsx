@@ -675,7 +675,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // Fetch all Pro clubs that the user belongs to with custom themes
-  const { data: availableClubThemes = [], isLoading } = useQuery({
+  const { data: availableClubThemes = [], isLoading, isSuccess: isClubThemesSuccess, isError: isClubThemesError } = useQuery({
     queryKey: ["club-themes", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
