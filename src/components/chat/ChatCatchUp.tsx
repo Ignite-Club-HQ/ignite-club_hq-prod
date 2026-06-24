@@ -104,8 +104,12 @@ export function ChatCatchUp({
   useEffect(() => {
     if (!registerTrigger) return;
     registerTrigger(() => {
-      if (featureDisabled) {
+      if (clubDisabled) {
         toast.info("AI Catch Me Up has been turned off for this club");
+        return;
+      }
+      if (userDisabled) {
+        toast.info("AI Catch Me Up is turned off in your settings");
         return;
       }
       if (proLocked) {
@@ -114,7 +118,7 @@ export function ChatCatchUp({
       }
       openSheet();
     });
-  }, [registerTrigger, proLocked, featureDisabled, upgradeHref, navigate, openSheet]);
+  }, [registerTrigger, proLocked, clubDisabled, userDisabled, upgradeHref, navigate, openSheet]);
 
   if (!scope_id) return null;
 
