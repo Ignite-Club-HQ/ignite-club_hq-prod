@@ -176,7 +176,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     },
     onSuccess: ({ role }) => {
       queryClient.invalidateQueries({ queryKey });
-      toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
+      toast({ title: "Join link ready", description: `Share it with anyone joining as ${ALL_ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
       toast({ title: "Couldn't create link", description: err?.message ?? "Try again", variant: "destructive" });
