@@ -613,6 +613,21 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // ---------- Club-wide distinct members reached (de-duped across sponsors) ----------
+  const { data: totalUniqueReach = 0 } = useQuery({
+    queryKey: ["club-engagement-total-unique-reach", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_total_unique_reach", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data as number) ?? 0;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
 
 
   // ---------- Engagement score (composite 0-100) ----------
