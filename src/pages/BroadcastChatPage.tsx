@@ -1066,6 +1066,7 @@ export default function BroadcastChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={() => setScheduleDialogOpen(true)}
+              scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
         }

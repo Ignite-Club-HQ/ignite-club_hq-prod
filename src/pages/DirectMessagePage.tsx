@@ -1402,6 +1402,7 @@ export default function DirectMessagePage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
+              scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
         }
