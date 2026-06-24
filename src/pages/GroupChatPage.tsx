@@ -277,6 +277,16 @@ export default function GroupChatPage() {
       refreshUnreadCount,
     });
   }, [user, groupId, refreshUnreadCount, decrementUnreadCount, queryClient]);
+
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: groupUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!groupId,
+    select: (d) => (groupId ? d.groups[groupId] ?? 0 : 0),
+  });
+
+
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
