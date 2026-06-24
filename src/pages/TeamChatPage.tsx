@@ -230,6 +230,7 @@ export default function TeamChatPage() {
   // Record that the user opened this team chat (drives the AI catch-up trigger).
   useEffect(() => { if (teamId) markChatOpened("team", teamId); }, [teamId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("team", teamId);
   const { data: teamUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!teamId,
     select: (d) => (teamId ? d.teams[teamId] ?? 0 : 0),
