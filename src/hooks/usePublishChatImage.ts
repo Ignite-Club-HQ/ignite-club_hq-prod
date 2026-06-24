@@ -40,6 +40,7 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
           next.delete(messageId);
           return next;
         });
+        notifyClubFreeUsageChanged(clubId);
         toast.success("Removed from gallery");
       } catch (err: any) {
         console.error("[usePublishChatImage] undo failed", err);
