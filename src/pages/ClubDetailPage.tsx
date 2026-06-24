@@ -2045,6 +2045,23 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
+      {/* Message Privacy - Admin only */}
+      {isAdmin && (
+        <AccordionItem value="message-privacy" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Message Privacy</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubMessagePrivacySettings clubId={id!} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
       {/* Class Mode - Terms (Admin only) */}
       {isAdmin && club?.class_mode_enabled && (
         <AccordionItem value="terms" className="border rounded-lg px-4">
