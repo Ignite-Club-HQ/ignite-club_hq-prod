@@ -315,13 +315,14 @@ export const TeamInviteEmail = ({
                 </Section>
 
                 {/* Step 2: View */}
-                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : isMiniLeague ? '2. Tap below to join' : '2. Tap below to see their team'}</Text>
+                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : isMiniLeague ? '2. Tap below to join' : parentAudience ? '2. Tap below to see their team' : '2. Tap below to see your team'}</Text>
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Get Started' : isMiniLeague ? 'Join Now' : 'View Their Team'}
+                    {isAdminRole ? 'Get Started' : isMiniLeague ? 'Join Now' : parentAudience ? 'View Their Team' : 'View My Team'}
                   </Button>
                 </Section>
+
 
                 <Text style={fallbackLinkText}>
                   Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>
