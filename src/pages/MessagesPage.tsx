@@ -2587,12 +2587,17 @@ export default function MessagesPage() {
     <div className="py-4 space-y-4">
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center gap-3 py-2 px-3">
+        <Card className="border-primary/10 bg-primary/[0.03]">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 py-1.5 px-3">
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm leading-tight">Unlock Pro Communication</p>
-              <p className="text-xs text-muted-foreground leading-snug">
-                Club wide chats, unlimited photo & file uploads, unlimited polls, DM's and custom groups.
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0">
+                  PRO
+                </Badge>
+                <p className="font-bold text-sm leading-tight">Unlock Pro Communication</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 leading-snug mt-0.5">
+                Club-wide chats, photo sharing, file uploads and unlimited polls.
               </p>
             </div>
             <Button
@@ -2606,9 +2611,9 @@ export default function MessagesPage() {
                   navigate("/clubs");
                 }
               }}
-              className="shrink-0 h-8"
+              className="shrink-0 h-7 rounded-full text-xs font-semibold"
             >
-              Upgrade
+              Upgrade to Pro
             </Button>
           </CardContent>
         </Card>
