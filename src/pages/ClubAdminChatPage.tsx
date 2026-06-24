@@ -158,6 +158,11 @@ export default function ClubAdminChatPage() {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const swipeBack = useSwipeBack();
 
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (conversationId) markChatOpened("club_admin", conversationId); }, [conversationId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+
+
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardBottomInset();
