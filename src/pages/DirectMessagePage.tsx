@@ -1418,7 +1418,7 @@ export default function DirectMessagePage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              onSummarizeMessages={((!scheduleProLoading && !hasSchedulePro) || !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
