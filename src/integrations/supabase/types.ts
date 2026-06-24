@@ -5788,6 +5788,7 @@ export type Database = {
           pitch_board_enabled: boolean
           pom_enabled: boolean | null
           rewards_enabled: boolean | null
+          show_message_preview: boolean
           updated_at: string
           user_id: string
         }
@@ -5810,6 +5811,7 @@ export type Database = {
           pitch_board_enabled?: boolean
           pom_enabled?: boolean | null
           rewards_enabled?: boolean | null
+          show_message_preview?: boolean
           updated_at?: string
           user_id: string
         }
@@ -5832,6 +5834,7 @@ export type Database = {
           pitch_board_enabled?: boolean
           pom_enabled?: boolean | null
           rewards_enabled?: boolean | null
+          show_message_preview?: boolean
           updated_at?: string
           user_id?: string
         }
