@@ -755,6 +755,39 @@ export default function SettingsPage() {
         </Suspense>
       )}
 
+      {/* AI Catch Me Up */}
+      {user && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              AI Catch Me Up
+            </CardTitle>
+            <CardDescription>
+              Control whether you see AI-generated summaries of chat threads
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1 pr-4">
+                <Label htmlFor="ai-catchup-user" className="text-base font-medium">
+                  Show AI summaries
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  When on, you'll see "Catch me up" cards and a menu option to summarise recent messages in your chats. Only available in clubs on Pro where the feature has been enabled.
+                </p>
+              </div>
+              <Switch
+                id="ai-catchup-user"
+                checked={aiCatchUpEnabled}
+                onCheckedChange={handleAiCatchUpChange}
+                disabled={aiCatchUpLoading}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Email Notifications Card */}
       <Card>
         <CardHeader>
