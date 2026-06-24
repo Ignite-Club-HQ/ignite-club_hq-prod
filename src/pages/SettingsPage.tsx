@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle } from "lucide-react";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle, Eye } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ interface NotificationPreferences {
   membership_enabled: boolean;
   pitch_board_enabled: boolean;
   rewards_enabled: boolean;
+  show_message_preview: boolean;
 }
 
 interface EmailPreferences {
@@ -100,6 +101,7 @@ export default function SettingsPage() {
     membership_enabled: true,
     pitch_board_enabled: true,
     rewards_enabled: true,
+    show_message_preview: true,
   });
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
     email_messages_enabled: true,
@@ -135,6 +137,7 @@ export default function SettingsPage() {
           membership_enabled: data.membership_enabled,
           pitch_board_enabled: data.pitch_board_enabled ?? true,
           rewards_enabled: data.rewards_enabled ?? true,
+          show_message_preview: (data as any).show_message_preview ?? true,
         });
         setEmailPreferences({
           email_messages_enabled: data.email_messages_enabled ?? true,
@@ -584,6 +587,14 @@ export default function SettingsPage() {
                     disabled={prefsLoading}
                   />
                   <NotificationToggle
+                    icon={Eye}
+                    label="Show message preview"
+                    description="Show sender name and message text on the lock screen"
+                    checked={preferences.show_message_preview}
+                    onCheckedChange={(v) => handlePreferenceChange("show_message_preview", v)}
+                    disabled={prefsLoading || !preferences.messages_enabled}
+                  />
+                  <NotificationToggle
                     icon={Calendar}
                     label="Events"
                     description="Invites, cancellations & duty assignments"
@@ -655,6 +666,14 @@ export default function SettingsPage() {
               checked={preferences.messages_enabled}
               onCheckedChange={(v) => handlePreferenceChange("messages_enabled", v)}
               disabled={prefsLoading}
+            />
+            <NotificationToggle
+              icon={Eye}
+              label="Show message preview"
+              description="Show sender name and message text on the lock screen"
+              checked={preferences.show_message_preview}
+              onCheckedChange={(v) => handlePreferenceChange("show_message_preview", v)}
+              disabled={prefsLoading || !preferences.messages_enabled}
             />
             <NotificationToggle
               icon={Calendar}
