@@ -10760,6 +10760,22 @@ export type Database = {
           name: string
         }[]
       }
+      lookup_invitable_user_by_email: {
+        Args: {
+          _club_id?: string
+          _email: string
+          _mini_league_id?: string
+          _team_id?: string
+        }
+        Returns: {
+          already_in_club: boolean
+          already_in_mini_league: boolean
+          already_in_team: boolean
+          avatar_url: string
+          display_name: string
+          user_id: string
+        }[]
+      }
       mark_chat_scope_notifications_read: {
         Args: { _scope_id?: string; _scope_kind: string; _user_id: string }
         Returns: number
