@@ -99,8 +99,9 @@ export const ChildAddedEmail = ({
               <>
                 <Text style={headingText}>
                   {childrenNames.length === 1
-                    ? `${childrenNames[0]} has been added to ${teamName} ⚽`
-                    : `Your children have been added to ${teamName} ⚽`}
+                    ? `${childrenNames[0]} has been added to ${teamName} ${emoji}`
+                    : `Your children have been added to ${teamName} ${emoji}`}
+
                 </Text>
 
                 <Text style={bodyText}>
