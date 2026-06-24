@@ -9909,6 +9909,10 @@ export type Database = {
           views: number
         }[]
       }
+      club_engagement_total_unique_reach: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: number
+      }
       club_engagement_totals: {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {
