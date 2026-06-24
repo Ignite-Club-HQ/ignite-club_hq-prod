@@ -49,6 +49,7 @@ const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
 interface TeamJoinLinkCardProps {
   teamId: string;
   teamName: string;
+  teamType?: TeamType;
 }
 
 interface JoinLinkRow {
