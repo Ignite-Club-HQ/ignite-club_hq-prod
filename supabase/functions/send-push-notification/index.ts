@@ -775,8 +775,8 @@ Deno.serve(async (req) => {
     console.log(`[PUSH] Found ${subscriptions.length} web push subscription(s)`);
     
     const payload = JSON.stringify({
-      title: title || 'Ignite',
-      body: body || 'You have a new notification',
+      title: effectiveTitle || 'Ignite',
+      body: effectiveBody || 'You have a new notification',
       url: url || '/notifications',
       notificationId,
       tag: tag || `notification-${notificationId || Date.now()}`,
