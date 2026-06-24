@@ -30,6 +30,7 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
@@ -281,6 +282,7 @@ export default function GroupChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("group", groupId);
   const { data: groupUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!groupId,
     select: (d) => (groupId ? d.groups[groupId] ?? 0 : 0),
@@ -2137,7 +2139,7 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              onSummarizeMessages={((!groupClubProLoading && !groupClubHasPro) || !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!groupClubProLoading && !groupClubHasPro}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}

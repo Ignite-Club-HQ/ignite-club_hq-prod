@@ -22,6 +22,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -278,6 +279,7 @@ export default function DirectMessagePage() {
   // AI Catch-me-up wiring. DM Pro-gate mirrors schedule message gating.
   useEffect(() => { if (conversationId) markChatOpened("direct", conversationId); }, [conversationId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("direct", conversationId);
   const { data: dmUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!conversationId,
     select: (d) => (conversationId ? d.dms[conversationId] ?? 0 : 0),
@@ -1416,7 +1418,7 @@ export default function DirectMessagePage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              onSummarizeMessages={((!scheduleProLoading && !hasSchedulePro) || !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
