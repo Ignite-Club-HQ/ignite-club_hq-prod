@@ -668,7 +668,14 @@ export default function SettingsPage() {
               onCheckedChange={(v) => handlePreferenceChange("messages_enabled", v)}
               disabled={prefsLoading}
             />
-
+            <NotificationToggle
+              icon={Eye}
+              label="Show message text preview"
+              description="Show the message text on your lock screen. Sender name is always shown."
+              checked={preferences.show_message_preview}
+              onCheckedChange={(v) => handlePreferenceChange("show_message_preview", v)}
+              disabled={prefsLoading || !preferences.messages_enabled}
+            />
 
             <NotificationToggle
               icon={Calendar}
