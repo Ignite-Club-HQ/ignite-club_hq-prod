@@ -70,7 +70,24 @@ export function ChatCatchUp({
     },
   });
 
-  const featureDisabled = clubDisabled === true;
+  // Honour the per-user preference. Defaults to true if missing.
+  const { data: userDisabled } = useQuery({
+    queryKey: ["user-ai-catchup-pref"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return false;
+      const { data } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", uid)
+        .maybeSingle();
+      return (data as any)?.ai_catch_up_enabled === false;
+    },
+  });
+
+  const featureDisabled = clubDisabled === true || userDisabled === true;
 
   const {
     eligible, loading, error, result, sheetOpen, setSheetOpen,
