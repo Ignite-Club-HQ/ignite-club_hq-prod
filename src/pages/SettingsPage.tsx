@@ -17,6 +17,7 @@ import { usePasskey } from "@/hooks/usePasskey";
 import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
+import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
