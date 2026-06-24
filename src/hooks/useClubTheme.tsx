@@ -807,7 +807,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // ALL clubs the user belongs to (Pro + free) — used to validate active club
   // selections that aren't themed and to display free club names in the header.
-  const { data: userClubs = [], isLoading: isUserClubsLoading } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+  const { data: userClubs = [], isLoading: isUserClubsLoading, isSuccess: isUserClubsSuccess }= useQuery<{ id: string; name: string; logo_url: string | null }[]>({
     queryKey: ["user-clubs-for-switcher", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
