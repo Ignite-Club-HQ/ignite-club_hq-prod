@@ -3,7 +3,6 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
-  Search,
   Pin,
   EyeOff,
   Eye,
