@@ -2029,34 +2029,20 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
-      {/* Direct Messages - Pro only, Admin only */}
-      {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-        <AccordionItem value="dm-settings" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Direct Messages</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="pt-2">
-              <ClubDMSettings clubId={id!} />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      )}
-
-      {/* Message Privacy - Admin only */}
+      {/* Messages - Admin only (combines DMs + Privacy + AI Catch Up) */}
       {isAdmin && (
-        <AccordionItem value="message-privacy" className="border rounded-lg px-4">
+        <AccordionItem value="messages-settings" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Message Privacy</span>
+              <span className="text-lg font-semibold">Messages</span>
             </div>
           </AccordionTrigger>
           <AccordionContent>
             <div className="pt-2 space-y-3">
+              {(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
+                <ClubDMSettings clubId={id!} />
+              )}
               <ClubMessagePrivacySettings clubId={id!} />
               <ClubAICatchUpSettings clubId={id!} />
             </div>
