@@ -98,7 +98,13 @@ export function ChatHeaderMenu({
             {onSearch && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onScheduleMessage}>
               <CalendarClock className="h-4 w-4 mr-2" />
-              Schedule message
+              <span className="flex-1">Schedule message</span>
+              {scheduleMessageLocked && (
+                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                  <Crown className="h-3 w-3" />
+                  Pro
+                </span>
+              )}
             </DropdownMenuItem>
           </>
         )}
