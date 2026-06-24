@@ -19,6 +19,9 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
+import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
@@ -194,6 +197,16 @@ export default function ClubChatPage() {
       refreshUnreadCount,
     });
   }, [user, clubId, refreshUnreadCount, decrementUnreadCount, queryClient]);
+
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (clubId) markChatOpened("club", clubId); }, [clubId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: clubUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!clubId,
+    select: (d) => (clubId ? d.clubs[clubId] ?? 0 : 0),
+  });
+
+
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
@@ -1484,6 +1497,8 @@ export default function ClubChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {
@@ -1558,6 +1573,16 @@ export default function ClubChatPage() {
       )}
 
       <ChatThreadSponsorStrip clubId={clubId ?? null} />
+
+      <ChatCatchUp
+        scope_type="club"
+        scope_id={clubId}
+        unreadCount={clubUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={clubId ? `/clubs/${clubId}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
 
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (

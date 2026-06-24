@@ -25,6 +25,8 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
+import { markChatOpened } from "@/hooks/useChatCatchUp";
 import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -155,6 +157,11 @@ export default function ClubAdminChatPage() {
   );
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const swipeBack = useSwipeBack();
+
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (conversationId) markChatOpened("club_admin", conversationId); }, [conversationId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+
 
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
@@ -915,11 +922,24 @@ export default function ClubAdminChatPage() {
               isRefreshing={isManualRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!clubProLoading && !clubHasPro}
             />
         </div>
       </div>
 
       <ChatThreadSponsorStrip clubId={conversation?.club_id ?? null} />
+
+      <ChatCatchUp
+        scope_type="club_admin"
+        scope_id={conversationId}
+        unreadCount={0}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={conversation?.club_id ? `/clubs/${conversation.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
 
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">

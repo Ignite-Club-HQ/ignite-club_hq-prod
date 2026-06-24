@@ -20,6 +20,9 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
+import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
@@ -271,6 +274,16 @@ export default function DirectMessagePage() {
       refreshUnreadCount,
     });
   }, [user, conversationId, refreshUnreadCount, decrementUnreadCount, queryClient]);
+
+  // AI Catch-me-up wiring. DM Pro-gate mirrors schedule message gating.
+  useEffect(() => { if (conversationId) markChatOpened("direct", conversationId); }, [conversationId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: dmUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!conversationId,
+    select: (d) => (conversationId ? d.dms[conversationId] ?? 0 : 0),
+  });
+
+
 
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");
@@ -1403,10 +1416,23 @@ export default function DirectMessagePage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
         }
       />
+
+      <ChatCatchUp
+        scope_type="direct"
+        scope_id={conversationId}
+        unreadCount={dmUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!scheduleProLoading && !hasSchedulePro}
+        upgradeHref={sharedClubId ? `/clubs/${sharedClubId}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
       <ChatDetailsSheet
         open={detailsOpen}
         onOpenChange={setDetailsOpen}

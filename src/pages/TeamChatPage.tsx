@@ -23,6 +23,9 @@ import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
+import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -223,8 +226,15 @@ export default function TeamChatPage() {
       refreshUnreadCount,
     });
   }, [user, teamId, refreshUnreadCount, decrementUnreadCount, queryClient]);
-  
-  // Use ref to always get latest profile value in mutation callback
+
+  // Record that the user opened this team chat (drives the AI catch-up trigger).
+  useEffect(() => { if (teamId) markChatOpened("team", teamId); }, [teamId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: teamUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!teamId,
+    select: (d) => (teamId ? d.teams[teamId] ?? 0 : 0),
+  });
+
   const profileRef = useRef(profile);
   profileRef.current = profile;
   
@@ -1717,6 +1727,8 @@ export default function TeamChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 isAdmin
                   ? () => {
@@ -1825,6 +1837,16 @@ export default function TeamChatPage() {
 
       {/* Sponsor / Ad strip (per-club opt-in; never enters message stream) */}
       <ChatThreadSponsorStrip clubId={team?.club_id ?? null} />
+
+      <ChatCatchUp
+        scope_type="team"
+        scope_id={teamId}
+        unreadCount={teamUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={team?.club_id ? `/clubs/${team.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
