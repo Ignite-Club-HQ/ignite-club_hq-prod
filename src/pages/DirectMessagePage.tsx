@@ -232,6 +232,7 @@ export default function DirectMessagePage() {
   const scheduleTarget: ScheduleTarget | null = conversationId
     ? { chat_type: "direct", conversation_id: conversationId }
     : null;
+  const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);

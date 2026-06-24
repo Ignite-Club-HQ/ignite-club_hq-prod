@@ -119,6 +119,7 @@ export default function BroadcastChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
+  const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
