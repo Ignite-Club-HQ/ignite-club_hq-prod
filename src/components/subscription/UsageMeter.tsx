@@ -15,8 +15,8 @@ interface UsageMeterProps {
   capMessage?: string;
   /**
    * When the current Free-tier cycle resets. Surfaced as a "Resets in X days"
-   * hint whenever the user is at the cap, so they know when uploads/polls
-   * become available again. Also shown subtly when running low (>=75%).
+   * hint so users know when uploads/polls become available again.
+   * Prominent when at cap; subtle at all usage levels below it.
    */
   resetAt?: Date | null;
   className?: string;
@@ -64,8 +64,7 @@ export function UsageMeter({
   const navigate = useNavigate();
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const atCap = used >= limit;
-  const runningLow = !atCap && pct >= 75;
-  const showResetHint = !!resetAt && (atCap || runningLow);
+  const showResetHint = !!resetAt;
 
   return (
     <div
