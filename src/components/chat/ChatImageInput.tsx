@@ -292,21 +292,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (docInputRef.current) docInputRef.current.value = "";
       return;
     }
-    // Free-tier file cap check (skipped automatically for Pro clubs).
+    // Free-tier chat-file cap check (skipped automatically for Pro clubs).
     if (clubId) {
       try {
         const { data: usageRow } = await supabase.rpc("get_club_free_usage", { _club_id: clubId });
-        const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+        const usage: any = Array.isArray(usageRow) ? usageRow[0] : usageRow;
         if (usage && !usage.is_pro) {
           const FREE_FILES = 10;
           const FREE_FILE_BYTES = 100 * 1024 * 1024;
-          if (Number(usage.file_count ?? 0) >= FREE_FILES) {
-            toast.error("Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage.");
+          if (Number(usage.chat_file_uploads_this_cycle ?? 0) >= FREE_FILES) {
+            toast.error("You've used your 10 free chat file uploads this cycle. Upgrade to Pro for unlimited chat attachments.");
             if (docInputRef.current) docInputRef.current.value = "";
             return;
           }
-          if (Number(usage.file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
-            toast.error("Your club has used its 100 MB free file storage. Upgrade to Pro for unlimited document storage.");
+          if (Number(usage.chat_file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
+            toast.error("Your club has used its 100 MB free chat file storage this cycle. Upgrade to Pro for unlimited chat attachments.");
             if (docInputRef.current) docInputRef.current.value = "";
             return;
           }
@@ -1000,7 +1000,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 </div>
                 {usage && !usage.isPro && (() => {
                   const photoAtCap = usage.chatPhoto.used >= usage.chatPhoto.limit;
-                  const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
+                  const fileAtCap = showVaultPicker && usage.chatFile.used >= usage.chatFile.limit;
                   const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
                   const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
                   const resetAt = usage.cycleEnd;
@@ -1022,7 +1022,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     <div className="mt-1.5 px-1 space-y-0.5">
                       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
                         <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.chatPhoto.used}/{usage.chatPhoto.limit} photos</span>
-                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.file.used}/{usage.file.limit} files</span>}
+                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.chatFile.used}/{usage.chatFile.limit} files</span>}
                         {showPollCreator && <span className={pollAtCap ? "text-destructive font-medium" : undefined}>{usage.poll.used}/{usage.poll.limit} polls</span>}
                       </div>
                       {resetLine && (

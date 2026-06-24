@@ -20,6 +20,8 @@ export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
 export const FREE_CHAT_PHOTOS_PER_CYCLE = 20;
 export const FREE_FILE_COUNT = 10;
 export const FREE_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const FREE_CHAT_FILE_COUNT = 10;
+export const FREE_CHAT_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
 export const FREE_POLLS_PER_CYCLE = 2;
 
 export interface ClubFreeUsage {
@@ -38,6 +40,15 @@ export interface ClubFreeUsage {
     atCap: boolean;
   };
   file: {
+    used: number;
+    limit: number;
+    storageUsed: number;
+    storageLimit: number;
+    atCountCap: boolean;
+    atStorageCap: boolean;
+    atCap: boolean;
+  };
+  chatFile: {
     used: number;
     limit: number;
     storageUsed: number;
@@ -81,6 +92,8 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       const chatPhotoUsed = Number(row.chat_photo_uploads_this_cycle ?? 0);
       const fileUsed = Number(row.file_count ?? 0);
       const fileBytes = Number(row.file_storage_bytes ?? 0);
+      const chatFileUsed = Number((row as any).chat_file_uploads_this_cycle ?? 0);
+      const chatFileBytes = Number((row as any).chat_file_storage_bytes ?? 0);
       const pollUsed = Number(row.polls_this_cycle ?? 0);
       const isPro = !!row.is_pro;
 
@@ -109,6 +122,17 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
           atCap:
             !isPro &&
             (fileUsed >= FREE_FILE_COUNT || fileBytes >= FREE_FILE_STORAGE_BYTES),
+        },
+        chatFile: {
+          used: chatFileUsed,
+          limit: FREE_CHAT_FILE_COUNT,
+          storageUsed: chatFileBytes,
+          storageLimit: FREE_CHAT_FILE_STORAGE_BYTES,
+          atCountCap: !isPro && chatFileUsed >= FREE_CHAT_FILE_COUNT,
+          atStorageCap: !isPro && chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES,
+          atCap:
+            !isPro &&
+            (chatFileUsed >= FREE_CHAT_FILE_COUNT || chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES),
         },
         poll: {
           used: pollUsed,
