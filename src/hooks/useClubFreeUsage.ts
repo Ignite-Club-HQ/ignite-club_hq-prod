@@ -107,8 +107,24 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
     },
   });
 
+  // Refresh immediately when an upload/poll-create elsewhere in the app
+  // dispatches the global refresh event. Matches on clubId when supplied,
+  // otherwise refetches for all mounted instances.
+  useEffect(() => {
+    if (!enabled) return;
+    const onRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<{ clubId: string | null }>).detail;
+      if (!detail?.clubId || detail.clubId === clubId) {
+        refetch();
+      }
+    };
+    window.addEventListener(REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(REFRESH_EVENT, onRefresh);
+  }, [enabled, clubId, refetch]);
+
   return { usage: data ?? null, isLoading, refetch };
 }
+
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
