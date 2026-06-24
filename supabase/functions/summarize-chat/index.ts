@@ -106,10 +106,20 @@ serve(async (req) => {
       });
     }
 
-    // Pro gate (skip for direct messages — no single club to evaluate).
+    // Pro gate + club-level AI Catch Me Up toggle (skip for direct messages — no single club to evaluate).
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
+        const { data: clubRow } = await admin
+          .from("clubs")
+          .select("ai_catch_up_enabled")
+          .eq("id", clubId)
+          .maybeSingle();
+        if ((clubRow as any)?.ai_catch_up_enabled === false) {
+          return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         const { data: hasPro } = await admin.rpc("has_active_pro_for_club", { _club_id: clubId });
         if (hasPro !== true) {
           return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
