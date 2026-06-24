@@ -75,9 +75,9 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return new Response(JSON.stringify({ error: "AI not configured" }), {
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ error: "ai_not_configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -191,38 +191,33 @@ serve(async (req) => {
       })
       .join("\n");
 
-    // Call Lovable AI Gateway
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${lovableKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content:
-              `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`,
+    // Call Google Gemini directly (Generative Language API).
+    const GEMINI_MODEL = "gemini-2.0-flash";
+    const userPrompt =
+      `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
+
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.3,
           },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+        }),
+      },
+    );
 
     if (!aiRes.ok) {
       const txt = await aiRes.text();
-      console.error("[summarize-chat] ai error", aiRes.status, txt);
+      console.error("[summarize-chat] gemini error", aiRes.status, txt);
       if (aiRes.status === 429) {
         return new Response(JSON.stringify({ error: "rate_limited" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiRes.status === 402) {
-        return new Response(JSON.stringify({ error: "credits_exhausted" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       return new Response(JSON.stringify({ error: "ai_failed" }), {
@@ -231,7 +226,8 @@ serve(async (req) => {
     }
 
     const aiJson = await aiRes.json();
-    const raw: string = aiJson?.choices?.[0]?.message?.content ?? "{}";
+    const raw: string =
+      aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
@@ -256,7 +252,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "google/gemini-3-flash-preview",
+          model: "gemini-2.0-flash",
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
