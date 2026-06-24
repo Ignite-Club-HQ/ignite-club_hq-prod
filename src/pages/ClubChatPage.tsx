@@ -1483,6 +1483,7 @@ export default function ClubChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
+              scheduleMessageLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {
