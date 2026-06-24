@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
-import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -90,6 +90,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { hasAccess: hasProAccess } = useScheduleProAccess({ team_id: teamId ?? null, club_id: clubId ?? null } as any);
 
   // Resolve the clubId for upgrade navigation when only teamId is known.
@@ -104,6 +105,37 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
   const { usage } = useClubFreeUsage(effectiveClubId);
+
+  const refreshClubFreeUsage = (changedClubId: string | null | undefined = effectiveClubId) => {
+    notifyClubFreeUsageChanged(changedClubId ?? null);
+    if (changedClubId) {
+      void queryClient.invalidateQueries({ queryKey: ["club-free-usage", changedClubId] });
+      void queryClient.refetchQueries({ queryKey: ["club-free-usage", changedClubId], type: "active" });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+  };
+
+  const optimisticallyBumpChatFileUsage = (changedClubId: string | null | undefined, fileSize: number) => {
+    if (!changedClubId) return;
+    queryClient.setQueryData<ClubFreeUsage | null>(["club-free-usage", changedClubId], (current) => {
+      if (!current || current.isPro) return current;
+
+      const used = current.chatFile.used + 1;
+      const storageUsed = current.chatFile.storageUsed + fileSize;
+
+      return {
+        ...current,
+        chatFile: {
+          ...current.chatFile,
+          used,
+          storageUsed,
+          atCountCap: used >= current.chatFile.limit,
+          atStorageCap: storageUsed >= current.chatFile.storageLimit,
+          atCap: used >= current.chatFile.limit || storageUsed >= current.chatFile.storageLimit,
+        },
+      };
+    });
+  };
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
@@ -292,21 +324,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (docInputRef.current) docInputRef.current.value = "";
       return;
     }
-    // Free-tier file cap check (skipped automatically for Pro clubs).
+    // Free-tier chat-file cap check (skipped automatically for Pro clubs).
     if (clubId) {
       try {
         const { data: usageRow } = await supabase.rpc("get_club_free_usage", { _club_id: clubId });
-        const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+        const usage: any = Array.isArray(usageRow) ? usageRow[0] : usageRow;
         if (usage && !usage.is_pro) {
           const FREE_FILES = 10;
           const FREE_FILE_BYTES = 100 * 1024 * 1024;
-          if (Number(usage.file_count ?? 0) >= FREE_FILES) {
-            toast.error("Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage.");
+          if (Number(usage.chat_file_uploads_this_cycle ?? 0) >= FREE_FILES) {
+            toast.error("You've used your 10 free chat file uploads this cycle. Upgrade to Pro for unlimited chat attachments.");
             if (docInputRef.current) docInputRef.current.value = "";
             return;
           }
-          if (Number(usage.file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
-            toast.error("Your club has used its 100 MB free file storage. Upgrade to Pro for unlimited document storage.");
+          if (Number(usage.chat_file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
+            toast.error("Your club has used its 100 MB free chat file storage this cycle. Upgrade to Pro for unlimited chat attachments.");
             if (docInputRef.current) docInputRef.current.value = "";
             return;
           }
@@ -356,6 +388,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           .single();
         if (insErr || !row) throw insErr || new Error("Failed to register file");
         onAppendToken(makeVaultFileToken(row.id));
+        optimisticallyBumpChatFileUsage(clubId, file.size);
+        refreshClubFreeUsage(clubId);
         toast.success("File attached");
       } else {
         toast.error("Cannot attach file in this chat");
@@ -758,24 +792,38 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     <span className="text-[12px] text-muted-foreground">PDF, doc, sheet</span>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    setAttachChooserOpen(false);
-                    setVaultPickerOpen(true);
-                  }}
-                  className="group flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
-                  aria-label="Choose from vault"
-                >
-                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center group-active:bg-primary/15 transition-colors">
-                    <FolderOpen className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex flex-col items-center leading-tight gap-0.5">
-                    <span className="text-[15px] font-medium text-foreground">From Vault</span>
-                    <span className="text-[12px] text-muted-foreground">Existing file or folder</span>
-                  </div>
-                </button>
+                {(() => {
+                  const vaultLocked = !!usage && !usage.isPro;
+                  return (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setAttachChooserOpen(false);
+                        if (vaultLocked) {
+                          navigate("/upgrade");
+                          return;
+                        }
+                        setVaultPickerOpen(true);
+                      }}
+                      className="group relative flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
+                      aria-label={vaultLocked ? "From Vault (Pro only)" : "Choose from vault"}
+                    >
+                      {vaultLocked && (
+                        <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
+                          <Crown className="h-2.5 w-2.5" /> PRO
+                        </span>
+                      )}
+                      <div className={`h-14 w-14 rounded-full flex items-center justify-center transition-colors ${vaultLocked ? "bg-muted" : "bg-primary/10 group-active:bg-primary/15"}`}>
+                        <FolderOpen className={`h-6 w-6 ${vaultLocked ? "text-muted-foreground" : "text-primary"}`} />
+                      </div>
+                      <div className="flex flex-col items-center leading-tight gap-0.5">
+                        <span className={`text-[15px] font-medium ${vaultLocked ? "text-muted-foreground" : "text-foreground"}`}>From Vault</span>
+                        <span className="text-[12px] text-muted-foreground">{vaultLocked ? "Upgrade to unlock" : "Existing file or folder"}</span>
+                      </div>
+                    </button>
+                  );
+                })()}
               </div>
             </SheetContent>
           </Sheet>
@@ -913,7 +961,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: "Device or vault",
+                  hint: usage && !usage.isPro ? "From device" : "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
@@ -998,8 +1046,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   ))}
                 </div>
                 {usage && !usage.isPro && (() => {
-                  const photoAtCap = usage.photo.used >= usage.photo.limit;
-                  const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
+                  const photoAtCap = usage.chatPhoto.used >= usage.chatPhoto.limit;
+                  const fileAtCap = showVaultPicker && usage.chatFile.used >= usage.chatFile.limit;
                   const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
                   const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
                   const resetAt = usage.cycleEnd;
@@ -1020,8 +1068,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   return (
                     <div className="mt-1.5 px-1 space-y-0.5">
                       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
-                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.photo.used}/{usage.photo.limit} photos</span>
-                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.file.used}/{usage.file.limit} files</span>}
+                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.chatPhoto.used}/{usage.chatPhoto.limit} photos</span>
+                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.chatFile.used}/{usage.chatFile.limit} files</span>}
                         {showPollCreator && <span className={pollAtCap ? "text-destructive font-medium" : undefined}>{usage.poll.used}/{usage.poll.limit} polls</span>}
                       </div>
                       {resetLine && (

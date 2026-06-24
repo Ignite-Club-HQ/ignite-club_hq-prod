@@ -1,9 +1,27 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+const REFRESH_EVENT = "club-free-usage:refresh";
+
+/**
+ * Trigger an immediate refresh of the Free-tier usage meter for a club.
+ * Call this after any action that affects the cycle counters (photo
+ * upload, file upload, poll create, chat image send) so the meter
+ * reflects the new count without waiting for staleTime to elapse.
+ */
+export function notifyClubFreeUsageChanged(clubId?: string | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REFRESH_EVENT, { detail: { clubId: clubId ?? null } }));
+}
+
+
 export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
+export const FREE_CHAT_PHOTOS_PER_CYCLE = 20;
 export const FREE_FILE_COUNT = 10;
 export const FREE_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const FREE_CHAT_FILE_COUNT = 10;
+export const FREE_CHAT_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
 export const FREE_POLLS_PER_CYCLE = 2;
 
 export interface ClubFreeUsage {
@@ -16,7 +34,21 @@ export interface ClubFreeUsage {
     atCountCap: boolean;
     atCap: boolean;
   };
+  chatPhoto: {
+    used: number;
+    limit: number;
+    atCap: boolean;
+  };
   file: {
+    used: number;
+    limit: number;
+    storageUsed: number;
+    storageLimit: number;
+    atCountCap: boolean;
+    atStorageCap: boolean;
+    atCap: boolean;
+  };
+  chatFile: {
     used: number;
     limit: number;
     storageUsed: number;
@@ -42,7 +74,9 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["club-free-usage", clubId],
     enabled,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<ClubFreeUsage | null> => {
       const { data, error } = await supabase.rpc("get_club_free_usage", {
         _club_id: clubId!,
@@ -55,8 +89,11 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       if (!row) return null;
 
       const photoUsed = Number(row.photo_uploads_this_cycle ?? 0);
+      const chatPhotoUsed = Number(row.chat_photo_uploads_this_cycle ?? 0);
       const fileUsed = Number(row.file_count ?? 0);
       const fileBytes = Number(row.file_storage_bytes ?? 0);
+      const chatFileUsed = Number((row as any).chat_file_uploads_this_cycle ?? 0);
+      const chatFileBytes = Number((row as any).chat_file_storage_bytes ?? 0);
       const pollUsed = Number(row.polls_this_cycle ?? 0);
       const isPro = !!row.is_pro;
 
@@ -70,6 +107,11 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
           atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
           atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
         },
+        chatPhoto: {
+          used: chatPhotoUsed,
+          limit: FREE_CHAT_PHOTOS_PER_CYCLE,
+          atCap: !isPro && chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE,
+        },
         file: {
           used: fileUsed,
           limit: FREE_FILE_COUNT,
@@ -81,6 +123,17 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
             !isPro &&
             (fileUsed >= FREE_FILE_COUNT || fileBytes >= FREE_FILE_STORAGE_BYTES),
         },
+        chatFile: {
+          used: chatFileUsed,
+          limit: FREE_CHAT_FILE_COUNT,
+          storageUsed: chatFileBytes,
+          storageLimit: FREE_CHAT_FILE_STORAGE_BYTES,
+          atCountCap: !isPro && chatFileUsed >= FREE_CHAT_FILE_COUNT,
+          atStorageCap: !isPro && chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES,
+          atCap:
+            !isPro &&
+            (chatFileUsed >= FREE_CHAT_FILE_COUNT || chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES),
+        },
         poll: {
           used: pollUsed,
           limit: FREE_POLLS_PER_CYCLE,
@@ -90,8 +143,24 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
     },
   });
 
+  // Refresh immediately when an upload/poll-create elsewhere in the app
+  // dispatches the global refresh event. Matches on clubId when supplied,
+  // otherwise refetches for all mounted instances.
+  useEffect(() => {
+    if (!enabled) return;
+    const onRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<{ clubId: string | null }>).detail;
+      if (!detail?.clubId || detail.clubId === clubId) {
+        refetch();
+      }
+    };
+    window.addEventListener(REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(REFRESH_EVENT, onRefresh);
+  }, [enabled, clubId, refetch]);
+
   return { usage: data ?? null, isLoading, refetch };
 }
+
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

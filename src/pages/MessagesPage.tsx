@@ -2585,34 +2585,6 @@ export default function MessagesPage() {
 
   return (
     <div className="py-4 space-y-4">
-      {/* Pro upgrade banner for non-Pro admin users */}
-      {hasAdminRoleButNoPro && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center gap-3 py-2 px-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm leading-tight">Unlock Pro Communication</p>
-              <p className="text-xs text-muted-foreground leading-snug">
-                Club wide chats, unlimited photo & file uploads, unlimited polls, DM's and custom groups.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }}
-              className="shrink-0 h-8"
-            >
-              Upgrade
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Header with search and create group */}
       <div className="flex items-center justify-between gap-4">
@@ -2729,6 +2701,56 @@ export default function MessagesPage() {
           className="pl-9"
         />
       </div>
+
+      {/* Pro upgrade banner for non-Pro admin users — compact */}
+      {hasAdminRoleButNoPro && (
+        <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
+          <CardContent className="flex flex-col gap-2 py-2 px-3">
+            {/* Heading row with Upgrade button */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Badge
+                  variant="secondary"
+                  className="text-[9px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
+                >
+                  PRO
+                </Badge>
+                <p className="font-bold text-sm leading-tight truncate">
+                  Unlock Club Messaging
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (upgradeClubId) {
+                    navigate(`/clubs/${upgradeClubId}/upgrade`);
+                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                  } else {
+                    navigate("/clubs");
+                  }
+                }}
+                className="h-6 rounded-full text-[11px] font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+              >
+                Upgrade
+              </Button>
+            </div>
+
+            {/* Feature chips full width */}
+            <div className="flex flex-wrap items-center gap-2">
+              {["Club Chat", "Photos", "Files", "Polls"].map((label) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center rounded-full border border-primary/15 bg-primary/[0.06] px-2 py-[3px] text-[11px] font-medium text-primary"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on

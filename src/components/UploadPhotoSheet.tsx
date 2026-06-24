@@ -844,6 +844,7 @@ export function UploadPhotoSheet({
     queryClient.invalidateQueries({ queryKey: ["photos"] });
     queryClient.invalidateQueries({ queryKey: ["vault-files"] });
     queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+    queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
     
     // Notify parent that uploading is complete
     onUploadingCountChange?.(0);
