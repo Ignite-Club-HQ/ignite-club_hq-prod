@@ -44,6 +44,7 @@ interface NotificationPreferences {
   membership_enabled: boolean;
   pitch_board_enabled: boolean;
   rewards_enabled: boolean;
+  show_message_preview: boolean;
 }
 
 interface EmailPreferences {
