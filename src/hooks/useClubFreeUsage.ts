@@ -57,7 +57,9 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["club-free-usage", clubId],
     enabled,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<ClubFreeUsage | null> => {
       const { data, error } = await supabase.rpc("get_club_free_usage", {
         _club_id: clubId!,
