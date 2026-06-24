@@ -1541,32 +1541,36 @@ export default function VaultPage() {
     if (isStorageLimitReached) return false;
     if (!currentClub) return false;
     if (isAppAdmin) return true;
-    
-    // Require Pro access for the current club/team context
-    if (!currentContextHasPro) return false;
-    
+
+    // Role-based write access for the current context. Pro is NOT required here —
+    // free clubs still get to upload from device (subject to free-tier quotas).
+    // Pro-only Add features (New Folder / Add Link / Drive imports) gate on
+    // `canManageVaultPro` below.
     const clubId = getCurrentClubId();
     const teamId = getCurrentTeamId();
-    const miniLeagueId = getCurrentMiniLeagueId();
-    
+
     // Club admins and committee members can upload to any club, team, or mini-league vault within their club
     if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
-    
+
     // Team admins can only upload to their own team vault
     if (currentView.type === "team") {
       return userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId);
     }
-    
+
     // Mini-league: league admins and coaches can upload
     if (currentView.type === "mini-league") {
-      return userRoles?.some(r => 
+      return userRoles?.some(r =>
         (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId
       );
     }
-    
+
     // For club-level view, only club admins and committee members can upload (handled above)
     return false;
-  }, [isAppAdmin, currentClub, isStorageLimitReached, currentView, userRoles, currentContextHasPro]);
+  }, [isAppAdmin, currentClub, isStorageLimitReached, currentView, userRoles]);
+
+  // Pro-gated vault management (folders, link entries, Drive imports/sync).
+  // Free users may upload from device but cannot create folders/links or pull from Drive.
+  const canManageVaultPro = canUpload && currentContextHasPro;
 
   const canDeletePhoto = useCallback((photo: any) => {
     if (isAppAdmin) return true;
