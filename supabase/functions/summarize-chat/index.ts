@@ -252,7 +252,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "google/gemini-3-flash-preview",
+          model: "gemini-2.0-flash",
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
