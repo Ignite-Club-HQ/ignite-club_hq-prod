@@ -68,11 +68,12 @@ export function ClubMessagePrivacySettings({ clubId }: Props) {
         <div className="flex items-center justify-between">
           <div className="space-y-1 pr-4">
             <Label htmlFor="force-disable-previews" className="text-base font-medium">
-              Hide message previews for everyone
+              Hide message text in push notifications
             </Label>
             <p className="text-sm text-muted-foreground">
-              When on, push notifications for messages in this club show only "New message" — sender names and message text are hidden on lock screens for every member, regardless of their personal setting.
+              When on, push notifications for messages in this club hide the message text on lock screens for every member. Sender names and the conversation are always shown — only the message body is replaced with "New message".
             </p>
+
           </div>
           <Switch
             id="force-disable-previews"

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { ExternalLink, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // HARD RESTRICTION: Pro sponsor strip is Riverside FC only for this MVP.
@@ -57,6 +59,7 @@ const tierKey = (t: SponsorTier): keyof typeof TIER_WEIGHT =>
  */
 export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | undefined }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [dismissed, setDismissed] = useState(false);
@@ -273,7 +276,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
           onClick={() => {
             if (!clickable) return;
             trackAdClick(activeAd.id, "messages_page");
-            safeOpenUrl(activeAd.link_url!);
+            openAdLink(activeAd.link_url, navigate, { clubId });
           }}
           disabled={!clickable}
           className={`w-full flex items-center gap-2 px-3 py-2 text-left ${

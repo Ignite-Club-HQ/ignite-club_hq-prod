@@ -588,12 +588,13 @@ export default function SettingsPage() {
                   />
                   <NotificationToggle
                     icon={Eye}
-                    label="Show message preview"
-                    description="Show sender name and message text on the lock screen"
+                    label="Show message text preview"
+                    description="Show the message text on your lock screen. Sender name is always shown."
                     checked={preferences.show_message_preview}
                     onCheckedChange={(v) => handlePreferenceChange("show_message_preview", v)}
                     disabled={prefsLoading || !preferences.messages_enabled}
                   />
+
                   <NotificationToggle
                     icon={Calendar}
                     label="Events"
@@ -669,12 +670,13 @@ export default function SettingsPage() {
             />
             <NotificationToggle
               icon={Eye}
-              label="Show message preview"
-              description="Show sender name and message text on the lock screen"
+              label="Show message text preview"
+              description="Show the message text on your lock screen. Sender name is always shown."
               checked={preferences.show_message_preview}
               onCheckedChange={(v) => handlePreferenceChange("show_message_preview", v)}
               disabled={prefsLoading || !preferences.messages_enabled}
             />
+
             <NotificationToggle
               icon={Calendar}
               label="Events"

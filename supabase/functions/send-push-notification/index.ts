@@ -675,8 +675,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Lock-screen privacy: if user opted out of message previews, redact
-    // chat-type notifications to a generic title/body.
+    // Lock-screen privacy: club admins can force the message text preview
+    // to be hidden for chat-type notifications. Sender names (carried in
+    // the title) are NEVER hidden — only the message body is redacted.
     const MESSAGE_TYPES = new Set([
       'team_message','club_message','group_message','direct_message',
       'broadcast','message_reply','message_mention','message_reaction',
@@ -685,23 +686,23 @@ Deno.serve(async (req) => {
     let effectiveTitle = title;
     let effectiveBody = body;
     if (notificationType && MESSAGE_TYPES.has(notificationType)) {
+      // Per-user opt-out: hide message text on lock screen (sender name stays).
       try {
         const { data: prefRow } = await supabase
           .from('notification_preferences')
           .select('show_message_preview')
           .eq('user_id', userId)
           .maybeSingle();
-        const showPreview = (prefRow as any)?.show_message_preview ?? true;
+        const showPreview = (prefRow as any)?.show_message_preview ?? false;
         if (!showPreview) {
-          effectiveTitle = 'Ignite';
           effectiveBody = 'New message';
         }
       } catch (err) {
-        console.warn('[PUSH] Could not read show_message_preview, defaulting to show:', err);
+        console.warn('[PUSH] Could not read show_message_preview, defaulting to hide:', err);
+        effectiveBody = 'New message';
       }
 
-      // Club-level override: a club admin can force previews off for everyone
-      // in their club, regardless of personal preference.
+
       try {
         let clubId: string | undefined = (data as any)?.club_id;
         if (!clubId && (data as any)?.team_id) {
@@ -735,7 +736,6 @@ Deno.serve(async (req) => {
             .eq('id', clubId)
             .maybeSingle();
           if ((clubRow as any)?.force_disable_message_previews) {
-            effectiveTitle = 'Ignite';
             effectiveBody = 'New message';
           }
         }
@@ -743,6 +743,7 @@ Deno.serve(async (req) => {
         console.warn('[PUSH] Could not evaluate club preview override:', err);
       }
     }
+
 
     // Send to native apps via FCM (parallel with web push)
     const fcmPromise = sendFCMNotifications(

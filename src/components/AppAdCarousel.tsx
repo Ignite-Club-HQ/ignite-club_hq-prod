@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { openAdLink } from "@/lib/adLinkNavigation";
 
 interface AppAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
@@ -165,14 +166,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     }
 
     
-    if (currentAd.link_url) {
-      // For other ads, check if it's an internal or external link
-      if (currentAd.link_url.startsWith("/")) {
-        navigate(currentAd.link_url);
-      } else {
-        import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(currentAd.link_url!));
-      }
-    }
+    openAdLink(currentAd.link_url, navigate, adminScopes ?? undefined);
   };
 
   return (

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { ExternalLink, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Pro club sponsor strip dismissal — 24h hide, user+club scoped.
@@ -76,6 +78,7 @@ interface AppAdLite {
  */
 export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { trackView: trackSponsorView, trackClick: trackSponsorClick } = useSponsorAnalytics();
   const { trackView: trackAdView, trackClick: trackAdClick } = useAdAnalytics();
   const [adIndex, setAdIndex] = useState(0);
@@ -316,7 +319,7 @@ export function ChatThreadSponsorStrip({ clubId }: ChatThreadSponsorStripProps) 
     const onClick = () => {
       if (!clickable) return;
       trackAdClick(activeAd.id, "messages_page");
-      safeOpenUrl(activeAd.link_url!);
+      openAdLink(activeAd.link_url, navigate, { clubId });
     };
     return (
       <div className="shrink-0 border-b bg-card">
