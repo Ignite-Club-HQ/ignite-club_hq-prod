@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
-import { useClubFreeUsage, notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -90,6 +90,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { hasAccess: hasProAccess } = useScheduleProAccess({ team_id: teamId ?? null, club_id: clubId ?? null } as any);
 
   // Resolve the clubId for upgrade navigation when only teamId is known.
@@ -104,6 +105,37 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
   const { usage } = useClubFreeUsage(effectiveClubId);
+
+  const refreshClubFreeUsage = (changedClubId: string | null | undefined = effectiveClubId) => {
+    notifyClubFreeUsageChanged(changedClubId ?? null);
+    if (changedClubId) {
+      void queryClient.invalidateQueries({ queryKey: ["club-free-usage", changedClubId] });
+      void queryClient.refetchQueries({ queryKey: ["club-free-usage", changedClubId], type: "active" });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+  };
+
+  const optimisticallyBumpChatFileUsage = (changedClubId: string | null | undefined, fileSize: number) => {
+    if (!changedClubId) return;
+    queryClient.setQueryData<ClubFreeUsage | null>(["club-free-usage", changedClubId], (current) => {
+      if (!current || current.isPro) return current;
+
+      const used = current.chatFile.used + 1;
+      const storageUsed = current.chatFile.storageUsed + fileSize;
+
+      return {
+        ...current,
+        chatFile: {
+          ...current.chatFile,
+          used,
+          storageUsed,
+          atCountCap: used >= current.chatFile.limit,
+          atStorageCap: storageUsed >= current.chatFile.storageLimit,
+          atCap: used >= current.chatFile.limit || storageUsed >= current.chatFile.storageLimit,
+        },
+      };
+    });
+  };
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
@@ -356,7 +388,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           .single();
         if (insErr || !row) throw insErr || new Error("Failed to register file");
         onAppendToken(makeVaultFileToken(row.id));
-        notifyClubFreeUsageChanged(clubId);
+        optimisticallyBumpChatFileUsage(clubId, file.size);
+        refreshClubFreeUsage(clubId);
         toast.success("File attached");
       } else {
         toast.error("Cannot attach file in this chat");
