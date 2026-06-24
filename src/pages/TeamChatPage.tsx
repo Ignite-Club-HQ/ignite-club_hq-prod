@@ -235,6 +235,7 @@ export default function TeamChatPage() {
     select: (d) => (teamId ? d.teams[teamId] ?? 0 : 0),
   });
 
+  const profileRef = useRef(profile);
   profileRef.current = profile;
   
   // Legacy DOM refs are no longer required (Virtuoso owns scroll), but keep
