@@ -2705,24 +2705,17 @@ export default function MessagesPage() {
       {/* Pro upgrade banner for non-Pro admin users — compact, benefit-led */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
-          <CardContent className="py-2 px-3">
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="secondary"
-                    className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
-                  >
-                    PRO
-                  </Badge>
-                  <p className="font-bold text-sm leading-tight truncate">
-                    Communicate Across Your Entire Club
-                  </p>
-                </div>
-                <p className="mt-1.5 text-xs text-foreground/60 leading-snug line-clamp-2">
-                  Reach every player, parent, coach and committee member with messaging, photos, files and polls.
-                </p>
-              </div>
+          <CardContent className="py-1.5 px-3">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
+              >
+                PRO
+              </Badge>
+              <p className="font-bold text-sm leading-tight whitespace-nowrap">
+                Unlimited Club Communication
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -2734,11 +2727,14 @@ export default function MessagesPage() {
                     navigate("/clubs");
                   }
                 }}
-                className="shrink-0 mt-0.5 text-xs font-semibold text-primary hover:underline"
+                className="ml-auto shrink-0 text-xs font-semibold text-primary hover:underline"
               >
-                Upgrade to Pro →
+                Upgrade →
               </button>
             </div>
+            <p className="mt-1 text-[11px] text-foreground/60 leading-snug">
+              📢 Club Chats · 📷 Photos · 📁 Files · 📊 Polls
+            </p>
           </CardContent>
         </Card>
       )}
