@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 import { UsageMeter } from "@/components/subscription/UsageMeter";
-import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
 import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -195,6 +195,7 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
       return poll.id as string;
     },
     onSuccess: (pollId) => {
+      notifyClubFreeUsageChanged(clubIdProp ?? null);
       onCreated(pollId);
       reset();
       onOpenChange(false);

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
-import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -356,6 +356,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           .single();
         if (insErr || !row) throw insErr || new Error("Failed to register file");
         onAppendToken(makeVaultFileToken(row.id));
+        notifyClubFreeUsageChanged(clubId);
         toast.success("File attached");
       } else {
         toast.error("Cannot attach file in this chat");

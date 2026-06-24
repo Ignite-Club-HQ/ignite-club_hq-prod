@@ -1,5 +1,20 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+const REFRESH_EVENT = "club-free-usage:refresh";
+
+/**
+ * Trigger an immediate refresh of the Free-tier usage meter for a club.
+ * Call this after any action that affects the cycle counters (photo
+ * upload, file upload, poll create, chat image send) so the meter
+ * reflects the new count without waiting for staleTime to elapse.
+ */
+export function notifyClubFreeUsageChanged(clubId?: string | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REFRESH_EVENT, { detail: { clubId: clubId ?? null } }));
+}
+
 
 export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
 export const FREE_FILE_COUNT = 10;
@@ -42,7 +57,9 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["club-free-usage", clubId],
     enabled,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<ClubFreeUsage | null> => {
       const { data, error } = await supabase.rpc("get_club_free_usage", {
         _club_id: clubId!,
@@ -90,8 +107,24 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
     },
   });
 
+  // Refresh immediately when an upload/poll-create elsewhere in the app
+  // dispatches the global refresh event. Matches on clubId when supplied,
+  // otherwise refetches for all mounted instances.
+  useEffect(() => {
+    if (!enabled) return;
+    const onRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<{ clubId: string | null }>).detail;
+      if (!detail?.clubId || detail.clubId === clubId) {
+        refetch();
+      }
+    };
+    window.addEventListener(REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(REFRESH_EVENT, onRefresh);
+  }, [enabled, clubId, refetch]);
+
   return { usage: data ?? null, isLoading, refetch };
 }
+
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

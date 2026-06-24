@@ -1860,6 +1860,7 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
       setUploadDialogOpen(false);
       setFileName("");
       toast.success("File uploaded successfully!");

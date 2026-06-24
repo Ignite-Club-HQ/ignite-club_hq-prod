@@ -5,6 +5,7 @@ import {
   unpublishGalleryPhoto,
   type PublishChatImageArgs,
 } from "@/lib/publishChatImageToGallery";
+import { notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
 import {
   shouldShowGalleryNudge,
   markGalleryNudgeShown,
@@ -39,13 +40,14 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
           next.delete(messageId);
           return next;
         });
+        notifyClubFreeUsageChanged(clubId);
         toast.success("Removed from gallery");
       } catch (err: any) {
         console.error("[usePublishChatImage] undo failed", err);
         toast.error(err?.message || "Couldn't undo");
       }
     },
-    [],
+    [clubId],
   );
 
   const publish = useCallback(
@@ -75,6 +77,7 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
         if (result.alreadyPublished) {
           toast.success("Already in the media gallery");
         } else {
+          notifyClubFreeUsageChanged(clubId);
           toast.success("Added to media gallery", {
             duration: 6000,
             action: {
