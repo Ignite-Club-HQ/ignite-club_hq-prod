@@ -148,67 +148,57 @@ export function ChatHeaderMenu({
             {hasMoreActions && (
               <>
                 {(onRefresh || onScheduleMessage) && <DropdownMenuSeparator />}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Settings2 className="h-4 w-4 mr-2" />
-                    More actions
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent side="bottom" align="end" className="bg-popover min-w-[200px]">
-                      {onManagePinnedVault && (
-                        <>
-                          <DropdownMenuItem onClick={onManagePinnedVault}>
-                            <Pin className="h-4 w-4 mr-2" />
-                            <span className="flex-1">Pinned vault…</span>
-                            {pinnedVaultLocked && (
-                              <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                                <Crown className="h-3 w-3" />
-                                Pro
-                              </span>
-                            )}
-                          </DropdownMenuItem>
-                          {!pinnedVaultLocked
-                            && typeof pinnedVaultEnabled === "boolean"
-                            && onTogglePinnedVault && (
-                              <DropdownMenuItem
-                                onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}
-                              >
-                                {pinnedVaultEnabled ? (
-                                  <>
-                                    <EyeOff className="h-4 w-4 mr-2" />
-                                    Hide pinned vault
-                                  </>
-                                ) : (
-                                  <>
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Show pinned vault
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                            )}
-                        </>
+                {onManagePinnedVault && (
+                  <>
+                    <DropdownMenuItem onClick={onManagePinnedVault}>
+                      <Pin className="h-4 w-4 mr-2" />
+                      <span className="flex-1">Pinned vault…</span>
+                      {pinnedVaultLocked && (
+                        <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                          <Crown className="h-3 w-3" />
+                          Pro
+                        </span>
                       )}
-                      {onEditGroup && (
-                        <>
-                          {onManagePinnedVault && <DropdownMenuSeparator />}
-                          <DropdownMenuItem onClick={onEditGroup}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit group
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      {onDeleteGroup && (
+                    </DropdownMenuItem>
+                    {!pinnedVaultLocked
+                      && typeof pinnedVaultEnabled === "boolean"
+                      && onTogglePinnedVault && (
                         <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={onDeleteGroup}
+                          onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete group
+                          {pinnedVaultEnabled ? (
+                            <>
+                              <EyeOff className="h-4 w-4 mr-2" />
+                              Hide pinned vault
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Show pinned vault
+                            </>
+                          )}
                         </DropdownMenuItem>
                       )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
+                  </>
+                )}
+                {onEditGroup && (
+                  <>
+                    {(onManagePinnedVault) && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={onEditGroup}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit group
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {onDeleteGroup && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={onDeleteGroup}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete group
+                  </DropdownMenuItem>
+                )}
               </>
             )}
           </DropdownMenuContent>
