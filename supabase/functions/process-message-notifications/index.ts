@@ -516,13 +516,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Dispatch push notifications in controlled batches (20 concurrent)
+    // Dispatch push notifications in controlled batches (20 concurrent).
+    // Messenger-style title/body: title shows sender (and context for group
+    // chats), body shows the actual message text. Tag uses the conversation
+    // id so repeated messages in the same chat collapse on the OS shade.
     const pushUrl = buildPushUrl(messageType, contextId, messageId);
+    const previewBody = formatMessageBodyForPush(messageText, imageUrl);
+    const fallbackBody = messageType === 'broadcast'
+      ? 'New announcement from Ignite Support'
+      : `${senderName} sent a message in ${contextName}`;
+    let pushTitle: string;
+    if (messageType === 'broadcast') {
+      pushTitle = 'Ignite Support';
+    } else if (messageType === 'team' || messageType === 'club' || messageType === 'group') {
+      pushTitle = `${senderName} · ${contextName}`;
+    } else {
+      pushTitle = senderName;
+    }
+    const conversationTag = `chat-${messageType}-${contextId || 'broadcast'}`;
     const pushPayloads = insertedNotificationIds.map(n => ({
       userId: n.userId,
-      body: messageType === 'broadcast'
-        ? 'New announcement from Ignite Support'
-        : `${senderName} sent a message in ${contextName}`,
+      title: pushTitle,
+      body: previewBody || fallbackBody,
+      tag: conversationTag,
       url: pushUrl,
       notificationId: n.id,
       notificationType: notificationType,
@@ -532,6 +548,8 @@ Deno.serve(async (req) => {
         message_id: messageId,
         related_id: messageId,
         author_id: authorId,
+        sender_name: senderName,
+        context_name: contextName,
         text: (messageText || '').substring(0, 300),
         created_at: new Date().toISOString(),
         ...(imageUrl ? { image_url: imageUrl } : {}),
