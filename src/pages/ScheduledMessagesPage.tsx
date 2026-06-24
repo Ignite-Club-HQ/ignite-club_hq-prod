@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   ArrowLeft,
@@ -18,6 +19,7 @@ import {
   Megaphone,
   Shield,
   ChevronRight,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +41,6 @@ import {
 } from "@/hooks/useScheduledMessages";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
-import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 interface ThreadInfo {
   label: string;
@@ -235,6 +236,33 @@ function lookupLabel(
 export default function ScheduledMessagesPage() {
   const navigate = useNavigate();
   const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
+  const { user } = useAuth();
+
+  // Resolve a clubId for upgrade navigation on this global page
+  const { data: firstClubId } = useQuery({
+    queryKey: ["user-first-club", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      if (roles?.club_id) return roles.club_id;
+      if (roles?.team_id) {
+        const { data: team } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", roles.team_id)
+          .maybeSingle();
+        return team?.club_id ?? null;
+      }
+      return null;
+    },
+  });
+
   const { data: pendingRows = [], isLoading: loadingPending } = useAllScheduledMessages([
     "pending",
   ]);
@@ -317,13 +345,6 @@ export default function ScheduledMessagesPage() {
         </div>
       </div>
 
-      {!proLoading && !hasAnyClubPro ? (
-        <ProFeatureLock
-          title="Scheduled messages is a Pro feature"
-          description="Schedule messages to send later from any chat. Upgrade your club to Pro to unlock."
-          showUpgradeButton={false}
-        />
-      ) : (
       <div className="px-3 pt-4 space-y-6">
         {/* Pending */}
         <section className="space-y-2.5">
@@ -354,16 +375,40 @@ export default function ScheduledMessagesPage() {
                   <Clock className="h-6 w-6" />
                 </div>
                 <p className="font-semibold text-[15px]">No scheduled messages yet</p>
-                <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
-                  Open the <span className="font-medium text-foreground">More options</span> menu in any chat and choose <span className="font-medium text-foreground">Schedule message</span>, or long-press Send, to schedule a message for later.
-                </p>
-                <Button
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => navigate("/messages")}
-                >
-                  Open Messages
-                </Button>
+                {!proLoading && !hasAnyClubPro ? (
+                  <>
+                    <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
+                      Schedule messages to send later from any chat. Upgrade your club to Pro to unlock.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => {
+                        if (firstClubId) {
+                          navigate(`/clubs/${firstClubId}/upgrade`);
+                        } else {
+                          navigate("/clubs");
+                        }
+                      }}
+                    >
+                      <Crown className="h-4 w-4 mr-2" />
+                      Upgrade to Pro
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
+                      Open the <span className="font-medium text-foreground">More options</span> menu in any chat and choose <span className="font-medium text-foreground">Schedule message</span>, or long-press Send, to schedule a message for later.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => navigate("/messages")}
+                    >
+                      Open Messages
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -530,8 +575,6 @@ export default function ScheduledMessagesPage() {
           </section>
         )}
       </div>
-      )}
-
 
       <ScheduleMessageDialog
         open={!!editingRow}
