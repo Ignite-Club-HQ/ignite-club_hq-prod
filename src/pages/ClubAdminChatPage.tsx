@@ -162,7 +162,7 @@ export default function ClubAdminChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (conversationId) markChatOpened("club_admin", conversationId); }, [conversationId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
-
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club_admin", conversationId);
 
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
