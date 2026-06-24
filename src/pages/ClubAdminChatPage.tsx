@@ -922,11 +922,24 @@ export default function ClubAdminChatPage() {
               isRefreshing={isManualRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!clubProLoading && !clubHasPro}
             />
         </div>
       </div>
 
       <ChatThreadSponsorStrip clubId={conversation?.club_id ?? null} />
+
+      <ChatCatchUp
+        scope_type="club_admin"
+        scope_id={conversationId}
+        unreadCount={0}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={conversation?.club_id ? `/clubs/${conversation.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
 
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
