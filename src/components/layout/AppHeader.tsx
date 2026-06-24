@@ -273,6 +273,13 @@ function LogoClubThemeDropdown() {
               <span className="text-xs">Free — no club theme</span>
             </div>
           </div>
+            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span className="text-xs">
+                {!club.hasPro ? "Free — no club theme" : !club.hasTheme ? "No theme set" : "Theme disabled"}
+              </span>
+            </div>
+          </div>
           {activeClubTheme === club.clubId && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
       ))}
