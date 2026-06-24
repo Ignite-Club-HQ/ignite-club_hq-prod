@@ -26,6 +26,10 @@ interface ChatHeaderMenuProps {
   onTogglePinnedVault?: (enabled: boolean) => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
+  /** Trigger an AI "Catch me up" summary of recent messages. */
+  onSummarizeMessages?: () => void;
+  /** When true, show Summarise as a Pro-locked entry (Crown + Pro badge). */
+  summarizeLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
