@@ -1499,8 +1499,7 @@ export default function ClubChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={((!clubProLoading && !clubHasPro) || !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
-              summarizeLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {

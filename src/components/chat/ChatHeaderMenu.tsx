@@ -1,10 +1,27 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown, CalendarClock, Sparkles } from "lucide-react";
+import {
+  MoreVertical,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  Search,
+  Pin,
+  EyeOff,
+  Eye,
+  Crown,
+  CalendarClock,
+  Sparkles,
+  Settings2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -26,10 +43,12 @@ interface ChatHeaderMenuProps {
   onTogglePinnedVault?: (enabled: boolean) => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
-  /** Trigger an AI "Catch me up" summary of recent messages. */
+  /**
+   * Trigger an AI "Catch me up" summary of recent messages.
+   * Only pass this when AI is actually available to the user — it renders as
+   * a first-class header action (Sparkles button), NOT inside the overflow.
+   */
   onSummarizeMessages?: () => void;
-  /** When true, show Summarise as a Pro-locked entry (Crown + Pro badge). */
-  summarizeLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
@@ -45,19 +64,14 @@ export function ChatHeaderMenu({
   onTogglePinnedVault,
   pinnedVaultLocked = false,
   onSummarizeMessages,
-  summarizeLocked = false,
 }: ChatHeaderMenuProps) {
-  const hasAnyAction =
-    !!onRefresh
-    || !!onEditGroup
-    || !!onDeleteGroup
-    || !!onSearch
-    || !!onScheduleMessage
-    || !!onManagePinnedVault
-    || !!onSummarizeMessages;
+  const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
+  const hasDropdownAction =
+    !!onRefresh || !!onScheduleMessage || hasMoreActions;
+  const hasAnyAction = hasDropdownAction || !!onSummarizeMessages || !!onSearch;
   if (!hasAnyAction) return null;
 
-  // If refresh is the only action, render it as a direct button instead of a dropdown.
+  // If refresh is the only action (no AI, no search, no others), render directly.
   const isRefreshOnly =
     !!onRefresh
     && !onEditGroup
@@ -82,122 +96,124 @@ export function ChatHeaderMenu({
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <div className="flex items-center gap-0.5">
+      {onSummarizeMessages && (
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0"
-          aria-label="More options"
+          className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
+          onClick={onSummarizeMessages}
+          aria-label="AI summary of recent messages"
         >
-          <MoreVertical className="h-5 w-5" />
+          <Sparkles className="h-[18px] w-[18px]" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="bg-popover min-w-[180px]">
-        {onSearch && (
-          <DropdownMenuItem onClick={onSearch}>
-            <Search className="h-4 w-4 mr-2" />
-            Search messages
-          </DropdownMenuItem>
-        )}
+      )}
 
-        {onSummarizeMessages && (
-          <>
-            {onSearch && <DropdownMenuSeparator />}
-            <DropdownMenuItem onClick={onSummarizeMessages}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              <span className="flex-1">Summarise recent messages</span>
-              {summarizeLocked && (
-                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                  <Crown className="h-3 w-3" />
-                  Pro
-                </span>
-              )}
-            </DropdownMenuItem>
-          </>
-        )}
-
-        {onScheduleMessage && (
-          <>
-            {(onSearch || onSummarizeMessages) && <DropdownMenuSeparator />}
-            <DropdownMenuItem onClick={onScheduleMessage}>
-              <CalendarClock className="h-4 w-4 mr-2" />
-              <span className="flex-1">Schedule message</span>
-              {scheduleMessageLocked && (
-                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                  <Crown className="h-3 w-3" />
-                  Pro
-                </span>
-              )}
-            </DropdownMenuItem>
-          </>
-        )}
-
-        {(onEditGroup || onDeleteGroup) && (
-          <>
-            {onSearch && <DropdownMenuSeparator />}
-            {onEditGroup && (
-              <DropdownMenuItem onClick={onEditGroup}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit group
-              </DropdownMenuItem>
-            )}
-            {onDeleteGroup && (
+      {hasDropdownAction && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              aria-label="More options"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-popover min-w-[200px]">
+            {onRefresh && (
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={onDeleteGroup}
+                onClick={() => void onRefresh()}
+                disabled={isRefreshing}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete group
+                <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                Refresh messages
               </DropdownMenuItem>
             )}
-          </>
-        )}
 
-        {onManagePinnedVault && (
-          <>
-            {(onSearch || onScheduleMessage || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
-            <DropdownMenuItem onClick={onManagePinnedVault}>
-              <Pin className="h-4 w-4 mr-2" />
-              <span className="flex-1">Pinned vault…</span>
-              {pinnedVaultLocked && (
-                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                  <Crown className="h-3 w-3" />
-                  Pro
-                </span>
-              )}
-            </DropdownMenuItem>
-            {!pinnedVaultLocked && typeof pinnedVaultEnabled === "boolean" && onTogglePinnedVault && (
-              <DropdownMenuItem onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}>
-                {pinnedVaultEnabled ? (
-                  <>
-                    <EyeOff className="h-4 w-4 mr-2" />
-                    Hide pinned vault
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Show pinned vault
-                  </>
+            {onScheduleMessage && (
+              <DropdownMenuItem onClick={onScheduleMessage}>
+                <CalendarClock className="h-4 w-4 mr-2" />
+                <span className="flex-1">Schedule message</span>
+                {scheduleMessageLocked && (
+                  <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                    <Crown className="h-3 w-3" />
+                    Pro
+                  </span>
                 )}
               </DropdownMenuItem>
             )}
-          </>
-        )}
 
-        {onRefresh && (
-          <>
-            {(onEditGroup || onDeleteGroup || onSearch || onScheduleMessage || onManagePinnedVault) && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={() => void onRefresh()}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-              Refresh messages
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            {hasMoreActions && (
+              <>
+                {(onRefresh || onScheduleMessage) && <DropdownMenuSeparator />}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    More actions
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="bg-popover min-w-[200px]">
+                      {onManagePinnedVault && (
+                        <>
+                          <DropdownMenuItem onClick={onManagePinnedVault}>
+                            <Pin className="h-4 w-4 mr-2" />
+                            <span className="flex-1">Pinned vault…</span>
+                            {pinnedVaultLocked && (
+                              <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                                <Crown className="h-3 w-3" />
+                                Pro
+                              </span>
+                            )}
+                          </DropdownMenuItem>
+                          {!pinnedVaultLocked
+                            && typeof pinnedVaultEnabled === "boolean"
+                            && onTogglePinnedVault && (
+                              <DropdownMenuItem
+                                onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}
+                              >
+                                {pinnedVaultEnabled ? (
+                                  <>
+                                    <EyeOff className="h-4 w-4 mr-2" />
+                                    Hide pinned vault
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Show pinned vault
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                            )}
+                        </>
+                      )}
+                      {onEditGroup && (
+                        <>
+                          {onManagePinnedVault && <DropdownMenuSeparator />}
+                          <DropdownMenuItem onClick={onEditGroup}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit group
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {onDeleteGroup && (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={onDeleteGroup}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete group
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 }

@@ -2139,8 +2139,7 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
-              onSummarizeMessages={((!groupClubProLoading && !groupClubHasPro) || !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
-              summarizeLocked={!groupClubProLoading && !groupClubHasPro}
+              onSummarizeMessages={(!groupClubProLoading && groupClubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
