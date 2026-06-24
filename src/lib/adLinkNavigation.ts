@@ -47,5 +47,6 @@ export function openAdLink(linkUrl: string | null | undefined, navigate: Navigat
     navigate(internalPath);
     return;
   }
+  if (linkUrl.includes(":clubId") || linkUrl.includes(":teamId")) return;
   safeOpenUrl(linkUrl);
 }
