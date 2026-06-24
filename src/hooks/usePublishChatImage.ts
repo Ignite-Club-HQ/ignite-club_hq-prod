@@ -47,7 +47,7 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
         toast.error(err?.message || "Couldn't undo");
       }
     },
-    [],
+    [clubId],
   );
 
   const publish = useCallback(
