@@ -674,13 +674,82 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
+    // Lock-screen privacy: if user opted out of message previews, redact
+    // chat-type notifications to a generic title/body.
+    const MESSAGE_TYPES = new Set([
+      'team_message','club_message','group_message','direct_message',
+      'broadcast','message_reply','message_mention','message_reaction',
+      'club_admin_message',
+    ]);
+    let effectiveTitle = title;
+    let effectiveBody = body;
+    if (notificationType && MESSAGE_TYPES.has(notificationType)) {
+      try {
+        const { data: prefRow } = await supabase
+          .from('notification_preferences')
+          .select('show_message_preview')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const showPreview = (prefRow as any)?.show_message_preview ?? true;
+        if (!showPreview) {
+          effectiveTitle = 'Ignite';
+          effectiveBody = 'New message';
+        }
+      } catch (err) {
+        console.warn('[PUSH] Could not read show_message_preview, defaulting to show:', err);
+      }
+
+      // Club-level override: a club admin can force previews off for everyone
+      // in their club, regardless of personal preference.
+      try {
+        let clubId: string | undefined = (data as any)?.club_id;
+        if (!clubId && (data as any)?.team_id) {
+          const { data: t } = await supabase
+            .from('teams')
+            .select('club_id')
+            .eq('id', (data as any).team_id)
+            .maybeSingle();
+          clubId = (t as any)?.club_id;
+        }
+        if (!clubId && (data as any)?.group_id) {
+          const { data: g } = await supabase
+            .from('chat_groups')
+            .select('club_id, team_id')
+            .eq('id', (data as any).group_id)
+            .maybeSingle();
+          clubId = (g as any)?.club_id;
+          if (!clubId && (g as any)?.team_id) {
+            const { data: t2 } = await supabase
+              .from('teams')
+              .select('club_id')
+              .eq('id', (g as any).team_id)
+              .maybeSingle();
+            clubId = (t2 as any)?.club_id;
+          }
+        }
+        if (clubId) {
+          const { data: clubRow } = await supabase
+            .from('clubs')
+            .select('force_disable_message_previews')
+            .eq('id', clubId)
+            .maybeSingle();
+          if ((clubRow as any)?.force_disable_message_previews) {
+            effectiveTitle = 'Ignite';
+            effectiveBody = 'New message';
+          }
+        }
+      } catch (err) {
+        console.warn('[PUSH] Could not evaluate club preview override:', err);
+      }
+    }
+
     // Send to native apps via FCM (parallel with web push)
     const fcmPromise = sendFCMNotifications(
       supabase,
       userId,
-      title || 'Ignite',
-      body || 'You have a new notification',
+      effectiveTitle || 'Ignite',
+      effectiveBody || 'You have a new notification',
       url,
       notificationId,
       tag || `notification-${notificationId || Date.now()}`,
@@ -749,8 +818,8 @@ Deno.serve(async (req) => {
     console.log(`[PUSH] Found ${subscriptions.length} web push subscription(s)`);
     
     const payload = JSON.stringify({
-      title: title || 'Ignite',
-      body: body || 'You have a new notification',
+      title: effectiveTitle || 'Ignite',
+      body: effectiveBody || 'You have a new notification',
       url: url || '/notifications',
       notificationId,
       tag: tag || `notification-${notificationId || Date.now()}`,

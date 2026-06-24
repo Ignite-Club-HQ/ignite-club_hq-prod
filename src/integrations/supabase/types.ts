@@ -2046,6 +2046,7 @@ export type Database = {
           deleted_by: string | null
           description: string | null
           events_sponsor_strip_enabled: boolean
+          force_disable_message_previews: boolean
           id: string
           is_pro: boolean
           kind: string
@@ -2123,6 +2124,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           events_sponsor_strip_enabled?: boolean
+          force_disable_message_previews?: boolean
           id?: string
           is_pro?: boolean
           kind?: string
@@ -2200,6 +2202,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           events_sponsor_strip_enabled?: boolean
+          force_disable_message_previews?: boolean
           id?: string
           is_pro?: boolean
           kind?: string
@@ -5788,6 +5791,7 @@ export type Database = {
           pitch_board_enabled: boolean
           pom_enabled: boolean | null
           rewards_enabled: boolean | null
+          show_message_preview: boolean
           updated_at: string
           user_id: string
         }
@@ -5810,6 +5814,7 @@ export type Database = {
           pitch_board_enabled?: boolean
           pom_enabled?: boolean | null
           rewards_enabled?: boolean | null
+          show_message_preview?: boolean
           updated_at?: string
           user_id: string
         }
@@ -5832,6 +5837,7 @@ export type Database = {
           pitch_board_enabled?: boolean
           pom_enabled?: boolean | null
           rewards_enabled?: boolean | null
+          show_message_preview?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -10058,6 +10064,10 @@ export type Database = {
       extract_mentioned_user_ids: {
         Args: { message_text: string }
         Returns: string[]
+      }
+      format_message_preview: {
+        Args: { _has_image?: boolean; _text: string }
+        Returns: string
       }
       format_role_label: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }

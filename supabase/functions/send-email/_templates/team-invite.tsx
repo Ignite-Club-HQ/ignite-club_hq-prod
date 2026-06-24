@@ -12,6 +12,13 @@ import {
   Text,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
+import {
+  sportEmoji,
+  isParentAudience as resolveIsParentAudience,
+  isJuniorTeam,
+  isSeniorTeam,
+  type TeamType,
+} from './sport-meta.ts'
 
 interface TeamInviteEmailProps {
   recipientName: string;
@@ -26,6 +33,8 @@ interface TeamInviteEmailProps {
   customMessage?: string;
   isExistingUser?: boolean;
   isMiniLeague?: boolean;
+  sport?: string | null;
+  teamType?: TeamType;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -65,15 +74,23 @@ export const TeamInviteEmail = ({
   customMessage,
   isExistingUser = false,
   isMiniLeague = false,
+  sport,
+  teamType,
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
   const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
+  const emoji = sportEmoji(sport);
+  const parentAudience = !isAdminRole && resolveIsParentAudience({ roleName, childrenNames, teamType });
+  const playerAudience = !isAdminRole && !parentAudience;
   const previewText = isAdminRole
     ? `You've been invited to join the ${clubName} app as ${roleName}`
-    : hasChildren
-      ? `${childLabel} has been added to their team for this season ⚽`
-      : `Your child has been added to their team for this season ⚽`;
+    : parentAudience
+      ? (hasChildren
+          ? `${childLabel} has been added to their team for this season ${emoji}`
+          : `Your child has been added to their team for this season ${emoji}`)
+      : `You've been added to ${teamName} ${emoji}`;
+
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
@@ -148,10 +165,12 @@ export const TeamInviteEmail = ({
                   </>
                 ) : roleName === 'Committee Member' ? (
                   <>
-                    <Text style={bulletItem}>• Access and participate in committee chat</Text>
-                    <Text style={bulletItem}>• Store and manage club documents in the vault</Text>
+                    <Text style={bulletItem}>• Access and participate in committee and sub-committee chats</Text>
+                    <Text style={bulletItem}>• Store, organise and share club documents in the file vault</Text>
+                    <Text style={bulletItem}>• Promote and manage club sponsors across the app</Text>
                     <Text style={bulletItem}>• Stay across club updates and announcements</Text>
                   </>
+
                 ) : roleName === 'Coach' ? (
                   <>
                     <Text style={bulletItem}>• Set up and manage training sessions and fixtures</Text>
@@ -175,13 +194,13 @@ export const TeamInviteEmail = ({
                 )}
 
               </>
-            ) : clubName === 'Bridgewater Soccer Club' ? (
-              /* Bridgewater-specific default copy */
+            ) : parentAudience && clubName === 'Bridgewater Soccer Club' ? (
+              /* Bridgewater-specific default copy (parent audience) */
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to ${teamName} ⚽`
-                    : `Your child has been added to ${teamName} ⚽`}
+                    ? `${childLabel} has been added to ${teamName} ${emoji}`
+                    : `Your child has been added to ${teamName} ${emoji}`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -203,13 +222,13 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• View photos from games and club events</Text>
                 <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
               </>
-            ) : (
-              /* Generic default copy for all other clubs */
+            ) : parentAudience ? (
+              /* Parent audience — generic */
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to ${teamName} 🎉`
-                    : `You've been invited to join ${teamName} 🎉`}
+                    ? `${childLabel} has been added to ${teamName} ${emoji}`
+                    : `Your child has been added to ${teamName} ${emoji}`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -225,11 +244,30 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
                 <Text style={bulletItem}>• View photos from games and club events</Text>
                 <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
+              </>
+            ) : (
+              /* Player audience — adult / senior / mixed teams */
+              <>
+                <Text style={headingText}>
+                  You've been added to {teamName} {emoji}
+                </Text>
 
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
 
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
 
+                {!isMiniLeague && (
+                  <Text style={bulletItem}>• See your team details and who your teammates are</Text>
+                )}
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• RSVP to fixtures and let your team know if you're available</Text>
+                <Text style={bulletItem}>• Message your coach and teammates in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
               </>
             )}
+
 
           </Section>
 
@@ -244,7 +282,7 @@ export const TeamInviteEmail = ({
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Open in App' : isMiniLeague ? 'Join Now' : 'View Their Team'}
+                    {isAdminRole ? 'Open in App' : isMiniLeague ? 'Join Now' : parentAudience ? 'View Their Team' : 'View My Team'}
                   </Button>
                 </Section>
 
@@ -279,13 +317,14 @@ export const TeamInviteEmail = ({
                 </Section>
 
                 {/* Step 2: View */}
-                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : isMiniLeague ? '2. Tap below to join' : '2. Tap below to see their team'}</Text>
+                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : isMiniLeague ? '2. Tap below to join' : parentAudience ? '2. Tap below to see their team' : '2. Tap below to see your team'}</Text>
 
                 <Section style={mainCtaSection}>
                   <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                    {isAdminRole ? 'Get Started' : isMiniLeague ? 'Join Now' : 'View Their Team'}
+                    {isAdminRole ? 'Get Started' : isMiniLeague ? 'Join Now' : parentAudience ? 'View Their Team' : 'View My Team'}
                   </Button>
                 </Section>
+
 
                 <Text style={fallbackLinkText}>
                   Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>

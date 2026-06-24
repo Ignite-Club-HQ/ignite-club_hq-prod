@@ -34,13 +34,42 @@ interface MessagePayload {
   replyToId?: string | null;
 }
 
+// Strip mention tokens and replace special chat tokens (events, polls, vault,
+// gallery prompts, etc.) with friendly Messenger-style labels so push body
+// text never exposes raw IDs. Mirrors src/lib/messagePreview.ts.
+function formatMessageBodyForPush(text: string | null | undefined, imageUrl?: string | null): string {
+  if (!text || !text.trim()) {
+    return imageUrl ? '📷 Photo' : '';
+  }
+  let out = text;
+  out = out.replace(/\[event:[0-9a-f-]{36}\]/gi, '📅 Event');
+  out = out.replace(/\[poll:[0-9a-f-]{36}\]/gi, '📊 Poll');
+  out = out.replace(/\[board:[0-9a-f-]{36}\]/gi, '🏟️ Live board');
+  out = out.replace(/\[galleryprompt:[0-9a-f-]{36}\]/gi, '📸 Reminder');
+  out = out.replace(/\[gallery:[0-9a-f-]{36}\]/gi, '📸 Team photos');
+  out = out.replace(/\[publish:[0-9a-f-]{36}\]/gi, '');
+  out = out.replace(/\[vaultroot:(team|club):[0-9a-f-]{36}\]/gi, (_m, s) =>
+    s.toLowerCase() === 'team' ? '🗂️ Team vault' : '🗂️ Club vault');
+  out = out.replace(/\[vaultfolder:[0-9a-f-]{36}\]/gi, '📁 Folder');
+  out = out.replace(/\[vault:[0-9a-f-]{36}\]/gi, '📎 File');
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1');
+  out = out.replace(/@\[([^\]]+)\]\(([^)]+)\)/g, '@$1');
+  out = out.replace(/\s+/g, ' ').trim();
+  if (out.length > 140) out = out.slice(0, 137) + '…';
+  if (!out) return imageUrl ? '📷 Photo' : '';
+  if (imageUrl) out = '📷 ' + out;
+  return out;
+}
+
 // Dispatch push notifications with controlled concurrency
 async function dispatchPushBatch(
   supabaseUrl: string,
   anonKey: string,
   notifications: Array<{
     userId: string;
+    title: string;
     body: string;
+    tag: string;
     url: string;
     notificationId?: string;
     notificationType: string;
@@ -63,11 +92,11 @@ async function dispatchPushBatch(
           },
           body: JSON.stringify({
             userId: n.userId,
-            title: 'Ignite',
+            title: n.title,
             body: n.body,
             url: n.url,
             notificationId: n.notificationId,
-            tag: `${n.notificationType}-${n.notificationId || Date.now()}`,
+            tag: n.tag,
             notificationType: n.notificationType,
             data: n.data,
           }),
@@ -487,13 +516,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Dispatch push notifications in controlled batches (20 concurrent)
+    // Dispatch push notifications in controlled batches (20 concurrent).
+    // Messenger-style title/body: title shows sender (and context for group
+    // chats), body shows the actual message text. Tag uses the conversation
+    // id so repeated messages in the same chat collapse on the OS shade.
     const pushUrl = buildPushUrl(messageType, contextId, messageId);
+    const previewBody = formatMessageBodyForPush(messageText, imageUrl);
+    const fallbackBody = messageType === 'broadcast'
+      ? 'New announcement from Ignite Support'
+      : `${senderName} sent a message in ${contextName}`;
+    let pushTitle: string;
+    if (messageType === 'broadcast') {
+      pushTitle = 'Ignite Support';
+    } else if (messageType === 'team' || messageType === 'club' || messageType === 'group') {
+      pushTitle = `${senderName} · ${contextName}`;
+    } else {
+      pushTitle = senderName;
+    }
+    const conversationTag = `chat-${messageType}-${contextId || 'broadcast'}`;
     const pushPayloads = insertedNotificationIds.map(n => ({
       userId: n.userId,
-      body: messageType === 'broadcast'
-        ? 'New announcement from Ignite Support'
-        : `${senderName} sent a message in ${contextName}`,
+      title: pushTitle,
+      body: previewBody || fallbackBody,
+      tag: conversationTag,
       url: pushUrl,
       notificationId: n.id,
       notificationType: notificationType,
@@ -503,6 +548,8 @@ Deno.serve(async (req) => {
         message_id: messageId,
         related_id: messageId,
         author_id: authorId,
+        sender_name: senderName,
+        context_name: contextName,
         text: (messageText || '').substring(0, 300),
         created_at: new Date().toISOString(),
         ...(imageUrl ? { image_url: imageUrl } : {}),
