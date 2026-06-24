@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
-import { useClubFreeUsage, notifyClubFreeUsageChanged } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
