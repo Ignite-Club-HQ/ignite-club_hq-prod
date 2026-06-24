@@ -202,7 +202,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
   const fullUrl = useMemo(() => (link ? `${APP_URL}/join/${link.token}` : ""), [link]);
   const isSensitive = SENSITIVE_ROLES.includes(activeRole);
-  const activeRoleLabel = ROLE_OPTIONS.find((r) => r.value === activeRole)?.label ?? "";
+  const activeRoleLabel = ALL_ROLE_OPTIONS.find((r) => r.value === activeRole)?.label ?? "";
 
   const handleCopy = async () => {
     if (!fullUrl) return;
