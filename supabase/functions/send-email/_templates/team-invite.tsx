@@ -12,6 +12,13 @@ import {
   Text,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
+import {
+  sportEmoji,
+  isParentAudience as resolveIsParentAudience,
+  isJuniorTeam,
+  isSeniorTeam,
+  type TeamType,
+} from './sport-meta.ts'
 
 interface TeamInviteEmailProps {
   recipientName: string;
@@ -26,6 +33,8 @@ interface TeamInviteEmailProps {
   customMessage?: string;
   isExistingUser?: boolean;
   isMiniLeague?: boolean;
+  sport?: string | null;
+  teamType?: TeamType;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -65,15 +74,23 @@ export const TeamInviteEmail = ({
   customMessage,
   isExistingUser = false,
   isMiniLeague = false,
+  sport,
+  teamType,
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
   const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
+  const emoji = sportEmoji(sport);
+  const parentAudience = !isAdminRole && resolveIsParentAudience({ roleName, childrenNames, teamType });
+  const playerAudience = !isAdminRole && !parentAudience;
   const previewText = isAdminRole
     ? `You've been invited to join the ${clubName} app as ${roleName}`
-    : hasChildren
-      ? `${childLabel} has been added to their team for this season ⚽`
-      : `Your child has been added to their team for this season ⚽`;
+    : parentAudience
+      ? (hasChildren
+          ? `${childLabel} has been added to their team for this season ${emoji}`
+          : `Your child has been added to their team for this season ${emoji}`)
+      : `You've been added to ${teamName} ${emoji}`;
+
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
