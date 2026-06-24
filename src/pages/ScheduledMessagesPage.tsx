@@ -379,7 +379,15 @@ export default function ScheduledMessagesPage() {
                   <Clock className="h-6 w-6" />
                 </div>
                 <p className="font-semibold text-[15px]">No scheduled messages yet</p>
-                {!proLoading && !hasAnyClubPro ? (
+                {(() => {
+                  // Prefer the active club's Pro status (matches the club shown in the header).
+                  // Fall back to "any club" only when no active club is selected.
+                  const isFree = activeClubFilter
+                    ? !activeClubProLoading && !activeClubHasPro
+                    : !proLoading && !hasAnyClubPro;
+                  const upgradeClubId = activeClubFilter || firstClubId;
+                  return isFree;
+                })() ? (
                   <>
                     <p className="text-[13px] text-muted-foreground mt-1 max-w-[260px] mx-auto leading-snug">
                       Schedule messages to send later from any chat. Upgrade your club to Pro to unlock.
@@ -388,8 +396,9 @@ export default function ScheduledMessagesPage() {
                       size="sm"
                       className="mt-4"
                       onClick={() => {
-                        if (firstClubId) {
-                          navigate(`/clubs/${firstClubId}/upgrade`);
+                        const upgradeClubId = activeClubFilter || firstClubId;
+                        if (upgradeClubId) {
+                          navigate(`/clubs/${upgradeClubId}/upgrade`);
                         } else {
                           navigate("/clubs");
                         }
