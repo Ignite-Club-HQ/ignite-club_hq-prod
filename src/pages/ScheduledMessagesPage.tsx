@@ -238,6 +238,32 @@ export default function ScheduledMessagesPage() {
   const navigate = useNavigate();
   const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
   const { user } = useAuth();
+
+  // Resolve a clubId for upgrade navigation on this global page
+  const { data: firstClubId } = useQuery({
+    queryKey: ["user-first-club", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      if (roles?.club_id) return roles.club_id;
+      if (roles?.team_id) {
+        const { data: team } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", roles.team_id)
+          .maybeSingle();
+        return team?.club_id ?? null;
+      }
+      return null;
+    },
+  });
+
   const { data: pendingRows = [], isLoading: loadingPending } = useAllScheduledMessages([
     "pending",
   ]);
