@@ -1838,6 +1838,16 @@ export default function TeamChatPage() {
       {/* Sponsor / Ad strip (per-club opt-in; never enters message stream) */}
       <ChatThreadSponsorStrip clubId={team?.club_id ?? null} />
 
+      <ChatCatchUp
+        scope_type="team"
+        scope_id={teamId}
+        unreadCount={teamUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={team?.club_id ? `/clubs/${team.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading || !bannersReady ? (
