@@ -2727,37 +2727,31 @@ export default function MessagesPage() {
       {/* Pro upgrade banner for non-Pro admin users — compact, dismissible */}
       {hasAdminRoleButNoPro && !bannerDismissed && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
-          <CardContent className="flex items-center gap-2 py-2 px-3">
+          <CardContent className="flex items-center gap-3 py-3 px-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="text-[9px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none"
+                  className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
                 >
                   PRO
                 </Badge>
-                <p className="font-bold text-sm leading-tight">
-                  Unlock Club-Wide Communication
+                <p className="font-bold text-sm leading-tight whitespace-nowrap truncate">
+                  Unlock Club Messaging
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {[
-                  { icon: "📢", label: "Club Chats" },
-                  { icon: "📷", label: "Photos" },
-                  { icon: "📁", label: "Files" },
-                  { icon: "📊", label: "Polls" },
-                ].map((chip) => (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {["Club Chat", "Photos", "Files", "Polls"].map((label) => (
                   <span
-                    key={chip.label}
-                    className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap"
+                    key={label}
+                    className="inline-flex items-center rounded-full border border-primary/15 bg-primary/[0.06] px-2.5 py-0.5 text-xs font-medium text-primary"
                   >
-                    <span className="leading-none">{chip.icon}</span>
-                    <span className="leading-none">{chip.label}</span>
+                    {label}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -2770,17 +2764,17 @@ export default function MessagesPage() {
                     navigate("/clubs");
                   }
                 }}
-                className="h-6 rounded-full text-[11px] font-semibold px-2.5 border-primary/20 text-primary hover:bg-primary/5"
+                className="h-7 rounded-full text-xs font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5"
               >
                 Upgrade
               </Button>
               <button
                 type="button"
                 onClick={() => setBannerDismissed(true)}
-                className="h-6 w-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
                 aria-label="Dismiss"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           </CardContent>
