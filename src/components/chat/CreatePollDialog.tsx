@@ -197,6 +197,11 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
     },
     onSuccess: (pollId) => {
       notifyClubFreeUsageChanged(clubId);
+      if (clubId) {
+        queryClient.invalidateQueries({ queryKey: ["club-free-usage", clubId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+      }
       onCreated(pollId);
       reset();
       onOpenChange(false);
