@@ -311,7 +311,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           aria-label="Default role for this link"
           className="grid grid-cols-4 gap-1 rounded-lg bg-background border border-border p-1"
         >
-          {ROLE_OPTIONS.map((opt) => {
+          {ALL_ROLE_OPTIONS.map((opt) => {
             const isActive = activeRole === opt.value;
             const sensitive = SENSITIVE_ROLES.includes(opt.value);
             return (
