@@ -997,15 +997,41 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     </button>
                   ))}
                 </div>
-                {usage && !usage.isPro && (
-                  <div className="mt-1.5 px-1">
-                    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
-                      <span>{usage.photo.used}/{usage.photo.limit} photos</span>
-                      {showVaultPicker && <span>{usage.file.used}/{usage.file.limit} files</span>}
-                      {showPollCreator && <span>{usage.poll.used}/{usage.poll.limit} polls</span>}
+                {usage && !usage.isPro && (() => {
+                  const photoAtCap = usage.photo.used >= usage.photo.limit;
+                  const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
+                  const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
+                  const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
+                  const resetAt = usage.cycleEnd;
+                  let resetLine: string | null = null;
+                  if (anyAtCap && resetAt) {
+                    const diffMs = resetAt.getTime() - Date.now();
+                    const dateLabel = resetAt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+                    if (diffMs <= 0) resetLine = `Resets shortly (${dateLabel})`;
+                    else {
+                      const hours = Math.round(diffMs / (1000 * 60 * 60));
+                      if (hours < 24) resetLine = `Resets in ${hours}h (${dateLabel})`;
+                      else {
+                        const days = Math.round(hours / 24);
+                        resetLine = `Resets in ${days} ${days === 1 ? "day" : "days"} (${dateLabel})`;
+                      }
+                    }
+                  }
+                  return (
+                    <div className="mt-1.5 px-1 space-y-0.5">
+                      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
+                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.photo.used}/{usage.photo.limit} photos</span>
+                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.file.used}/{usage.file.limit} files</span>}
+                        {showPollCreator && <span className={pollAtCap ? "text-destructive font-medium" : undefined}>{usage.poll.used}/{usage.poll.limit} polls</span>}
+                      </div>
+                      {resetLine && (
+                        <div className="text-center text-[10.5px] text-muted-foreground/80 px-2 leading-tight">
+                          {resetLine}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </>
               );
             })()}

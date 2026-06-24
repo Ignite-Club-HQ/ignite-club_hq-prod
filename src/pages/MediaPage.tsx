@@ -1876,6 +1876,7 @@ function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
         used={usage.photo.used}
         limit={usage.photo.limit}
         clubId={clubId}
+        resetAt={usage.cycleEnd}
         capMessage={
           usage.photo.atCountCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined
         }
