@@ -1091,6 +1091,58 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     mutationFn: async () => {
       if (!nameInput.trim()) throw new Error("Please enter a name");
 
+      // Email dedupe: if the inviter typed an email and it belongs to an
+      // existing in-scope user, attach the role directly instead of
+      // creating a duplicate pending invite. Outside-scope emails fall
+      // through to the normal invite flow (auth-side email uniqueness
+      // handles dedupe at acceptance time).
+      const dedupeEmail = customEmail.trim().toLowerCase();
+      if (dedupeEmail) {
+        const { lookupInvitableUserByEmail } = await import("@/lib/inviteEmailDedupe");
+        const match = await lookupInvitableUserByEmail({
+          email: dedupeEmail,
+          clubId,
+          teamId,
+        });
+        if (match?.already_in_team) {
+          throw new Error(
+            `${match.display_name || dedupeEmail} is already on this team.`,
+          );
+        }
+        if (match) {
+          // Existing user the caller can see — add role directly, no email invite.
+          const { error: roleErr } = await supabase.from("user_roles").insert({
+            user_id: match.user_id,
+            team_id: teamId,
+            club_id: clubId,
+            role: selectedRole as any,
+          });
+          if (roleErr && !roleErr.message?.includes("duplicate")) {
+            throw roleErr;
+          }
+          await supabase.from("notifications").insert({
+            user_id: match.user_id,
+            type: "membership",
+            message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label || selectedRole}`,
+            related_id: teamId,
+          });
+          return {
+            link: "",
+            shareLink: "",
+            email: "",
+            childrenCount: 0,
+            childrenNames: [] as string[],
+            secondParentLink: null as string | null,
+            secondParentEmail: "",
+            secondParentName: "",
+            secondParentAddedDirectly: false,
+            existingUserAdded: {
+              name: match.display_name || dedupeEmail,
+            },
+          };
+        }
+      }
+
       // Create a unique token for this specific pending invite (name-restricted)
       const inviteToken = createPendingInviteToken();
 
@@ -1192,7 +1244,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly,
       };
     },
-    onSuccess: async ({ link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
+    onSuccess: async (result) => {
+      const { link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly } = result;
+      const existingUserAdded = (result as any).existingUserAdded as { name: string } | undefined;
+
+      // Short-circuit when we attached the role directly to an existing user
+      if (existingUserAdded) {
+        queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+        toast({
+          title: "Added to team",
+          description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+        setNameInput("");
+        setCustomEmail("");
+        return;
+      }
+
       setInviteLink(link);
       setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
