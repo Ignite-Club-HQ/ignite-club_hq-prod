@@ -980,6 +980,42 @@ export type Database = {
           },
         ]
       }
+      chat_summaries: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_id: string | null
+          message_count: number
+          model: string | null
+          scope_id: string
+          scope_type: string
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_id?: string | null
+          message_count?: number
+          model?: string | null
+          scope_id: string
+          scope_type: string
+          summary: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_id?: string | null
+          message_count?: number
+          model?: string | null
+          scope_id?: string
+          scope_type?: string
+          summary?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       child_club_points: {
         Row: {
           child_id: string
