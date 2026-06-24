@@ -1574,6 +1574,16 @@ export default function ClubChatPage() {
 
       <ChatThreadSponsorStrip clubId={clubId ?? null} />
 
+      <ChatCatchUp
+        scope_type="club"
+        scope_id={clubId}
+        unreadCount={clubUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!clubProLoading && !clubHasPro}
+        upgradeHref={clubId ? `/clubs/${clubId}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
