@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown, CalendarClock } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye, Crown, CalendarClock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +26,10 @@ interface ChatHeaderMenuProps {
   onTogglePinnedVault?: (enabled: boolean) => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
+  /** Trigger an AI "Catch me up" summary of recent messages. */
+  onSummarizeMessages?: () => void;
+  /** When true, show Summarise as a Pro-locked entry (Crown + Pro badge). */
+  summarizeLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
@@ -40,6 +44,8 @@ export function ChatHeaderMenu({
   pinnedVaultEnabled,
   onTogglePinnedVault,
   pinnedVaultLocked = false,
+  onSummarizeMessages,
+  summarizeLocked = false,
 }: ChatHeaderMenuProps) {
   const hasAnyAction =
     !!onRefresh
@@ -47,7 +53,8 @@ export function ChatHeaderMenu({
     || !!onDeleteGroup
     || !!onSearch
     || !!onScheduleMessage
-    || !!onManagePinnedVault;
+    || !!onManagePinnedVault
+    || !!onSummarizeMessages;
   if (!hasAnyAction) return null;
 
   // If refresh is the only action, render it as a direct button instead of a dropdown.
@@ -57,7 +64,8 @@ export function ChatHeaderMenu({
     && !onDeleteGroup
     && !onSearch
     && !onScheduleMessage
-    && !onManagePinnedVault;
+    && !onManagePinnedVault
+    && !onSummarizeMessages;
   if (isRefreshOnly) {
     return (
       <Button
@@ -93,9 +101,25 @@ export function ChatHeaderMenu({
           </DropdownMenuItem>
         )}
 
-        {onScheduleMessage && (
+        {onSummarizeMessages && (
           <>
             {onSearch && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onSummarizeMessages}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              <span className="flex-1">Summarise recent messages</span>
+              {summarizeLocked && (
+                <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                  <Crown className="h-3 w-3" />
+                  Pro
+                </span>
+              )}
+            </DropdownMenuItem>
+          </>
+        )}
+
+        {onScheduleMessage && (
+          <>
+            {(onSearch || onSummarizeMessages) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={onScheduleMessage}>
               <CalendarClock className="h-4 w-4 mr-2" />
               <span className="flex-1">Schedule message</span>

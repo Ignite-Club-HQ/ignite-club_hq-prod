@@ -980,6 +980,42 @@ export type Database = {
           },
         ]
       }
+      chat_summaries: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_id: string | null
+          message_count: number
+          model: string | null
+          scope_id: string
+          scope_type: string
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_id?: string | null
+          message_count?: number
+          model?: string | null
+          scope_id: string
+          scope_type: string
+          summary: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_id?: string | null
+          message_count?: number
+          model?: string | null
+          scope_id?: string
+          scope_type?: string
+          summary?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       child_club_points: {
         Row: {
           child_id: string
@@ -2032,6 +2068,7 @@ export type Database = {
       clubs: {
         Row: {
           admin_user_id: string | null
+          ai_catch_up_enabled: boolean
           allow_guests_default: boolean
           auto_reward_threshold: number | null
           bot_user_id: string | null
@@ -2110,6 +2147,7 @@ export type Database = {
         }
         Insert: {
           admin_user_id?: string | null
+          ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null
@@ -2188,6 +2226,7 @@ export type Database = {
         }
         Update: {
           admin_user_id?: string | null
+          ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           bot_user_id?: string | null
@@ -7002,6 +7041,7 @@ export type Database = {
       profiles: {
         Row: {
           active_club_theme_id: string | null
+          ai_catch_up_enabled: boolean
           avatar_url: string | null
           created_at: string
           display_name: string | null
@@ -7023,6 +7063,7 @@ export type Database = {
         }
         Insert: {
           active_club_theme_id?: string | null
+          ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -7044,6 +7085,7 @@ export type Database = {
         }
         Update: {
           active_club_theme_id?: string | null
+          ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -9908,6 +9950,10 @@ export type Database = {
           unique_reach: number
           views: number
         }[]
+      }
+      club_engagement_total_unique_reach: {
+        Args: { _club_id: string; _end: string; _start: string }
+        Returns: number
       }
       club_engagement_totals: {
         Args: { _club_id: string; _end: string; _start: string }

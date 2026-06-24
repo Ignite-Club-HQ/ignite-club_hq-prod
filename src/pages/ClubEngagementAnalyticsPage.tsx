@@ -613,6 +613,21 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // ---------- Club-wide distinct members reached (de-duped across sponsors) ----------
+  const { data: totalUniqueReach = 0 } = useQuery({
+    queryKey: ["club-engagement-total-unique-reach", clubId, mode, range.start.toISOString(), range.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("club_engagement_total_unique_reach", {
+        _club_id: clubId as any,
+        _start: range.start.toISOString(),
+        _end: range.end.toISOString(),
+      });
+      if (error) throw error;
+      return (data as number) ?? 0;
+    },
+    enabled: queryReady && !!access?.isAdmin,
+  });
+
 
 
   // ---------- Engagement score (composite 0-100) ----------
@@ -970,7 +985,7 @@ export default function ClubEngagementAnalyticsPage({
 
       {/* Section 6: Sponsor Performance */}
       <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
-      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} />
+      <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} totalUniqueReach={totalUniqueReach} />
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
@@ -1383,7 +1398,7 @@ type SponsorPerfRow = {
   tracking_started: string | null;
 };
 
-function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow[]; totalSponsors: number }) {
+function SponsorPerformanceBlock({ rows, totalSponsors, totalUniqueReach }: { rows: SponsorPerfRow[]; totalSponsors: number; totalUniqueReach: number }) {
   if (rows.length === 0) {
     return (
       <Card>
@@ -1393,7 +1408,7 @@ function SponsorPerformanceBlock({ rows, totalSponsors }: { rows: SponsorPerfRow
       </Card>
     );
   }
-  const totalReach = rows.reduce((a, r) => a + r.unique_reach, 0);
+  const totalReach = totalUniqueReach;
   const totalClicks = rows.reduce((a, r) => a + r.clicks, 0);
   const totalViews = rows.reduce((a, r) => a + r.views, 0);
   const totalRawViews = rows.reduce((a, r) => a + (r.raw_views || 0), 0);

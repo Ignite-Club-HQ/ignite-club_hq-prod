@@ -28,6 +28,9 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
+import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
@@ -274,6 +277,16 @@ export default function GroupChatPage() {
       refreshUnreadCount,
     });
   }, [user, groupId, refreshUnreadCount, decrementUnreadCount, queryClient]);
+
+  // AI Catch-me-up wiring.
+  useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: groupUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!groupId,
+    select: (d) => (groupId ? d.groups[groupId] ?? 0 : 0),
+  });
+
+
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
@@ -2124,6 +2137,8 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!groupClubProLoading && !groupClubHasPro}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
@@ -2244,6 +2259,16 @@ export default function GroupChatPage() {
 
 
       <ChatThreadSponsorStrip clubId={group?.club_id ?? null} />
+
+      <ChatCatchUp
+        scope_type="group"
+        scope_id={groupId}
+        unreadCount={groupUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!groupClubProLoading && !groupClubHasPro}
+        upgradeHref={group?.club_id ? `/clubs/${group.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">

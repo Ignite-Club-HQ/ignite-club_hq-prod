@@ -2702,26 +2702,22 @@ export default function MessagesPage() {
         />
       </div>
 
-      {/* Pro upgrade banner for non-Pro admin users — compact */}
+      {/* Pro upgrade banner for non-Pro admin users — compact, benefit-led */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
-          <CardContent className="flex flex-col gap-2 py-2 px-3">
-            {/* Heading row with Upgrade button */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <Badge
-                  variant="secondary"
-                  className="text-[9px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
-                >
-                  PRO
-                </Badge>
-                <p className="font-bold text-sm leading-tight truncate">
-                  Unlock Club Messaging
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
+          <CardContent className="py-1.5 px-3">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
+              >
+                PRO
+              </Badge>
+              <p className="font-bold text-sm leading-tight whitespace-nowrap">
+                Unlimited Club Communication
+              </p>
+              <button
+                type="button"
                 onClick={() => {
                   if (upgradeClubId) {
                     navigate(`/clubs/${upgradeClubId}/upgrade`);
@@ -2731,23 +2727,14 @@ export default function MessagesPage() {
                     navigate("/clubs");
                   }
                 }}
-                className="h-6 rounded-full text-[11px] font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+                className="ml-auto shrink-0 text-xs font-semibold text-primary hover:underline"
               >
-                Upgrade
-              </Button>
+                Upgrade →
+              </button>
             </div>
-
-            {/* Feature chips full width */}
-            <div className="flex flex-wrap items-center gap-2">
-              {["Club Chat", "Photos", "Files", "Polls"].map((label) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center rounded-full border border-primary/15 bg-primary/[0.06] px-2 py-[3px] text-[11px] font-medium text-primary"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
+            <p className="mt-1 text-[11px] text-foreground/60 leading-snug">
+              📢 Club Chats · 📷 Photos · 📁 Files · 📊 Polls
+            </p>
           </CardContent>
         </Card>
       )}
