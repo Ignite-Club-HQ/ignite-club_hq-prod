@@ -21,6 +21,7 @@ import { SecureImage } from "@/components/SecureImage";
 import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isVideoUrl } from "@/lib/videoUtils";
