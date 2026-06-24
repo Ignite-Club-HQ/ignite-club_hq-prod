@@ -20,6 +20,45 @@ import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
 import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
 import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
 import { JoinRequestResponseEmail } from "./_templates/join-request-response.tsx";
+import { sportEmoji, swapTrailingSportEmoji } from "./_templates/sport-meta.ts";
+
+/**
+ * Look up the club's sport and the team's team_type for sport-aware /
+ * audience-aware email rendering. Best-effort; failures are non-fatal.
+ */
+async function resolveSportAndTeamType(
+  supabaseAdmin: any,
+  clubName?: string,
+  teamName?: string,
+): Promise<{ sport: string | null; teamType: string | null }> {
+  if (!supabaseAdmin || !clubName) return { sport: null, teamType: null };
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('id, sport')
+      .eq('name', clubName)
+      .maybeSingle();
+    let sport: string | null = club?.sport ?? null;
+    let teamType: string | null = null;
+    if (club?.id && teamName) {
+      const { data: team } = await supabaseAdmin
+        .from('teams')
+        .select('team_type, sport')
+        .eq('club_id', club.id)
+        .eq('name', teamName)
+        .maybeSingle();
+      if (team) {
+        teamType = team.team_type ?? null;
+        sport = team.sport ?? sport;
+      }
+    }
+    return { sport, teamType };
+  } catch (e) {
+    console.warn('[send-email] sport/teamType lookup failed:', (e as Error)?.message);
+    return { sport: null, teamType: null };
+  }
+}
+
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -377,6 +416,14 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         }
       }
 
+      // Look up sport + team_type once so the template can render
+      // sport-aware copy/emoji and audience-aware (junior vs senior) wording.
+      const { sport, teamType } = await resolveSportAndTeamType(
+        supabaseAdmin,
+        data.clubName,
+        data.teamName,
+      );
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
@@ -389,6 +436,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
             primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
             childrenNames: data.childrenNames || [],
             customMessage: data.customMessage,
+            sport: data.sport ?? sport,
           })
         );
       }
@@ -407,9 +455,12 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           customMessage: data.customMessage,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
+          sport: data.sport ?? sport,
+          teamType: data.teamType ?? teamType,
         })
       );
     }
+
     
     case "event-reminder":
       return await renderAsync(
@@ -781,6 +832,24 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // For team invites, rewrite any trailing sport emoji on the caller-supplied
+    // subject so a cricket club doesn't get "⚽" (etc.). Falls back to keeping
+    // the existing emoji if no sport is on record.
+    if ((template === 'team-invite' || template === 'invite-reminder') && templateData?.clubName) {
+      try {
+        const { sport } = await resolveSportAndTeamType(
+          adminClient,
+          templateData.clubName,
+          templateData.teamName,
+        );
+        if (sport) {
+          subject = swapTrailingSportEmoji(subject, sport);
+        }
+      } catch (e) {
+        console.warn('[send-email] subject emoji rewrite failed:', (e as Error)?.message);
+      }
+    }
+
     // Generate HTML from template or use provided HTML
     let emailHtml = html;
     if (template && templateData) {
@@ -795,6 +864,7 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
     }
+
 
     // Build sender: use senderName if provided, otherwise fall back to from or default
     let sender: string;
