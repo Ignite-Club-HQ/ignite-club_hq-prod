@@ -2592,7 +2592,7 @@ export default function MessagesPage() {
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-sm leading-tight">Unlock Pro Communication</p>
               <p className="text-xs text-muted-foreground leading-snug">
-                Unlimited team & club chat, unlimited photos, unlimited file sharing and custom groups.
+                Club wide chats, unlimited photo & file uploads, unlimited polls, DM's and custom groups.
               </p>
             </div>
             <Button
