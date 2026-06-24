@@ -29,13 +29,17 @@ import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
-  "Team Chat & Messaging",
-  "Points & Rewards System",
-  "Photo & Media Uploads",
-  "Vault File Storage",
-  "Subfolder Organization",
-  "Duty Point Awards",
-  "Priority Support",
+  "Team & club chat (club-wide messaging)",
+  "DMs & custom groups",
+  "Unlimited photo & media uploads (Free: 20/month)",
+  "Unlimited file storage (Free: 10 files / 100 MB)",
+  "Unlimited polls (Free: 2/month)",
+  "Scheduled messages",
+  "Pinned vault files in chat",
+  "Subfolder organization",
+  "Points & rewards system",
+  "Duty point awards",
+  "Priority support",
 ];
 
 const PRO_FOOTBALL_FEATURES = [
