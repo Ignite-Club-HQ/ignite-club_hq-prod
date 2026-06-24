@@ -1244,7 +1244,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly,
       };
     },
-    onSuccess: async ({ link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
+    onSuccess: async (result) => {
+      const { link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly } = result;
+      const existingUserAdded = (result as any).existingUserAdded as { name: string } | undefined;
+
+      // Short-circuit when we attached the role directly to an existing user
+      if (existingUserAdded) {
+        queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+        toast({
+          title: "Added to team",
+          description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
+        });
+        onMemberAdded?.();
+        setNameInput("");
+        setCustomEmail("");
+        return;
+      }
+
       setInviteLink(link);
       setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
