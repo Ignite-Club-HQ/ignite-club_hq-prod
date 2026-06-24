@@ -7041,6 +7041,7 @@ export type Database = {
       profiles: {
         Row: {
           active_club_theme_id: string | null
+          ai_catch_up_enabled: boolean
           avatar_url: string | null
           created_at: string
           display_name: string | null
@@ -7062,6 +7063,7 @@ export type Database = {
         }
         Insert: {
           active_club_theme_id?: string | null
+          ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -7083,6 +7085,7 @@ export type Database = {
         }
         Update: {
           active_club_theme_id?: string | null
+          ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null

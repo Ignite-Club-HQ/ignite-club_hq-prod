@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle, Eye } from "lucide-react";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle, Eye, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,8 @@ export default function SettingsPage() {
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
+  const [aiCatchUpEnabled, setAiCatchUpEnabled] = useState(true);
+  const [aiCatchUpLoading, setAiCatchUpLoading] = useState(false);
   
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -154,6 +156,36 @@ export default function SettingsPage() {
     
     loadPreferences();
   }, [user]);
+
+  // Load AI Catch Me Up preference from profile
+  useEffect(() => {
+    const loadAiPref = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data) setAiCatchUpEnabled((data as any).ai_catch_up_enabled ?? true);
+    };
+    loadAiPref();
+  }, [user]);
+
+  const handleAiCatchUpChange = async (value: boolean) => {
+    if (!user) return;
+    setAiCatchUpLoading(true);
+    const prev = aiCatchUpEnabled;
+    setAiCatchUpEnabled(value);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ ai_catch_up_enabled: value } as any)
+      .eq("id", user.id);
+    setAiCatchUpLoading(false);
+    if (error) {
+      setAiCatchUpEnabled(prev);
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+    }
+  };
 
   // Check push notification status
   useEffect(() => {
@@ -721,6 +753,39 @@ export default function SettingsPage() {
         <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
           <LazyNativePushCard userId={user.id} />
         </Suspense>
+      )}
+
+      {/* AI Catch Me Up */}
+      {user && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              AI Catch Me Up
+            </CardTitle>
+            <CardDescription>
+              Control whether you see AI-generated summaries of chat threads
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1 pr-4">
+                <Label htmlFor="ai-catchup-user" className="text-base font-medium">
+                  Show AI summaries
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  When on, you'll see "Catch me up" cards and a menu option to summarise recent messages in your chats. Only available in clubs on Pro where the feature has been enabled.
+                </p>
+              </div>
+              <Switch
+                id="ai-catchup-user"
+                checked={aiCatchUpEnabled}
+                onCheckedChange={handleAiCatchUpChange}
+                disabled={aiCatchUpLoading}
+              />
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Email Notifications Card */}
