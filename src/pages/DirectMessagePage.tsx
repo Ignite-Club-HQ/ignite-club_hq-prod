@@ -1416,10 +1416,23 @@ export default function DirectMessagePage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
+              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
+              summarizeLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
         }
       />
+
+      <ChatCatchUp
+        scope_type="direct"
+        scope_id={conversationId}
+        unreadCount={dmUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!scheduleProLoading && !hasSchedulePro}
+        upgradeHref={sharedClubId ? `/clubs/${sharedClubId}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
       <ChatDetailsSheet
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
