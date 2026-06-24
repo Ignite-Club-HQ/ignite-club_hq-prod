@@ -40,6 +40,7 @@ import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
+import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
@@ -118,6 +119,7 @@ export default function BroadcastChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
+  const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -1064,6 +1066,7 @@ export default function BroadcastChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={() => setScheduleDialogOpen(true)}
+              scheduleMessageLocked={!scheduleProLoading && !hasSchedulePro}
             />
           </>
         }

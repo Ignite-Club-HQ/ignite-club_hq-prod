@@ -48,6 +48,9 @@ import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { MediaSponsorTile } from "@/components/media/MediaSponsorTile";
+import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { UsageMeter } from "@/components/subscription/UsageMeter";
+import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorStrip";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -1290,21 +1293,18 @@ export default function MediaPage() {
             </Button>
           )}
 
-          {hasProAccess && (
-            <>
-              <CreateActionButton
-                ariaLabel="Add photo"
-                onClick={() => setUploadDialogOpen(true)}
-              />
-              <UploadPhotoSheet
-                open={uploadDialogOpen}
-                onOpenChange={setUploadDialogOpen}
-                onUploadingCountChange={setUploadingCount}
-                defaultTeamId={searchParams.get("team")}
-                defaultEventId={searchParams.get("event")}
-              />
-            </>
-          )}
+          <CreateActionButton
+            ariaLabel="Add photo"
+            onClick={() => setUploadDialogOpen(true)}
+          />
+          <UploadPhotoSheet
+            open={uploadDialogOpen}
+            onOpenChange={setUploadDialogOpen}
+            onUploadingCountChange={setUploadingCount}
+            defaultTeamId={searchParams.get("team")}
+            defaultEventId={searchParams.get("event")}
+          />
+
         </div>
       </div>
 
@@ -1314,6 +1314,9 @@ export default function MediaPage() {
           clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
         />
       </div>
+
+      <FreeMediaUsageMeter clubId={scopedClubFilterId ?? null} />
+
 
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
@@ -1378,8 +1381,6 @@ export default function MediaPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : !hasProAccess ? (
-        <ProFeatureGate feature="Photos" clubId={scopedClubFilterId || adminUpgradeInfo.clubId} teamId={adminUpgradeInfo.teamId} />
       ) : photos.length === 0 && !hasActiveFilters ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
@@ -1864,6 +1865,26 @@ export default function MediaPage() {
     </div>
   );
 }
+
+function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
+  const { usage } = useClubFreeUsage(clubId);
+  if (!clubId || !usage || usage.isPro) return null;
+  return (
+    <div className="max-w-lg mx-auto px-4 pb-2">
+      <UsageMeter
+        label="Free plan — photos this cycle"
+        used={usage.photo.used}
+        limit={usage.photo.limit}
+        clubId={clubId}
+        resetAt={usage.cycleEnd}
+        capMessage={
+          usage.photo.atCountCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined
+        }
+      />
+    </div>
+  );
+}
+
 
 function ProFeatureGate({ feature, clubId, teamId }: { feature: string; clubId?: string; teamId?: string }) {
   return (

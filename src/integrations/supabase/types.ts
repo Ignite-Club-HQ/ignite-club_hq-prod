@@ -10090,6 +10090,19 @@ export type Database = {
           type: string
         }[]
       }
+      get_club_free_usage: {
+        Args: { _club_id: string }
+        Returns: {
+          cycle_end: string
+          cycle_start: string
+          file_count: number
+          file_storage_bytes: number
+          is_pro: boolean
+          photo_storage_bytes: number
+          photo_uploads_this_cycle: number
+          polls_this_cycle: number
+        }[]
+      }
       get_club_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -10745,6 +10758,22 @@ export type Database = {
         Returns: {
           id: string
           name: string
+        }[]
+      }
+      lookup_invitable_user_by_email: {
+        Args: {
+          _club_id?: string
+          _email: string
+          _mini_league_id?: string
+          _team_id?: string
+        }
+        Returns: {
+          already_in_club: boolean
+          already_in_mini_league: boolean
+          already_in_team: boolean
+          avatar_url: string
+          display_name: string
+          user_id: string
         }[]
       }
       mark_chat_scope_notifications_read: {

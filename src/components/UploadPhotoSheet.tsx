@@ -282,22 +282,9 @@ export function UploadPhotoSheet({
       const clubSub = clubSubResult.data;
       const clubData = clubDataResult.data;
       
-      const clubHasProAccess =
-        clubSub?.is_pro ||
-        clubSub?.is_pro_football ||
-        clubSub?.admin_pro_override ||
-        clubSub?.admin_pro_football_override ||
-        clubData?.is_pro ||
-        false;
-      
-      if (clubHasProAccess) {
-        return teams.map(team => ({ ...team, is_pro: true }));
-      }
-      
-      return teams.filter(team => {
-        const teamSub = subscriptions?.find(s => s.team_id === team.id);
-        return teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override;
-      }).map(team => ({ ...team, is_pro: true }));
+      // Photos are now Free-with-caps: every team the user has a role in is selectable.
+      // Cap enforcement happens at upload submit time against get_club_free_usage.
+      return teams.map((team) => ({ ...team, is_pro: true }));
     },
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
@@ -669,6 +656,27 @@ export function UploadPhotoSheet({
 
   const handleUpload = async () => {
     if (selectedPhotos.length === 0 || !selectedClubId) return;
+
+    // Free-tier cap check (Pro returns isPro=true and bypasses).
+    try {
+      const { data: usageRow } = await supabase.rpc("get_club_free_usage", {
+        _club_id: selectedClubId,
+      });
+      const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+      if (usage && !usage.is_pro) {
+        const FREE_PHOTOS = 20;
+        const usedCount = Number(usage.photo_uploads_this_cycle ?? 0);
+        if (usedCount + selectedPhotos.length > FREE_PHOTOS) {
+          toast.error(
+            "You've used your 20 free photo uploads this cycle. Upgrade to Pro for unlimited uploads.",
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("[UploadPhotoSheet] cap check failed, continuing", e);
+    }
+
     
     const totalPhotos = selectedPhotos.length;
     const photosToUpload = [...selectedPhotos]; // Copy the array before closing
@@ -1201,7 +1209,7 @@ export function UploadPhotoSheet({
                 ) : (
                   <div className="grid gap-2">
                     {availableClubs.map((club) => {
-                      const isLocked = !club.has_pro_access && !isAppAdmin;
+                      const isLocked = false; // Free clubs can upload (capped); cap check happens at submit.
                       return (
                         <button
                           key={club.id}

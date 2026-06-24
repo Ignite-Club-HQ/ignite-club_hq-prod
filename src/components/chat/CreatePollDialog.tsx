@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Crown, Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -18,6 +19,9 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
+import { UsageMeter } from "@/components/subscription/UsageMeter";
+import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import type { Database } from "@/integrations/supabase/types";
 
 export type PollChatType = Database["public"]["Enums"]["poll_chat_type"];
@@ -28,6 +32,8 @@ interface CreatePollDialogProps {
   chatType: PollChatType;
   chatId: string;
   onCreated: (pollId: string) => void;
+  /** Optional — when omitted, the dialog resolves the club id from chatType/chatId. */
+  clubId?: string | null;
 }
 
 const MAX_OPTIONS = 10;
@@ -76,8 +82,32 @@ function validatePoll(question: string, options: string[]) {
   };
 }
 
-export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated }: CreatePollDialogProps) {
+export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated, clubId: clubIdProp }: CreatePollDialogProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Resolve the owning club so we can show the Free-tier usage meter & enforce caps.
+  const { data: resolvedClubId } = useQuery({
+    queryKey: ["poll-club-resolve", chatType, chatId, clubIdProp],
+    enabled: open && !clubIdProp && !!chatId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (clubIdProp) return clubIdProp;
+      if (chatType === "club") return chatId;
+      if (chatType === "team") {
+        const { data } = await supabase.from("teams").select("club_id").eq("id", chatId).maybeSingle();
+        return (data?.club_id as string) ?? null;
+      }
+      if (chatType === "group") {
+        const { data } = await supabase.from("chat_groups").select("club_id").eq("id", chatId).maybeSingle();
+        return (data?.club_id as string) ?? null;
+      }
+      return null;
+    },
+  });
+  const clubId = clubIdProp ?? resolvedClubId ?? null;
+  const { usage } = useClubFreeUsage(clubId);
+  const atPollCap = !!usage && !usage.isPro && usage.poll.atCap;
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
   // Stable per-row identifiers so React keys don't reuse a torn-down input's
@@ -179,6 +209,10 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
   const handleCreate = () => {
     setSubmitAttempted(true);
     if (validation.questionError || validation.optionsError) return;
+    if (atPollCap) {
+      toast.error(FREE_UPGRADE_MESSAGES.pollCount);
+      return;
+    }
     create.mutate();
   };
 
@@ -204,6 +238,16 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
         </ResponsiveDialogHeader>
 
         <div className="space-y-4 pt-2">
+          {usage && !usage.isPro && (
+            <UsageMeter
+              label="Free plan — polls this cycle"
+              used={usage.poll.used}
+              limit={usage.poll.limit}
+              clubId={clubId}
+              resetAt={usage.cycleEnd}
+              capMessage={atPollCap ? FREE_UPGRADE_MESSAGES.pollCount : undefined}
+            />
+          )}
           <div>
             <Label htmlFor="poll-question">Question</Label>
             <Input
@@ -291,14 +335,28 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
         </div>
 
         <ResponsiveDialogFooter>
-          <Button className="w-full" onClick={handleCreate} disabled={create.isPending}>
-            {create.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <BarChart3 className="h-4 w-4 mr-2" />
-            )}
-            Create poll
-          </Button>
+          {atPollCap && clubId ? (
+            <Button
+              className="w-full"
+              variant="default"
+              onClick={() => {
+                onOpenChange(false);
+                navigate(`/clubs/${clubId}/upgrade`);
+              }}
+            >
+              <Crown className="h-4 w-4 mr-2" />
+              Upgrade to Pro
+            </Button>
+          ) : (
+            <Button className="w-full" onClick={handleCreate} disabled={create.isPending || atPollCap}>
+              {create.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <BarChart3 className="h-4 w-4 mr-2" />
+              )}
+              Create poll
+            </Button>
+          )}
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
     </ResponsiveDialog>

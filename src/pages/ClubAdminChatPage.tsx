@@ -16,6 +16,7 @@ import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomIns
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
@@ -179,6 +180,10 @@ export default function ClubAdminChatPage() {
     enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
+    conversation?.club_id ?? null,
+    { enabled: !!conversation?.club_id && authReady }
+  );
 
   // Sync active club to this conversation's club so push-launched threads
   // don't leave the user inside the wrong club context.
@@ -905,11 +910,12 @@ export default function ClubAdminChatPage() {
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isManualRefreshing}
-            onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-          />
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isManualRefreshing}
+              onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
+              scheduleMessageLocked={!clubProLoading && !clubHasPro}
+            />
         </div>
       </div>
 

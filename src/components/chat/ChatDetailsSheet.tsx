@@ -21,6 +21,7 @@ import { SecureImage } from "@/components/SecureImage";
 import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isVideoUrl } from "@/lib/videoUtils";
@@ -105,6 +106,26 @@ export function ChatDetailsSheet({
   const showParticipants =
     chatType === "team" || chatType === "club" || chatType === "group";
 
+  // Resolve a clubId for Pro gating when not explicitly provided (e.g. team chats).
+  const resolvedTeamIdForClub = chatType === "team" ? chatId : teamId;
+  const { data: derivedClubId } = useQuery({
+    queryKey: ["chat-details-sheet-club-id", resolvedTeamIdForClub, clubId, chatType, chatId],
+    enabled: open && !clubId && (chatType === "team" || (chatType === "group" && !!resolvedTeamIdForClub)),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!resolvedTeamIdForClub) return null;
+      const { data } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", resolvedTeamIdForClub)
+        .maybeSingle();
+      return data?.club_id ?? null;
+    },
+  });
+  const proClubId =
+    (chatType === "club" ? chatId : clubId) || derivedClubId || null;
+  const { hasPro, hasProFootball } = useClubProAccess(proClubId, { enabled: open });
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -167,7 +188,7 @@ export function ChatDetailsSheet({
                     onClick={() => handleNavigate(`/teams/${chatType === "team" ? chatId : teamId}`)}
                   />
                 )}
-                {(teamId || chatType === "team") && (
+                {(teamId || chatType === "team") && hasProFootball && (
                   <NavRow
                     label="Open pitch board"
                     onClick={() =>
@@ -240,6 +261,8 @@ export function ChatDetailsSheet({
                   // Club chats should NOT expose the vault link — vault access
                   // is gated separately and not granted merely by chat membership.
                   if (chatType === "club") return null;
+                  // File vault is a Pro feature — hide entirely for free clubs.
+                  if (!hasPro) return null;
                   // For a group, we only show the row if it has a club/team/league
                   // context (so the auto-created folder or a fallback target exists).
                   // Personal groups (no club_id) have nothing to open and should

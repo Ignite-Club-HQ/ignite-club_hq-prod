@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
+import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -102,6 +103,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     },
   });
   const effectiveClubId = clubId ?? upgradeClubId ?? null;
+  const { usage } = useClubFreeUsage(effectiveClubId);
 
   const requirePro = (e: React.MouseEvent) => {
     if (hasProAccess) return false;
@@ -289,6 +291,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       toast.error("File must be less than 10MB");
       if (docInputRef.current) docInputRef.current.value = "";
       return;
+    }
+    // Free-tier file cap check (skipped automatically for Pro clubs).
+    if (clubId) {
+      try {
+        const { data: usageRow } = await supabase.rpc("get_club_free_usage", { _club_id: clubId });
+        const usage = Array.isArray(usageRow) ? usageRow[0] : usageRow;
+        if (usage && !usage.is_pro) {
+          const FREE_FILES = 10;
+          const FREE_FILE_BYTES = 100 * 1024 * 1024;
+          if (Number(usage.file_count ?? 0) >= FREE_FILES) {
+            toast.error("Store up to 10 files on Free. Upgrade to Pro for unlimited club document storage.");
+            if (docInputRef.current) docInputRef.current.value = "";
+            return;
+          }
+          if (Number(usage.file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
+            toast.error("Your club has used its 100 MB free file storage. Upgrade to Pro for unlimited document storage.");
+            if (docInputRef.current) docInputRef.current.value = "";
+            return;
+          }
+        }
+      } catch (capErr) {
+        console.warn("[ChatImageInput] file cap check failed, continuing", capErr);
+      }
     }
     setUploading(true);
     try {
@@ -874,13 +899,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               actions.push({
                 key: "photo",
                 label: "Photo / Video",
-                hint: hasProAccess ? "Camera roll" : "Pro feature",
+                hint: "Camera roll",
                 icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                 tone: "primary",
                 disabled: disabled || uploading,
-                locked: !hasProAccess,
                 onClick: (e) => {
-                  if (requirePro(e)) return;
                   setMenuOpen(false);
                   handleImageButtonClick(e);
                 },
@@ -890,13 +913,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: hasProAccess ? "Device or vault" : "Pro feature",
+                  hint: "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
@@ -906,13 +927,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "event",
                   label: "Share Event",
-                  hint: hasProAccess ? "Training or game" : "Pro feature",
+                  hint: "Training or game",
                   icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onEventSelect("");
                   },
@@ -923,13 +942,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "poll",
                   label: "Create Poll",
-                  hint: hasProAccess ? "Ask the group" : "Pro feature",
+                  hint: "Ask the group",
                   icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  locked: !hasProAccess,
                   onClick: (e) => {
-                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onPollCreate();
                   },
@@ -950,6 +967,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 });
               }
               return (
+                <>
                 <div className="grid grid-cols-2 gap-1.5">
                   {actions.map((a) => (
                     <button
@@ -979,6 +997,55 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     </button>
                   ))}
                 </div>
+                {usage && !usage.isPro && (() => {
+                  const photoAtCap = usage.photo.used >= usage.photo.limit;
+                  const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
+                  const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
+                  const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
+                  const resetAt = usage.cycleEnd;
+                  let resetLine: string | null = null;
+                  if (resetAt) {
+                    const diffMs = resetAt.getTime() - Date.now();
+                    const dateLabel = resetAt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+                    if (diffMs <= 0) resetLine = `Resets shortly (${dateLabel})`;
+                    else {
+                      const hours = Math.round(diffMs / (1000 * 60 * 60));
+                      if (hours < 24) resetLine = `Resets in ${hours}h (${dateLabel})`;
+                      else {
+                        const days = Math.round(hours / 24);
+                        resetLine = `Resets in ${days} ${days === 1 ? "day" : "days"} (${dateLabel})`;
+                      }
+                    }
+                  }
+                  return (
+                    <div className="mt-1.5 px-1 space-y-0.5">
+                      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-lg bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground/80 leading-tight">
+                        <span className={photoAtCap ? "text-destructive font-medium" : undefined}>{usage.photo.used}/{usage.photo.limit} photos</span>
+                        {showVaultPicker && <span className={fileAtCap ? "text-destructive font-medium" : undefined}>{usage.file.used}/{usage.file.limit} files</span>}
+                        {showPollCreator && <span className={pollAtCap ? "text-destructive font-medium" : undefined}>{usage.poll.used}/{usage.poll.limit} polls</span>}
+                      </div>
+                      {resetLine && (
+                        <div className="text-center text-[10.5px] text-muted-foreground/80 px-2 leading-tight">
+                          {resetLine}
+                        </div>
+                      )}
+                      {effectiveClubId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            navigate(`/clubs/${effectiveClubId}/upgrade`);
+                          }}
+                          className="w-full text-center text-[10.5px] text-muted-foreground/60 hover:text-primary transition-colors inline-flex items-center justify-center gap-1"
+                        >
+                          <Crown className="h-3 w-3" />
+                          Upgrade for unlimited
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
               );
             })()}
           </PopoverContent>
