@@ -1,4 +1,4 @@
-import { Crown } from "lucide-react";
+import { Crown, RefreshCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,12 @@ interface UsageMeterProps {
   clubId?: string | null;
   /** Optional benefit-led message shown under the meter when at cap. */
   capMessage?: string;
+  /**
+   * When the current Free-tier cycle resets. Surfaced as a "Resets in X days"
+   * hint whenever the user is at the cap, so they know when uploads/polls
+   * become available again. Also shown subtly when running low (>=75%).
+   */
+  resetAt?: Date | null;
   className?: string;
 }
 
@@ -22,6 +28,23 @@ const formatBytesMB = (b: number) =>
     : `${(b / (1024 * 1024)).toFixed(b < 100 * 1024 ? 2 : 0)} MB`;
 
 const fmt = (v: number, bytes?: boolean) => (bytes ? formatBytesMB(v) : `${v}`);
+
+export function formatResetHint(resetAt: Date): string {
+  const now = Date.now();
+  const diffMs = resetAt.getTime() - now;
+  const dateLabel = resetAt.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  if (diffMs <= 0) return `Resets shortly (${dateLabel})`;
+  const hours = Math.round(diffMs / (1000 * 60 * 60));
+  if (hours < 24) {
+    return `Resets in ${hours} ${hours === 1 ? "hour" : "hours"} (${dateLabel})`;
+  }
+  const days = Math.round(hours / 24);
+  return `Resets in ${days} ${days === 1 ? "day" : "days"} (${dateLabel})`;
+}
 
 /**
  * Compact inline progress + label. Used to surface Free-tier caps on the
@@ -35,11 +58,14 @@ export function UsageMeter({
   bytes,
   clubId,
   capMessage,
+  resetAt,
   className,
 }: UsageMeterProps) {
   const navigate = useNavigate();
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const atCap = used >= limit;
+  const runningLow = !atCap && pct >= 75;
+  const showResetHint = !!resetAt && (atCap || runningLow);
 
   return (
     <div
@@ -63,6 +89,18 @@ export function UsageMeter({
 
       {atCap && capMessage && (
         <p className="text-xs text-muted-foreground pt-1">{capMessage}</p>
+      )}
+
+      {showResetHint && resetAt && (
+        <p
+          className={cn(
+            "flex items-center gap-1.5 text-xs pt-0.5",
+            atCap ? "text-foreground/80 font-medium" : "text-muted-foreground",
+          )}
+        >
+          <RefreshCw className="h-3 w-3 shrink-0" />
+          {formatResetHint(resetAt)}
+        </p>
       )}
 
       {atCap && clubId && (
