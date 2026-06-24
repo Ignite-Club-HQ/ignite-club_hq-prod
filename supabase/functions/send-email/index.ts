@@ -416,6 +416,14 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         }
       }
 
+      // Look up sport + team_type once so the template can render
+      // sport-aware copy/emoji and audience-aware (junior vs senior) wording.
+      const { sport, teamType } = await resolveSportAndTeamType(
+        supabaseAdmin,
+        data.clubName,
+        data.teamName,
+      );
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
@@ -428,6 +436,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
             primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
             childrenNames: data.childrenNames || [],
             customMessage: data.customMessage,
+            sport: data.sport ?? sport,
           })
         );
       }
@@ -446,9 +455,12 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           customMessage: data.customMessage,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
+          sport: data.sport ?? sport,
+          teamType: data.teamType ?? teamType,
         })
       );
     }
+
     
     case "event-reminder":
       return await renderAsync(
