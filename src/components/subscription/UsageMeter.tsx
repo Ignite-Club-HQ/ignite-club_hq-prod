@@ -64,7 +64,7 @@ export function UsageMeter({
   const navigate = useNavigate();
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const atCap = used >= limit;
-  const showResetHint = !!resetAt && !atCap;
+  const showResetHint = !!resetAt;
 
   return (
     <div
