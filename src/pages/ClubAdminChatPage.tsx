@@ -129,10 +129,6 @@ export default function ClubAdminChatPage() {
   const scheduleTarget: ScheduleTarget | null = conversationId
     ? { chat_type: "club_admin", conversation_id: conversationId }
     : null;
-  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
-    conversation?.club_id ?? null,
-    { enabled: !!conversation?.club_id && authReady }
-  );
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
