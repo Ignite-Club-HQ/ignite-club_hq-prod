@@ -261,6 +261,8 @@ export function ChatDetailsSheet({
                   // Club chats should NOT expose the vault link — vault access
                   // is gated separately and not granted merely by chat membership.
                   if (chatType === "club") return null;
+                  // File vault is a Pro feature — hide entirely for free clubs.
+                  if (!hasPro) return null;
                   // For a group, we only show the row if it has a club/team/league
                   // context (so the auto-created folder or a fallback target exists).
                   // Personal groups (no club_id) have nothing to open and should
