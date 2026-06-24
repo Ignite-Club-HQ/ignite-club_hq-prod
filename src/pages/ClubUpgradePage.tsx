@@ -41,12 +41,16 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
-  "Points & Rewards System",
-  "Photo & Media Uploads",
-  "Vault File Storage",
-  "Subfolder Organization",
-  "Duty Point Awards",
-  "Priority Support",
+  "DMs & custom groups",
+  "Unlimited photo & media uploads (Free: 20/month)",
+  "Unlimited file storage (Free: 10 files / 100 MB)",
+  "Unlimited polls (Free: 2/month)",
+  "Scheduled messages",
+  "Pinned vault files in chat",
+  "Subfolder organization",
+  "Points & rewards system",
+  "Duty point awards",
+  "Priority support",
 ];
 
 const PRO_FOOTBALL_FEATURES = [
