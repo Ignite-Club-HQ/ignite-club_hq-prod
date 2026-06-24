@@ -115,6 +115,8 @@ export default function SettingsPage() {
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
+  const [aiCatchUpEnabled, setAiCatchUpEnabled] = useState(true);
+  const [aiCatchUpLoading, setAiCatchUpLoading] = useState(false);
   
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
