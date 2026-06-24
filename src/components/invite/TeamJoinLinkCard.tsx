@@ -28,10 +28,11 @@ const DEFAULT_EXPIRY_DAYS = 30;
 const TOKEN_METADATA_KIND = "team_join_link";
 
 type RoleVariant = "parent" | "player" | "coach" | "team_admin";
+type TeamType = "junior" | "senior" | "mixed";
 
-const ROLE_OPTIONS: { value: RoleVariant; label: string }[] = [
-  { value: "parent", label: "Parent" },
-  { value: "player", label: "Player" },
+const ALL_ROLE_OPTIONS: { value: RoleVariant; label: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
+  { value: "parent", label: "Parent", juniorOnly: true },
+  { value: "player", label: "Player", seniorOnly: true },
   { value: "coach", label: "Coach" },
   { value: "team_admin", label: "Admin" },
 ];
