@@ -82,15 +82,7 @@ export function HomeQuickActionsFab({
     {
       label: "Post Photo/Video",
       icon: ImagePlus,
-      onClick: () =>
-        go(
-          proLocked
-            ? activeClubFilter
-              ? `/clubs/${activeClubFilter}/upgrade`
-              : "/clubs"
-            : "/media?upload=1",
-        ),
-      proLocked,
+      onClick: () => go("/media?upload=1"),
     },
     ...(canCreateEvent
       ? [
