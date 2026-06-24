@@ -180,6 +180,10 @@ export default function ClubAdminChatPage() {
     enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
+    conversation?.club_id ?? null,
+    { enabled: !!conversation?.club_id && authReady }
+  );
 
   // Sync active club to this conversation's club so push-launched threads
   // don't leave the user inside the wrong club context.
