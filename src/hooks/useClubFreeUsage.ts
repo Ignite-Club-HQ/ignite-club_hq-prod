@@ -48,6 +48,15 @@ export interface ClubFreeUsage {
     atStorageCap: boolean;
     atCap: boolean;
   };
+  chatFile: {
+    used: number;
+    limit: number;
+    storageUsed: number;
+    storageLimit: number;
+    atCountCap: boolean;
+    atStorageCap: boolean;
+    atCap: boolean;
+  };
   poll: {
     used: number;
     limit: number;
