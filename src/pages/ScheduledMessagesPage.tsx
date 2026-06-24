@@ -236,6 +236,7 @@ function lookupLabel(
 export default function ScheduledMessagesPage() {
   const navigate = useNavigate();
   const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
+  const { user } = useAuth();
   const { data: pendingRows = [], isLoading: loadingPending } = useAllScheduledMessages([
     "pending",
   ]);
