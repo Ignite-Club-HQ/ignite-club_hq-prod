@@ -4,7 +4,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock, X } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
@@ -229,28 +229,6 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
-  const bannerDismissKey = useMemo(() => {
-    const clubPart = effectiveClubFilter || "global";
-    return `ignite_upgrade_banner_dismissed_${clubPart}`;
-  }, [effectiveClubFilter]);
-  const [bannerDismissed, setBannerDismissed] = useState(() => {
-    try {
-      return window.localStorage.getItem(bannerDismissKey) === "1";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      if (bannerDismissed) {
-        window.localStorage.setItem(bannerDismissKey, "1");
-      } else {
-        window.localStorage.removeItem(bannerDismissKey);
-      }
-    } catch {
-      // ignore
-    }
-  }, [bannerDismissed, bannerDismissKey]);
 
   const { data: clubAdminConversations = [] } = useQuery({
     queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
@@ -2724,8 +2702,8 @@ export default function MessagesPage() {
         />
       </div>
 
-      {/* Pro upgrade banner for non-Pro admin users — compact, dismissible */}
-      {hasAdminRoleButNoPro && !bannerDismissed && (
+      {/* Pro upgrade banner for non-Pro admin users — compact */}
+      {hasAdminRoleButNoPro && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
           <CardContent className="flex items-center gap-3 py-3 px-3">
             <div className="min-w-0 flex-1">
@@ -2751,32 +2729,22 @@ export default function MessagesPage() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (upgradeClubId) {
-                    navigate(`/clubs/${upgradeClubId}/upgrade`);
-                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                  } else {
-                    navigate("/clubs");
-                  }
-                }}
-                className="h-7 rounded-full text-xs font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5"
-              >
-                Upgrade
-              </Button>
-              <button
-                type="button"
-                onClick={() => setBannerDismissed(true)}
-                className="h-7 w-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
-                aria-label="Dismiss"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (upgradeClubId) {
+                  navigate(`/clubs/${upgradeClubId}/upgrade`);
+                } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                } else {
+                  navigate("/clubs");
+                }
+              }}
+              className="h-7 rounded-full text-xs font-semibold px-2 border-primary/20 text-primary hover:bg-primary/5 shrink-0"
+            >
+              Upgrade
+            </Button>
           </CardContent>
         </Card>
       )}
