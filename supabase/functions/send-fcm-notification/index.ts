@@ -277,16 +277,26 @@ serve(async (req) => {
         };
 
         if (isIos) {
+          const effectiveTag = tag || `notification-${notificationId || Date.now()}`;
           message.notification = {
             title: title || 'Ignite',
             body: body || 'You have a new notification',
           };
           message.apns = {
+            // apns-collapse-id groups updates with the same id in Notification
+            // Center so repeated messages in the same chat stack instead of
+            // piling up. Max 64 bytes per Apple spec.
+            headers: {
+              'apns-collapse-id': effectiveTag.slice(0, 64),
+              'apns-priority': '10',
+            },
             payload: {
               aps: {
                 'mutable-content': 1,
                 sound: 'default',
                 badge: 1,
+                // thread-id groups conversations in Notification Center
+                'thread-id': effectiveTag,
               },
             },
           };
