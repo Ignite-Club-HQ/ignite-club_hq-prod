@@ -1000,7 +1000,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 </div>
                 {usage && !usage.isPro && (() => {
                   const photoAtCap = usage.chatPhoto.used >= usage.chatPhoto.limit;
-                  const fileAtCap = showVaultPicker && usage.file.used >= usage.file.limit;
+                  const fileAtCap = showVaultPicker && usage.chatFile.used >= usage.chatFile.limit;
                   const pollAtCap = showPollCreator && usage.poll.used >= usage.poll.limit;
                   const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
                   const resetAt = usage.cycleEnd;
