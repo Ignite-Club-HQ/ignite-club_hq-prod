@@ -674,13 +674,39 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
+    // Lock-screen privacy: if user opted out of message previews, redact
+    // chat-type notifications to a generic title/body.
+    const MESSAGE_TYPES = new Set([
+      'team_message','club_message','group_message','direct_message',
+      'broadcast','message_reply','message_mention','message_reaction',
+      'club_admin_message',
+    ]);
+    let effectiveTitle = title;
+    let effectiveBody = body;
+    if (notificationType && MESSAGE_TYPES.has(notificationType)) {
+      try {
+        const { data: prefRow } = await supabase
+          .from('notification_preferences')
+          .select('show_message_preview')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const showPreview = (prefRow as any)?.show_message_preview ?? true;
+        if (!showPreview) {
+          effectiveTitle = 'Ignite';
+          effectiveBody = 'New message';
+        }
+      } catch (err) {
+        console.warn('[PUSH] Could not read show_message_preview, defaulting to show:', err);
+      }
+    }
+
     // Send to native apps via FCM (parallel with web push)
     const fcmPromise = sendFCMNotifications(
       supabase,
       userId,
-      title || 'Ignite',
-      body || 'You have a new notification',
+      effectiveTitle || 'Ignite',
+      effectiveBody || 'You have a new notification',
       url,
       notificationId,
       tag || `notification-${notificationId || Date.now()}`,
