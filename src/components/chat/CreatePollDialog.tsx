@@ -85,6 +85,7 @@ function validatePoll(question: string, options: string[]) {
 export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated, clubId: clubIdProp }: CreatePollDialogProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Resolve the owning club so we can show the Free-tier usage meter & enforce caps.
   const { data: resolvedClubId } = useQuery({
