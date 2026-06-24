@@ -2055,8 +2055,9 @@ export default function ClubDetailPage() {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
               <ClubMessagePrivacySettings clubId={id!} />
+              <ClubAICatchUpSettings clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
