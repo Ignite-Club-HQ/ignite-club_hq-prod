@@ -195,7 +195,7 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
       return poll.id as string;
     },
     onSuccess: (pollId) => {
-      notifyClubFreeUsageChanged(clubIdProp ?? null);
+      notifyClubFreeUsageChanged(clubId);
       onCreated(pollId);
       reset();
       onOpenChange(false);
