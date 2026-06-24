@@ -317,9 +317,11 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
         <div
           role="radiogroup"
           aria-label="Default role for this link"
-          className="grid grid-cols-4 gap-1 rounded-lg bg-background border border-border p-1"
+          className={`grid gap-1 rounded-lg bg-background border border-border p-1 ${
+            roleOptions.length === 2 ? "grid-cols-2" : roleOptions.length === 3 ? "grid-cols-3" : "grid-cols-4"
+          }`}
         >
-          {ALL_ROLE_OPTIONS.map((opt) => {
+          {roleOptions.map((opt) => {
             const isActive = activeRole === opt.value;
             const sensitive = SENSITIVE_ROLES.includes(opt.value);
             return (
