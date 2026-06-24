@@ -2702,54 +2702,43 @@ export default function MessagesPage() {
         />
       </div>
 
-      {/* Pro upgrade banner for non-Pro admin users — benefit-led */}
+      {/* Pro upgrade banner for non-Pro admin users — compact, benefit-led */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
-          <CardContent className="flex flex-col gap-2 py-3 px-3">
-            {/* PRO badge + Headline */}
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
-              >
-                PRO
-              </Badge>
-              <p className="font-bold text-sm leading-tight truncate">
-                Unlimited Club Communication
-              </p>
-            </div>
-
-            {/* Benefit list */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {[
-                "Club-wide messaging",
-                "Unlimited photos",
-                "Unlimited file sharing",
-                "Unlimited polls",
-              ].map((benefit) => (
-                <div key={benefit} className="flex items-center gap-1.5 text-xs text-foreground/80">
-                  <Check className="h-3 w-3 text-primary shrink-0" />
-                  <span>{benefit}</span>
+          <CardContent className="py-2 px-3">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none shrink-0"
+                  >
+                    PRO
+                  </Badge>
+                  <p className="font-bold text-sm leading-tight truncate">
+                    Communicate Across Your Entire Club
+                  </p>
                 </div>
-              ))}
+                <p className="mt-1.5 text-xs text-foreground/60 leading-snug line-clamp-2">
+                  Reach every player, parent, coach and committee member with messaging, photos, files and polls.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (upgradeClubId) {
+                    navigate(`/clubs/${upgradeClubId}/upgrade`);
+                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                  } else {
+                    navigate("/clubs");
+                  }
+                }}
+                className="shrink-0 mt-0.5 text-xs font-semibold text-primary hover:underline"
+              >
+                Upgrade to Pro →
+              </button>
             </div>
-
-            {/* Upgrade button — integrated, full width */}
-            <Button
-              size="sm"
-              onClick={() => {
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }}
-              className="w-full h-8 text-xs font-semibold rounded-md"
-            >
-              Upgrade to Pro
-            </Button>
           </CardContent>
         </Card>
       )}
