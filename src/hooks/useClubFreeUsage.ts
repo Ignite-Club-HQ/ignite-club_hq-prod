@@ -78,6 +78,7 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       if (!row) return null;
 
       const photoUsed = Number(row.photo_uploads_this_cycle ?? 0);
+      const chatPhotoUsed = Number(row.chat_photo_uploads_this_cycle ?? 0);
       const fileUsed = Number(row.file_count ?? 0);
       const fileBytes = Number(row.file_storage_bytes ?? 0);
       const pollUsed = Number(row.polls_this_cycle ?? 0);
@@ -92,6 +93,11 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
           limit: FREE_PHOTO_UPLOADS_PER_CYCLE,
           atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
           atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
+        },
+        chatPhoto: {
+          used: chatPhotoUsed,
+          limit: FREE_CHAT_PHOTOS_PER_CYCLE,
+          atCap: !isPro && chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE,
         },
         file: {
           used: fileUsed,
