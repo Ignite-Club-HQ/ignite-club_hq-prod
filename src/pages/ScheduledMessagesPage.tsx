@@ -346,13 +346,6 @@ export default function ScheduledMessagesPage() {
         </div>
       </div>
 
-      {!proLoading && !hasAnyClubPro ? (
-        <ProFeatureLock
-          title="Scheduled messages is a Pro feature"
-          description="Schedule messages to send later from any chat. Upgrade your club to Pro to unlock."
-          showUpgradeButton={false}
-        />
-      ) : (
       <div className="px-3 pt-4 space-y-6">
         {/* Pending */}
         <section className="space-y-2.5">
