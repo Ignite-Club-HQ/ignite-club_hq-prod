@@ -282,6 +282,7 @@ export default function GroupChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("group", groupId);
   const { data: groupUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!groupId,
     select: (d) => (groupId ? d.groups[groupId] ?? 0 : 0),
