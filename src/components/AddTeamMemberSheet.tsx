@@ -119,8 +119,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   
   // Get default role based on team type
   const getDefaultRole = (): TeamRole => {
-    if (teamType === "senior") return "player";
-    return "parent"; // junior and mixed default to parent
+    if (teamType === "junior") return "parent";
+    return "player"; // senior and mixed default to adult player
   };
   
   const { user } = useAuth();
