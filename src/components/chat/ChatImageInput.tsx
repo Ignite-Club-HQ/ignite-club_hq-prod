@@ -797,13 +797,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   return (
                     <button
                       type="button"
-                      disabled={disabled}
+                      disabled={disabled || vaultLocked}
                       onClick={() => {
                         setAttachChooserOpen(false);
-                        if (vaultLocked) {
-                          navigate("/upgrade");
-                          return;
-                        }
                         setVaultPickerOpen(true);
                       }}
                       className="group relative flex flex-col items-center justify-center gap-3 py-6 rounded-2xl border border-border bg-muted/40 hover:bg-muted active:scale-[0.97] active:bg-muted transition-all disabled:opacity-50 min-h-[128px]"
