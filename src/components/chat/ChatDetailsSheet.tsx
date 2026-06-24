@@ -188,7 +188,7 @@ export function ChatDetailsSheet({
                     onClick={() => handleNavigate(`/teams/${chatType === "team" ? chatId : teamId}`)}
                   />
                 )}
-                {(teamId || chatType === "team") && (
+                {(teamId || chatType === "team") && hasProFootball && (
                   <NavRow
                     label="Open pitch board"
                     onClick={() =>
