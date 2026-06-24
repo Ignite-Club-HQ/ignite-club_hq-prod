@@ -244,6 +244,7 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
               used={usage.poll.used}
               limit={usage.poll.limit}
               clubId={clubId}
+              resetAt={usage.cycleEnd}
               capMessage={atPollCap ? FREE_UPGRADE_MESSAGES.pollCount : undefined}
             />
           )}
