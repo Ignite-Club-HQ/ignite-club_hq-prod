@@ -71,11 +71,19 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeRole, setActiveRole] = useState<RoleVariant>("parent");
+
+  const roleOptions = ALL_ROLE_OPTIONS.filter(opt => {
+    if (teamType === "junior") return !opt.seniorOnly;
+    if (teamType === "senior") return !opt.juniorOnly;
+    return true;
+  });
+
+  const defaultRole: RoleVariant = teamType === "junior" ? "parent" : "player";
+  const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
