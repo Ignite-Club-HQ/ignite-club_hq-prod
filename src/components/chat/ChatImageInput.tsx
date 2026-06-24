@@ -961,7 +961,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: "Device or vault",
+                  hint: usage && !usage.isPro ? "From device" : "Device or vault",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
