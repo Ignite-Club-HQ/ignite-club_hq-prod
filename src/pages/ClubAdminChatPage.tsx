@@ -16,6 +16,7 @@ import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomIns
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
@@ -128,6 +129,10 @@ export default function ClubAdminChatPage() {
   const scheduleTarget: ScheduleTarget | null = conversationId
     ? { chat_type: "club_admin", conversation_id: conversationId }
     : null;
+  const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
+    conversation?.club_id ?? null,
+    { enabled: !!conversation?.club_id && authReady }
+  );
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
