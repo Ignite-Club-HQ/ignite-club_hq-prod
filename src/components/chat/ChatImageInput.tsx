@@ -388,7 +388,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           .single();
         if (insErr || !row) throw insErr || new Error("Failed to register file");
         onAppendToken(makeVaultFileToken(row.id));
-        notifyClubFreeUsageChanged(clubId);
+        optimisticallyBumpChatFileUsage(clubId, file.size);
+        refreshClubFreeUsage(clubId);
         toast.success("File attached");
       } else {
         toast.error("Cannot attach file in this chat");
