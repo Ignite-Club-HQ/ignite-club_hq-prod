@@ -192,13 +192,13 @@ export const TeamInviteEmail = ({
                 )}
 
               </>
-            ) : clubName === 'Bridgewater Soccer Club' ? (
-              /* Bridgewater-specific default copy */
+            ) : parentAudience && clubName === 'Bridgewater Soccer Club' ? (
+              /* Bridgewater-specific default copy (parent audience) */
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to ${teamName} ⚽`
-                    : `Your child has been added to ${teamName} ⚽`}
+                    ? `${childLabel} has been added to ${teamName} ${emoji}`
+                    : `Your child has been added to ${teamName} ${emoji}`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -220,13 +220,13 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• View photos from games and club events</Text>
                 <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
               </>
-            ) : (
-              /* Generic default copy for all other clubs */
+            ) : parentAudience ? (
+              /* Parent audience — generic */
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to ${teamName} 🎉`
-                    : `You've been invited to join ${teamName} 🎉`}
+                    ? `${childLabel} has been added to ${teamName} ${emoji}`
+                    : `Your child has been added to ${teamName} ${emoji}`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -242,11 +242,30 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
                 <Text style={bulletItem}>• View photos from games and club events</Text>
                 <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
+              </>
+            ) : (
+              /* Player audience — adult / senior / mixed teams */
+              <>
+                <Text style={headingText}>
+                  You've been added to {teamName} {emoji}
+                </Text>
 
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
 
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
 
+                {!isMiniLeague && (
+                  <Text style={bulletItem}>• See your team details and who your teammates are</Text>
+                )}
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• RSVP to fixtures and let your team know if you're available</Text>
+                <Text style={bulletItem}>• Message your coach and teammates in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
               </>
             )}
+
 
           </Section>
 
