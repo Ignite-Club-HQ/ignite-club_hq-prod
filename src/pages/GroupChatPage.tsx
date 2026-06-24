@@ -2260,6 +2260,16 @@ export default function GroupChatPage() {
 
       <ChatThreadSponsorStrip clubId={group?.club_id ?? null} />
 
+      <ChatCatchUp
+        scope_type="group"
+        scope_id={groupId}
+        unreadCount={groupUnreadCount}
+        latestMessageId={filteredMessages?.[filteredMessages.length - 1]?.id ?? null}
+        proLocked={!groupClubProLoading && !groupClubHasPro}
+        upgradeHref={group?.club_id ? `/clubs/${group.club_id}/upgrade` : undefined}
+        registerTrigger={(fn) => { summarizeTriggerRef.current = fn; }}
+      />
+
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
