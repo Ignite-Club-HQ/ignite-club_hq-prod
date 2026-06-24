@@ -238,6 +238,8 @@ function lookupLabel(
 export default function ScheduledMessagesPage() {
   const navigate = useNavigate();
   const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
+  const { activeClubFilter } = useClubTheme();
+  const { hasPro: activeClubHasPro, isLoading: activeClubProLoading } = useClubProAccess(activeClubFilter);
   const { user } = useAuth();
 
   // Resolve a clubId for upgrade navigation on this global page
