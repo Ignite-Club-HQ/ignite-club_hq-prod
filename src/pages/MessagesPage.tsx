@@ -2724,6 +2724,69 @@ export default function MessagesPage() {
         />
       </div>
 
+      {/* Pro upgrade banner for non-Pro admin users — compact, dismissible */}
+      {hasAdminRoleButNoPro && !bannerDismissed && (
+        <Card className="border-primary/10 bg-primary/[0.03] overflow-hidden">
+          <CardContent className="flex items-center gap-2 py-2 px-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Badge
+                  variant="secondary"
+                  className="text-[9px] px-1 py-0 h-3.5 font-bold uppercase tracking-wider bg-primary/10 text-primary border-0 leading-none"
+                >
+                  PRO
+                </Badge>
+                <p className="font-bold text-sm leading-tight">
+                  Unlock Club-Wide Communication
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {[
+                  { icon: "📢", label: "Club Chats" },
+                  { icon: "📷", label: "Photos" },
+                  { icon: "📁", label: "Files" },
+                  { icon: "📊", label: "Polls" },
+                ].map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap"
+                  >
+                    <span className="leading-none">{chip.icon}</span>
+                    <span className="leading-none">{chip.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (upgradeClubId) {
+                    navigate(`/clubs/${upgradeClubId}/upgrade`);
+                  } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                    navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                  } else {
+                    navigate("/clubs");
+                  }
+                }}
+                className="h-6 rounded-full text-[11px] font-semibold px-2.5 border-primary/20 text-primary hover:bg-primary/5"
+              >
+                Upgrade
+              </Button>
+              <button
+                type="button"
+                onClick={() => setBannerDismissed(true)}
+                className="h-6 w-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on
           ALL inbox queries having resolved so chips pop in together instead of
