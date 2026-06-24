@@ -168,7 +168,14 @@ function LogoClubThemeDropdown() {
     enabled: !!user?.id,
   });
 
-  const lockedClubs = allUserClubs.filter(c => !c.isSelectable && !c.hasPro);
+  // Show every user club that isn't already in availableClubThemes as a
+  // non-selectable entry (locked / no-theme / theme-disabled). Previously this
+  // was `!hasPro` only, which silently hid Pro clubs that hadn't configured a
+  // theme yet — so the dropdown looked empty for admins of brand-new Pro clubs.
+  const availableClubIds = new Set(availableClubThemes.map(t => t.clubId));
+  const lockedClubs = allUserClubs.filter(
+    c => !c.isSelectable && !availableClubIds.has(c.clubId)
+  );
 
   return (
     <DropdownMenuContent align="start" className="w-56">
