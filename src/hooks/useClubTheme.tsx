@@ -675,7 +675,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // Fetch all Pro clubs that the user belongs to with custom themes
-  const { data: availableClubThemes = [], isLoading } = useQuery({
+  const { data: availableClubThemes = [], isLoading, isSuccess: isClubThemesSuccess, isError: isClubThemesError } = useQuery({
     queryKey: ["club-themes", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -807,7 +807,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // ALL clubs the user belongs to (Pro + free) — used to validate active club
   // selections that aren't themed and to display free club names in the header.
-  const { data: userClubs = [], isLoading: isUserClubsLoading } = useQuery<{ id: string; name: string; logo_url: string | null }[]>({
+  const { data: userClubs = [], isLoading: isUserClubsLoading, isSuccess: isUserClubsSuccess }= useQuery<{ id: string; name: string; logo_url: string | null }[]>({
     queryKey: ["user-clubs-for-switcher", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -982,6 +982,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // Wait until the themed-clubs query has finished — otherwise we'd evict
     // a still-valid themed cache before server data arrives.
     if (isLoading || isUserClubsLoading) return;
+    // CRITICAL: Only evict when BOTH queries have actually succeeded with data.
+    // If either query errored (e.g. transient network drop after token refresh),
+    // `availableClubThemes` is the default empty array — evicting here would
+    // permanently wipe the theme until app restart. Bail out and let the next
+    // successful refetch (on reconnect) re-validate.
+    if (!isClubThemesSuccess || !isUserClubsSuccess) return;
+    if (isClubThemesError) return;
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
 
     if (!inThemed) {
@@ -996,7 +1003,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, isLoading, isUserClubsLoading, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, isLoading, isUserClubsLoading, isClubThemesSuccess, isUserClubsSuccess, isClubThemesError, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {

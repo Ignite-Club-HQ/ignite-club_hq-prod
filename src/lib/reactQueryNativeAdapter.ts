@@ -94,7 +94,18 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
           s.fetchStatus === 'paused'
         );
       });
-      if (errored.length === 0) return;
+      if (errored.length === 0) {
+        // Even when nothing is in error, theme/club-list queries may have
+        // been disabled (user=null) during a transient SIGNED_OUT and missed
+        // the reconnect window. Mark them stale so they refetch the moment
+        // they become enabled again.
+        try {
+          queryClient.invalidateQueries({ queryKey: ['club-themes'] });
+          queryClient.invalidateQueries({ queryKey: ['user-clubs-for-switcher'] });
+          queryClient.invalidateQueries({ queryKey: ['all-user-clubs-for-theme-v2'] });
+        } catch { /* noop */ }
+        return;
+      }
       console.log(`[NativeAdapter] Recovering ${errored.length} errored queries (${reason})`);
       errored.forEach((q) => {
         try {
@@ -103,6 +114,12 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
           /* noop */
         }
       });
+      // Also kick the critical theme/club queries regardless of state.
+      try {
+        queryClient.invalidateQueries({ queryKey: ['club-themes'] });
+        queryClient.invalidateQueries({ queryKey: ['user-clubs-for-switcher'] });
+        queryClient.invalidateQueries({ queryKey: ['all-user-clubs-for-theme-v2'] });
+      } catch { /* noop */ }
     } catch (e) {
       console.warn('[NativeAdapter] recoverErroredQueries failed:', e);
     }
