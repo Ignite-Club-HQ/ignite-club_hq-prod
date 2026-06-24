@@ -35,6 +35,7 @@ export function ChatHeaderMenu({
   onDeleteGroup,
   onSearch,
   onScheduleMessage,
+  scheduleMessageLocked = false,
   onManagePinnedVault,
   pinnedVaultEnabled,
   onTogglePinnedVault,
