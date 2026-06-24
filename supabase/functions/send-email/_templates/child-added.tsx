@@ -12,6 +12,7 @@ import {
   Text,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
+import { sportEmoji } from './sport-meta.ts'
 
 interface ChildAddedEmailProps {
   recipientName: string;
@@ -22,6 +23,7 @@ interface ChildAddedEmailProps {
   primaryColor?: string;
   childrenNames?: string[];
   customMessage?: string;
+  sport?: string | null;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -45,12 +47,15 @@ export const ChildAddedEmail = ({
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
   customMessage,
+  sport,
 }: ChildAddedEmailProps) => {
   const hasMultipleChildren = childrenNames.length > 1;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your children';
+  const emoji = sportEmoji(sport);
   const previewText = childrenNames.length === 1
-    ? `${childrenNames[0]} has been added to ${teamName} ⚽`
-    : `Your children have been added to ${teamName} ⚽`;
+    ? `${childrenNames[0]} has been added to ${teamName} ${emoji}`
+    : `Your children have been added to ${teamName} ${emoji}`;
+
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `${PRODUCTION_DOMAIN}${deepLinkPath}`;
