@@ -226,9 +226,15 @@ export default function TeamChatPage() {
       refreshUnreadCount,
     });
   }, [user, teamId, refreshUnreadCount, decrementUnreadCount, queryClient]);
-  
-  // Use ref to always get latest profile value in mutation callback
-  const profileRef = useRef(profile);
+
+  // Record that the user opened this team chat (drives the AI catch-up trigger).
+  useEffect(() => { if (teamId) markChatOpened("team", teamId); }, [teamId]);
+  const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { data: teamUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
+    enabled: !!teamId,
+    select: (d) => (teamId ? d.teams[teamId] ?? 0 : 0),
+  });
+
   profileRef.current = profile;
   
   // Legacy DOM refs are no longer required (Virtuoso owns scroll), but keep
