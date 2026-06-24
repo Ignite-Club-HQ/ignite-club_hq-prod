@@ -1004,7 +1004,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   const anyAtCap = photoAtCap || fileAtCap || pollAtCap;
                   const resetAt = usage.cycleEnd;
                   let resetLine: string | null = null;
-                  if (anyAtCap && resetAt) {
+                  if (resetAt) {
                     const diffMs = resetAt.getTime() - Date.now();
                     const dateLabel = resetAt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
                     if (diffMs <= 0) resetLine = `Resets shortly (${dateLabel})`;
