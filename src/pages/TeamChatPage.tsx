@@ -1716,6 +1716,7 @@ export default function TeamChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
+              scheduleMessageLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 isAdmin
                   ? () => {
