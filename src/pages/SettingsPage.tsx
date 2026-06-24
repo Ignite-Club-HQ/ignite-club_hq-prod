@@ -137,6 +137,7 @@ export default function SettingsPage() {
           membership_enabled: data.membership_enabled,
           pitch_board_enabled: data.pitch_board_enabled ?? true,
           rewards_enabled: data.rewards_enabled ?? true,
+          show_message_preview: (data as any).show_message_preview ?? true,
         });
         setEmailPreferences({
           email_messages_enabled: data.email_messages_enabled ?? true,
