@@ -416,3 +416,19 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
     </div>
   );
 }
+
+function RevealItem({
+  visible,
+  as: Tag = "div",
+  className,
+  children,
+}: {
+  visible: boolean;
+  as?: "div" | "li" | "p" | "section";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (!visible) return null;
+  const cls = `${className ?? ""} animate-in fade-in slide-in-from-bottom-1 duration-200`.trim();
+  return <Tag className={cls}>{children}</Tag>;
+}
