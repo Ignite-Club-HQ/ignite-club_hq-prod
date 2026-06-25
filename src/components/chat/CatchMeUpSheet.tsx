@@ -210,8 +210,8 @@ export function CatchMeUpSheet({
                         <ul className="space-y-1 pl-1">
                           {items.map((item, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm leading-snug">
-                              <Reveal delayMs={scheduleType(item)} as="span" className="mt-[5px]">
-                                <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              <Reveal delayMs={scheduleType(item)} as="span" className="mt-[0.35em] self-start shrink-0">
+                                <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/60" />
                               </Reveal>
                               <span className="text-foreground">
                                 <Typed text={item} delayMs={scheduleType(item)} charMs={CHAR_MS} />
@@ -273,8 +273,8 @@ export function CatchMeUpSheet({
                   <ul className="space-y-1 pl-1">
                     {view.questions.map((q, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm leading-snug">
-                        <Reveal delayMs={scheduleType(q)} as="span" className="mt-[5px]">
-                          <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                        <Reveal delayMs={scheduleType(q)} as="span" className="mt-[0.35em] self-start shrink-0">
+                          <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/60" />
                         </Reveal>
                         <span className="text-foreground">
                           <Typed text={q} delayMs={scheduleType(q)} charMs={CHAR_MS} />
@@ -368,7 +368,7 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
       <ul className="space-y-1 pl-1">
         {items.map((item, i) => (
           <li key={i} className="flex items-start gap-2 text-sm leading-snug">
-            <span className="mt-[5px] inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            <span className="mt-[0.35em] inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
             <span className="text-foreground">{item}</span>
           </li>
         ))}
