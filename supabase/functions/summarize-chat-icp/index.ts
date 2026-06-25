@@ -493,9 +493,10 @@ serve(async (req) => {
 
     if (!summary.headline) {
       console.error("[summarize-chat-icp] empty/invalid model output", raw.slice(0, 400));
-      return new Response(JSON.stringify({ error: "ai_invalid_output" }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "ai_invalid_output", provider: "icp", model: ICP_MODEL, raw_preview: (raw || "").slice(0, 200) }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     await admin
