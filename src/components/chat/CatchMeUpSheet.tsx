@@ -151,7 +151,7 @@ export function CatchMeUpSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl px-0 pb-0">
+      <SheetContent side="bottom" className="max-h-[85vh] flex flex-col rounded-t-2xl px-0 pb-0">
         <SheetHeader className="px-4 pt-1 text-left">
           <SheetTitle className="flex items-center gap-2 text-base">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
