@@ -2155,7 +2155,7 @@ export default function GroupChatPage() {
                   : undefined
               }
               pinnedVaultLocked={!!(isAdmin || group.created_by === user?.id) && pinnedVaultLocked}
-              onUnpinVault=
+              onUnpinVault={
                 pinnedVault.record && (isAdmin || group.created_by === user?.id) && !pinnedVaultLocked
                   ? () => pinnedVault.remove()
                   : undefined

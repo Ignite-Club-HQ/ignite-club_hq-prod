@@ -1743,7 +1743,7 @@ export default function TeamChatPage() {
                   : undefined
               }
               pinnedVaultLocked={!!isAdmin && pinnedVaultLocked}
-              onUnpinVault=
+              onUnpinVault={
                 pinnedVault.record && isAdmin && !pinnedVaultLocked ? () => pinnedVault.remove() : undefined
               }
             />
