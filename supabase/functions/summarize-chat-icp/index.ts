@@ -525,21 +525,25 @@ serve(async (req) => {
       );
     }
 
-    await admin
-      .from("chat_summaries")
-      .upsert(
-        {
-          user_id: user.id,
-          scope_type,
-          scope_id,
-          last_message_id: lastMessageId,
-          message_count: messages.length,
-          summary,
-          model: `icp:${modelUsed}`,
-          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
-        },
-        { onConflict: "user_id,scope_type,scope_id,last_message_id" },
-      );
+    // Don't pollute the cache with lookback-window summaries — they're
+    // bespoke time windows the user explicitly requested.
+    if (!validLookback) {
+      await admin
+        .from("chat_summaries")
+        .upsert(
+          {
+            user_id: user.id,
+            scope_type,
+            scope_id,
+            last_message_id: lastMessageId,
+            message_count: messages.length,
+            summary,
+            model: `icp:${modelUsed}`,
+            expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "user_id,scope_type,scope_id,last_message_id" },
+        );
+    }
 
     return new Response(
       JSON.stringify({
@@ -549,6 +553,7 @@ serve(async (req) => {
         cached: false,
         provider: "icp",
         model: modelUsed,
+        lookback_hours: validLookback ? lookback_hours : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
