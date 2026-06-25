@@ -74,6 +74,12 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const ALLOWLIST = new Set(["f51dd664-b0d5-4956-b2d5-cec9222ae3dc"]);
+    if (!ALLOWLIST.has(user.id)) {
+      return new Response(JSON.stringify({ error: "Chat Recap is currently in restricted beta." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { scope_type, scope_id, last_opened_at, lookback_hours } = bodyParsed || ({} as Body);
     const cfg = SCOPE_TABLES[scope_type];
