@@ -245,13 +245,15 @@ serve(async (req) => {
     });
 
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
+    const msgLimit = validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES;
     let msgQuery = userClient
       .from(table)
       .select("id, text, author_id, created_at, image_url")
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit((globalThis as any).__msgLimit = (validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES));
+      .limit(msgLimit);
+
     if (lookbackCutoffIso) {
       msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
     }
