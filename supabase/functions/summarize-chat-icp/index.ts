@@ -122,10 +122,16 @@ Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets t
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
   if (!s) return {};
-  // Strip code fences
   let cleaned = s.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  // Some models prefix with <think>...</think>
+  // Strip closed <think>…</think> blocks (Qwen 3 reasoning prefix)
   cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // Strip an UNCLOSED leading <think> tail — Qwen can run out of tokens
+  // mid-reasoning and never emit </think>; the JSON (if any) is later.
+  if (/^<think>/i.test(cleaned)) {
+    const firstBrace = cleaned.indexOf("{");
+    if (firstBrace > 0) cleaned = cleaned.slice(firstBrace).trim();
+    else cleaned = cleaned.replace(/^<think>[\s\S]*$/i, "").trim();
+  }
   try { return JSON.parse(cleaned); } catch { /* fall through */ }
   const first = cleaned.indexOf("{");
   const last = cleaned.lastIndexOf("}");
