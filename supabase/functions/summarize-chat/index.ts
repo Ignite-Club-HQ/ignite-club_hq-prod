@@ -129,10 +129,32 @@ serve(async (req) => {
       });
     }
 
+    // Require the user to have acknowledged the AI Catch Me Up disclosure once.
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("ai_catch_up_acknowledged_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!(prof as any)?.ai_catch_up_acknowledged_at) {
+      return new Response(JSON.stringify({ error: "disclosure_required" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Pro gate + club-level AI Catch Me Up toggle (skip for direct messages — no single club to evaluate).
+    let isJuniorClub = false;
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
+        // Junior club detection — if any team in the club is a junior team we apply stricter rules.
+        const { data: juniorTeams } = await admin
+          .from("teams")
+          .select("id")
+          .eq("club_id", clubId)
+          .eq("team_type", "junior")
+          .limit(1);
+        isJuniorClub = Array.isArray(juniorTeams) && juniorTeams.length > 0;
+
         // Admin bypass: app_admin / club_admin / committee_member can use the feature
         // even when the club-level toggle is off (mirrors useAICatchUpAvailability on the client).
         const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
@@ -146,7 +168,17 @@ serve(async (req) => {
             .in("role", ["club_admin", "committee_member"]);
           isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
         }
-        const adminBypass = isAppAdmin === true || isClubAdmin;
+        // For junior clubs we DO NOT allow committee_member to bypass — only app_admin or club_admin.
+        let adminBypass = isAppAdmin === true || isClubAdmin;
+        if (isJuniorClub && !isAppAdmin) {
+          const { data: strictRoles } = await admin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("club_id", clubId)
+            .eq("role", "club_admin");
+          adminBypass = Array.isArray(strictRoles) && strictRoles.length > 0;
+        }
 
         if (!adminBypass) {
           const { data: clubRow } = await admin
