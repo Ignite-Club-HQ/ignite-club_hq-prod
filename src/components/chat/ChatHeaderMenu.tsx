@@ -146,6 +146,7 @@ export function ChatHeaderMenu({
                   onClick={(e) => {
                     e.preventDefault();
                     setMoreOpen((v) => !v);
+                    (e.currentTarget as HTMLElement).blur();
                   }}
                 >
                   <span className="flex-1">More</span>
