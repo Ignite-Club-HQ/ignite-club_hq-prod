@@ -122,10 +122,16 @@ Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets t
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
   if (!s) return {};
-  // Strip code fences
   let cleaned = s.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  // Some models prefix with <think>...</think>
+  // Strip closed <think>…</think> blocks (Qwen 3 reasoning prefix)
   cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // Strip an UNCLOSED leading <think> tail — Qwen can run out of tokens
+  // mid-reasoning and never emit </think>; the JSON (if any) is later.
+  if (/^<think>/i.test(cleaned)) {
+    const firstBrace = cleaned.indexOf("{");
+    if (firstBrace > 0) cleaned = cleaned.slice(firstBrace).trim();
+    else cleaned = cleaned.replace(/^<think>[\s\S]*$/i, "").trim();
+  }
   try { return JSON.parse(cleaned); } catch { /* fall through */ }
   const first = cleaned.indexOf("{");
   const last = cleaned.lastIndexOf("}");
@@ -426,8 +432,10 @@ serve(async (req) => {
     const lastVisitLine = last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    // `/no_think` disables Qwen 3's reasoning preamble so the canister's limited
+    // output budget is spent on the JSON answer instead of <think> tokens.
     const userPrompt =
-      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
+      `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
     // Call ICP Qwen
     let raw = "";
@@ -485,9 +493,10 @@ serve(async (req) => {
 
     if (!summary.headline) {
       console.error("[summarize-chat-icp] empty/invalid model output", raw.slice(0, 400));
-      return new Response(JSON.stringify({ error: "ai_invalid_output" }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "ai_invalid_output", provider: "icp", model: ICP_MODEL, raw_preview: (raw || "").slice(0, 200) }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     await admin
