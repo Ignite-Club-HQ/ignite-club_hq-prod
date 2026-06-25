@@ -2629,6 +2629,19 @@ export default function MessagesPage() {
             </Button>
           )}
 
+          {hasAICatchUpClub && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowGlobalRecap(true)}
+              className="h-10 w-10 relative"
+              aria-label="Recap all chats"
+              title="Recap all unread chats"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="icon"
@@ -2653,6 +2666,27 @@ export default function MessagesPage() {
         }}
         message="Couldn't load chats. Tap to retry."
       />
+
+      <GlobalChatRecapSheet
+        open={showGlobalRecap}
+        onOpenChange={setShowGlobalRecap}
+        scopes={(unifiedConversations
+          .filter((c) =>
+            c.unreadCount > 0 &&
+            !c.isLocked &&
+            (c.type === "team" || c.type === "club" || c.type === "group" || c.type === "league")
+          )
+          .map((c): RecapScopeRef => ({
+            scope_type: (c.type === "team" ? "team" : c.type === "club" ? "club" : "group") as RecapScopeRef["scope_type"],
+            scope_id: c.id,
+            name: c.name,
+            link: c.link,
+            unreadCount: c.unreadCount,
+            typeLabel: c.type,
+          })))}
+      />
+
+
 
 
 
