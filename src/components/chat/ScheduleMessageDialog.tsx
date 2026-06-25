@@ -132,7 +132,8 @@ export function ScheduleMessageDialog({
   const minMs = Date.now() + 60 * 1000; // must be at least 1 min in the future
   const isInFuture = scheduledDate ? scheduledDate.getTime() > minMs : false;
   const hasContent = text.trim().length > 0 || !!imageUrl;
-  const canSave = hasContent && isInFuture && !isSaving;
+  const recurrenceEndOk = recurrence === "none" || !!recurrenceUntil;
+  const canSave = hasContent && isInFuture && recurrenceEndOk && !isSaving;
 
   const applyPreset = (label: string, preset: () => Date) => {
     const d = roundToNext5Min(preset());
