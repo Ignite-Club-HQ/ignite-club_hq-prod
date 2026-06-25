@@ -415,6 +415,39 @@ function Typed({
   );
 }
 
+/**
+ * Fades children in after `delayMs`. Reserves layout space upfront (renders
+ * invisibly) so the sheet height stays stable while siblings reveal.
+ */
+function Reveal({
+  delayMs = 0,
+  as: As = "div",
+  className,
+  children,
+}: {
+  delayMs?: number;
+  as?: "div" | "span" | "p";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [shown, setShown] = useState(delayMs === 0);
+  useEffect(() => {
+    setShown(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setShown(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  return (
+    <As
+      className={className}
+      style={{ opacity: shown ? 1 : 0, transition: "opacity 180ms ease-out" }}
+    >
+      {children}
+    </As>
+  );
+}
+
+
 
 /**
  * Typewriter shown while we wait for the summary to land. Starts typing
