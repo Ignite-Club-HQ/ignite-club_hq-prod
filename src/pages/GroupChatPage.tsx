@@ -2161,6 +2161,11 @@ export default function GroupChatPage() {
                   ? (v) => pinnedVault.toggleEnabled(v)
                   : undefined
               }
+              onUnpinVault={
+                pinnedVault.record && (isAdmin || group.created_by === user?.id) && !pinnedVaultLocked
+                  ? () => pinnedVault.remove()
+                  : undefined
+              }
             />
           </>
         }
