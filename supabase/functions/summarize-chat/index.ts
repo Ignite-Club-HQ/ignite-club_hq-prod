@@ -229,13 +229,17 @@ serve(async (req) => {
     });
 
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
-    const { data: msgRows, error: msgErr } = await userClient
+    let msgQuery = userClient
       .from(table)
       .select("id, text, author_id, created_at, image_url")
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(MAX_MESSAGES);
+      .limit(validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES);
+    if (lookbackCutoffIso) {
+      msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
+    }
+    const { data: msgRows, error: msgErr } = await msgQuery;
 
     if (msgErr) {
       console.error("[summarize-chat] msg fetch failed", msgErr);
