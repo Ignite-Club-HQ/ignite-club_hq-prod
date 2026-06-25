@@ -209,7 +209,24 @@ export default function MessagesPage() {
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [showGlobalRecap, setShowGlobalRecap] = useState(false);
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
+  const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
+  const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
+  // Normalize legacy persisted values ('club' / 'league' used to be top-level
+  // chips — they now live inside 'groups').
+  const typeFilter = (
+    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
+  ) as 'all' | 'teams' | 'groups' | 'dms';
+  const [showAllOps, setShowAllOps] = useState(false);
+  const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
+  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+
+  // Effective club filter: use theme filter if active, otherwise use local filter
+  const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
+  const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+
+  // Gate Chat Recap to the active club context so a free active club can't
+  // borrow Pro access from another club the user belongs to.
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -232,20 +249,6 @@ export default function MessagesPage() {
       navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
     }
   }, [location.search, location.pathname, navigate, hasAICatchUpClub]);
-  const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
-  const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
-  // Normalize legacy persisted values ('club' / 'league' used to be top-level
-  // chips — they now live inside 'groups').
-  const typeFilter = (
-    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
-  ) as 'all' | 'teams' | 'groups' | 'dms';
-  const [showAllOps, setShowAllOps] = useState(false);
-  const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
-  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
-
-  // Effective club filter: use theme filter if active, otherwise use local filter
-  const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
-  const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
 
   const { data: clubAdminConversations = [] } = useQuery({
     queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
