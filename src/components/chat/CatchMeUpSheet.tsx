@@ -210,7 +210,9 @@ export function CatchMeUpSheet({
                         <ul className="space-y-1 pl-1">
                           {items.map((item, i) => (
                             <li key={i} className="flex gap-2 text-sm leading-snug">
-                              <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              <Reveal delayMs={scheduleType(item)} as="span">
+                                <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              </Reveal>
                               <span className="text-foreground">
                                 <Typed text={item} delayMs={scheduleType(item)} charMs={CHAR_MS} />
                               </span>
