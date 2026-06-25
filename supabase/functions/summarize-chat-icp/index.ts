@@ -19,9 +19,12 @@ interface Body {
   scope_id: string;
   force?: boolean;
   last_opened_at?: string | null;
+  lookback_hours?: number;
 }
 
 const MAX_MESSAGES = 25;
+// Qwen ingress window is tight; keep lookback bounded but well above default.
+const MAX_MESSAGES_LOOKBACK = 120;
 const SUMMARY_TTL_HOURS = 48;
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
