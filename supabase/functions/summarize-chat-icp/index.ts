@@ -160,101 +160,84 @@ serve(async (req) => {
     const token = authHeader.slice("Bearer ".length).trim();
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: { user }, error: userErr } = await admin.auth.getUser(token);
+    const tPre = Date.now();
+
+    // Parse body and authenticate user in parallel.
+    const [bodyParsed, userRes] = await Promise.all([
+      req.json().catch(() => ({})) as Promise<Body>,
+      admin.auth.getUser(token),
+    ]);
+    const { data: { user }, error: userErr } = userRes;
     if (userErr || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at } = bodyParsed || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: prof } = await admin
-      .from("profiles")
-      .select("ai_catch_up_acknowledged_at")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!(prof as any)?.ai_catch_up_acknowledged_at) {
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { table, scopeCol } = SCOPE_TABLES[scope_type];
+
+    // Fire profile, clubId, messages, and the IC agent in parallel.
+    const [profRes, clubId, msgRes, agentPromise] = await Promise.all([
+      admin.from("profiles").select("ai_catch_up_acknowledged_at").eq("id", user.id).maybeSingle(),
+      scope_type === "direct" ? Promise.resolve(null) : getClubIdForScope(admin, scope_type, scope_id),
+      userClient
+        .from(table)
+        .select("id, text, author_id, created_at, image_url")
+        .eq(scopeCol, scope_id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(MAX_MESSAGES),
+      HttpAgent.create({ host: IC_HOST }), // warm transport
+    ]);
+
+    if (!(profRes.data as any)?.ai_catch_up_acknowledged_at) {
       return new Response(JSON.stringify({ error: "disclosure_required" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // With clubId known, fan out remaining access checks in parallel.
     let isJuniorClub = false;
-    if (scope_type !== "direct") {
-      const clubId = await getClubIdForScope(admin, scope_type, scope_id);
-      if (clubId) {
-        const { data: juniorTeams } = await admin
-          .from("teams")
-          .select("id")
-          .eq("club_id", clubId)
-          .eq("team_type", "junior")
-          .limit(1);
-        isJuniorClub = Array.isArray(juniorTeams) && juniorTeams.length > 0;
+    if (clubId) {
+      const [juniorRes, isAppAdminRes, rolesRes, clubRowRes, hasProRes] = await Promise.all([
+        admin.from("teams").select("id").eq("club_id", clubId).eq("team_type", "junior").limit(1),
+        admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" }),
+        admin.from("user_roles").select("role").eq("user_id", user.id).eq("club_id", clubId)
+          .in("role", ["club_admin", "committee_member"]),
+        admin.from("clubs").select("ai_catch_up_enabled").eq("id", clubId).maybeSingle(),
+        admin.rpc("has_active_pro_for_club", { _club_id: clubId }),
+      ]);
 
-        const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
-        let isClubAdmin = false;
-        if (!isAppAdmin) {
-          const { data: clubRoles } = await admin
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("club_id", clubId)
-            .in("role", ["club_admin", "committee_member"]);
-          isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
-        }
-        let adminBypass = isAppAdmin === true || isClubAdmin;
-        if (isJuniorClub && !isAppAdmin) {
-          const { data: strictRoles } = await admin
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("club_id", clubId)
-            .eq("role", "club_admin");
-          adminBypass = Array.isArray(strictRoles) && strictRoles.length > 0;
-        }
+      isJuniorClub = Array.isArray(juniorRes.data) && juniorRes.data.length > 0;
+      const isAppAdmin = isAppAdminRes.data === true;
+      const roleList = (rolesRes.data || []).map((r: any) => r.role);
+      const isClubAdmin = roleList.includes("club_admin") || roleList.includes("committee_member");
+      const isStrictClubAdmin = roleList.includes("club_admin");
+      const adminBypass = isAppAdmin
+        || (isJuniorClub ? isStrictClubAdmin : isClubAdmin);
 
-        if (!adminBypass) {
-          const { data: clubRow } = await admin
-            .from("clubs")
-            .select("ai_catch_up_enabled")
-            .eq("id", clubId)
-            .maybeSingle();
-          if ((clubRow as any)?.ai_catch_up_enabled === false) {
-            return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
-              status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-        }
-
-        const { data: hasPro } = await admin.rpc("has_active_pro_for_club", { _club_id: clubId });
-        if (hasPro !== true) {
-          return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      if (!adminBypass && (clubRowRes.data as any)?.ai_catch_up_enabled === false) {
+        return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (hasProRes.data !== true) {
+        return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-
-    const { table, scopeCol } = SCOPE_TABLES[scope_type];
-    const { data: msgRows, error: msgErr } = await userClient
-      .from(table)
-      .select("id, text, author_id, created_at, image_url")
-      .eq(scopeCol, scope_id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(MAX_MESSAGES);
-
+    const { data: msgRows, error: msgErr } = msgRes;
     if (msgErr) {
       console.error("[summarize-chat-icp] msg fetch failed", msgErr);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -270,6 +253,7 @@ serve(async (req) => {
     }
 
     const lastMessageId = messages[messages.length - 1].id as string;
+    console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
     if (!force) {
       const { data: cached } = await admin
@@ -445,7 +429,7 @@ serve(async (req) => {
     let raw = "";
     let modelUsed = ICP_MODEL;
     const callIcp = async (model: string): Promise<string> => {
-      const agent = await HttpAgent.create({ host: IC_HOST });
+      const agent = await agentPromise; // warmed in preflight Promise.all
       const actor: any = Actor.createActor(idlFactory, {
         agent,
         canisterId: Principal.fromText(LLM_CANISTER_ID),
