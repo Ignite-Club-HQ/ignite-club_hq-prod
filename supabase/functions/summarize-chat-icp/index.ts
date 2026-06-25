@@ -131,7 +131,7 @@ Return STRICT JSON only that matches this TypeScript type:
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=140 chars. Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown, no code fences.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-8 bullets total — fewer only if the chat genuinely had less activity. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=200 chars. Preserve concrete facts when they are stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent name, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown, no code fences.`;
 
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
