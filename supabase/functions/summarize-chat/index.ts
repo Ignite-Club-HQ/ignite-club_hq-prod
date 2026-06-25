@@ -76,8 +76,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!geminiKey && !lovableKey) {
+    if (!geminiKey) {
       return new Response(JSON.stringify({ error: "ai_not_configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -289,78 +288,36 @@ serve(async (req) => {
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
-    // Prefer direct Gemini if GEMINI_API_KEY is set; otherwise fall back to Lovable AI Gateway.
     const userPrompt =
       `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
 
-    let aiRes: Response;
-    let raw = "{}";
-    if (geminiKey) {
-      const GEMINI_MODEL = "gemini-2.0-flash";
-      aiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-            generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
-          }),
-        },
-      );
-      if (!aiRes.ok) {
-        const txt = await aiRes.text();
-        console.error("[summarize-chat] gemini error", aiRes.status, txt);
-        if (aiRes.status === 429) {
-          return new Response(JSON.stringify({ error: "rate_limited" }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ error: "ai_failed" }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const aiJson = await aiRes.json();
-      raw = aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
-    } else {
-      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const GEMINI_MODEL = "gemini-2.0-flash";
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": lovableKey!,
-          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.3,
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
         }),
-      });
-      if (!aiRes.ok) {
-        const txt = await aiRes.text();
-        console.error("[summarize-chat] lovable AI error", aiRes.status, txt);
-        if (aiRes.status === 429) {
-          return new Response(JSON.stringify({ error: "rate_limited" }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (aiRes.status === 402) {
-          return new Response(JSON.stringify({ error: "ai_credits_exhausted" }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ error: "ai_failed" }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+    if (!aiRes.ok) {
+      const txt = await aiRes.text();
+      console.error("[summarize-chat] gemini error", aiRes.status, txt);
+      if (aiRes.status === 429) {
+        return new Response(JSON.stringify({ error: "rate_limited" }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const aiJson = await aiRes.json();
-      raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
+      return new Response(JSON.stringify({ error: "ai_failed" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const aiJson = await aiRes.json();
+    const raw: string = aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
 
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
