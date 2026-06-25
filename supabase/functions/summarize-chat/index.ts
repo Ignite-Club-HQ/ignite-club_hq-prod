@@ -251,7 +251,7 @@ serve(async (req) => {
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES);
+      .limit((globalThis as any).__msgLimit = (validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES));
     if (lookbackCutoffIso) {
       msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
     }
