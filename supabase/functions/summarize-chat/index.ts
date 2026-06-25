@@ -69,24 +69,36 @@ async function getClubIdForScope(
   return null; // direct
 }
 
-const SYSTEM_PROMPT = `You summarise sports-club chat threads for a busy parent, player, coach or committee member who is catching up.
+const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
 
-Focus only on actionable, factual information for the club: training changes, match times, locations, RSVP requests, volunteer requests, player availability, coach instructions, committee decisions, files/photos shared, and questions still unanswered.
+You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates by when they happened RELATIVE TO NOW: "today" (since 00:00 local today), "yesterday", "earlier" (older than yesterday but still within the window).
 
-Ignore casual banter, jokes, emoji-only messages, and greetings unless they directly affect an action or decision.
+Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
+
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
-  "headline": string, // one short sentence (<= 110 chars) describing the most important update overall. Plain text only.
-  "important_updates": string[], // bullets, max 5
-  "actions_needed": string[],    // bullets, max 5; include who needs to act if known
-  "schedule_changes": string[],  // bullets, max 5; training/match time, date, location changes
-  "people_mentioned": string[],  // names mentioned in an actionable context, max 8
-  "files_shared": string[],      // short description per file/photo shared, max 5
-  "unanswered_questions": string[] // open questions nobody answered, max 5
+  "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
+  "since_last_visit": {
+    "today": string[],     // max 3 short bullets, most important first
+    "yesterday": string[], // max 2 short bullets
+    "earlier": string[]    // max 2 short bullets ("Earlier this week")
+  },
+  "outstanding_actions": Array<{
+    "text": string,                        // <=140 chars, the action itself
+    "owner": string | null,                // who needs to act, if clearly identified, otherwise null
+    "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
+  }>, // max 5, sorted high -> low priority
+  "outstanding_questions": string[], // max 5, only questions nobody has answered
+  "detailed": {
+    "schedule_changes": string[], // max 5 short bullets — training/match time, date, location changes
+    "files_shared": string[],     // max 5 short bullets — photos / docs shared, with sender if useful
+    "discussion": string[]        // max 5 short bullets — other notable discussion that wasn't an action or schedule change
+  }
 }
 
-Every array MUST exist (use [] if nothing applies). Keep each bullet short (<= 140 chars). Do not invent details that are not in the messages. Do not include casual banter. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total (not more). Every array and object MUST exist (use [] or null). Keep bullets short (<=140 chars). Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
