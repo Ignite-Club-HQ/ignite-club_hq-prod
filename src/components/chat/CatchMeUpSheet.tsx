@@ -354,22 +354,48 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
   );
 }
 
-function RevealItem({
-  visible,
-  as: Tag = "div",
-  className,
-  children,
+/**
+ * Streams `text` one character at a time after an optional `delayMs`, used to
+ * give the summary a ChatGPT-style top-down typing reveal. Reserves the full
+ * line height via an invisible underlay so the sheet doesn't shift as it types.
+ */
+function Typed({
+  text,
+  delayMs = 0,
+  charMs = 16,
 }: {
-  visible: boolean;
-  as?: "div" | "li" | "p" | "section";
-  className?: string;
-  children: React.ReactNode;
+  text: string;
+  delayMs?: number;
+  charMs?: number;
 }) {
-  // Always render so layout height is reserved up-front (prevents the sheet
-  // from growing as each line appears). Toggle opacity for the reveal effect.
-  const cls = `${className ?? ""} transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`.trim();
-  return <Tag className={cls} aria-hidden={!visible}>{children}</Tag>;
+  const [n, setN] = useState(0);
+  const [started, setStarted] = useState(delayMs === 0);
+  useEffect(() => {
+    setN(0);
+    setStarted(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setStarted(true), delayMs);
+    return () => clearTimeout(t);
+  }, [text, delayMs]);
+  useEffect(() => {
+    if (!started) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setN(i);
+      if (i >= text.length) clearInterval(id);
+    }, charMs);
+    return () => clearInterval(id);
+  }, [started, text, charMs]);
+  // Grid stack: invisible full text reserves space; visible partial overlays it.
+  return (
+    <span className="grid">
+      <span className="invisible col-start-1 row-start-1" aria-hidden>{text}</span>
+      <span className="col-start-1 row-start-1">{text.slice(0, n)}</span>
+    </span>
+  );
 }
+
 
 /**
  * Typewriter shown while we wait for the summary to land. Starts typing
