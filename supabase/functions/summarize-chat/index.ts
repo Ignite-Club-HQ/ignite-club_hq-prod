@@ -75,12 +75,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ error: "ai_not_configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -95,6 +89,18 @@ serve(async (req) => {
     if (userErr || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const rawGeminiKey = Deno.env.get("GEMINI_API_KEY");
+    const geminiKey = rawGeminiKey?.trim();
+    if (!geminiKey) {
+      console.error("[summarize-chat] GEMINI_API_KEY unavailable", {
+        present: rawGeminiKey !== undefined,
+        blank: rawGeminiKey !== undefined && rawGeminiKey.trim().length === 0,
+      });
+      return new Response(JSON.stringify({ error: "ai_not_configured", detail: "missing_or_blank_gemini_api_key" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
