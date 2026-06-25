@@ -315,7 +315,7 @@ serve(async (req) => {
     const userPrompt =
       `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
 
-    const GEMINI_MODEL = "gemini-2.0-flash";
+    const GEMINI_MODEL = "gemini-2.5-flash";
     const aiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
       {
@@ -367,7 +367,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash",
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
