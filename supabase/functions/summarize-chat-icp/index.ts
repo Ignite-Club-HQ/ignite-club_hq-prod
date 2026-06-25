@@ -532,7 +532,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: `icp:${ICP_MODEL}`,
+          model: `icp:${modelUsed}`,
           expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
