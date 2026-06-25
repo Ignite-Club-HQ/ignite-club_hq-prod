@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -119,35 +119,14 @@ export function CatchMeUpSheet({
     return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
-  // Count of "reveal units" in the view: headline + each non-empty bullet + each action + each question.
-  const totalUnits = useMemo(() => {
-    if (!view) return 0;
-    let n = view.headline ? 1 : 0;
-    n += view.since.today.length + view.since.yesterday.length + view.since.earlier.length;
-    n += view.actions.length;
-    n += view.questions.length;
-    if (view.detailedHasAny) n += 1;
-    if (!view.anythingAtAll) n += 1;
-    return n;
-  }, [view]);
+  // Assign a sequential typing order to each text node so they stream in
+  // top-to-bottom. Reset whenever a new result arrives.
+  const orderRef = useRef(0);
+  orderRef.current = 0;
+  const nextOrder = () => orderRef.current++;
+  // Stagger between line starts (ms). Lower = more parallel, higher = more sequential.
+  const STAGGER_MS = 90;
 
-  // Progressively reveal units after the result lands, top-to-bottom, ChatGPT-style.
-  const [revealed, setRevealed] = useState(0);
-  useEffect(() => {
-    if (!view) { setRevealed(0); return; }
-    // Start immediately with the first unit (headline at the top) — no initial wait.
-    setRevealed(1);
-    let i = 1;
-    const id = setInterval(() => {
-      i += 1;
-      setRevealed(i);
-      if (i >= totalUnits) clearInterval(id);
-    }, 260);
-    return () => clearInterval(id);
-  }, [view, totalUnits]);
-
-  // Helper: returns true if the unit at `index` should be visible yet.
-  const visible = (index: number) => revealed > index;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -190,117 +169,107 @@ export function CatchMeUpSheet({
             </div>
           )}
 
-          {!loading && !err && view && (() => {
-            let idx = 0;
-            const next = () => idx++;
-            return (
-              <>
-                {view.headline && (
-                  <RevealItem visible={visible(next())}>
-                    <p className="mb-3 text-sm font-medium leading-snug text-foreground">
-                      {view.headline}
+          {!loading && !err && view && (
+            <>
+              {view.headline && (
+                <p className="mb-3 text-sm font-medium leading-snug text-foreground">
+                  <Typed text={view.headline} delayMs={nextOrder() * STAGGER_MS} />
+                </p>
+              )}
+
+              {/* Since your last visit */}
+              {view.sinceHasAny && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Pin className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Since your last visit
                     </p>
-                  </RevealItem>
-                )}
-
-                {/* Since your last visit */}
-                {view.sinceHasAny && (
-                  <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <Pin className="h-4 w-4 text-primary" />
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Since your last visit
-                      </p>
-                    </div>
-                    {(["today", "yesterday", "earlier"] as const).map((bucket) => {
-                      const items = view.since[bucket];
-                      if (!items || items.length === 0) return null;
-                      const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
-                      return (
-                        <div key={bucket} className="mb-2 last:mb-0">
-                          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
-                            {label}
-                          </p>
-                          <ul className="space-y-1 pl-1">
-                            {items.map((item, i) => (
-                              <RevealItem key={i} as="li" visible={visible(next())} className="flex gap-2 text-sm leading-snug">
-                                <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                                <span className="text-foreground">{item}</span>
-                              </RevealItem>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })}
-                  </section>
-                )}
-
-                {/* Outstanding actions */}
-                {view.actions.length > 0 && (
-                  <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Outstanding actions
-                      </p>
-                    </div>
-                    <ul className="space-y-2">
-                      {view.actions.map((a, i) => (
-                        <RevealItem key={i} as="li" visible={visible(next())} className="flex flex-col gap-1">
-                          <div className="flex items-start gap-2">
-                            <span className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
-                              {a.priority}
-                            </span>
-                            <span className="text-sm leading-snug text-foreground">{a.text}</span>
-                          </div>
-                          {a.owner && (
-                            <span className="pl-[52px] text-[11px] text-muted-foreground">Owner: {a.owner}</span>
-                          )}
-                        </RevealItem>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {/* Outstanding questions */}
-                {view.questions.length > 0 && (
-                  <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <HelpCircle className="h-4 w-4 text-rose-500" />
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Outstanding questions
-                      </p>
-                    </div>
-                    <ul className="space-y-1 pl-1">
-                      {view.questions.map((q, i) => (
-                        <RevealItem key={i} as="li" visible={visible(next())} className="flex gap-2 text-sm leading-snug">
-                          <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                          <span className="text-foreground">{q}</span>
-                        </RevealItem>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {!view.anythingAtAll && (
-                  <RevealItem visible={visible(next())}>
-                    <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                      Nothing actionable in the recent messages — looks like casual chat.
-                    </div>
-                  </RevealItem>
-                )}
-
-                {/* Typing indicator while more units are still being revealed */}
-                {revealed < totalUnits && (
-                  <div className="mb-3 flex items-center gap-1.5 pl-1 text-muted-foreground">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:120ms]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:240ms]" />
                   </div>
-                )}
-              </>
-            );
-          })()}
+                  {(["today", "yesterday", "earlier"] as const).map((bucket) => {
+                    const items = view.since[bucket];
+                    if (!items || items.length === 0) return null;
+                    const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
+                    return (
+                      <div key={bucket} className="mb-2 last:mb-0">
+                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                          {label}
+                        </p>
+                        <ul className="space-y-1 pl-1">
+                          {items.map((item, i) => (
+                            <li key={i} className="flex gap-2 text-sm leading-snug">
+                              <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              <span className="text-foreground">
+                                <Typed text={item} delayMs={nextOrder() * STAGGER_MS} />
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+
+              {/* Outstanding actions */}
+              {view.actions.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Outstanding actions
+                    </p>
+                  </div>
+                  <ul className="space-y-2">
+                    {view.actions.map((a, i) => (
+                      <li key={i} className="flex flex-col gap-1">
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
+                            {a.priority}
+                          </span>
+                          <span className="text-sm leading-snug text-foreground">
+                            <Typed text={a.text} delayMs={nextOrder() * STAGGER_MS} />
+                          </span>
+                        </div>
+                        {a.owner && (
+                          <span className="pl-[52px] text-[11px] text-muted-foreground">Owner: {a.owner}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* Outstanding questions */}
+              {view.questions.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-rose-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Outstanding questions
+                    </p>
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {view.questions.map((q, i) => (
+                      <li key={i} className="flex gap-2 text-sm leading-snug">
+                        <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                        <span className="text-foreground">
+                          <Typed text={q} delayMs={nextOrder() * STAGGER_MS} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {!view.anythingAtAll && (
+                <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
+                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={nextOrder() * STAGGER_MS} />
+                </div>
+              )}
+            </>
+          )}
+
 
           {!loading && !err && view && (
             <>
@@ -385,22 +354,48 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
   );
 }
 
-function RevealItem({
-  visible,
-  as: Tag = "div",
-  className,
-  children,
+/**
+ * Streams `text` one character at a time after an optional `delayMs`, used to
+ * give the summary a ChatGPT-style top-down typing reveal. Reserves the full
+ * line height via an invisible underlay so the sheet doesn't shift as it types.
+ */
+function Typed({
+  text,
+  delayMs = 0,
+  charMs = 16,
 }: {
-  visible: boolean;
-  as?: "div" | "li" | "p" | "section";
-  className?: string;
-  children: React.ReactNode;
+  text: string;
+  delayMs?: number;
+  charMs?: number;
 }) {
-  // Always render so layout height is reserved up-front (prevents the sheet
-  // from growing as each line appears). Toggle opacity for the reveal effect.
-  const cls = `${className ?? ""} transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`.trim();
-  return <Tag className={cls} aria-hidden={!visible}>{children}</Tag>;
+  const [n, setN] = useState(0);
+  const [started, setStarted] = useState(delayMs === 0);
+  useEffect(() => {
+    setN(0);
+    setStarted(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setStarted(true), delayMs);
+    return () => clearTimeout(t);
+  }, [text, delayMs]);
+  useEffect(() => {
+    if (!started) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setN(i);
+      if (i >= text.length) clearInterval(id);
+    }, charMs);
+    return () => clearInterval(id);
+  }, [started, text, charMs]);
+  // Grid stack: invisible full text reserves space; visible partial overlays it.
+  return (
+    <span className="grid">
+      <span className="invisible col-start-1 row-start-1" aria-hidden>{text}</span>
+      <span className="col-start-1 row-start-1">{text.slice(0, n)}</span>
+    </span>
+  );
 }
+
 
 /**
  * Typewriter shown while we wait for the summary to land. Starts typing
