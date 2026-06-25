@@ -566,9 +566,12 @@ serve(async (req) => {
         model: modelUsed,
         lookback_hours: validLookback ? lookback_hours : null,
         window_since: windowSinceIso,
+        truncated: validLookback && messages.length >= msgLimit,
+        message_cap: validLookback ? msgLimit : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (err) {
     console.error("[summarize-chat-icp] crash", err);
     return new Response(JSON.stringify({ error: "server_error", detail: err instanceof Error ? err.message : String(err) }), {
