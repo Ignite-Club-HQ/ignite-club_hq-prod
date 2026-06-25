@@ -2714,7 +2714,7 @@ export default function MessagesPage() {
                 PRO
               </Badge>
               <p className="font-bold text-sm leading-tight whitespace-nowrap">
-                Unlimited Club Communication
+                Unlock Unlimited Club Messaging
               </p>
               <button
                 type="button"
