@@ -279,6 +279,12 @@ export default function AdminPage() {
               description="Restore chat groups removed by members"
               onClick={() => navigate("/admin/deleted-chats")}
             />
+            <AdminMenuItem
+              icon={Sparkles}
+              label="ICP LLM Test"
+              description="Test LLM inference via the Internet Computer"
+              onClick={() => navigate("/admin/icp-llm-test")}
+            />
           </CardContent>
         </Card>
       )}
