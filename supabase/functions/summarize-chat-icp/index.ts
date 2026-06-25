@@ -429,7 +429,7 @@ serve(async (req) => {
     let raw = "";
     let modelUsed = ICP_MODEL;
     const callIcp = async (model: string): Promise<string> => {
-      const agent = await HttpAgent.create({ host: IC_HOST });
+      const agent = await agentPromise; // warmed in preflight Promise.all
       const actor: any = Actor.createActor(idlFactory, {
         agent,
         canisterId: Principal.fromText(LLM_CANISTER_ID),
