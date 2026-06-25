@@ -89,28 +89,41 @@ serve(async (req) => {
     }
 
     // Cutoff: last_opened_at OR 7 days back as a soft floor.
-    const cutoffIso = last_opened_at && !isNaN(Date.parse(last_opened_at))
+    const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+    const FLOOR_ISO = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+    let cutoffIso = last_opened_at && !isNaN(Date.parse(last_opened_at))
       ? new Date(last_opened_at).toISOString()
-      : new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      : FLOOR_ISO;
 
     // RLS on message_digests gates this to chats the user can access.
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
 
-    const { data: digests, error: dErr } = await userClient
-      .from("message_digests")
-      .select("message_id, classification, summary, topic, message_created_at")
-      .eq("message_type", cfg.digestType)
-      .eq("chat_scope_id", scope_id)
-      .gte("message_created_at", cutoffIso)
-      .order("message_created_at", { ascending: true })
-      .limit(300);
+    const fetchDigests = (sinceIso: string) =>
+      userClient
+        .from("message_digests")
+        .select("message_id, classification, summary, topic, message_created_at")
+        .eq("message_type", cfg.digestType)
+        .eq("chat_scope_id", scope_id)
+        .gte("message_created_at", sinceIso)
+        .order("message_created_at", { ascending: true })
+        .limit(300);
+
+    let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // If nothing new since the user's last visit, widen the window to the 7-day
+    // floor so they still get a recap rather than a "Nothing to summarise" error.
+    if ((!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
+      cutoffIso = FLOOR_ISO;
+      const retry = await fetchDigests(cutoffIso);
+      digests = retry.data ?? [];
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
