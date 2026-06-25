@@ -13,6 +13,8 @@ interface Body {
   scope_id: string;
   /** When true, ignore cache and force a fresh summary. */
   force?: boolean;
+  /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
+  last_opened_at?: string | null;
 }
 
 const MAX_MESSAGES = 50;
