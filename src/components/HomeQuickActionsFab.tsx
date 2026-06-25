@@ -17,6 +17,7 @@ import {
   Settings,
   Shield,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -119,6 +120,12 @@ export function HomeQuickActionsFab({
       icon: MessageCircle,
       onClick: () => go("/messages?new=picker"),
       proLocked,
+    },
+    {
+      label: "Chat Recap",
+      description: "Catch up on unread threads with AI",
+      icon: Sparkles,
+      onClick: () => go("/messages?recap=1"),
     },
   ];
 

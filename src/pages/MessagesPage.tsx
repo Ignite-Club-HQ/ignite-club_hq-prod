@@ -4,7 +4,9 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock, Sparkles } from "lucide-react";
+import { GlobalChatRecapSheet, type RecapScopeRef } from "@/components/chat/GlobalChatRecapSheet";
+import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
@@ -206,12 +208,23 @@ export default function MessagesPage() {
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
+  const [showGlobalRecap, setShowGlobalRecap] = useState(false);
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    let changed = false;
     if (params.get("new") === "picker") {
       setShowNewMessageSheet(true);
       params.delete("new");
+      changed = true;
+    }
+    if (params.get("recap") === "1") {
+      setShowGlobalRecap(true);
+      params.delete("recap");
+      changed = true;
+    }
+    if (changed) {
       navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
     }
   }, [location.search, location.pathname, navigate]);
@@ -2616,6 +2629,19 @@ export default function MessagesPage() {
             </Button>
           )}
 
+          {hasAICatchUpClub && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowGlobalRecap(true)}
+              className="h-10 w-10 relative"
+              aria-label="Recap all chats"
+              title="Recap all unread chats"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="icon"
@@ -2640,6 +2666,27 @@ export default function MessagesPage() {
         }}
         message="Couldn't load chats. Tap to retry."
       />
+
+      <GlobalChatRecapSheet
+        open={showGlobalRecap}
+        onOpenChange={setShowGlobalRecap}
+        scopes={(unifiedConversations
+          .filter((c) =>
+            c.unreadCount > 0 &&
+            !c.isLocked &&
+            (c.type === "team" || c.type === "club" || c.type === "group" || c.type === "league")
+          )
+          .map((c): RecapScopeRef => ({
+            scope_type: (c.type === "team" ? "team" : c.type === "club" ? "club" : "group") as RecapScopeRef["scope_type"],
+            scope_id: c.id,
+            name: c.name,
+            link: c.link,
+            unreadCount: c.unreadCount,
+            typeLabel: c.type,
+          })))}
+      />
+
+
 
 
 

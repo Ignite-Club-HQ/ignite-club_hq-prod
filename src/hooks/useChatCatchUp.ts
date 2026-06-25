@@ -95,19 +95,20 @@ export function markChatOpened(scope_type: ChatScopeType, scope_id: string) {
 /**
  * Returns the timestamp Chat Recap should treat as the user's previous visit.
  * Prefers the stored previous-visit marker (set when a new visit begins) and
- * falls back to the very first open we recorded.
+ * falls back to the very first open we recorded. Exported so the global
+ * cross-thread recap can reuse the same cutoff logic per scope.
  */
-function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
+export function getCatchUpLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
   const k = storeKey(scope_type, scope_id);
   const prev = readMap(PREV_OPENED_KEY)[k];
   if (prev) return prev;
   const last = readMap(LAST_OPENED_KEY)[k];
-  // If we have no previous-visit record but we DO have a current visit,
-  // use it. This covers first-time users and rapid revisits within the
-  // same-visit window. It's more accurate than returning null (which
-  // causes the backend to fall back to a 7-day floor).
   if (last) return last;
   return null;
+}
+
+function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
+  return getCatchUpLastOpened(scope_type, scope_id);
 }
 
 function getDismissedFor(scope_type: ChatScopeType, scope_id: string): string | null {
