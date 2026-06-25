@@ -117,7 +117,7 @@ export function CatchMeUpSheet({
                 {err.isPro && onUpgrade && (
                   <Button size="sm" onClick={onUpgrade}>Upgrade to Pro</Button>
                 )}
-                {!err.isPro && (
+                {!err.isPro && !err.isSensitive && (
                   <Button size="sm" variant="secondary" onClick={onRegenerate}>
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                     Try again
