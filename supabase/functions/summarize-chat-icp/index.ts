@@ -432,8 +432,10 @@ serve(async (req) => {
     const lastVisitLine = last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    // `/no_think` disables Qwen 3's reasoning preamble so the canister's limited
+    // output budget is spent on the JSON answer instead of <think> tokens.
     const userPrompt =
-      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
+      `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
     // Call ICP Qwen
     let raw = "";
