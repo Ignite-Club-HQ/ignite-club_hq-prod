@@ -92,6 +92,15 @@ export function ChatCatchUp({
         onRegenerate={() => void summarize({ force: true })}
         onUpgrade={upgradeHref ? () => navigate(upgradeHref) : undefined}
       />
+
+      <AICatchUpDisclosureDialog
+        open={disclosureOpen}
+        onOpenChange={setDisclosureOpen}
+        onAcknowledged={() => {
+          setSheetOpen(true);
+          void summarize({ force: true });
+        }}
+      />
     </>
   );
 }
