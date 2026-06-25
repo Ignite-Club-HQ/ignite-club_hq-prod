@@ -156,6 +156,10 @@ export function ScheduleMessageDialog({
       toast.error("Add a message or image first");
       return;
     }
+    if (recurrence !== "none" && !recurrenceUntil) {
+      toast.error("Choose an end date for the recurring schedule");
+      return;
+    }
 
     try {
       if (isEditing && editingRow) {
