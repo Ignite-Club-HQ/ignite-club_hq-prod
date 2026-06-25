@@ -35,19 +35,44 @@ export default function AdminPage() {
   });
 
   // Check if user is team admin or coach (for player stats access)
-  const { data: isTeamAdminOrCoach } = useQuery({
-    queryKey: ["is-team-admin-coach", user?.id],
+  const { data: teamAdminCoachTeamIds = [] } = useQuery({
+    queryKey: ["team-admin-coach-team-ids", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("team_id")
         .eq("user_id", user!.id)
         .in("role", ["team_admin", "coach"])
-        .not("team_id", "is", null)
-        .limit(1);
-      return data && data.length > 0;
+        .not("team_id", "is", null);
+      return ((data || []).map((r: any) => r.team_id).filter(Boolean)) as string[];
     },
     enabled: !!user,
+  });
+  const isTeamAdminOrCoach = teamAdminCoachTeamIds.length > 0;
+
+  // Player Stats Reports is Pro Football only — only show when at least one
+  // of the user's team-admin/coach teams belongs to a club with active Pro Football.
+  const { data: hasProFootballForAnyTeam = false } = useQuery({
+    queryKey: ["has-pro-football-for-team-admin-teams", user?.id, teamAdminCoachTeamIds],
+    enabled: !!user && teamAdminCoachTeamIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: teams } = await supabase
+        .from("teams")
+        .select("club_id")
+        .in("id", teamAdminCoachTeamIds);
+      const clubIds = Array.from(new Set((teams ?? []).map((t: any) => t.club_id).filter(Boolean)));
+      if (clubIds.length === 0) return false;
+      const { data: subs } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override, expires_at")
+        .in("club_id", clubIds);
+      return (subs ?? []).some(
+        (s: any) =>
+          (s.is_pro_football || s.admin_pro_football_override) &&
+          (!s.expires_at || new Date(s.expires_at) > new Date()),
+      );
+    },
   });
 
   // Check if user is club admin (for club-scoped tools like restoring deleted chats)
