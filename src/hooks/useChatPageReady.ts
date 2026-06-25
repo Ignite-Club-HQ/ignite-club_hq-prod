@@ -18,6 +18,7 @@ export function useChatPageReady(): boolean {
     let cancelled = false;
     let idleHandle: number | undefined;
     let timeoutHandle: number | undefined;
+    let raf2: number | undefined;
 
     const fire = () => {
       if (cancelled) return;
@@ -25,7 +26,7 @@ export function useChatPageReady(): boolean {
     };
 
     const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
         if (cancelled) return;
         const w = window as any;
         if (typeof w.requestIdleCallback === "function") {
@@ -34,15 +35,12 @@ export function useChatPageReady(): boolean {
           timeoutHandle = window.setTimeout(fire, 250);
         }
       });
-      // best-effort cleanup of inner raf
-      (raf1 as unknown as { _inner?: number })._inner = raf2;
     });
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf1);
-      const inner = (raf1 as unknown as { _inner?: number })._inner;
-      if (typeof inner === "number") cancelAnimationFrame(inner);
+      if (typeof raf2 === "number") cancelAnimationFrame(raf2);
       const w = window as any;
       if (idleHandle != null && typeof w.cancelIdleCallback === "function") {
         w.cancelIdleCallback(idleHandle);
