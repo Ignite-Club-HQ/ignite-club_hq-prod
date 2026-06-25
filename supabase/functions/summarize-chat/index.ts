@@ -485,6 +485,7 @@ serve(async (req) => {
           message_count: messages.length,
           summary,
           model: "gemini-2.5-flash-lite",
+          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
