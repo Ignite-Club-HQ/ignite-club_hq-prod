@@ -16,6 +16,23 @@ interface Body {
 }
 
 const MAX_MESSAGES = 50;
+const SUMMARY_TTL_HOURS = 48;
+
+// Sensitive-topic blocklist — if the recent transcript hits any of these we
+// refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
+// context out of third-party AI even when an admin tries to summarise it.
+const SENSITIVE_PATTERNS: { label: string; re: RegExp }[] = [
+  { label: "medical", re: /\b(?:medical|medication|diagnosis|diagnosed|prescription|prescribed|hospital(?:ised|ized)?|surgery|injur(?:y|ies|ed)\s+report|concussion|seizure|allerg(?:y|ic)|epi[- ]?pen|asthma|insulin|mental health|self[- ]harm|suicid(?:e|al)|overdose)\b/i },
+  { label: "safeguarding", re: /\b(?:safeguard(?:ing)?|child protection|abuse|abusive|assault|grooming|inappropriate touch|disclosure|mandatory report|police report|incident report|welfare concern|cps|family court|restraining order|dvo|avo|domestic violence)\b/i },
+  { label: "disciplinary", re: /\b(?:disciplinary|misconduct|suspension|suspended|expel(?:led|sion)?|tribunal|hearing\s+(?:date|panel)|formal warning|grievance|complaint\s+against|investigation\s+into|sanction(?:ed)?|banned\s+from)\b/i },
+];
+
+function detectSensitive(text: string): string | null {
+  for (const { label, re } of SENSITIVE_PATTERNS) {
+    if (re.test(text)) return label;
+  }
+  return null;
+}
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string }> = {
   team: { table: "team_messages", scopeCol: "team_id" },
@@ -112,10 +129,32 @@ serve(async (req) => {
       });
     }
 
+    // Require the user to have acknowledged the AI Catch Me Up disclosure once.
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("ai_catch_up_acknowledged_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!(prof as any)?.ai_catch_up_acknowledged_at) {
+      return new Response(JSON.stringify({ error: "disclosure_required" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Pro gate + club-level AI Catch Me Up toggle (skip for direct messages — no single club to evaluate).
+    let isJuniorClub = false;
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
+        // Junior club detection — if any team in the club is a junior team we apply stricter rules.
+        const { data: juniorTeams } = await admin
+          .from("teams")
+          .select("id")
+          .eq("club_id", clubId)
+          .eq("team_type", "junior")
+          .limit(1);
+        isJuniorClub = Array.isArray(juniorTeams) && juniorTeams.length > 0;
+
         // Admin bypass: app_admin / club_admin / committee_member can use the feature
         // even when the club-level toggle is off (mirrors useAICatchUpAvailability on the client).
         const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
@@ -129,7 +168,17 @@ serve(async (req) => {
             .in("role", ["club_admin", "committee_member"]);
           isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
         }
-        const adminBypass = isAppAdmin === true || isClubAdmin;
+        // For junior clubs we DO NOT allow committee_member to bypass — only app_admin or club_admin.
+        let adminBypass = isAppAdmin === true || isClubAdmin;
+        if (isJuniorClub && !isAppAdmin) {
+          const { data: strictRoles } = await admin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("club_id", clubId)
+            .eq("role", "club_admin");
+          adminBypass = Array.isArray(strictRoles) && strictRoles.length > 0;
+        }
 
         if (!adminBypass) {
           const { data: clubRow } = await admin
@@ -183,17 +232,18 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit?
+    // Cache hit? (respect TTL)
     if (!force) {
       const { data: cached } = await admin
         .from("chat_summaries")
-        .select("summary, message_count, last_message_id, created_at")
+        .select("summary, message_count, last_message_id, created_at, expires_at")
         .eq("user_id", user.id)
         .eq("scope_type", scope_type)
         .eq("scope_id", scope_id)
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
-      if (cached?.summary) {
+      const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
+      if (cached?.summary && stillFresh) {
         return new Response(
           JSON.stringify({
             summary: cached.summary,
@@ -204,6 +254,16 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+    }
+
+    // Sensitive content block — refuse to send any medical / safeguarding /
+    // disciplinary discussion to a third-party LLM.
+    const sensitiveHit = detectSensitive(messages.map((m: any) => m.text || "").join("\n"));
+    if (sensitiveHit) {
+      return new Response(
+        JSON.stringify({ error: "sensitive_content", category: sensitiveHit }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Resolve author names
@@ -425,6 +485,7 @@ serve(async (req) => {
           message_count: messages.length,
           summary,
           model: "gemini-2.5-flash-lite",
+          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );

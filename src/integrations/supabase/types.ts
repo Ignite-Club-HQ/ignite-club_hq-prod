@@ -983,6 +983,7 @@ export type Database = {
       chat_summaries: {
         Row: {
           created_at: string
+          expires_at: string
           id: string
           last_message_id: string | null
           message_count: number
@@ -994,6 +995,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          expires_at?: string
           id?: string
           last_message_id?: string | null
           message_count?: number
@@ -1005,6 +1007,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          expires_at?: string
           id?: string
           last_message_id?: string | null
           message_count?: number
@@ -7041,6 +7044,7 @@ export type Database = {
       profiles: {
         Row: {
           active_club_theme_id: string | null
+          ai_catch_up_acknowledged_at: string | null
           ai_catch_up_enabled: boolean
           avatar_url: string | null
           created_at: string
@@ -7063,6 +7067,7 @@ export type Database = {
         }
         Insert: {
           active_club_theme_id?: string | null
+          ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
@@ -7085,6 +7090,7 @@ export type Database = {
         }
         Update: {
           active_club_theme_id?: string | null
+          ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           created_at?: string
@@ -9603,6 +9609,7 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -9894,6 +9901,7 @@ export type Database = {
           team_id: string
         }[]
       }
+      cleanup_expired_chat_summaries: { Args: never; Returns: number }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
         Returns: undefined

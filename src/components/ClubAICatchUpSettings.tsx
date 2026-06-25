@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Loader2, Users } from "lucide-react";
+import { Sparkles, Loader2, Users, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,19 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: hasJuniorTeams } = useQuery({
+    queryKey: ["club-has-junior-teams", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId)
+        .eq("team_type", "junior")
+        .limit(1);
+      return (data?.length ?? 0) > 0;
     },
   });
 
@@ -98,6 +111,14 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {hasJuniorTeams && (
+          <div className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+            <p className="text-amber-900 dark:text-amber-200">
+              <strong>Junior teams detected.</strong> Stricter defaults apply: only club admins can use AI Catch Me Up when this toggle is off, and threads about safeguarding, medical or disciplinary matters are always blocked from AI summaries.
+            </p>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div className="space-y-1 pr-4">
             <Label htmlFor="ai-catchup-enabled" className="text-base font-medium">
