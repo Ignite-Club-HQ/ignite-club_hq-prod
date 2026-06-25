@@ -236,7 +236,7 @@ export function CatchMeUpSheet({
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      {result?.used_fallback ? "Recent activity" : "Since your last visit"}
+                      {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
                   <div className="space-y-4">
@@ -398,6 +398,13 @@ export function CatchMeUpSheet({
                     }
 
                     const since = formatSinceLabel(result!.window_since);
+                    // If the user has nothing unread, "since your last visit" is misleading —
+                    // their read state was updated elsewhere (push, another device, mark-as-read).
+                    if (unreadCount === 0) {
+                      return since
+                        ? `Summarised ${msg} of recent activity (${since}).`
+                        : `Summarised ${msg} of recent activity.`;
+                    }
                     return since
                       ? `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit (${since}).`
                       : `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit.`;
