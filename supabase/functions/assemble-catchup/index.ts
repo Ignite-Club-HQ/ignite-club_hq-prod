@@ -75,7 +75,7 @@ serve(async (req) => {
       });
     }
 
-    const { scope_type, scope_id, last_opened_at } = bodyParsed || ({} as Body);
+    const { scope_type, scope_id, last_opened_at, lookback_hours } = bodyParsed || ({} as Body);
     const cfg = SCOPE_TABLES[scope_type];
     if (!scope_type || !scope_id || !cfg) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
@@ -90,14 +90,24 @@ serve(async (req) => {
       });
     }
 
-    // Cutoff: last_opened_at OR 7 days back as a soft floor.
+    // Cutoff resolution:
+    //  - explicit lookback_hours wins (user asked to look further back)
+    //  - else last_opened_at when valid
+    //  - else 7-day floor (and flag used_fallback)
     const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
     const FLOOR_ISO = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
     const hasLastOpened = last_opened_at && !isNaN(Date.parse(last_opened_at));
-    let cutoffIso = hasLastOpened
-      ? new Date(last_opened_at).toISOString()
-      : FLOOR_ISO;
-    let usedFallback = !hasLastOpened;
+    let cutoffIso: string;
+    let usedFallback = false;
+    if (validLookback) {
+      cutoffIso = new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString();
+    } else if (hasLastOpened) {
+      cutoffIso = new Date(last_opened_at as string).toISOString();
+    } else {
+      cutoffIso = FLOOR_ISO;
+      usedFallback = true;
+    }
 
     // RLS on message_digests gates this to chats the user can access.
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
