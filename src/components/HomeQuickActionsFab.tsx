@@ -117,12 +117,6 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    {
-      label: "New Thread",
-      icon: MessageCircle,
-      onClick: () => go("/messages?new=picker"),
-      proLocked,
-    },
     ...(hasAICatchUpClub
       ? [
           {
@@ -137,6 +131,12 @@ export function HomeQuickActionsFab({
 
   // More — low-frequency administrative actions
   const more: ActionItem[] = [
+    {
+      label: "New Thread",
+      icon: MessageCircle,
+      onClick: () => go("/messages?new=picker"),
+      proLocked,
+    },
     ...(canCreateTeam
       ? [
           {
