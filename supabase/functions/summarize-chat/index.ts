@@ -20,8 +20,16 @@ interface Body {
 }
 
 const MAX_MESSAGES = 50;
-const MAX_MESSAGES_LOOKBACK = 200;
+const MAX_MESSAGES_LOOKBACK = 200; // legacy fallback
+// Tier lookback caps by window length so longer recaps actually cover the
+// requested period instead of silently truncating to the most recent N.
+function lookbackMessageCap(hours: number): number {
+  if (hours <= 24) return 100;
+  if (hours <= 24 * 7) return 250;
+  return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
+}
 const SUMMARY_TTL_HOURS = 48;
+
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
 // refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
