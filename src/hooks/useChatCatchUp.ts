@@ -162,6 +162,9 @@ export function useChatCatchUp({
       if (!scope_id) return;
       setLoading(true);
       setError(null);
+      // On forced regenerate, clear the existing result so the sheet shows the
+      // loading typewriter instead of the stale summary while the new one is built.
+      if (opts?.force) setResult(null);
       if (opts?.openSheet) setSheetOpen(true);
 
       const parseErr = async (error: any): Promise<string> => {
