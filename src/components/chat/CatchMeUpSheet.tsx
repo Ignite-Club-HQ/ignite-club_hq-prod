@@ -93,6 +93,7 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  const loadingStage = useLoadingStage(loading && !result);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
