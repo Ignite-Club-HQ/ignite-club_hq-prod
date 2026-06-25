@@ -220,14 +220,18 @@ export default function MessagesPage() {
       changed = true;
     }
     if (params.get("recap") === "1") {
-      setShowGlobalRecap(true);
+      if (hasAICatchUpClub) {
+        setShowGlobalRecap(true);
+      } else {
+        toast({ title: "Pro feature", description: "Chat Recap is a Pro feature. Upgrade your club to unlock AI summaries." });
+      }
       params.delete("recap");
       changed = true;
     }
     if (changed) {
       navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [location.search, location.pathname, navigate, hasAICatchUpClub]);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level

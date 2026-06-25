@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
+import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -62,6 +63,7 @@ export function HomeQuickActionsFab({
   hasProContext = false,
 }: HomeQuickActionsFabProps) {
   const proLocked = !hasProContext && !isAppAdmin;
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
@@ -121,12 +123,16 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
-    {
-      label: "Chat Recap",
-      description: "Catch up on unread threads with AI",
-      icon: Sparkles,
-      onClick: () => go("/messages?recap=1"),
-    },
+    ...(hasAICatchUpClub
+      ? [
+          {
+            label: "Chat Recap",
+            description: "Catch up on unread threads with AI",
+            icon: Sparkles,
+            onClick: () => go("/messages?recap=1"),
+          } as ActionItem,
+        ]
+      : []),
   ];
 
   // More — low-frequency administrative actions
