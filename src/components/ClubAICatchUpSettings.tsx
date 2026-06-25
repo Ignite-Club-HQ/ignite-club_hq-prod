@@ -54,6 +54,26 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
     onError: (e: Error) => toast.error("Failed to update: " + e.message),
   });
 
+  const enableAllMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "enable_ai_catch_up_for_all_club_members" as any,
+        { p_club_id: clubId }
+      );
+      if (error) throw error;
+      return (data as number) ?? 0;
+    },
+    onSuccess: (count) => {
+      toast.success(
+        count > 0
+          ? `Turned on AI Catch Me Up for ${count} member${count === 1 ? "" : "s"}`
+          : "All members already had it enabled"
+      );
+      setConfirmOpen(false);
+    },
+    onError: (e: Error) => toast.error("Failed: " + e.message),
+  });
+
   if (isLoading) {
     return (
       <Card>
