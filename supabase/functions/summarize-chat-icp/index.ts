@@ -183,29 +183,37 @@ serve(async (req) => {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { scope_type, scope_id, force, last_opened_at } = bodyParsed || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at, lookback_hours } = bodyParsed || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    const lookbackCutoffIso = validLookback
+      ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
+      : null;
+    const msgLimit = validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES;
 
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
 
+    let baseMsgQuery = userClient
+      .from(table)
+      .select("id, text, author_id, created_at, image_url")
+      .eq(scopeCol, scope_id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(msgLimit);
+    if (lookbackCutoffIso) baseMsgQuery = baseMsgQuery.gte("created_at", lookbackCutoffIso);
+
     // Fire profile, clubId, messages, and the IC agent in parallel.
     const [profRes, clubId, msgRes, agentPromise] = await Promise.all([
       admin.from("profiles").select("ai_catch_up_acknowledged_at").eq("id", user.id).maybeSingle(),
       scope_type === "direct" ? Promise.resolve(null) : getClubIdForScope(admin, scope_type, scope_id),
-      userClient
-        .from(table)
-        .select("id, text, author_id, created_at, image_url")
-        .eq(scopeCol, scope_id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(MAX_MESSAGES),
+      baseMsgQuery,
       HttpAgent.create({ host: IC_HOST }), // warm transport
     ]);
 
