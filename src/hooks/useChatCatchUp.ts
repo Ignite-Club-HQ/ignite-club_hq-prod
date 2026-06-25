@@ -3,14 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type ChatScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
+export interface OutstandingAction {
+  text: string;
+  owner: string | null;
+  priority: "high" | "medium" | "low";
+}
+
 export interface ChatSummaryPayload {
   headline: string;
-  important_updates: string[];
-  actions_needed: string[];
-  schedule_changes: string[];
-  people_mentioned: string[];
-  files_shared: string[];
-  unanswered_questions: string[];
+  since_last_visit?: {
+    today: string[];
+    yesterday: string[];
+    earlier: string[];
+  };
+  outstanding_actions?: OutstandingAction[];
+  outstanding_questions?: string[];
+  detailed?: {
+    schedule_changes: string[];
+    files_shared: string[];
+    discussion: string[];
+  };
+  // Legacy fields (may still appear in cached summaries from the previous schema).
+  important_updates?: string[];
+  actions_needed?: string[];
+  schedule_changes?: string[];
+  people_mentioned?: string[];
+  files_shared?: string[];
+  unanswered_questions?: string[];
 }
 
 export interface ChatSummaryResult {
