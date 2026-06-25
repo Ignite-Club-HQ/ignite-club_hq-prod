@@ -176,11 +176,15 @@ serve(async (req) => {
         console.error("[digest-messages] fetch failed", src.type, error.message);
         continue;
       }
-      const fresh = (rows || []).filter((r: any) => !seen.has(r.id) && (r.text || "").trim().length > 0);
+      let fresh = (rows || []).filter((r: any) => !seen.has(r.id) && (r.text || "").trim().length > 0);
+      if (allowedClubIdSet) {
+        if (src.type === "club") fresh = fresh.filter((r: any) => allowedClubIdSet!.has(r.club_id));
+        else if (src.type === "team") fresh = fresh.filter((r: any) => allowedTeamIds!.has(r.team_id));
+        else if (src.type === "group") fresh = fresh.filter((r: any) => allowedGroupIds!.has(r.group_id));
+      }
       if (!fresh.length) continue;
       allBatches.push({ rows: fresh.slice(0, remaining), type: src.type, scopeCol: src.scopeCol });
       totalQueued += fresh.length;
-    }
 
     // Author profile names for PII scrub
     const authorIds = Array.from(
