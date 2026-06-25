@@ -1160,9 +1160,28 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              pastEvents?.map((event, idx) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
-              ))
+              <>
+                {pastEvents?.map((event, idx) => (
+                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
+                ))}
+                {pastDaysBack < 365 && (
+                  <div className="pt-2 pb-1 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isFetching}
+                      onClick={() => setPastDaysBack((d) => Math.min(365, d + 60))}
+                    >
+                      {isFetching ? "Loading…" : `Show older events (${pastDaysBack} → ${Math.min(365, pastDaysBack + 60)} days)`}
+                    </Button>
+                  </div>
+                )}
+                {pastDaysBack >= 365 && (
+                  <p className="text-center text-xs text-muted-foreground pt-2">
+                    Showing the last 12 months
+                  </p>
+                )}
+              </>
             )}
           </TabsContent>
           </Tabs>
