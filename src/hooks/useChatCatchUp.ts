@@ -3,14 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type ChatScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
+export interface OutstandingAction {
+  text: string;
+  owner: string | null;
+  priority: "high" | "medium" | "low";
+}
+
 export interface ChatSummaryPayload {
   headline: string;
-  important_updates: string[];
-  actions_needed: string[];
-  schedule_changes: string[];
-  people_mentioned: string[];
-  files_shared: string[];
-  unanswered_questions: string[];
+  since_last_visit?: {
+    today: string[];
+    yesterday: string[];
+    earlier: string[];
+  };
+  outstanding_actions?: OutstandingAction[];
+  outstanding_questions?: string[];
+  detailed?: {
+    schedule_changes: string[];
+    files_shared: string[];
+    discussion: string[];
+  };
+  // Legacy fields (may still appear in cached summaries from the previous schema).
+  important_updates?: string[];
+  actions_needed?: string[];
+  schedule_changes?: string[];
+  people_mentioned?: string[];
+  files_shared?: string[];
+  unanswered_questions?: string[];
 }
 
 export interface ChatSummaryResult {
@@ -119,8 +138,10 @@ export function useChatCatchUp({
       setError(null);
       if (opts?.openSheet) setSheetOpen(true);
       try {
+        const lastOpenedMs = getLastOpened(scope_type, scope_id);
+        const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
         const { data, error } = await supabase.functions.invoke("summarize-chat", {
-          body: { scope_type, scope_id, force: !!opts?.force },
+          body: { scope_type, scope_id, force: !!opts?.force, last_opened_at },
         });
         if (error) {
           // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).

@@ -1,12 +1,12 @@
-import { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Sparkles, AlertCircle, CheckCircle2, CalendarClock, Users,
-  Paperclip, HelpCircle, RefreshCw, Info,
+  Sparkles, AlertCircle, CheckCircle2, CalendarClock,
+  Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
 } from "lucide-react";
-import type { ChatSummaryPayload, ChatSummaryResult } from "@/hooks/useChatCatchUp";
+import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
 
 interface CatchMeUpSheetProps {
   open: boolean;
@@ -19,20 +19,6 @@ interface CatchMeUpSheetProps {
   onUpgrade?: () => void;
 }
 
-const SECTIONS: Array<{
-  key: keyof ChatSummaryPayload;
-  label: string;
-  icon: ReactNode;
-  emptyHidden?: boolean;
-}> = [
-  { key: "important_updates", label: "Important updates", icon: <Info className="h-4 w-4 text-primary" /> },
-  { key: "actions_needed", label: "Actions needed", icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
-  { key: "schedule_changes", label: "Schedule changes", icon: <CalendarClock className="h-4 w-4 text-amber-500" /> },
-  { key: "people_mentioned", label: "People mentioned", icon: <Users className="h-4 w-4 text-blue-500" /> },
-  { key: "files_shared", label: "Files / photos shared", icon: <Paperclip className="h-4 w-4 text-violet-500" /> },
-  { key: "unanswered_questions", label: "Questions still unanswered", icon: <HelpCircle className="h-4 w-4 text-rose-500" /> },
-];
-
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
@@ -42,20 +28,11 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
         isPro: true,
       };
     case "rate_limited":
-      return {
-        title: "Slow down",
-        body: "Too many summary requests just now. Please try again in a minute.",
-      };
+      return { title: "Slow down", body: "Too many summary requests just now. Please try again in a minute." };
     case "credits_exhausted":
-      return {
-        title: "AI temporarily unavailable",
-        body: "Our AI provider has run out of credits. Please try again later.",
-      };
+      return { title: "AI temporarily unavailable", body: "Our AI provider has run out of credits. Please try again later." };
     case "no_messages":
-      return {
-        title: "Nothing to summarise",
-        body: "There aren’t any recent messages in this chat yet.",
-      };
+      return { title: "Nothing to summarise", body: "There aren’t any recent messages in this chat yet." };
     case "sensitive_content":
       return {
         title: "Summary blocked",
@@ -63,10 +40,18 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
         isSensitive: true,
       };
     default:
-      return {
-        title: "Couldn’t generate summary",
-        body: "Something went wrong while preparing your summary. Please try again.",
-      };
+      return { title: "Couldn’t generate summary", body: "Something went wrong while preparing your summary. Please try again." };
+  }
+}
+
+function priorityBadgeClasses(p: OutstandingAction["priority"]) {
+  switch (p) {
+    case "high":
+      return "bg-rose-500/15 text-rose-600 dark:text-rose-400";
+    case "low":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
   }
 }
 
@@ -74,6 +59,31 @@ export function CatchMeUpSheet({
   open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onUpgrade,
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
+  const [showDetailed, setShowDetailed] = useState(false);
+
+  // Normalise to new schema (handle legacy cached summaries from previous version).
+  const view = useMemo(() => {
+    if (!result) return null;
+    const s = result.summary;
+    const since = s.since_last_visit ?? {
+      today: s.important_updates?.slice(0, 3) ?? [],
+      yesterday: [] as string[],
+      earlier: [] as string[],
+    };
+    const actions: OutstandingAction[] = s.outstanding_actions
+      ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
+    const questions = s.outstanding_questions ?? s.unanswered_questions ?? [];
+    const detailed = s.detailed ?? {
+      schedule_changes: s.schedule_changes ?? [],
+      files_shared: s.files_shared ?? [],
+      discussion: s.important_updates ?? [],
+    };
+    const detailedHasAny =
+      detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
+    const sinceHasAny = since.today.length + since.yesterday.length + since.earlier.length > 0;
+    const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
+    return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
+  }, [result]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -114,9 +124,7 @@ export function CatchMeUpSheet({
               </div>
               <p className="text-sm text-muted-foreground">{err.body}</p>
               <div className="mt-3 flex gap-2">
-                {err.isPro && onUpgrade && (
-                  <Button size="sm" onClick={onUpgrade}>Upgrade to Pro</Button>
-                )}
+                {err.isPro && onUpgrade && <Button size="sm" onClick={onUpgrade}>Upgrade to Pro</Button>}
                 {!err.isPro && !err.isSensitive && (
                   <Button size="sm" variant="secondary" onClick={onRegenerate}>
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
@@ -127,51 +135,139 @@ export function CatchMeUpSheet({
             </div>
           )}
 
-          {!loading && !err && result && (
+          {!loading && !err && view && (
             <>
-              {result.summary.headline && (
-                <p className="mb-3 text-sm font-medium leading-snug text-foreground">
-                  {result.summary.headline}
-                </p>
+              {view.headline && (
+                <p className="mb-3 text-sm font-medium leading-snug text-foreground">{view.headline}</p>
               )}
 
-              <div className="divide-y divide-border/60 rounded-xl border border-border bg-card">
-                {SECTIONS.map((section) => {
-                  const items = result.summary[section.key] as string[];
-                  if (!items || items.length === 0) return null;
-                  return (
-                    <div key={section.key} className="px-3 py-3">
-                      <div className="mb-1.5 flex items-center gap-2">
-                        {section.icon}
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {section.label}
-                        </p>
-                      </div>
-                      <ul className="space-y-1 pl-1">
-                        {items.map((item, i) => (
-                          <li key={i} className="flex gap-2 text-sm leading-snug">
-                            <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                            <span className="text-foreground">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                })}
-
-                {SECTIONS.every((s) => {
-                  const items = result.summary[s.key] as string[];
-                  return !items || items.length === 0;
-                }) && (
-                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    Nothing actionable in the recent messages — looks like casual chat.
+              {/* Since your last visit */}
+              {view.sinceHasAny && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Pin className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Since your last visit
+                    </p>
                   </div>
-                )}
-              </div>
+                  {(["today", "yesterday", "earlier"] as const).map((bucket) => {
+                    const items = view.since[bucket];
+                    if (!items || items.length === 0) return null;
+                    const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
+                    return (
+                      <div key={bucket} className="mb-2 last:mb-0">
+                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                          {label}
+                        </p>
+                        <ul className="space-y-1 pl-1">
+                          {items.map((item, i) => (
+                            <li key={i} className="flex gap-2 text-sm leading-snug">
+                              <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              <span className="text-foreground">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+
+              {/* Outstanding actions */}
+              {view.actions.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Outstanding actions
+                    </p>
+                  </div>
+                  <ul className="space-y-2">
+                    {view.actions.map((a, i) => (
+                      <li key={i} className="flex flex-col gap-1">
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
+                            {a.priority}
+                          </span>
+                          <span className="text-sm leading-snug text-foreground">{a.text}</span>
+                        </div>
+                        {a.owner && (
+                          <span className="pl-[52px] text-[11px] text-muted-foreground">Owner: {a.owner}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* Outstanding questions */}
+              {view.questions.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-rose-500" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Outstanding questions
+                    </p>
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {view.questions.map((q, i) => (
+                      <li key={i} className="flex gap-2 text-sm leading-snug">
+                        <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                        <span className="text-foreground">{q}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {!view.anythingAtAll && (
+                <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
+                  Nothing actionable in the recent messages — looks like casual chat.
+                </div>
+              )}
+
+              {/* Detailed (collapsed) */}
+              {view.detailedHasAny && (
+                <div className="mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailed((v) => !v)}
+                    className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/60"
+                  >
+                    <span>{showDetailed ? "Hide detailed summary" : "View detailed summary"}</span>
+                    {showDetailed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                  {showDetailed && (
+                    <div className="mt-1 divide-y divide-border/60 rounded-xl border border-border bg-card">
+                      {view.detailed.schedule_changes.length > 0 && (
+                        <DetailBlock
+                          icon={<CalendarClock className="h-4 w-4 text-amber-500" />}
+                          label="Schedule changes"
+                          items={view.detailed.schedule_changes}
+                        />
+                      )}
+                      {view.detailed.files_shared.length > 0 && (
+                        <DetailBlock
+                          icon={<Paperclip className="h-4 w-4 text-violet-500" />}
+                          label="Files & photos shared"
+                          items={view.detailed.files_shared}
+                        />
+                      )}
+                      {view.detailed.discussion.length > 0 && (
+                        <DetailBlock
+                          icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
+                          label="Other discussion"
+                          items={view.detailed.discussion}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Summarised from the last {result.message_count} message{result.message_count === 1 ? "" : "s"}.
+                  Summarised from the last {result!.message_count} message{result!.message_count === 1 ? "" : "s"}.
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
                   <RefreshCw className="h-3 w-3" />
@@ -187,5 +283,24 @@ export function CatchMeUpSheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
+  return (
+    <div className="px-3 py-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        {icon}
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+      <ul className="space-y-1 pl-1">
+        {items.map((item, i) => (
+          <li key={i} className="flex gap-2 text-sm leading-snug">
+            <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            <span className="text-foreground">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

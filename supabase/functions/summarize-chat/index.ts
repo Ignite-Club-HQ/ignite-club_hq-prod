@@ -13,6 +13,8 @@ interface Body {
   scope_id: string;
   /** When true, ignore cache and force a fresh summary. */
   force?: boolean;
+  /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
+  last_opened_at?: string | null;
 }
 
 const MAX_MESSAGES = 50;
@@ -67,24 +69,36 @@ async function getClubIdForScope(
   return null; // direct
 }
 
-const SYSTEM_PROMPT = `You summarise sports-club chat threads for a busy parent, player, coach or committee member who is catching up.
+const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
 
-Focus only on actionable, factual information for the club: training changes, match times, locations, RSVP requests, volunteer requests, player availability, coach instructions, committee decisions, files/photos shared, and questions still unanswered.
+You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates by when they happened RELATIVE TO NOW: "today" (since 00:00 local today), "yesterday", "earlier" (older than yesterday but still within the window).
 
-Ignore casual banter, jokes, emoji-only messages, and greetings unless they directly affect an action or decision.
+Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
+
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
-  "headline": string, // one short sentence (<= 110 chars) describing the most important update overall. Plain text only.
-  "important_updates": string[], // bullets, max 5
-  "actions_needed": string[],    // bullets, max 5; include who needs to act if known
-  "schedule_changes": string[],  // bullets, max 5; training/match time, date, location changes
-  "people_mentioned": string[],  // names mentioned in an actionable context, max 8
-  "files_shared": string[],      // short description per file/photo shared, max 5
-  "unanswered_questions": string[] // open questions nobody answered, max 5
+  "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
+  "since_last_visit": {
+    "today": string[],     // max 3 short bullets, most important first
+    "yesterday": string[], // max 2 short bullets
+    "earlier": string[]    // max 2 short bullets ("Earlier this week")
+  },
+  "outstanding_actions": Array<{
+    "text": string,                        // <=140 chars, the action itself
+    "owner": string | null,                // who needs to act, if clearly identified, otherwise null
+    "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
+  }>, // max 5, sorted high -> low priority
+  "outstanding_questions": string[], // max 5, only questions nobody has answered
+  "detailed": {
+    "schedule_changes": string[], // max 5 short bullets — training/match time, date, location changes
+    "files_shared": string[],     // max 5 short bullets — photos / docs shared, with sender if useful
+    "discussion": string[]        // max 5 short bullets — other notable discussion that wasn't an action or schedule change
+  }
 }
 
-Every array MUST exist (use [] if nothing applies). Keep each bullet short (<= 140 chars). Do not invent details that are not in the messages. Do not include casual banter. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total (not more). Every array and object MUST exist (use [] or null). Keep bullets short (<=140 chars). Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -122,7 +136,7 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -429,8 +443,12 @@ serve(async (req) => {
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
+    const nowIso = new Date().toISOString();
+    const lastVisitLine = last_opened_at
+      ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
+      : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
-      `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
+      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
 
     const GEMINI_MODEL = "gemini-2.5-flash-lite";
     const aiRes = await fetch(
@@ -441,7 +459,7 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 600 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 700 },
         }),
       },
     );
@@ -463,14 +481,37 @@ serve(async (req) => {
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
+    const sinceRaw = (parsed.since_last_visit && typeof parsed.since_last_visit === "object") ? parsed.since_last_visit : {};
+    const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
+      (Array.isArray(parsed.outstanding_actions) ? parsed.outstanding_actions : [])
+        .map((a: any) => {
+          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const };
+          const text = typeof a?.text === "string" ? rehydrate(a.text) : "";
+          const owner = typeof a?.owner === "string" && a.owner.trim() ? rehydrate(a.owner.trim()) : null;
+          const p = (a?.priority === "high" || a?.priority === "low") ? a.priority : "medium";
+          return { text, owner, priority: p as "high" | "medium" | "low" };
+        })
+        .filter((a: any) => a.text)
+        .sort((a: any, b: any) => priorityRank[a.priority] - priorityRank[b.priority])
+        .slice(0, 5);
+
+    const detailedRaw = (parsed.detailed && typeof parsed.detailed === "object") ? parsed.detailed : {};
+
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
-      important_updates: rehydrateArr(parsed.important_updates).slice(0, 5),
-      actions_needed: rehydrateArr(parsed.actions_needed).slice(0, 5),
-      schedule_changes: rehydrateArr(parsed.schedule_changes).slice(0, 5),
-      people_mentioned: rehydrateArr(parsed.people_mentioned).slice(0, 8),
-      files_shared: rehydrateArr(parsed.files_shared).slice(0, 5),
-      unanswered_questions: rehydrateArr(parsed.unanswered_questions).slice(0, 5),
+      since_last_visit: {
+        today: rehydrateArr(sinceRaw.today).slice(0, 3),
+        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 2),
+        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
+      },
+      outstanding_actions: actionsArr,
+      outstanding_questions: rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5),
+      detailed: {
+        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
+        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
+        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 5),
+      },
     };
 
     // Upsert cache
