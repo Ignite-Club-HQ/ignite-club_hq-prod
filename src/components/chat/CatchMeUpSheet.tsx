@@ -353,7 +353,9 @@ export function CatchMeUpSheet({
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Summarised from the last {result!.message_count} message{result!.message_count === 1 ? "" : "s"}.
+                  {result!.used_fallback
+                    ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the last 7 days.`
+                    : `Summarised ${result!.message_count} new message${result!.message_count === 1 ? "" : "s"} since your last visit.`}
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
                   <RefreshCw className="h-3 w-3" />
