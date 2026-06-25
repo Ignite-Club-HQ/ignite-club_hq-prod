@@ -110,16 +110,34 @@ serve(async (req) => {
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
-        const { data: clubRow } = await admin
-          .from("clubs")
-          .select("ai_catch_up_enabled")
-          .eq("id", clubId)
-          .maybeSingle();
-        if ((clubRow as any)?.ai_catch_up_enabled === false) {
-          return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        // Admin bypass: app_admin / club_admin / committee_member can use the feature
+        // even when the club-level toggle is off (mirrors useAICatchUpAvailability on the client).
+        const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
+        let isClubAdmin = false;
+        if (!isAppAdmin) {
+          const { data: clubRoles } = await admin
+            .from("club_members")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("club_id", clubId)
+            .in("role", ["club_admin", "committee_member"]);
+          isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
         }
+        const adminBypass = isAppAdmin === true || isClubAdmin;
+
+        if (!adminBypass) {
+          const { data: clubRow } = await admin
+            .from("clubs")
+            .select("ai_catch_up_enabled")
+            .eq("id", clubId)
+            .maybeSingle();
+          if ((clubRow as any)?.ai_catch_up_enabled === false) {
+            return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
+              status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
         const { data: hasPro } = await admin.rpc("has_active_pro_for_club", { _club_id: clubId });
         if (hasPro !== true) {
           return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
