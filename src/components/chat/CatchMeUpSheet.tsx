@@ -119,6 +119,35 @@ export function CatchMeUpSheet({
     return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
+  // Count of "reveal units" in the view: headline + each non-empty bullet + each action + each question.
+  const totalUnits = useMemo(() => {
+    if (!view) return 0;
+    let n = view.headline ? 1 : 0;
+    n += view.since.today.length + view.since.yesterday.length + view.since.earlier.length;
+    n += view.actions.length;
+    n += view.questions.length;
+    if (view.detailedHasAny) n += 1;
+    if (!view.anythingAtAll) n += 1;
+    return n;
+  }, [view]);
+
+  // Progressively reveal units after the result lands, ChatGPT-style.
+  const [revealed, setRevealed] = useState(0);
+  useEffect(() => {
+    if (!view) { setRevealed(0); return; }
+    setRevealed(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setRevealed(i);
+      if (i >= totalUnits) clearInterval(id);
+    }, 110);
+    return () => clearInterval(id);
+  }, [view, totalUnits]);
+
+  // Helper: returns true if the unit at `index` should be visible yet.
+  const visible = (index: number) => revealed > index;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl px-0 pb-0">
