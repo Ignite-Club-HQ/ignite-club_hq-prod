@@ -28,6 +28,7 @@ export function ChatCatchUp({
 }: ChatCatchUpProps) {
   const navigate = useNavigate();
   const { clubDisabled, userDisabled, featureDisabled } = useAICatchUpAvailability(scope_type, scope_id);
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
 
   const {
     eligible, loading, error, result, sheetOpen, setSheetOpen,
@@ -39,6 +40,14 @@ export function ChatCatchUp({
     cardEnabled: !proLocked && !featureDisabled,
     latestMessageId,
   });
+
+  // Surface the first-use disclosure modal when the edge function rejects with disclosure_required.
+  useEffect(() => {
+    if (error === "disclosure_required") {
+      setSheetOpen(false);
+      setDisclosureOpen(true);
+    }
+  }, [error, setSheetOpen]);
 
   useEffect(() => {
     if (!registerTrigger) return;
