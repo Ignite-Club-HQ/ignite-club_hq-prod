@@ -131,17 +131,18 @@ export function CatchMeUpSheet({
     return n;
   }, [view]);
 
-  // Progressively reveal units after the result lands, ChatGPT-style.
+  // Progressively reveal units after the result lands, top-to-bottom, ChatGPT-style.
   const [revealed, setRevealed] = useState(0);
   useEffect(() => {
     if (!view) { setRevealed(0); return; }
-    setRevealed(0);
-    let i = 0;
+    // Start immediately with the first unit (headline at the top) — no initial wait.
+    setRevealed(1);
+    let i = 1;
     const id = setInterval(() => {
       i += 1;
       setRevealed(i);
       if (i >= totalUnits) clearInterval(id);
-    }, 110);
+    }, 260);
     return () => clearInterval(id);
   }, [view, totalUnits]);
 
