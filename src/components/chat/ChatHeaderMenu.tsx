@@ -58,6 +58,7 @@ export function ChatHeaderMenu({
   onUnpinVault,
   onSummarizeMessages,
 }: ChatHeaderMenuProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
   const hasDropdownAction =
     !!onRefresh || !!onScheduleMessage || hasMoreActions;
