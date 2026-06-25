@@ -1,5 +1,11 @@
+// Mirror of `summarize-chat` that calls Qwen 3 32B on the Internet Computer's
+// hosted LLM canister (w36hm-eqaaa-aaaal-qr76a-cai) instead of Gemini.
+// All access gates, PII scrubbing, sensitive-content blocking and cache logic
+// are identical to the Gemini version — only the LLM call differs.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { HttpAgent, Actor } from "npm:@dfinity/agent@2.1.3";
+import { Principal } from "npm:@dfinity/principal@2.1.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,18 +17,31 @@ type ScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 interface Body {
   scope_type: ScopeType;
   scope_id: string;
-  /** When true, ignore cache and force a fresh summary. */
   force?: boolean;
-  /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
   last_opened_at?: string | null;
 }
 
 const MAX_MESSAGES = 50;
 const SUMMARY_TTL_HOURS = 48;
 
-// Sensitive-topic blocklist — if the recent transcript hits any of these we
-// refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
-// context out of third-party AI even when an admin tries to summarise it.
+const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
+const IC_HOST = "https://icp-api.io";
+const ICP_MODEL = "qwen3:32b";
+
+const idlFactory = ({ IDL }: any) => {
+  const ChatMessageV1 = IDL.Record({
+    role: IDL.Variant({ user: IDL.Null, assistant: IDL.Null, system: IDL.Null }),
+    content: IDL.Text,
+  });
+  const ChatRequestV1 = IDL.Record({
+    model: IDL.Text,
+    messages: IDL.Vec(ChatMessageV1),
+  });
+  return IDL.Service({
+    v0_chat: IDL.Func([ChatRequestV1], [IDL.Text], []),
+  });
+};
+
 const SENSITIVE_PATTERNS: { label: string; re: RegExp }[] = [
   { label: "medical", re: /\b(?:medical|medication|diagnosis|diagnosed|prescription|prescribed|hospital(?:ised|ized)?|surgery|injur(?:y|ies|ed)\s+report|concussion|seizure|allerg(?:y|ic)|epi[- ]?pen|asthma|insulin|mental health|self[- ]harm|suicid(?:e|al)|overdose)\b/i },
   { label: "safeguarding", re: /\b(?:safeguard(?:ing)?|child protection|abuse|abusive|assault|grooming|inappropriate touch|disclosure|mandatory report|police report|incident report|welfare concern|cps|family court|restraining order|dvo|avo|domestic violence)\b/i },
@@ -66,7 +85,7 @@ async function getClubIdForScope(
       .maybeSingle();
     return (data?.club_id as string) ?? null;
   }
-  return null; // direct
+  return null;
 }
 
 const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
@@ -79,26 +98,42 @@ An action is "outstanding" only if nobody in later messages confirms it is done,
 
 Return STRICT JSON only that matches this TypeScript type:
 {
-  "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
+  "headline": string,
   "since_last_visit": {
-    "today": string[],     // max 3 short bullets, most important first
-    "yesterday": string[], // max 2 short bullets
-    "earlier": string[]    // max 2 short bullets ("Earlier this week")
+    "today": string[],
+    "yesterday": string[],
+    "earlier": string[]
   },
   "outstanding_actions": Array<{
-    "text": string,                        // <=140 chars, the action itself
-    "owner": string | null,                // who needs to act, if clearly identified, otherwise null
-    "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
-  }>, // max 5, sorted high -> low priority
-  "outstanding_questions": string[], // max 5, only questions nobody has answered
+    "text": string,
+    "owner": string | null,
+    "priority": "high" | "medium" | "low"
+  }>,
+  "outstanding_questions": string[],
   "detailed": {
-    "schedule_changes": string[], // max 5 short bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 5 short bullets — photos / docs shared, with sender if useful
-    "discussion": string[]        // max 5 short bullets — other notable discussion that wasn't an action or schedule change
+    "schedule_changes": string[],
+    "files_shared": string[],
+    "discussion": string[]
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total (not more). Every array and object MUST exist (use [] or null). Keep bullets short (<=140 chars). Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=140 chars. Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown, no code fences.`;
+
+// Extract JSON object from a possibly-noisy LLM string.
+function extractJson(s: string): any {
+  if (!s) return {};
+  // Strip code fences
+  let cleaned = s.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  // Some models prefix with <think>...</think>
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  try { return JSON.parse(cleaned); } catch { /* fall through */ }
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    try { return JSON.parse(cleaned.slice(first, last + 1)); } catch { /* ignore */ }
+  }
+  return {};
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -123,18 +158,6 @@ serve(async (req) => {
       });
     }
 
-    const rawGeminiKey = Deno.env.get("GEMINI_API_KEY");
-    const geminiKey = rawGeminiKey?.trim();
-    if (!geminiKey) {
-      console.error("[summarize-chat] GEMINI_API_KEY unavailable", {
-        present: rawGeminiKey !== undefined,
-        blank: rawGeminiKey !== undefined && rawGeminiKey.trim().length === 0,
-      });
-      return new Response(JSON.stringify({ error: "ai_not_configured", detail: "missing_or_blank_gemini_api_key" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const body = (await req.json()) as Body;
     const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
@@ -143,7 +166,6 @@ serve(async (req) => {
       });
     }
 
-    // Require the user to have acknowledged the AI Catch Me Up disclosure once.
     const { data: prof } = await admin
       .from("profiles")
       .select("ai_catch_up_acknowledged_at")
@@ -155,12 +177,10 @@ serve(async (req) => {
       });
     }
 
-    // Pro gate + club-level AI Catch Me Up toggle (skip for direct messages — no single club to evaluate).
     let isJuniorClub = false;
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
-        // Junior club detection — if any team in the club is a junior team we apply stricter rules.
         const { data: juniorTeams } = await admin
           .from("teams")
           .select("id")
@@ -169,8 +189,6 @@ serve(async (req) => {
           .limit(1);
         isJuniorClub = Array.isArray(juniorTeams) && juniorTeams.length > 0;
 
-        // Admin bypass: app_admin / club_admin / committee_member can use the feature
-        // even when the club-level toggle is off (mirrors useAICatchUpAvailability on the client).
         const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
         let isClubAdmin = false;
         if (!isAppAdmin) {
@@ -182,7 +200,6 @@ serve(async (req) => {
             .in("role", ["club_admin", "committee_member"]);
           isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
         }
-        // For junior clubs we DO NOT allow committee_member to bypass — only app_admin or club_admin.
         let adminBypass = isAppAdmin === true || isClubAdmin;
         if (isJuniorClub && !isAppAdmin) {
           const { data: strictRoles } = await admin
@@ -216,7 +233,6 @@ serve(async (req) => {
       }
     }
 
-    // Fetch messages using the user's JWT so RLS enforces access.
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
@@ -231,7 +247,7 @@ serve(async (req) => {
       .limit(MAX_MESSAGES);
 
     if (msgErr) {
-      console.error("[summarize-chat] msg fetch failed", msgErr);
+      console.error("[summarize-chat-icp] msg fetch failed", msgErr);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -246,7 +262,6 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL)
     if (!force) {
       const { data: cached } = await admin
         .from("chat_summaries")
@@ -270,8 +285,6 @@ serve(async (req) => {
       }
     }
 
-    // Sensitive content block — refuse to send any medical / safeguarding /
-    // disciplinary discussion to a third-party LLM.
     const sensitiveHit = detectSensitive(messages.map((m: any) => m.text || "").join("\n"));
     if (sensitiveHit) {
       return new Response(
@@ -280,7 +293,6 @@ serve(async (req) => {
       );
     }
 
-    // Resolve author names
     const authorIds = [...new Set(messages.map((m: any) => m.author_id).filter(Boolean))];
     const { data: profiles } = await admin
       .from("profiles")
@@ -289,12 +301,8 @@ serve(async (req) => {
     const nameMap = new Map<string, string>();
     (profiles || []).forEach((p: any) => nameMap.set(p.id, p.display_name || "Someone"));
 
-    // ---------- Privacy: anonymise transcript before sending to Gemini ----------
-    // Replace real names with stable pseudonyms (Person 1, Person 2…) and redact
-    // emails / phone numbers / URLs / long digit strings. We keep a reverse map
-    // so the model's output can be re-hydrated with real names before caching.
-    const pseudoByRealName = new Map<string, string>(); // real -> "Person N"
-    const realByPseudo = new Map<string, string>();     // "Person N" -> real
+    const pseudoByRealName = new Map<string, string>();
+    const realByPseudo = new Map<string, string>();
     let personCounter = 0;
     const getPseudo = (real: string) => {
       const key = real.trim();
@@ -307,11 +315,8 @@ serve(async (req) => {
       realByPseudo.set(p, key);
       return p;
     };
-    // Pre-seed with author display names so mentions in body match the speaker label.
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
-    // Additionally pseudonymise CHILD names belonging to parents in this club.
-    // Children are minors — never allow their real names to leave our infra.
     try {
       const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubIdForChildren) {
@@ -328,7 +333,6 @@ serve(async (req) => {
           (kids || []).forEach((k: any) => {
             const n = (k?.name || "").trim();
             if (n) {
-              // Use a distinct "Child N" label so the model knows it's a minor.
               const key = n;
               if (!pseudoByRealName.has(key)) {
                 personCounter += 1;
@@ -336,7 +340,6 @@ serve(async (req) => {
                 pseudoByRealName.set(key, p);
                 realByPseudo.set(p, key);
               }
-              // Also pseudonymise first-name-only mentions
               const first = n.split(/\s+/)[0];
               if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
                 pseudoByRealName.set(first, pseudoByRealName.get(key)!);
@@ -346,11 +349,9 @@ serve(async (req) => {
         }
       }
     } catch (e) {
-      console.error("[summarize-chat] child name seeding failed", e);
+      console.error("[summarize-chat-icp] child name seeding failed", e);
     }
 
-    // Also pseudonymise FIRST names of every known adult so "Hi Sarah" gets caught
-    // even when the message uses only the first name.
     Array.from(nameMap.values()).forEach((full) => {
       const first = (full || "").trim().split(/\s+/)[0];
       if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
@@ -359,59 +360,39 @@ serve(async (req) => {
     });
 
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Strip identifying PII outright before sending to Gemini.
-    // We deliberately KEEP venue / location names (Bridgewater Oval, etc.) because
-    // they're useful context for sport summaries. We REMOVE: emails, phone numbers,
-    // URLs, street addresses, postcodes (UK/US/CA/AU), long digit runs,
-    // IBAN-like tokens, sort codes, credit cards, dates of birth, and @handles.
     const STREET_WORDS =
       "(?:st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|cres|crescent|pl|place|blvd|boulevard|way|terr|terrace|hwy|highway|cl|close|pde|parade|sq|square)";
     const AU_STATES = "(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT)";
     const redactPII = (raw: string): string => {
       let t = raw;
-      // Emails
       t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "");
-      // URLs (full + bare www domain + bare hostnames)
       t = t.replace(/https?:\/\/\S+/gi, "");
       t = t.replace(/\bwww\.[^\s]+/gi, "");
       t = t.replace(/\b[a-z0-9-]+\.(?:com|net|org|io|co|uk|au|ai)(?:\/\S*)?\b/gi, "");
-      // Social @handles
       t = t.replace(/(^|\s)@[\w.]{2,}/g, "$1");
-      // Street addresses: "12 Smith Street", "4/22 Park Rd"
       t = t.replace(
         new RegExp(`\\b\\d{1,5}[a-z]?(?:\\/\\d{1,5})?\\s+[A-Z][\\w'-]+(?:\\s+[A-Z][\\w'-]+)?\\s+${STREET_WORDS}\\b\\.?`, "gi"),
         "",
       );
-      // PO Box
       t = t.replace(/\bP\.?O\.?\s*Box\s+\d+\b/gi, "");
-      // Postcodes — UK (SW1A 1AA), CA (A1A 1A1), AU (NSW 2000), US ZIP
       t = t.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/g, "");
       t = t.replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/g, "");
       t = t.replace(new RegExp(`\\b${AU_STATES}\\s+\\d{4}\\b`, "g"), "");
       t = t.replace(/\b\d{5}(?:-\d{4})?\b/g, "");
-      // Credit card numbers (16 digits with spaces or dashes)
       t = t.replace(/\b(?:\d[ -]?){13,19}\b/g, "");
-      // Phone numbers (loose: 7+ digits with optional separators, allow leading +)
       t = t.replace(/\+?\d[\d\s().-]{6,}\d/g, "");
-      // UK sort codes (12-34-56) and US SSN (123-45-6789)
       t = t.replace(/\b\d{2}-\d{2}-\d{2}\b/g, "");
       t = t.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "");
-      // IBAN-ish (2 letters + 13+ alnum)
       t = t.replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "");
-      // Dates of birth — with prefix
       t = t.replace(/\b(?:dob|d\.o\.b\.?|born)[\s:]*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi, "");
-      // Bare dd/mm/yyyy or dd-mm-yyyy with 4-digit year (likely DOB / sensitive)
       t = t.replace(/\b\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)\d{2}\b/g, "");
-      // Remaining long digit runs (account / licence / member numbers)
       t = t.replace(/\b\d{6,}\b/g, "");
-      // Replace known real names (adults + children + first names) with pseudonyms.
       const names = Array.from(pseudoByRealName.keys()).sort((a, b) => b.length - a.length);
       for (const name of names) {
         if (name.length < 2) continue;
         const re = new RegExp(`\\b${escapeRe(name)}\\b`, "gi");
         t = t.replace(re, pseudoByRealName.get(name)!);
       }
-      // Collapse whitespace left by removals
       return t.replace(/\s{2,}/g, " ").trim();
     };
 
@@ -428,11 +409,9 @@ serve(async (req) => {
       .map((x) => x.line)
       .join("\n");
 
-    // Rehydrate pseudonyms back to real names in any string the model returns.
     const rehydrate = (s: string): string => {
       if (!s) return s;
       let out = s;
-      // Replace longer pseudonyms first (Person 10 before Person 1).
       const pseudos = Array.from(realByPseudo.keys()).sort((a, b) => b.length - a.length);
       for (const p of pseudos) {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
@@ -448,39 +427,29 @@ serve(async (req) => {
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
-      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
+      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
-    const GEMINI_MODEL = "gemini-2.5-flash-lite";
-    const aiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 700 },
-        }),
-      },
-    );
-    if (!aiRes.ok) {
-      const txt = await aiRes.text();
-      console.error("[summarize-chat] gemini error", aiRes.status, txt);
-      if (aiRes.status === 429) {
-        return new Response(JSON.stringify({ error: "rate_limited" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: "ai_failed" }), {
+    // Call ICP Qwen
+    let raw = "";
+    try {
+      const agent = await HttpAgent.create({ host: IC_HOST });
+      const actor: any = Actor.createActor(idlFactory, {
+        agent,
+        canisterId: Principal.fromText(LLM_CANISTER_ID),
+      });
+      const candidMessages = [
+        { role: { system: null }, content: SYSTEM_PROMPT },
+        { role: { user: null }, content: userPrompt },
+      ];
+      raw = await actor.v0_chat({ model: ICP_MODEL, messages: candidMessages });
+    } catch (e) {
+      console.error("[summarize-chat-icp] ICP call failed", e);
+      return new Response(JSON.stringify({ error: "ai_failed", detail: e instanceof Error ? e.message : String(e) }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const aiJson = await aiRes.json();
-    const raw: string = aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
 
-    let parsed: any;
-    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
-
+    const parsed = extractJson(raw);
     const sinceRaw = (parsed.since_last_visit && typeof parsed.since_last_visit === "object") ? parsed.since_last_visit : {};
     const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
     const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
@@ -514,7 +483,13 @@ serve(async (req) => {
       },
     };
 
-    // Upsert cache
+    if (!summary.headline) {
+      console.error("[summarize-chat-icp] empty/invalid model output", raw.slice(0, 400));
+      return new Response(JSON.stringify({ error: "ai_invalid_output" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     await admin
       .from("chat_summaries")
       .upsert(
@@ -525,7 +500,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "gemini-2.5-flash-lite",
+          model: `icp:${ICP_MODEL}`,
           expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
@@ -537,12 +512,14 @@ serve(async (req) => {
         message_count: messages.length,
         last_message_id: lastMessageId,
         cached: false,
+        provider: "icp",
+        model: ICP_MODEL,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[summarize-chat] crash", err);
-    return new Response(JSON.stringify({ error: "server_error" }), {
+    console.error("[summarize-chat-icp] crash", err);
+    return new Response(JSON.stringify({ error: "server_error", detail: err instanceof Error ? err.message : String(err) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

@@ -624,14 +624,14 @@ export function ChatParticipantsList({
       .select("id, role")
       .eq("user_id", member.id)
       .eq("team_id", effectiveTeamId);
-    onBeforeNavigate?.();
-    requestAnimationFrame(() => {
-      setSelectedMember({
-        userId: member.id,
-        displayName: member.display_name || "Unknown",
-        avatarUrl: member.avatar_url,
-        roles: (roles || []).map((r) => ({ id: r.id, role: r.role })),
-      });
+    // Note: do NOT call onBeforeNavigate here — MemberDetailSheet is rendered
+    // inside this component, so closing the parent ChatDetailsSheet would
+    // unmount it before it can open.
+    setSelectedMember({
+      userId: member.id,
+      displayName: member.display_name || "Unknown",
+      avatarUrl: member.avatar_url,
+      roles: (roles || []).map((r) => ({ id: r.id, role: r.role })),
     });
   };
 

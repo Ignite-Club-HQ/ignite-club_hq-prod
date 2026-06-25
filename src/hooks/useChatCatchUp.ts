@@ -3,14 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type ChatScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
+export interface OutstandingAction {
+  text: string;
+  owner: string | null;
+  priority: "high" | "medium" | "low";
+}
+
 export interface ChatSummaryPayload {
   headline: string;
-  important_updates: string[];
-  actions_needed: string[];
-  schedule_changes: string[];
-  people_mentioned: string[];
-  files_shared: string[];
-  unanswered_questions: string[];
+  since_last_visit?: {
+    today: string[];
+    yesterday: string[];
+    earlier: string[];
+  };
+  outstanding_actions?: OutstandingAction[];
+  outstanding_questions?: string[];
+  detailed?: {
+    schedule_changes: string[];
+    files_shared: string[];
+    discussion: string[];
+  };
+  // Legacy fields (may still appear in cached summaries from the previous schema).
+  important_updates?: string[];
+  actions_needed?: string[];
+  schedule_changes?: string[];
+  people_mentioned?: string[];
+  files_shared?: string[];
+  unanswered_questions?: string[];
 }
 
 export interface ChatSummaryResult {
@@ -119,8 +138,22 @@ export function useChatCatchUp({
       setError(null);
       if (opts?.openSheet) setSheetOpen(true);
       try {
-        const { data, error } = await supabase.functions.invoke("summarize-chat", {
-          body: { scope_type, scope_id, force: !!opts?.force },
+        const lastOpenedMs = getLastOpened(scope_type, scope_id);
+        const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
+        // Provider routing: app_settings.ai_summary_provider = "gemini" | "icp"
+        let fnName = "summarize-chat";
+        try {
+          const { data: prov } = await supabase
+            .from("app_settings")
+            .select("value")
+            .eq("key", "ai_summary_provider")
+            .maybeSingle();
+          const v = (prov as any)?.value;
+          const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
+          if (provider === "icp" || provider === '"icp"') fnName = "summarize-chat-icp";
+        } catch { /* default to gemini */ }
+        const { data, error } = await supabase.functions.invoke(fnName, {
+          body: { scope_type, scope_id, force: !!opts?.force, last_opened_at },
         });
         if (error) {
           // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).
