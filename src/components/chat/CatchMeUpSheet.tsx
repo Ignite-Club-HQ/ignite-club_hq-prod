@@ -119,13 +119,19 @@ export function CatchMeUpSheet({
     return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
-  // Assign a sequential typing order to each text node so they stream in
-  // top-to-bottom. Reset whenever a new result arrives.
-  const orderRef = useRef(0);
-  orderRef.current = 0;
-  const nextOrder = () => orderRef.current++;
-  // Stagger between line starts (ms). Lower = more parallel, higher = more sequential.
-  const STAGGER_MS = 90;
+  // Sequential top-to-bottom typing: each line waits for all previous lines to
+  // finish typing before it starts. We compute the cumulative delay per line
+  // from the running character total + a small gap between lines.
+  const CHAR_MS = 16;
+  const GAP_MS = 120;
+  const delayRef = useRef(0);
+  delayRef.current = 0;
+  const scheduleType = (text: string) => {
+    const start = delayRef.current;
+    delayRef.current = start + text.length * CHAR_MS + GAP_MS;
+    return start;
+  };
+
 
 
   return (
