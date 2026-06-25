@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,6 +7,23 @@ import {
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+
+const LOADING_STAGES = [
+  "Reading recent messages…",
+  "Sorting by when they arrived…",
+  "Pulling out actions & questions…",
+  "Polishing the summary…",
+];
+
+function useLoadingStage(active: boolean) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!active) { setStage(0); return; }
+    const id = setInterval(() => setStage((s) => Math.min(s + 1, LOADING_STAGES.length - 1)), 1800);
+    return () => clearInterval(id);
+  }, [active]);
+  return stage;
+}
 
 interface CatchMeUpSheetProps {
   open: boolean;
