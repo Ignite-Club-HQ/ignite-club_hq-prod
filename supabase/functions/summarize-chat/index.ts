@@ -455,9 +455,11 @@ serve(async (req) => {
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
     const nowIso = new Date().toISOString();
-    const lastVisitLine = last_opened_at
-      ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
-      : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    const lastVisitLine = validLookback
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      : last_opened_at
+        ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
+        : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
       `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
 
