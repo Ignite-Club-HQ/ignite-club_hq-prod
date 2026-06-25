@@ -168,40 +168,7 @@ export function CatchMeUpSheet({
 
         <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
           {loading && !result && (
-            <div className="space-y-3 py-1">
-              {/* Headline placeholder */}
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-3 w-2/5" />
-
-              {/* Section-shaped placeholders so the layout doesn't jump when content lands */}
-              {[0, 1, 2].map((i) => (
-                <section
-                  key={i}
-                  className="rounded-xl border border-border bg-card p-3"
-                  style={{ animation: `pulse 1.6s ease-in-out ${i * 0.15}s infinite` }}
-                >
-                  <Skeleton className="mb-2 h-3 w-1/3" />
-                  <div className="space-y-1.5">
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-11/12" />
-                    {i === 0 && <Skeleton className="h-3 w-8/12" />}
-                  </div>
-                </section>
-              ))}
-
-              <div className="flex items-center gap-2 pt-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                </span>
-                <p
-                  key={loadingStage}
-                  className="text-xs text-muted-foreground animate-in fade-in slide-in-from-bottom-1 duration-300"
-                >
-                  {LOADING_STAGES[loadingStage]}
-                </p>
-              </div>
-            </div>
+            <LoadingTypewriter stage={loadingStage} />
           )}
 
           {!loading && err && (
@@ -433,4 +400,52 @@ function RevealItem({
   // from growing as each line appears). Toggle opacity for the reveal effect.
   const cls = `${className ?? ""} transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`.trim();
   return <Tag className={cls} aria-hidden={!visible}>{children}</Tag>;
+}
+
+/**
+ * Typewriter shown while we wait for the summary to land. Starts typing
+ * immediately on mount (no skeleton wait), then types each subsequent stage
+ * line as `stage` advances. Gives the perception that work has already begun.
+ */
+function LoadingTypewriter({ stage }: { stage: number }) {
+  // Lines to type so far: every stage up to and including the current one.
+  const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
+  return (
+    <div className="space-y-2 py-1">
+      {lines.map((line, i) => (
+        <TypewriterLine
+          key={i}
+          text={line}
+          // Only the last (newest) line shows the blinking caret while it types.
+          showCaret={i === lines.length - 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setShown(i);
+      if (i >= text.length) clearInterval(id);
+    }, 28);
+    return () => clearInterval(id);
+  }, [text]);
+  const done = shown >= text.length;
+  return (
+    <p className="text-sm leading-snug text-foreground">
+      {text.slice(0, shown)}
+      {showCaret && (
+        <span
+          className={`ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 bg-primary ${done ? "animate-pulse" : ""}`}
+          aria-hidden
+        />
+      )}
+    </p>
+  );
 }
