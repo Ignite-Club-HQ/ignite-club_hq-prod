@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CatchMeUpCard } from "./CatchMeUpCard";
 import { CatchMeUpSheet } from "./CatchMeUpSheet";
+import { AICatchUpDisclosureDialog } from "./AICatchUpDisclosureDialog";
 import { useChatCatchUp, type ChatScopeType } from "@/hooks/useChatCatchUp";
 import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { toast } from "sonner";
