@@ -150,25 +150,6 @@ export function ChatHeaderMenu({
                         </span>
                       )}
                     </DropdownMenuItem>
-                    {!pinnedVaultLocked
-                      && typeof pinnedVaultEnabled === "boolean"
-                      && onTogglePinnedVault && (
-                        <DropdownMenuItem
-                          onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}
-                        >
-                          {pinnedVaultEnabled ? (
-                            <>
-                              <EyeOff className="h-4 w-4 mr-2" />
-                              Hide pinned vault
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Show pinned vault
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                      )}
                     {!pinnedVaultLocked && onUnpinVault && (
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
