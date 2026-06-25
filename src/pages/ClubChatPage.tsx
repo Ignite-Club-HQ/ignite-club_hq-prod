@@ -1519,6 +1519,11 @@ export default function ClubChatPage() {
                   ? (v) => pinnedVault.toggleEnabled(v)
                   : undefined
               }
+              onUnpinVault={
+                pinnedVault.record && (isClubAdmin || isAppAdmin) && !pinnedVaultLocked
+                  ? () => pinnedVault.remove()
+                  : undefined
+              }
             />
           </>
         }
