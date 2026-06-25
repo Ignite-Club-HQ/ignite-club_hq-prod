@@ -10065,6 +10065,10 @@ export type Database = {
         }
         Returns: string
       }
+      enable_ai_catch_up_for_all_club_members: {
+        Args: { p_club_id: string }
+        Returns: number
+      }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
       engagement_activity_trend: {
         Args: { _days?: number }
