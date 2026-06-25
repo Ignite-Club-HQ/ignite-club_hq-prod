@@ -176,6 +176,15 @@ export function ChatHeaderMenu({
                           )}
                         </DropdownMenuItem>
                       )}
+                    {!pinnedVaultLocked && onUnpinVault && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={onUnpinVault}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Unpin vault
+                      </DropdownMenuItem>
+                    )}
                   </>
                 )}
                 {onEditGroup && (
