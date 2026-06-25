@@ -207,6 +207,12 @@ export default function AdminPage() {
               onClick={() => navigate("/admin/settings")}
             />
             <AdminMenuItem
+              icon={Sparkles}
+              label="AI Catch Me Up Rollout"
+              description="Enable AI Catch Me Up across Pro clubs (all or selected)"
+              onClick={() => navigate("/admin/ai-catch-up")}
+            />
+            <AdminMenuItem
               icon={Smartphone}
               label="AdMob Settings"
               description="Configure Google AdMob for native apps"
