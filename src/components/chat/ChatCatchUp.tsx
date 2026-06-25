@@ -53,6 +53,7 @@ export function ChatCatchUp({
     if (!registerTrigger) return;
     registerTrigger(() => {
       if (proLocked) {
+        toast.info("Chat Recap is a Pro feature");
         if (upgradeHref) navigate(upgradeHref);
         return;
       }
