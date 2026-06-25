@@ -98,6 +98,9 @@ export default function EventsPage() {
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  // How far back (in days) to include past events. Defaults to 30; user can
+  // expand on demand via the "Show older events" button on the Past tab.
+  const [pastDaysBack, setPastDaysBack] = useState<number>(30);
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
@@ -406,7 +409,7 @@ export default function EventsPage() {
   );
 
   const { data: events, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
-    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
+    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, pastDaysBack, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
       diagLog("events:start", { hasMemberships: !!userMemberships });
@@ -434,7 +437,7 @@ export default function EventsPage() {
         ? 240
         : (USE_NARROW_SCHEDULE_WINDOW ? 45 : 120);
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - Math.max(30, pastDaysBack));
       const upperBound = new Date();
       upperBound.setDate(upperBound.getDate() + upperDays);
 
@@ -1157,9 +1160,28 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              pastEvents?.map((event, idx) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
-              ))
+              <>
+                {pastEvents?.map((event, idx) => (
+                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
+                ))}
+                {pastDaysBack < 365 && (
+                  <div className="pt-2 pb-1 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isFetching}
+                      onClick={() => setPastDaysBack((d) => Math.min(365, d + 60))}
+                    >
+                      {isFetching ? "Loading…" : `Show older events (${pastDaysBack} → ${Math.min(365, pastDaysBack + 60)} days)`}
+                    </Button>
+                  </div>
+                )}
+                {pastDaysBack >= 365 && (
+                  <p className="text-center text-xs text-muted-foreground pt-2">
+                    Showing the last 12 months
+                  </p>
+                )}
+              </>
             )}
           </TabsContent>
           </Tabs>
