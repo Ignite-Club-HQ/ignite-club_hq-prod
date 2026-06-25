@@ -545,7 +545,7 @@ serve(async (req) => {
         last_message_id: lastMessageId,
         cached: false,
         provider: "icp",
-        model: ICP_MODEL,
+        model: modelUsed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
