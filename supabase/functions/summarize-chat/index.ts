@@ -537,6 +537,7 @@ serve(async (req) => {
         message_count: messages.length,
         last_message_id: lastMessageId,
         cached: false,
+        used_fallback: !last_opened_at,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
