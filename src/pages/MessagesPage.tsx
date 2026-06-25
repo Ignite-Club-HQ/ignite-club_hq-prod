@@ -2647,7 +2647,15 @@ export default function MessagesPage() {
                   title: "Chat Recap is a Pro feature",
                   description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
                 });
-                navigate("/upgrade-pro");
+                if (upgradeClubId) {
+                  navigate(`/clubs/${upgradeClubId}/upgrade`);
+                } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                } else if (effectiveClubFilter) {
+                  navigate(`/clubs/${effectiveClubFilter}/upgrade`);
+                } else {
+                  navigate("/clubs");
+                }
               }
             }}
             className="h-10 w-10 relative"
