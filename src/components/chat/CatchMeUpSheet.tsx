@@ -97,7 +97,7 @@ function priorityBadgeClasses(p: OutstandingAction["priority"]) {
 }
 
 export function CatchMeUpSheet({
-  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onUpgrade,
+  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onLookback, onUpgrade,
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
