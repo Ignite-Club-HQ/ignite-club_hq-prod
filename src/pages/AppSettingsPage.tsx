@@ -314,7 +314,42 @@ export default function AppSettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center text-sm text-muted-foreground pt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Catch Me Up provider
+            </CardTitle>
+            <CardDescription>
+              Which LLM powers "Catch me up" summaries. Gemini (Google) is the default. ICP routes to Qwen 3 32B on the Internet Computer — slower but on-chain and free.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const row = settings?.find(s => s.key === "ai_summary_provider");
+              const raw = row?.value;
+              const current = (typeof raw === "string" ? raw : String(raw ?? "gemini")).replace(/"/g, "") || "gemini";
+              return (
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="text-base font-medium">Provider</Label>
+                  <Select
+                    value={current}
+                    onValueChange={(v) => updateSettingMutation.mutate({ key: "ai_summary_provider", value: v })}
+                    disabled={updateSettingMutation.isPending}
+                  >
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">Gemini 2.5 Flash Lite</SelectItem>
+                      <SelectItem value="icp">ICP · Qwen 3 32B</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+
           <p>Current status: {isClubCreationLocked ? "Only app admins can create clubs" : "Anyone can create clubs"}</p>
         </div>
       </div>
