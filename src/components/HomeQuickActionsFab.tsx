@@ -117,12 +117,6 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    {
-      label: "New Thread",
-      icon: MessageCircle,
-      onClick: () => go("/messages?new=picker"),
-      proLocked,
-    },
     ...(hasAICatchUpClub
       ? [
           {
