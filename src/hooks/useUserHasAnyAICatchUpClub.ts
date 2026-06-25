@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { isAICatchUpAllowlisted } from "@/lib/aiCatchUpAllowlist";
 
 /**
  * Returns whether the current user belongs to at least one Pro (or Pro Football)
@@ -12,9 +13,10 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["user-has-any-ai-catchup-club", user?.id, scopedClubId ?? "all"],
-    enabled: !!user?.id,
+    enabled: !!user?.id && isAICatchUpAllowlisted(user?.id),
     staleTime: 60_000,
     queryFn: async () => {
+      if (!isAICatchUpAllowlisted(user?.id)) return false;
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
