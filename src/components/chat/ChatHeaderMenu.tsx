@@ -35,6 +35,8 @@ interface ChatHeaderMenuProps {
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
   pinnedVaultEnabled?: boolean | null;
   onTogglePinnedVault?: (enabled: boolean) => void;
+  /** Remove the pinned vault entirely (admins only, when one exists). */
+  onUnpinVault?: () => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
   /**
@@ -57,6 +59,7 @@ export function ChatHeaderMenu({
   pinnedVaultEnabled,
   onTogglePinnedVault,
   pinnedVaultLocked = false,
+  onUnpinVault,
   onSummarizeMessages,
 }: ChatHeaderMenuProps) {
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
@@ -173,6 +176,15 @@ export function ChatHeaderMenu({
                           )}
                         </DropdownMenuItem>
                       )}
+                    {!pinnedVaultLocked && onUnpinVault && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={onUnpinVault}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Unpin vault
+                      </DropdownMenuItem>
+                    )}
                   </>
                 )}
                 {onEditGroup && (
