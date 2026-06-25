@@ -111,13 +111,14 @@ serve(async (req) => {
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Master switch
-    const { data: flag } = await admin
+    // Master switch + optional club allowlist for staged rollout
+    const { data: settings } = await admin
       .from("app_settings")
-      .select("value")
-      .eq("key", "digest_worker_enabled")
-      .maybeSingle();
-    const enabled = flag?.value === true || flag?.value === "true";
+      .select("key, value")
+      .in("key", ["digest_worker_enabled", "digest_worker_club_allowlist"]);
+    const flag = settings?.find((s: any) => s.key === "digest_worker_enabled")?.value;
+    const allowRaw = settings?.find((s: any) => s.key === "digest_worker_club_allowlist")?.value;
+    const enabled = flag === true || flag === "true";
     if (!enabled) {
       return new Response(JSON.stringify({ ok: true, skipped: "disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -127,6 +128,24 @@ serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: "no_gemini_key" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    const allowedClubIds: string[] | null = Array.isArray(allowRaw) && allowRaw.length
+      ? allowRaw.filter((x: any) => typeof x === "string")
+      : null;
+
+    // Resolve scope filters when an allowlist is set: only digest messages
+    // whose owning club is in the allowlist.
+    let allowedTeamIds: Set<string> | null = null;
+    let allowedGroupIds: Set<string> | null = null;
+    let allowedClubIdSet: Set<string> | null = null;
+    if (allowedClubIds) {
+      allowedClubIdSet = new Set(allowedClubIds);
+      const [teamsRes, groupsRes] = await Promise.all([
+        admin.from("teams").select("id").in("club_id", allowedClubIds),
+        admin.from("chat_groups").select("id").in("club_id", allowedClubIds),
+      ]);
+      allowedTeamIds = new Set((teamsRes.data || []).map((r: any) => r.id));
+      allowedGroupIds = new Set((groupsRes.data || []).map((r: any) => r.id));
     }
 
     const sinceIso = new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000).toISOString();
