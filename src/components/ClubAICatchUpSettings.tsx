@@ -62,7 +62,7 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-ai-catchup", clubId] });
-      toast.success("AI Catch Me Up updated");
+      toast.success("AI Chat Recap updated");
     },
     onError: (e: Error) => toast.error("Failed to update: " + e.message),
   });
@@ -79,7 +79,7 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
     onSuccess: (count) => {
       toast.success(
         count > 0
-          ? `Turned on AI Catch Me Up for ${count} member${count === 1 ? "" : "s"}`
+          ? `Turned on AI Chat Recap for ${count} member${count === 1 ? "" : "s"}`
           : "All members already had it enabled"
       );
       setConfirmOpen(false);
@@ -104,7 +104,7 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5" />
-          AI Catch Me Up
+          AI Chat Recap
         </CardTitle>
         <CardDescription>
           Control whether members can use AI summaries to catch up on chat threads in your club
@@ -115,17 +115,17 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
           <div className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
             <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
             <p className="text-amber-900 dark:text-amber-200">
-              <strong>Junior teams detected.</strong> Stricter defaults apply: only club admins can use AI Catch Me Up when this toggle is off, and threads about safeguarding, medical or disciplinary matters are always blocked from AI summaries.
+              <strong>Junior teams detected.</strong> Stricter defaults apply: only club admins can use AI Chat Recap when this toggle is off, and threads about safeguarding, medical or disciplinary matters are always blocked from AI summaries.
             </p>
           </div>
         )}
         <div className="flex items-center justify-between">
           <div className="space-y-1 pr-4">
             <Label htmlFor="ai-catchup-enabled" className="text-base font-medium">
-              Enable AI Catch Me Up
+              Enable AI Chat Recap
             </Label>
             <p className="text-sm text-muted-foreground">
-              When on, members see the "Catch me up" card and menu option in team, club and group chats and can generate AI summaries of recent messages. Turn off to disable the feature across this club.
+              When on, members see the "Chat Recap" card and menu option in team, club and group chats and can generate AI summaries of recent messages. Turn off to disable the feature across this club.
             </p>
           </div>
           <Switch
@@ -147,7 +147,7 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
             <div className="space-y-1">
               <Label className="text-sm font-medium">Turn on for all members</Label>
               <p className="text-xs text-muted-foreground">
-                Enables AI Catch Me Up on every member's account in this club. Members can still turn it off individually in their own Settings.
+                Enables AI Chat Recap on every member's account in this club. Members can still turn it off individually in their own Settings.
               </p>
             </div>
             <Button
@@ -170,9 +170,9 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Enable AI Catch Me Up for all members?</AlertDialogTitle>
+            <AlertDialogTitle>Enable AI Chat Recap for all members?</AlertDialogTitle>
             <AlertDialogDescription>
-              This switches on AI Catch Me Up on every member's profile in this club. Individual members can opt out again from their own Settings at any time.
+              This switches on AI Chat Recap on every member's profile in this club. Individual members can opt out again from their own Settings at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -13,7 +13,7 @@ interface CatchMeUpCardProps {
 }
 
 /**
- * Compact AI "Catch me up" card shown above unread messages when the user
+ * Compact AI "Chat Recap" card shown above unread messages when the user
  * returns to a thread with a lot of activity. Kept intentionally lightweight
  * so it doesn't dominate the message screen.
  */
@@ -40,7 +40,7 @@ export function CatchMeUpCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-semibold leading-tight">
-              Catch up on {unreadCount} unread message{unreadCount === 1 ? "" : "s"}
+              Chat Recap · {unreadCount} unread message{unreadCount === 1 ? "" : "s"}
             </p>
             {onDismiss && (
               <button

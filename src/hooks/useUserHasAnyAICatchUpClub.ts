@@ -4,8 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Returns whether the current user belongs to at least one Pro (or Pro Football)
- * club that has AI Catch Me Up enabled at the club level. Used to gate the
- * user-level AI Catch Me Up toggle in Settings.
+ * club that has AI Chat Recap enabled at the club level. Used to gate the
+ * user-level AI Chat Recap toggle in Settings.
  */
 export function useUserHasAnyAICatchUpClub() {
   const { user } = useAuth();

@@ -47,7 +47,7 @@ export function AICatchUpDisclosureDialog({ open, onOpenChange, onAcknowledged }
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Before you use AI Catch Me Up
+            Before you use AI Chat Recap
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">

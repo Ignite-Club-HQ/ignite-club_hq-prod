@@ -233,8 +233,8 @@ export default function AdminPage() {
             />
             <AdminMenuItem
               icon={Sparkles}
-              label="AI Catch Me Up Rollout"
-              description="Enable AI Catch Me Up across Pro clubs (all or selected)"
+              label="AI Chat Recap Rollout"
+              description="Enable AI Chat Recap across Pro clubs (all or selected)"
               onClick={() => navigate("/admin/ai-catch-up")}
             />
             <AdminMenuItem

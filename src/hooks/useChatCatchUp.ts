@@ -45,7 +45,7 @@ const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
 // Re-opens within this window are treated as the same "visit" — we keep the
-// previous-visit timestamp so Catch me up still has a meaningful cutoff.
+// previous-visit timestamp so Chat Recap still has a meaningful cutoff.
 const SAME_VISIT_MS = 30 * 60 * 1000;
 
 function storeKey(scope_type: ChatScopeType, scope_id: string) {
@@ -89,7 +89,7 @@ export function markChatOpened(scope_type: ChatScopeType, scope_id: string) {
 }
 
 /**
- * Returns the timestamp Catch me up should treat as the user's previous visit.
+ * Returns the timestamp Chat Recap should treat as the user's previous visit.
  * Prefers the stored previous-visit marker (set when a new visit begins) and
  * falls back to the very first open we recorded.
  */

@@ -318,10 +318,10 @@ export default function AppSettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              AI Catch Me Up provider
+              AI Chat Recap provider
             </CardTitle>
             <CardDescription>
-              Which LLM powers "Catch me up" summaries. Gemini (Google) is the default. ICP routes to Qwen 3 32B on the Internet Computer — slower but on-chain and free.
+              Which LLM powers "Chat Recap" summaries. Gemini (Google) is the default. ICP routes to Qwen 3 32B on the Internet Computer — slower but on-chain and free.
             </CardDescription>
           </CardHeader>
           <CardContent>

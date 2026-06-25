@@ -57,11 +57,11 @@ export function ChatCatchUp({
         return;
       }
       if (clubDisabled) {
-        toast.info("AI Catch Me Up has been turned off for this club");
+        toast.info("AI Chat Recap has been turned off for this club");
         return;
       }
       if (userDisabled) {
-        toast.info("AI Catch Me Up is turned off in your settings");
+        toast.info("AI Chat Recap is turned off in your settings");
         return;
       }
       openSheet();
