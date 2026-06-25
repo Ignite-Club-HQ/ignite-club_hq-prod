@@ -4,7 +4,9 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Lock, RefreshCw, Flame, Filter, Check, Building2, Clock, Sparkles } from "lucide-react";
+import { GlobalChatRecapSheet, type RecapScopeRef } from "@/components/chat/GlobalChatRecapSheet";
+import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
@@ -206,15 +208,7 @@ export default function MessagesPage() {
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
-  const location = useLocation();
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("new") === "picker") {
-      setShowNewMessageSheet(true);
-      params.delete("new");
-      navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
-    }
-  }, [location.search, location.pathname, navigate]);
+  const [showGlobalRecap, setShowGlobalRecap] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level
@@ -229,6 +223,32 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+
+  // Gate Chat Recap to the active club context so a free active club can't
+  // borrow Pro access from another club the user belongs to.
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    let changed = false;
+    if (params.get("new") === "picker") {
+      setShowNewMessageSheet(true);
+      params.delete("new");
+      changed = true;
+    }
+    if (params.get("recap") === "1") {
+      if (hasAICatchUpClub) {
+        setShowGlobalRecap(true);
+      } else {
+        toast({ title: "Pro feature", description: "Chat Recap is a Pro feature. Upgrade your club to unlock AI summaries." });
+      }
+      params.delete("recap");
+      changed = true;
+    }
+    if (changed) {
+      navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
+    }
+  }, [location.search, location.pathname, navigate, hasAICatchUpClub]);
 
   const { data: clubAdminConversations = [] } = useQuery({
     queryKey: clubAdminInboxQueryKey(user?.id, effectiveClubFilter),
@@ -2619,6 +2639,40 @@ export default function MessagesPage() {
           <Button
             variant="outline"
             size="icon"
+            onClick={() => {
+              if (hasAICatchUpClub) {
+                setShowGlobalRecap(true);
+              } else {
+                toast({
+                  title: "Chat Recap is a Pro feature",
+                  description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
+                });
+                if (upgradeClubId) {
+                  navigate(`/clubs/${upgradeClubId}/upgrade`);
+                } else if (adminTeamIds?.length && adminTeamIds[0]) {
+                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
+                } else if (effectiveClubFilter) {
+                  navigate(`/clubs/${effectiveClubFilter}/upgrade`);
+                } else {
+                  navigate("/clubs");
+                }
+              }
+            }}
+            className="h-10 w-10 relative"
+            aria-label="Recap all chats"
+            title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
+          >
+            <Sparkles className="h-5 w-5" />
+            {!hasAICatchUpClub && (
+              <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-primary text-primary-foreground rounded px-1 leading-tight">
+                PRO
+              </span>
+            )}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon"
             onClick={() => navigate("/scheduled-messages")}
             className="h-10 w-10"
             aria-label="Scheduled messages"
@@ -2640,6 +2694,27 @@ export default function MessagesPage() {
         }}
         message="Couldn't load chats. Tap to retry."
       />
+
+      <GlobalChatRecapSheet
+        open={showGlobalRecap}
+        onOpenChange={setShowGlobalRecap}
+        scopes={(unifiedConversations
+          .filter((c) =>
+            c.unreadCount > 0 &&
+            !c.isLocked &&
+            (c.type === "team" || c.type === "club" || c.type === "group" || c.type === "league")
+          )
+          .map((c): RecapScopeRef => ({
+            scope_type: (c.type === "team" ? "team" : c.type === "club" ? "club" : "group") as RecapScopeRef["scope_type"],
+            scope_id: c.id,
+            name: c.name,
+            link: c.link,
+            unreadCount: c.unreadCount,
+            typeLabel: c.type,
+          })))}
+      />
+
+
 
 
 

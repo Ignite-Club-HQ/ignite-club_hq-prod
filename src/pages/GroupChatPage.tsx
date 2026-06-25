@@ -279,7 +279,7 @@ export default function GroupChatPage() {
     });
   }, [user, groupId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
-  // AI Catch-me-up wiring.
+  // AI Chat Recap wiring.
   useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
   const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("group", groupId);
@@ -2139,7 +2139,8 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
-              onSummarizeMessages={(!groupClubProLoading && groupClubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
+              onSummarizeMessages={!aiCatchUpDisabled ? () => summarizeTriggerRef.current?.() : undefined}
+              summarizeLocked={!groupClubProLoading && !groupClubHasPro}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={

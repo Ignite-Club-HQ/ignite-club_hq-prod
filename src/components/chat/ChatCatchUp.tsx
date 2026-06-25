@@ -53,15 +53,16 @@ export function ChatCatchUp({
     if (!registerTrigger) return;
     registerTrigger(() => {
       if (proLocked) {
+        toast.info("Chat Recap is a Pro feature");
         if (upgradeHref) navigate(upgradeHref);
         return;
       }
       if (clubDisabled) {
-        toast.info("AI Catch Me Up has been turned off for this club");
+        toast.info("AI Chat Recap has been turned off for this club");
         return;
       }
       if (userDisabled) {
-        toast.info("AI Catch Me Up is turned off in your settings");
+        toast.info("AI Chat Recap is turned off in your settings");
         return;
       }
       openSheet();
@@ -90,6 +91,7 @@ export function ChatCatchUp({
         result={result}
         unreadCount={unreadCount}
         onRegenerate={() => void summarize({ force: true })}
+        onLookback={(hours) => void summarize({ lookbackHours: hours })}
         onUpgrade={upgradeHref ? () => navigate(upgradeHref) : undefined}
       />
 

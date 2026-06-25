@@ -199,7 +199,7 @@ export default function ClubChatPage() {
     });
   }, [user, clubId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
-  // AI Catch-me-up wiring.
+  // AI Chat Recap wiring.
   useEffect(() => { if (clubId) markChatOpened("club", clubId); }, [clubId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
   const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club", clubId);
@@ -1499,7 +1499,8 @@ export default function ClubChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
+              onSummarizeMessages={!aiCatchUpDisabled ? () => summarizeTriggerRef.current?.() : undefined}
+              summarizeLocked={!clubProLoading && !clubHasPro}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {

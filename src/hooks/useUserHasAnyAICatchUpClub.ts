@@ -1,20 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { isAICatchUpAllowlisted } from "@/lib/aiCatchUpAllowlist";
 
 /**
  * Returns whether the current user belongs to at least one Pro (or Pro Football)
- * club that has AI Catch Me Up enabled at the club level. Used to gate the
- * user-level AI Catch Me Up toggle in Settings.
+ * club that has AI Chat Recap enabled at the club level. Used to gate the
+ * user-level AI Chat Recap toggle in Settings.
  */
-export function useUserHasAnyAICatchUpClub() {
+export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["user-has-any-ai-catchup-club", user?.id],
-    enabled: !!user?.id,
+    queryKey: ["user-has-any-ai-catchup-club", user?.id, scopedClubId ?? "all"],
+    enabled: !!user?.id && isAICatchUpAllowlisted(user?.id),
     staleTime: 60_000,
     queryFn: async () => {
+      if (!isAICatchUpAllowlisted(user?.id)) return false;
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
@@ -42,7 +44,13 @@ export function useUserHasAnyAICatchUpClub() {
         teamClubIds = (teams ?? []).map((t: any) => t.club_id).filter(Boolean);
       }
 
-      const allClubIds = Array.from(new Set([...directClubIds, ...teamClubIds]));
+      let allClubIds = Array.from(new Set([...directClubIds, ...teamClubIds]));
+      // When a specific club is active (e.g. user filtered to one club), only
+      // evaluate that club so AI gating mirrors the user's current context —
+      // a free active club must not borrow Pro access from a different club.
+      if (scopedClubId) {
+        allClubIds = allClubIds.includes(scopedClubId) ? [scopedClubId] : [scopedClubId];
+      }
       if (allClubIds.length === 0) return false;
 
       const { data: clubs } = await supabase

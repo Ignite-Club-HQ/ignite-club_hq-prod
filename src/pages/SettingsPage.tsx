@@ -159,7 +159,7 @@ export default function SettingsPage() {
     loadPreferences();
   }, [user]);
 
-  // Load AI Catch Me Up preference from profile
+  // Load AI Chat Recap preference from profile
   useEffect(() => {
     const loadAiPref = async () => {
       if (!user) return;
@@ -757,13 +757,13 @@ export default function SettingsPage() {
         </Suspense>
       )}
 
-      {/* AI Catch Me Up */}
+      {/* AI Chat Recap */}
       {user && hasAICatchUpClub && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
-              AI Catch Me Up
+              AI Chat Recap
             </CardTitle>
             <CardDescription>
               Control whether you see AI-generated summaries of chat threads
@@ -776,7 +776,7 @@ export default function SettingsPage() {
                   Show AI summaries
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  When on, you'll see "Catch me up" cards and a menu option to summarise recent messages in your chats. Only available in clubs on Pro where the feature has been enabled.
+                  When on, you'll see "Chat Recap" cards and a menu option to summarise recent messages in your chats. Only available in clubs on Pro where the feature has been enabled.
                 </p>
               </div>
               <Switch

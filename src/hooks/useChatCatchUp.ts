@@ -23,6 +23,8 @@ export interface ChatSummaryPayload {
     files_shared: string[];
     discussion: string[];
   };
+  /** True when the backend had to fall back to a 7-day floor because last_opened_at was missing or stale. */
+  used_fallback?: boolean;
   // Legacy fields (may still appear in cached summaries from the previous schema).
   important_updates?: string[];
   actions_needed?: string[];
@@ -37,6 +39,17 @@ export interface ChatSummaryResult {
   message_count: number;
   last_message_id: string | null;
   cached: boolean;
+  /** True when the backend fell back to a 7-day floor because last_opened_at was missing or stale. */
+  used_fallback?: boolean;
+  /** When the user explicitly chose a deeper time window, the hours covered. */
+  lookback_hours?: number;
+  /** ISO timestamp of the start of the time window the summary covers. */
+  window_since?: string | null;
+  /** True when message_count hit the per-window cap and older messages were dropped. */
+  truncated?: boolean;
+  /** Per-window message cap applied for this lookback, if any. */
+  message_cap?: number | null;
+
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
@@ -45,7 +58,7 @@ const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
 // Re-opens within this window are treated as the same "visit" — we keep the
-// previous-visit timestamp so Catch me up still has a meaningful cutoff.
+// previous-visit timestamp so Chat Recap still has a meaningful cutoff.
 const SAME_VISIT_MS = 30 * 60 * 1000;
 
 function storeKey(scope_type: ChatScopeType, scope_id: string) {
@@ -89,19 +102,22 @@ export function markChatOpened(scope_type: ChatScopeType, scope_id: string) {
 }
 
 /**
- * Returns the timestamp Catch me up should treat as the user's previous visit.
+ * Returns the timestamp Chat Recap should treat as the user's previous visit.
  * Prefers the stored previous-visit marker (set when a new visit begins) and
- * falls back to the very first open we recorded.
+ * falls back to the very first open we recorded. Exported so the global
+ * cross-thread recap can reuse the same cutoff logic per scope.
  */
-function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
+export function getCatchUpLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
   const k = storeKey(scope_type, scope_id);
   const prev = readMap(PREV_OPENED_KEY)[k];
   if (prev) return prev;
-  // Fall back to current open only if it is older than the same-visit window —
-  // otherwise we'd pass "now" and the cutoff would exclude every message.
   const last = readMap(LAST_OPENED_KEY)[k];
-  if (last && Date.now() - last > SAME_VISIT_MS) return last;
+  if (last) return last;
   return null;
+}
+
+function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
+  return getCatchUpLastOpened(scope_type, scope_id);
 }
 
 function getDismissedFor(scope_type: ChatScopeType, scope_id: string): string | null {
@@ -158,13 +174,15 @@ export function useChatCatchUp({
   }, [scope_type, scope_id, unreadCount, hasRecentBroadcastWithReplies, cardEnabled, latestMessageId, dismissTick]);
 
   const summarize = useCallback(
-    async (opts?: { force?: boolean; openSheet?: boolean }) => {
+    async (opts?: { force?: boolean; openSheet?: boolean; lookbackHours?: number }) => {
       if (!scope_id) return;
+      const lookbackHours = opts?.lookbackHours;
+      const forceFresh = !!opts?.force || lookbackHours != null;
       setLoading(true);
       setError(null);
-      // On forced regenerate, clear the existing result so the sheet shows the
-      // loading typewriter instead of the stale summary while the new one is built.
-      if (opts?.force) setResult(null);
+      // On forced regenerate or explicit lookback, clear the existing result so
+      // the sheet shows the loading typewriter instead of the stale summary.
+      if (forceFresh) setResult(null);
       if (opts?.openSheet) setSheetOpen(true);
 
       const parseErr = async (error: any): Promise<string> => {
@@ -186,11 +204,18 @@ export function useChatCatchUp({
       try {
         const lastOpenedMs = getLastOpened(scope_type, scope_id);
         const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-        const body = { scope_type, scope_id, force: !!opts?.force, last_opened_at };
+        const body: Record<string, unknown> = {
+          scope_type,
+          scope_id,
+          force: forceFresh,
+          last_opened_at,
+        };
+        if (lookbackHours != null) body.lookback_hours = lookbackHours;
 
         // Hot path: assemble from precomputed digests (no LLM call).
         // Only supports team/club/group scopes; falls through for DMs & club_admin.
-        if (!opts?.force && (scope_type === "team" || scope_type === "club" || scope_type === "group")) {
+        // We use this path even for explicit lookbacks — it ignores cache by design.
+        if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
           const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
           if (!fastErr && fast) {
             setResult(fast as ChatSummaryResult);

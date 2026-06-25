@@ -15,10 +15,21 @@ interface Body {
   force?: boolean;
   /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
   last_opened_at?: string | null;
+  /** When provided, ignore last_opened_at and summarise the last N hours. */
+  lookback_hours?: number;
 }
 
 const MAX_MESSAGES = 50;
+const MAX_MESSAGES_LOOKBACK = 200; // legacy fallback
+// Tier lookback caps by window length so longer recaps actually cover the
+// requested period instead of silently truncating to the most recent N.
+function lookbackMessageCap(hours: number): number {
+  if (hours <= 24) return 100;
+  if (hours <= 24 * 7) return 250;
+  return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
+}
 const SUMMARY_TTL_HOURS = 48;
+
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
 // refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
@@ -81,24 +92,24 @@ Return STRICT JSON only that matches this TypeScript type:
 {
   "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
   "since_last_visit": {
-    "today": string[],     // max 3 short bullets, most important first
-    "yesterday": string[], // max 2 short bullets
-    "earlier": string[]    // max 2 short bullets ("Earlier this week")
+    "today": string[],     // max 5 bullets, most important first
+    "yesterday": string[], // max 3 bullets
+    "earlier": string[]    // max 3 bullets ("Earlier this week")
   },
   "outstanding_actions": Array<{
-    "text": string,                        // <=140 chars, the action itself
+    "text": string,                        // <=200 chars, the action itself
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
     "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
   }>, // max 5, sorted high -> low priority
   "outstanding_questions": string[], // max 5, only questions nobody has answered
   "detailed": {
-    "schedule_changes": string[], // max 5 short bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 5 short bullets — photos / docs shared, with sender if useful
-    "discussion": string[]        // max 5 short bullets — other notable discussion that wasn't an action or schedule change
+    "schedule_changes": string[], // max 5 bullets — training/match time, date, location changes
+    "files_shared": string[],     // max 5 bullets — photos / docs shared, with sender if useful
+    "discussion": string[]        // max 5 bullets — other notable discussion that wasn't an action or schedule change
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets total (not more). Every array and object MUST exist (use [] or null). Keep bullets short (<=140 chars). Do not invent details. Do not include names in bullets unless that person owns the action or made the decision. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-8 bullets total — fewer only if the chat genuinely had less activity. Every array and object MUST exist (use [] or null). Keep bullets <=200 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -123,6 +134,14 @@ serve(async (req) => {
       });
     }
 
+    const ALLOWLIST = new Set(["f51dd664-b0d5-4956-b2d5-cec9222ae3dc"]);
+    if (!ALLOWLIST.has(user.id)) {
+      return new Response(JSON.stringify({ error: "Chat Recap is currently in restricted beta." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const rawGeminiKey = Deno.env.get("GEMINI_API_KEY");
     const geminiKey = rawGeminiKey?.trim();
     if (!geminiKey) {
@@ -136,7 +155,11 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    const lookbackCutoffIso = validLookback
+      ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
+      : null;
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -222,13 +245,19 @@ serve(async (req) => {
     });
 
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
-    const { data: msgRows, error: msgErr } = await userClient
+    const msgLimit = validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES;
+    let msgQuery = userClient
       .from(table)
       .select("id, text, author_id, created_at, image_url")
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(MAX_MESSAGES);
+      .limit(msgLimit);
+
+    if (lookbackCutoffIso) {
+      msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
+    }
+    const { data: msgRows, error: msgErr } = await msgQuery;
 
     if (msgErr) {
       console.error("[summarize-chat] msg fetch failed", msgErr);
@@ -246,8 +275,9 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL)
-    if (!force) {
+    // Cache hit? (respect TTL) — skip cache entirely when user asked for a
+    // bespoke time window so we don't return a narrower cached recap.
+    if (!force && !validLookback) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at")
@@ -444,9 +474,11 @@ serve(async (req) => {
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
     const nowIso = new Date().toISOString();
-    const lastVisitLine = last_opened_at
-      ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
-      : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    const lastVisitLine = validLookback
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      : last_opened_at
+        ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
+        : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
       `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
 
@@ -514,31 +546,44 @@ serve(async (req) => {
       },
     };
 
-    // Upsert cache
-    await admin
-      .from("chat_summaries")
-      .upsert(
-        {
-          user_id: user.id,
-          scope_type,
-          scope_id,
-          last_message_id: lastMessageId,
-          message_count: messages.length,
-          summary,
-          model: "gemini-2.5-flash-lite",
-          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
-        },
-        { onConflict: "user_id,scope_type,scope_id,last_message_id" },
-      );
+    // Upsert cache — skip for explicit lookback windows so they don't pollute
+    // the default "since last visit" cache entry.
+    if (!validLookback) {
+      await admin
+        .from("chat_summaries")
+        .upsert(
+          {
+            user_id: user.id,
+            scope_type,
+            scope_id,
+            last_message_id: lastMessageId,
+            message_count: messages.length,
+            summary,
+            model: "gemini-2.5-flash-lite",
+            expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "user_id,scope_type,scope_id,last_message_id" },
+        );
+    }
 
+    const windowSinceIso = lookbackCutoffIso
+      ?? (last_opened_at && !isNaN(Date.parse(last_opened_at)) ? new Date(last_opened_at as string).toISOString() : null)
+      ?? (messages[0]?.created_at as string | undefined)
+      ?? null;
     return new Response(
       JSON.stringify({
         summary,
         message_count: messages.length,
         last_message_id: lastMessageId,
         cached: false,
+        used_fallback: !validLookback && !last_opened_at,
+        lookback_hours: validLookback ? lookback_hours : null,
+        window_since: windowSinceIso,
+        truncated: validLookback && messages.length >= msgLimit,
+        message_cap: validLookback ? msgLimit : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+
     );
   } catch (err) {
     console.error("[summarize-chat] crash", err);

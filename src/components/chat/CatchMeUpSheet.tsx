@@ -34,7 +34,38 @@ interface CatchMeUpSheetProps {
   result: ChatSummaryResult | null;
   unreadCount: number;
   onRegenerate: () => void;
+  onLookback?: (hours: number) => void;
   onUpgrade?: () => void;
+}
+
+const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
+
+function formatLookbackLabel(hours: number): string {
+  if (hours >= 24 && hours % 24 === 0) {
+    const days = hours / 24;
+    return days === 1 ? "last 24 hours" : `last ${days} days`;
+  }
+  return `last ${hours} hours`;
+}
+
+function formatSinceLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const diffMs = Date.now() - t;
+  if (diffMs < 0) return "just now";
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 36) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 14) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const weeks = Math.round(days / 7);
+  return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
 }
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
@@ -42,13 +73,13 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
     case "pro_required":
       return {
         title: "Pro feature",
-        body: "AI ‘Catch me up’ summaries are available on Pro clubs. Upgrade to unlock instant catch-up for your members.",
+        body: "AI ‘Chat Recap’ summaries are available on Pro clubs. Upgrade to unlock instant recap for your members.",
         isPro: true,
       };
     case "feature_disabled":
-      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Catch me up’ for this club. Ask a club admin to re-enable it in club settings." };
+      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Chat Recap’ for this club. Ask a club admin to re-enable it in club settings." };
     case "disclosure_required":
-      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Catch me up." };
+      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Chat Recap." };
     case "rate_limited":
       return { title: "Slow down", body: "Too many summary requests just now. Please try again in a minute." };
     case "credits_exhausted":
@@ -90,7 +121,7 @@ function priorityBadgeClasses(p: OutstandingAction["priority"]) {
 }
 
 export function CatchMeUpSheet({
-  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onUpgrade,
+  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onLookback, onUpgrade,
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
@@ -158,7 +189,7 @@ export function CatchMeUpSheet({
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
               <Sparkles className="h-5 w-5 text-primary" />
             </span>
-            Catch me up
+            Chat Recap
             {unreadCount > 0 && (
               <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {unreadCount} unread
@@ -199,13 +230,13 @@ export function CatchMeUpSheet({
                 </p>
               )}
 
-              {/* Since your last visit — timeline-style activity feed */}
+              {/* Recent activity / Since your last visit — timeline-style activity feed */}
               {view.sinceHasAny && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      Since your last visit
+                      {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
                   <div className="space-y-4">
@@ -353,13 +384,63 @@ export function CatchMeUpSheet({
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Summarised from the last {result!.message_count} message{result!.message_count === 1 ? "" : "s"}.
+                  {(() => {
+                    const n = result!.message_count;
+                    const msg = `${n} message${n === 1 ? "" : "s"}`;
+                    if (result!.lookback_hours) {
+                      const base = `Summarised ${msg} from the ${formatLookbackLabel(result!.lookback_hours)}`;
+                      return result!.truncated
+                        ? `${base}. Showing the most recent ${n} — older messages in this window were trimmed for length.`
+                        : `${base}.`;
+                    }
+                    if (result!.used_fallback) {
+                      return `Summarised ${msg} from the last 7 days.`;
+                    }
+
+                    const since = formatSinceLabel(result!.window_since);
+                    // If the user has nothing unread, "since your last visit" is misleading —
+                    // their read state was updated elsewhere (push, another device, mark-as-read).
+                    if (unreadCount === 0) {
+                      return since
+                        ? `Summarised ${msg} of recent activity (${since}).`
+                        : `Summarised ${msg} of recent activity.`;
+                    }
+                    return since
+                      ? `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit (${since}).`
+                      : `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit.`;
+                  })()}
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
                   <RefreshCw className="h-3 w-3" />
                   Regenerate
                 </Button>
               </div>
+
+              {onLookback && (
+                <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-foreground">Look further back</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Summarise a longer time window of this chat.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {LOOKBACK_OPTIONS.map((opt) => {
+                      const active = result!.lookback_hours === opt.hours;
+                      return (
+                        <Button
+                          key={opt.hours}
+                          size="sm"
+                          variant={active ? "default" : "outline"}
+                          className="h-7 text-xs"
+                          disabled={loading || active}
+                          onClick={() => onLookback(opt.hours)}
+                        >
+                          {opt.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

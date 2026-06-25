@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ChatScopeType } from "@/hooks/useChatCatchUp";
 
 /**
- * Resolves whether the AI Catch Me Up feature has been turned off either at
+ * Resolves whether the AI Chat Recap feature has been turned off either at
  * the club level (admin toggle) or for the current user (personal setting).
  * Direct messages have no owning club, so `clubDisabled` is always false there.
  */
