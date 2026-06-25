@@ -1,12 +1,30 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sparkles, AlertCircle, CheckCircle2, CalendarClock,
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
+  Loader2, X,
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+
+const LOADING_STAGES = [
+  "Reading recent messages…",
+  "Sorting by when they arrived…",
+  "Pulling out actions & questions…",
+  "Polishing the summary…",
+];
+
+function useLoadingStage(active: boolean) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!active) { setStage(0); return; }
+    const id = setInterval(() => setStage((s) => Math.min(s + 1, LOADING_STAGES.length - 1)), 1800);
+    return () => clearInterval(id);
+  }, [active]);
+  return stage;
+}
 
 interface CatchMeUpSheetProps {
   open: boolean;
@@ -27,20 +45,36 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
         body: "AI ‘Catch me up’ summaries are available on Pro clubs. Upgrade to unlock instant catch-up for your members.",
         isPro: true,
       };
+    case "feature_disabled":
+      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Catch me up’ for this club. Ask a club admin to re-enable it in club settings." };
+    case "disclosure_required":
+      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Catch me up." };
     case "rate_limited":
       return { title: "Slow down", body: "Too many summary requests just now. Please try again in a minute." };
     case "credits_exhausted":
       return { title: "AI temporarily unavailable", body: "Our AI provider has run out of credits. Please try again later." };
     case "no_messages":
       return { title: "Nothing to summarise", body: "There aren’t any recent messages in this chat yet." };
+    case "fetch_failed":
+      return { title: "Couldn’t read messages", body: "We couldn’t load the recent messages for this chat. Check your connection and try again." };
+    case "ai_not_configured":
+      return { title: "AI not configured", body: "The AI provider isn’t set up yet. Ask an app admin to add the required API key." };
+    case "ai_failed":
+      return { title: "AI service unreachable", body: "We couldn’t reach the AI service. This usually clears up in a minute — please try again." };
+    case "ai_timeout":
+      return { title: "AI took too long", body: "The on-chain AI model timed out on this thread (long threads can exceed its window). Tap Regenerate to retry, or ask an app admin to switch the AI provider to Gemini in App Settings for faster results." };
+    case "ai_invalid_output":
+      return { title: "AI returned an unreadable summary", body: "The AI didn’t return valid output for this thread (often happens on very long or sparse chats). Try Regenerate, or ask an app admin to switch the AI provider in App Settings." };
     case "sensitive_content":
       return {
         title: "Summary blocked",
         body: "This thread contains sensitive content (medical, safeguarding or disciplinary). For privacy we don’t send these messages to AI — please read them directly.",
         isSensitive: true,
       };
+    case "server_error":
+      return { title: "Something went wrong", body: "An unexpected error occurred while preparing your summary. Please try again." };
     default:
-      return { title: "Couldn’t generate summary", body: "Something went wrong while preparing your summary. Please try again." };
+      return { title: "Couldn’t generate summary", body: "Something went wrong while preparing your summary. Please try again, or switch providers in App Settings if it keeps happening." };
   }
 }
 
@@ -60,6 +94,7 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  const loadingStage = useLoadingStage(loading && !result);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
@@ -85,35 +120,56 @@ export function CatchMeUpSheet({
     return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
+  // Sequential top-to-bottom typing: each line waits for all previous lines to
+  // finish typing before it starts. We compute the cumulative delay per line
+  // from the running character total + a small gap between lines.
+  const CHAR_MS = 16;
+  const GAP_MS = 120;
+  const HEADER_REVEAL_MS = 220;
+  const delayRef = useRef(0);
+  delayRef.current = 0;
+  const scheduleType = (text: string) => {
+    const start = delayRef.current;
+    delayRef.current = start + text.length * CHAR_MS + GAP_MS;
+    return start;
+  };
+  const scheduleReveal = (ms: number = HEADER_REVEAL_MS) => {
+    const start = delayRef.current;
+    delayRef.current = start + ms;
+    return start;
+  };
+
+
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl px-0 pb-0">
-        <SheetHeader className="px-4 pt-1 text-left">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+      <SheetContent side="bottom" hideCloseButton className="max-h-[85vh] flex flex-col rounded-t-2xl px-0 pb-0">
+        <SheetHeader className="relative px-4 pt-1 text-left">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-2 h-8 w-8 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+          <SheetTitle className="flex items-center gap-2.5 text-2xl font-semibold">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="h-5 w-5 text-primary" />
             </span>
             Catch me up
             {unreadCount > 0 && (
-              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {unreadCount} unread
               </span>
             )}
           </SheetTitle>
         </SheetHeader>
 
-        <div className="px-4 pt-2 pb-6">
+        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
           {loading && !result && (
-            <div className="space-y-3 py-2">
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-3 w-3/5" />
-              <div className="mt-4 space-y-2">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-11/12" />
-                <Skeleton className="h-3 w-9/12" />
-              </div>
-              <p className="pt-3 text-xs text-muted-foreground">Reading the last messages and pulling out what matters…</p>
-            </div>
+            <LoadingTypewriter stage={loadingStage} />
           )}
 
           {!loading && err && (
@@ -138,93 +194,123 @@ export function CatchMeUpSheet({
           {!loading && !err && view && (
             <>
               {view.headline && (
-                <p className="mb-3 text-sm font-medium leading-snug text-foreground">{view.headline}</p>
+                <p className="mb-3 text-base font-normal leading-relaxed text-foreground">
+                  <Typed text={view.headline} delayMs={scheduleType(view.headline)} charMs={CHAR_MS} />
+                </p>
               )}
 
-              {/* Since your last visit */}
+              {/* Since your last visit — timeline-style activity feed */}
               {view.sinceHasAny && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-base font-semibold text-muted-foreground">
                       Since your last visit
                     </p>
+                  </Reveal>
+                  <div className="space-y-4">
+                    {(["today", "yesterday", "earlier"] as const).map((bucket) => {
+                      const items = view.since[bucket];
+                      if (!items || items.length === 0) return null;
+                      const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
+                      return (
+                        <div key={bucket}>
+                          <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-2 text-sm font-medium text-muted-foreground">
+                            {label}
+                          </Reveal>
+                          <div className="space-y-3">
+                            {items.map((item) => {
+                              const delay = scheduleType(item);
+                              return (
+                                <div key={item} className="text-base leading-relaxed text-foreground">
+                                  <Typed text={item} delayMs={delay} charMs={CHAR_MS} />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {(["today", "yesterday", "earlier"] as const).map((bucket) => {
-                    const items = view.since[bucket];
-                    if (!items || items.length === 0) return null;
-                    const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
-                    return (
-                      <div key={bucket} className="mb-2 last:mb-0">
-                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
-                          {label}
-                        </p>
-                        <ul className="space-y-1 pl-1">
-                          {items.map((item, i) => (
-                            <li key={i} className="flex gap-2 text-sm leading-snug">
-                              <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                              <span className="text-foreground">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })}
                 </section>
               )}
 
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Outstanding actions
+                    <p className="text-base font-semibold text-muted-foreground">
+                      {view.actions.length === 1 ? "Outstanding action" : "Outstanding actions"}
                     </p>
-                  </div>
-                  <ul className="space-y-2">
-                    {view.actions.map((a, i) => (
-                      <li key={i} className="flex flex-col gap-1">
-                        <div className="flex items-start gap-2">
-                          <span className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
-                            {a.priority}
-                          </span>
-                          <span className="text-sm leading-snug text-foreground">{a.text}</span>
-                        </div>
-                        {a.owner && (
-                          <span className="pl-[52px] text-[11px] text-muted-foreground">Owner: {a.owner}</span>
-                        )}
-                      </li>
-                    ))}
+                  </Reveal>
+                  <ul className="space-y-4">
+                    {view.actions.map((a, i) => {
+                      const badgeDelay = scheduleReveal(80);
+                      const textDelay = scheduleType(a.text);
+                      const ownerDelay = a.owner ? scheduleReveal(120) : 0;
+                      return (
+                        <li key={i} className="flex items-start gap-3">
+                          <Reveal delayMs={badgeDelay} as="span" className={`mt-[0.15em] w-14 shrink-0 rounded-md px-1.5 py-0.5 text-center text-xs font-semibold ${priorityBadgeClasses(a.priority)}`}>
+                            {a.priority === "high" ? "High" : a.priority === "low" ? "Low" : "Medium"}
+                          </Reveal>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-base font-medium leading-relaxed text-foreground">
+                              <Typed text={a.text} delayMs={textDelay} charMs={CHAR_MS} />
+                            </span>
+                            {a.owner && (
+                              <Reveal delayMs={ownerDelay} className="mt-1 text-sm font-normal text-muted-foreground">
+                                Owner • {a.owner}
+                              </Reveal>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
 
-              {/* Outstanding questions */}
+              {/* Outstanding questions — plain text when single item */}
               {view.questions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-rose-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Outstanding questions
+                    <p className="text-base font-semibold text-muted-foreground">
+                      {view.questions.length === 1 ? "Outstanding question" : "Outstanding questions"}
                     </p>
-                  </div>
-                  <ul className="space-y-1 pl-1">
-                    {view.questions.map((q, i) => (
-                      <li key={i} className="flex gap-2 text-sm leading-snug">
-                        <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                        <span className="text-foreground">{q}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  </Reveal>
+                  {view.questions.length === 1 ? (
+                    <p className="text-base leading-relaxed text-foreground">
+                      <Typed text={view.questions[0]} delayMs={scheduleType(view.questions[0])} charMs={CHAR_MS} />
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {view.questions.map((q) => {
+                        const delay = scheduleType(q);
+                        return (
+                          <div key={q} className="text-base leading-relaxed text-foreground">
+                            <Typed text={q} delayMs={delay} charMs={CHAR_MS} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </section>
               )}
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                  Nothing actionable in the recent messages — looks like casual chat.
+                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={scheduleType("Nothing actionable in the recent messages — looks like casual chat.")} charMs={CHAR_MS} />
                 </div>
               )}
+            </>
+          )}
+
+
+          {!loading && !err && view && (
+            <>
+
 
               {/* Detailed (collapsed) */}
               {view.detailedHasAny && (
@@ -266,7 +352,7 @@ export function CatchMeUpSheet({
               )}
 
               <div className="mt-3 flex items-center justify-between gap-2">
-                <p className="text-[11px] leading-snug text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Summarised from the last {result!.message_count} message{result!.message_count === 1 ? "" : "s"}.
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
@@ -277,7 +363,7 @@ export function CatchMeUpSheet({
             </>
           )}
 
-          <p className="mt-4 rounded-md bg-muted/40 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          <p className="mt-4 text-xs text-muted-foreground/70">
             AI summaries can make mistakes. Check key details before acting.
           </p>
         </div>
@@ -289,18 +375,164 @@ export function CatchMeUpSheet({
 function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
   return (
     <div className="px-3 py-3">
-      <div className="mb-1.5 flex items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         {icon}
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-base font-semibold text-muted-foreground">{label}</p>
       </div>
-      <ul className="space-y-1 pl-1">
+      {items.length === 1 ? (
+        <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+      ) : (
+      <div className="space-y-3">
         {items.map((item, i) => (
-          <li key={i} className="flex gap-2 text-sm leading-snug">
-            <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-            <span className="text-foreground">{item}</span>
-          </li>
+          <div key={i} className="text-base leading-relaxed text-foreground">
+            {item}
+          </div>
         ))}
-      </ul>
+      </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * Streams `text` one character at a time after an optional `delayMs`, used to
+ * give the summary a ChatGPT-style top-down typing reveal. Reserves the full
+ * line height via an invisible underlay so the sheet doesn't shift as it types.
+ */
+function Typed({
+  text,
+  delayMs = 0,
+  charMs = 16,
+}: {
+  text: string;
+  delayMs?: number;
+  charMs?: number;
+}) {
+  const [n, setN] = useState(0);
+  const [started, setStarted] = useState(delayMs === 0);
+  useEffect(() => {
+    setN(0);
+    setStarted(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setStarted(true), delayMs);
+    return () => clearTimeout(t);
+  }, [text, delayMs]);
+  useEffect(() => {
+    if (!started) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setN(i);
+      if (i >= text.length) clearInterval(id);
+    }, charMs);
+    return () => clearInterval(id);
+  }, [started, text, charMs]);
+  // Grid stack: invisible full text reserves space; visible partial overlays it.
+  return (
+    <span className="grid">
+      <span className="invisible col-start-1 row-start-1" aria-hidden>{text}</span>
+      <span className="col-start-1 row-start-1">{text.slice(0, n)}</span>
+    </span>
+  );
+}
+
+/**
+ * Fades children in after `delayMs`. Reserves layout space upfront (renders
+ * invisibly) so the sheet height stays stable while siblings reveal.
+ */
+function Reveal({
+  delayMs = 0,
+  as: As = "div",
+  className,
+  children,
+}: {
+  delayMs?: number;
+  as?: "div" | "span" | "p";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [shown, setShown] = useState(delayMs === 0);
+  useEffect(() => {
+    setShown(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setShown(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  return (
+    <As
+      className={className}
+      style={{ opacity: shown ? 1 : 0, transition: "opacity 180ms ease-out" }}
+    >
+      {children}
+    </As>
+  );
+}
+
+
+
+/**
+ * Typewriter shown while we wait for the summary to land. Starts typing
+ * immediately on mount (no skeleton wait), then types each subsequent stage
+ * line as `stage` advances. Gives the perception that work has already begun.
+ */
+function LoadingTypewriter({ stage }: { stage: number }) {
+  // Lines to type so far: every stage up to and including the current one.
+  const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
+  const isFinalStage = stage >= LOADING_STAGES.length - 1;
+  const [showReassurance, setShowReassurance] = useState(false);
+
+  useEffect(() => {
+    if (!isFinalStage) { setShowReassurance(false); return; }
+    // Once the final stage is reached, wait 2.5s then show a reassuring
+    // activity indicator so the user knows work is still in flight.
+    const t = setTimeout(() => setShowReassurance(true), 2500);
+    return () => clearTimeout(t);
+  }, [isFinalStage, stage]);
+
+  return (
+    <div className="space-y-2 py-1">
+      {lines.map((line, i) => (
+        <TypewriterLine
+          key={i}
+          text={line}
+          // Only the last (newest) line shows the blinking caret while it types.
+          showCaret={i === lines.length - 1}
+        />
+      ))}
+      {showReassurance && (
+        <div className="flex items-center gap-2 pt-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            Almost there… this usually takes a few seconds.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setShown(i);
+      if (i >= text.length) clearInterval(id);
+    }, 28);
+    return () => clearInterval(id);
+  }, [text]);
+  const done = shown >= text.length;
+  return (
+    <p className="text-sm leading-snug text-foreground">
+      {text.slice(0, shown)}
+      {showCaret && (
+        <span
+          className={`ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 bg-primary ${done ? "animate-pulse" : ""}`}
+          aria-hidden
+        />
+      )}
+    </p>
   );
 }

@@ -21,12 +21,16 @@ interface Body {
   last_opened_at?: string | null;
 }
 
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = 25;
 const SUMMARY_TTL_HOURS = 48;
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
 const IC_HOST = "https://icp-api.io";
+// Qwen 3 32B produces higher-quality summaries than Llama 3.1 8B; keep it as
+// the primary and only fall back to Llama if Qwen times out on the IC ingress
+// window. MAX_MESSAGES is capped at 25 to keep Qwen within that window.
 const ICP_MODEL = "qwen3:32b";
+const ICP_FALLBACK_MODEL = "llama3.1:8b";
 
 const idlFactory = ({ IDL }: any) => {
   const ChatMessageV1 = IDL.Record({
@@ -122,10 +126,16 @@ Across "since_last_visit.today/yesterday/earlier" combined, return 3-5 bullets t
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
   if (!s) return {};
-  // Strip code fences
   let cleaned = s.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  // Some models prefix with <think>...</think>
+  // Strip closed <think>…</think> blocks (Qwen 3 reasoning prefix)
   cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // Strip an UNCLOSED leading <think> tail — Qwen can run out of tokens
+  // mid-reasoning and never emit </think>; the JSON (if any) is later.
+  if (/^<think>/i.test(cleaned)) {
+    const firstBrace = cleaned.indexOf("{");
+    if (firstBrace > 0) cleaned = cleaned.slice(firstBrace).trim();
+    else cleaned = cleaned.replace(/^<think>[\s\S]*$/i, "").trim();
+  }
   try { return JSON.parse(cleaned); } catch { /* fall through */ }
   const first = cleaned.indexOf("{");
   const last = cleaned.lastIndexOf("}");
@@ -151,101 +161,84 @@ serve(async (req) => {
     const token = authHeader.slice("Bearer ".length).trim();
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: { user }, error: userErr } = await admin.auth.getUser(token);
+    const tPre = Date.now();
+
+    // Parse body and authenticate user in parallel.
+    const [bodyParsed, userRes] = await Promise.all([
+      req.json().catch(() => ({})) as Promise<Body>,
+      admin.auth.getUser(token),
+    ]);
+    const { data: { user }, error: userErr } = userRes;
     if (userErr || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at } = bodyParsed || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: prof } = await admin
-      .from("profiles")
-      .select("ai_catch_up_acknowledged_at")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!(prof as any)?.ai_catch_up_acknowledged_at) {
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { table, scopeCol } = SCOPE_TABLES[scope_type];
+
+    // Fire profile, clubId, messages, and the IC agent in parallel.
+    const [profRes, clubId, msgRes, agentPromise] = await Promise.all([
+      admin.from("profiles").select("ai_catch_up_acknowledged_at").eq("id", user.id).maybeSingle(),
+      scope_type === "direct" ? Promise.resolve(null) : getClubIdForScope(admin, scope_type, scope_id),
+      userClient
+        .from(table)
+        .select("id, text, author_id, created_at, image_url")
+        .eq(scopeCol, scope_id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(MAX_MESSAGES),
+      HttpAgent.create({ host: IC_HOST }), // warm transport
+    ]);
+
+    if (!(profRes.data as any)?.ai_catch_up_acknowledged_at) {
       return new Response(JSON.stringify({ error: "disclosure_required" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // With clubId known, fan out remaining access checks in parallel.
     let isJuniorClub = false;
-    if (scope_type !== "direct") {
-      const clubId = await getClubIdForScope(admin, scope_type, scope_id);
-      if (clubId) {
-        const { data: juniorTeams } = await admin
-          .from("teams")
-          .select("id")
-          .eq("club_id", clubId)
-          .eq("team_type", "junior")
-          .limit(1);
-        isJuniorClub = Array.isArray(juniorTeams) && juniorTeams.length > 0;
+    if (clubId) {
+      const [juniorRes, isAppAdminRes, rolesRes, clubRowRes, hasProRes] = await Promise.all([
+        admin.from("teams").select("id").eq("club_id", clubId).eq("team_type", "junior").limit(1),
+        admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" }),
+        admin.from("user_roles").select("role").eq("user_id", user.id).eq("club_id", clubId)
+          .in("role", ["club_admin", "committee_member"]),
+        admin.from("clubs").select("ai_catch_up_enabled").eq("id", clubId).maybeSingle(),
+        admin.rpc("has_active_pro_for_club", { _club_id: clubId }),
+      ]);
 
-        const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
-        let isClubAdmin = false;
-        if (!isAppAdmin) {
-          const { data: clubRoles } = await admin
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("club_id", clubId)
-            .in("role", ["club_admin", "committee_member"]);
-          isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
-        }
-        let adminBypass = isAppAdmin === true || isClubAdmin;
-        if (isJuniorClub && !isAppAdmin) {
-          const { data: strictRoles } = await admin
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("club_id", clubId)
-            .eq("role", "club_admin");
-          adminBypass = Array.isArray(strictRoles) && strictRoles.length > 0;
-        }
+      isJuniorClub = Array.isArray(juniorRes.data) && juniorRes.data.length > 0;
+      const isAppAdmin = isAppAdminRes.data === true;
+      const roleList = (rolesRes.data || []).map((r: any) => r.role);
+      const isClubAdmin = roleList.includes("club_admin") || roleList.includes("committee_member");
+      const isStrictClubAdmin = roleList.includes("club_admin");
+      const adminBypass = isAppAdmin
+        || (isJuniorClub ? isStrictClubAdmin : isClubAdmin);
 
-        if (!adminBypass) {
-          const { data: clubRow } = await admin
-            .from("clubs")
-            .select("ai_catch_up_enabled")
-            .eq("id", clubId)
-            .maybeSingle();
-          if ((clubRow as any)?.ai_catch_up_enabled === false) {
-            return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
-              status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-        }
-
-        const { data: hasPro } = await admin.rpc("has_active_pro_for_club", { _club_id: clubId });
-        if (hasPro !== true) {
-          return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      if (!adminBypass && (clubRowRes.data as any)?.ai_catch_up_enabled === false) {
+        return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (hasProRes.data !== true) {
+        return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-
-    const { table, scopeCol } = SCOPE_TABLES[scope_type];
-    const { data: msgRows, error: msgErr } = await userClient
-      .from(table)
-      .select("id, text, author_id, created_at, image_url")
-      .eq(scopeCol, scope_id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(MAX_MESSAGES);
-
+    const { data: msgRows, error: msgErr } = msgRes;
     if (msgErr) {
       console.error("[summarize-chat-icp] msg fetch failed", msgErr);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -261,6 +254,7 @@ serve(async (req) => {
     }
 
     const lastMessageId = messages[messages.length - 1].id as string;
+    console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
     if (!force) {
       const { data: cached } = await admin
@@ -426,13 +420,18 @@ serve(async (req) => {
     const lastVisitLine = last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    // `/no_think` disables Qwen's reasoning preamble so the token budget goes
+    // straight to JSON output (Llama ignores it harmlessly).
     const userPrompt =
-      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
+      `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
-    // Call ICP Qwen
+    // Call ICP — Qwen 3 32B as primary (best quality), Llama 3.1 8B as
+    // fallback if Qwen times out. The DFINITY canister occasionally rejects
+    // with "Reject code: 4 Timeout" under load.
     let raw = "";
-    try {
-      const agent = await HttpAgent.create({ host: IC_HOST });
+    let modelUsed = ICP_MODEL;
+    const callIcp = async (model: string): Promise<string> => {
+      const agent = await agentPromise; // warmed in preflight Promise.all
       const actor: any = Actor.createActor(idlFactory, {
         agent,
         canisterId: Principal.fromText(LLM_CANISTER_ID),
@@ -441,12 +440,28 @@ serve(async (req) => {
         { role: { system: null }, content: SYSTEM_PROMPT },
         { role: { user: null }, content: userPrompt },
       ];
-      raw = await actor.v0_chat({ model: ICP_MODEL, messages: candidMessages });
+      return await actor.v0_chat({ model, messages: candidMessages });
+    };
+    const t0 = Date.now();
+    try {
+      raw = await callIcp(ICP_MODEL);
+      console.log("[summarize-chat-icp] primary ok", { model: ICP_MODEL, ms: Date.now() - t0, messages: messages.length });
     } catch (e) {
-      console.error("[summarize-chat-icp] ICP call failed", e);
-      return new Response(JSON.stringify({ error: "ai_failed", detail: e instanceof Error ? e.message : String(e) }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = /Timeout|Reject code:\s*4/i.test(msg);
+      console.error("[summarize-chat-icp] primary call failed", { model: ICP_MODEL, isTimeout, ms: Date.now() - t0, msg });
+      try {
+        modelUsed = ICP_FALLBACK_MODEL;
+        const tf = Date.now();
+        raw = await callIcp(modelUsed);
+        console.log("[summarize-chat-icp] fallback succeeded", { model: modelUsed, ms: Date.now() - tf });
+      } catch (e2) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2);
+        console.error("[summarize-chat-icp] fallback call failed", { model: modelUsed, msg: msg2 });
+        return new Response(JSON.stringify({ error: isTimeout ? "ai_timeout" : "ai_failed", detail: msg2, provider: "icp" }), {
+          status: isTimeout ? 504 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const parsed = extractJson(raw);
@@ -485,9 +500,10 @@ serve(async (req) => {
 
     if (!summary.headline) {
       console.error("[summarize-chat-icp] empty/invalid model output", raw.slice(0, 400));
-      return new Response(JSON.stringify({ error: "ai_invalid_output" }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "ai_invalid_output", provider: "icp", model: modelUsed, raw_preview: (raw || "").slice(0, 200) }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     await admin
@@ -500,7 +516,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: `icp:${ICP_MODEL}`,
+          model: `icp:${modelUsed}`,
           expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
@@ -513,7 +529,7 @@ serve(async (req) => {
         last_message_id: lastMessageId,
         cached: false,
         provider: "icp",
-        model: ICP_MODEL,
+        model: modelUsed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

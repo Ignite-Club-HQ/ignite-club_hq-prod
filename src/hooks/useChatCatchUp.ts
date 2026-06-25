@@ -40,9 +40,13 @@ export interface ChatSummaryResult {
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
+const PREV_OPENED_KEY = "chat-catchup:prev-opened";
 const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
+// Re-opens within this window are treated as the same "visit" — we keep the
+// previous-visit timestamp so Catch me up still has a meaningful cutoff.
+const SAME_VISIT_MS = 30 * 60 * 1000;
 
 function storeKey(scope_type: ChatScopeType, scope_id: string) {
   return `${scope_type}:${scope_id}`;
@@ -68,14 +72,36 @@ function writeMap(key: string, map: Record<string, number>) {
 /** Persist that the user just opened this thread. Call on mount. */
 export function markChatOpened(scope_type: ChatScopeType, scope_id: string) {
   if (!scope_id) return;
-  const map = readMap(LAST_OPENED_KEY);
-  map[storeKey(scope_type, scope_id)] = Date.now();
-  writeMap(LAST_OPENED_KEY, map);
+  const k = storeKey(scope_type, scope_id);
+  const lastMap = readMap(LAST_OPENED_KEY);
+  const prevMap = readMap(PREV_OPENED_KEY);
+  const now = Date.now();
+  const prior = lastMap[k];
+  // Only roll the previous-visit pointer forward when this is a distinct visit.
+  if (prior && now - prior > SAME_VISIT_MS) {
+    prevMap[k] = prior;
+    writeMap(PREV_OPENED_KEY, prevMap);
+  } else if (!prior) {
+    // First ever open — leave prev empty so cutoff falls back to the 7-day floor.
+  }
+  lastMap[k] = now;
+  writeMap(LAST_OPENED_KEY, lastMap);
 }
 
+/**
+ * Returns the timestamp Catch me up should treat as the user's previous visit.
+ * Prefers the stored previous-visit marker (set when a new visit begins) and
+ * falls back to the very first open we recorded.
+ */
 function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
-  const map = readMap(LAST_OPENED_KEY);
-  return map[storeKey(scope_type, scope_id)] ?? null;
+  const k = storeKey(scope_type, scope_id);
+  const prev = readMap(PREV_OPENED_KEY)[k];
+  if (prev) return prev;
+  // Fall back to current open only if it is older than the same-visit window —
+  // otherwise we'd pass "now" and the cutoff would exclude every message.
+  const last = readMap(LAST_OPENED_KEY)[k];
+  if (last && Date.now() - last > SAME_VISIT_MS) return last;
+  return null;
 }
 
 function getDismissedFor(scope_type: ChatScopeType, scope_id: string): string | null {
@@ -136,11 +162,51 @@ export function useChatCatchUp({
       if (!scope_id) return;
       setLoading(true);
       setError(null);
+      // On forced regenerate, clear the existing result so the sheet shows the
+      // loading typewriter instead of the stale summary while the new one is built.
+      if (opts?.force) setResult(null);
       if (opts?.openSheet) setSheetOpen(true);
+
+      const parseErr = async (error: any): Promise<string> => {
+        let code = "unknown";
+        try {
+          const ctx: any = (error as any).context;
+          const resp: Response | undefined =
+            ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
+          if (resp) {
+            const j = await resp.clone().json().catch(() => null);
+            if (j?.error) code = j.error;
+          } else if (typeof ctx === "object" && ctx?.error) {
+            code = String(ctx.error);
+          }
+        } catch { /* ignore */ }
+        return code;
+      };
+
       try {
         const lastOpenedMs = getLastOpened(scope_type, scope_id);
         const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-        // Provider routing: app_settings.ai_summary_provider = "gemini" | "icp"
+        const body = { scope_type, scope_id, force: !!opts?.force, last_opened_at };
+
+        // Hot path: assemble from precomputed digests (no LLM call).
+        // Only supports team/club/group scopes; falls through for DMs & club_admin.
+        if (!opts?.force && (scope_type === "team" || scope_type === "club" || scope_type === "group")) {
+          const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
+          if (!fastErr && fast) {
+            setResult(fast as ChatSummaryResult);
+            return;
+          }
+          // If anything other than "digests_missing", surface it. Otherwise fall back to LLM.
+          if (fastErr) {
+            const code = await parseErr(fastErr);
+            if (code !== "digests_missing" && code !== "unknown") {
+              setError(code);
+              return;
+            }
+          }
+        }
+
+        // Fallback: full LLM summary (Gemini or ICP per app setting).
         let fnName = "summarize-chat";
         try {
           const { data: prov } = await supabase
@@ -152,25 +218,9 @@ export function useChatCatchUp({
           const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
           if (provider === "icp" || provider === '"icp"') fnName = "summarize-chat-icp";
         } catch { /* default to gemini */ }
-        const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { scope_type, scope_id, force: !!opts?.force, last_opened_at },
-        });
+        const { data, error } = await supabase.functions.invoke(fnName, { body });
         if (error) {
-          // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).
-          // Older docs show `context.response`; handle both shapes defensively.
-          let code = "unknown";
-          try {
-            const ctx: any = (error as any).context;
-            const resp: Response | undefined =
-              ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
-            if (resp) {
-              const j = await resp.clone().json().catch(() => null);
-              if (j?.error) code = j.error;
-            } else if (typeof ctx === "object" && ctx?.error) {
-              code = String(ctx.error);
-            }
-          } catch { /* ignore */ }
-          setError(code);
+          setError(await parseErr(error));
           return;
         }
         setResult(data as ChatSummaryResult);

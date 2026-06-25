@@ -5200,6 +5200,48 @@ export type Database = {
         }
         Relationships: []
       }
+      message_digests: {
+        Row: {
+          chat_scope_id: string
+          classification: Database["public"]["Enums"]["message_digest_classification"]
+          digested_at: string
+          id: string
+          mentions_user_ids: string[]
+          message_created_at: string
+          message_id: string
+          message_type: Database["public"]["Enums"]["message_digest_source"]
+          provider: string
+          summary: string
+          topic: string | null
+        }
+        Insert: {
+          chat_scope_id: string
+          classification?: Database["public"]["Enums"]["message_digest_classification"]
+          digested_at?: string
+          id?: string
+          mentions_user_ids?: string[]
+          message_created_at: string
+          message_id: string
+          message_type: Database["public"]["Enums"]["message_digest_source"]
+          provider: string
+          summary?: string
+          topic?: string | null
+        }
+        Update: {
+          chat_scope_id?: string
+          classification?: Database["public"]["Enums"]["message_digest_classification"]
+          digested_at?: string
+          id?: string
+          mentions_user_ids?: string[]
+          message_created_at?: string
+          message_id?: string
+          message_type?: Database["public"]["Enums"]["message_digest_source"]
+          provider?: string
+          summary?: string
+          topic?: string | null
+        }
+        Relationships: []
+      }
       message_reactions: {
         Row: {
           broadcast_message_id: string | null
@@ -11321,6 +11363,13 @@ export type Database = {
         | "withdrawn"
       event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
+      message_digest_classification:
+        | "action"
+        | "question"
+        | "decision"
+        | "social"
+        | "info"
+      message_digest_source: "club" | "team" | "group"
       poll_chat_type: "team" | "club" | "group" | "broadcast" | "club_admin"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
@@ -11493,6 +11542,14 @@ export const Constants = {
       ],
       event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
+      message_digest_classification: [
+        "action",
+        "question",
+        "decision",
+        "social",
+        "info",
+      ],
+      message_digest_source: ["club", "team", "group"],
       poll_chat_type: ["team", "club", "group", "broadcast", "club_admin"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],

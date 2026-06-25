@@ -103,28 +103,6 @@ export default function AppSettingsPage() {
     updateSettingMutation.mutate({ key, value: !currentValue });
   };
 
-  if (isLoadingAuth || isLoadingSettings) {
-    return <PageLoading />;
-  }
-
-  if (!isAppAdmin) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col bg-background">
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg font-semibold">App Settings</h1>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-muted-foreground">Access denied. App admin role required.</p>
-        </div>
-      </div>
-    );
-  }
-
   const isClubCreationLocked = getSetting("club_creation_locked");
   // Default chat virtualisation to ON when the row is missing or unset.
   const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
@@ -149,6 +127,28 @@ export default function AppSettingsPage() {
     if (n === savedChunkSize) return;
     updateSettingMutation.mutate({ key: "chat_basic_chunk_size", value: n });
   };
+
+  if (isLoadingAuth || isLoadingSettings) {
+    return <PageLoading />;
+  }
+
+  if (!isAppAdmin) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-background">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg font-semibold">App Settings</h1>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-muted-foreground">Access denied. App admin role required.</p>
+        </div>
+      </div>
+    );
+  }
 
 
   return (
