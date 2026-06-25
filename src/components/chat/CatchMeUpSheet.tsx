@@ -235,26 +235,26 @@ export function CatchMeUpSheet({
                       {view.actions.length === 1 ? "Outstanding action" : "Outstanding actions"}
                     </p>
                   </Reveal>
-                  <ul className="space-y-3">
+                  <ul className="space-y-5">
                     {view.actions.map((a, i) => {
                       const badgeDelay = scheduleReveal(80);
                       const textDelay = scheduleType(a.text);
                       const ownerDelay = a.owner ? scheduleReveal(120) : 0;
                       return (
-                        <li key={i} className="flex flex-col">
-                          <div className="flex items-start gap-2">
-                            <Reveal delayMs={badgeDelay} as="span" className={`mt-[0.2em] shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold ${priorityBadgeClasses(a.priority)}`}>
-                              {a.priority === "high" ? "High" : a.priority === "low" ? "Low" : "Medium"}
-                            </Reveal>
-                            <span className="text-base leading-relaxed text-foreground">
+                        <li key={i} className="flex items-start gap-3">
+                          <Reveal delayMs={badgeDelay} as="span" className={`mt-[0.15em] w-14 shrink-0 rounded-md px-1.5 py-0.5 text-center text-xs font-semibold ${priorityBadgeClasses(a.priority)}`}>
+                            {a.priority === "high" ? "High" : a.priority === "low" ? "Low" : "Medium"}
+                          </Reveal>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-base font-medium leading-relaxed text-foreground">
                               <Typed text={a.text} delayMs={textDelay} charMs={CHAR_MS} />
                             </span>
+                            {a.owner && (
+                              <Reveal delayMs={ownerDelay} className="mt-1 text-sm font-normal text-muted-foreground">
+                                Owner • {a.owner}
+                              </Reveal>
+                            )}
                           </div>
-                          {a.owner && (
-                            <Reveal delayMs={ownerDelay} as="span" className="mt-0.5 pl-[52px] text-sm font-medium text-muted-foreground">
-                              Owner • {a.owner}
-                            </Reveal>
-                          )}
                         </li>
                       );
                     })}
