@@ -185,6 +185,7 @@ serve(async (req) => {
       if (!fresh.length) continue;
       allBatches.push({ rows: fresh.slice(0, remaining), type: src.type, scopeCol: src.scopeCol });
       totalQueued += fresh.length;
+    }
 
     // Author profile names for PII scrub
     const authorIds = Array.from(
