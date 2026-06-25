@@ -242,7 +242,6 @@ serve(async (req) => {
       console.error("[summarize-chat-icp] msg fetch failed", msgErr);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-
       });
     }
 
@@ -254,6 +253,7 @@ serve(async (req) => {
     }
 
     const lastMessageId = messages[messages.length - 1].id as string;
+    console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
     if (!force) {
       const { data: cached } = await admin
