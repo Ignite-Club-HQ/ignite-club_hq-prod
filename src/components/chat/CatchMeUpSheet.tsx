@@ -119,35 +119,14 @@ export function CatchMeUpSheet({
     return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
-  // Count of "reveal units" in the view: headline + each non-empty bullet + each action + each question.
-  const totalUnits = useMemo(() => {
-    if (!view) return 0;
-    let n = view.headline ? 1 : 0;
-    n += view.since.today.length + view.since.yesterday.length + view.since.earlier.length;
-    n += view.actions.length;
-    n += view.questions.length;
-    if (view.detailedHasAny) n += 1;
-    if (!view.anythingAtAll) n += 1;
-    return n;
-  }, [view]);
+  // Assign a sequential typing order to each text node so they stream in
+  // top-to-bottom. Reset whenever a new result arrives.
+  const orderRef = useRef(0);
+  orderRef.current = 0;
+  const nextOrder = () => orderRef.current++;
+  // Stagger between line starts (ms). Lower = more parallel, higher = more sequential.
+  const STAGGER_MS = 90;
 
-  // Progressively reveal units after the result lands, top-to-bottom, ChatGPT-style.
-  const [revealed, setRevealed] = useState(0);
-  useEffect(() => {
-    if (!view) { setRevealed(0); return; }
-    // Start immediately with the first unit (headline at the top) — no initial wait.
-    setRevealed(1);
-    let i = 1;
-    const id = setInterval(() => {
-      i += 1;
-      setRevealed(i);
-      if (i >= totalUnits) clearInterval(id);
-    }, 260);
-    return () => clearInterval(id);
-  }, [view, totalUnits]);
-
-  // Helper: returns true if the unit at `index` should be visible yet.
-  const visible = (index: number) => revealed > index;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
