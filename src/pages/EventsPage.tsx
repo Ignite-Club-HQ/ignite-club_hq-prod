@@ -437,7 +437,7 @@ export default function EventsPage() {
         ? 240
         : (USE_NARROW_SCHEDULE_WINDOW ? 45 : 120);
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - Math.max(30, pastDaysBack));
       const upperBound = new Date();
       upperBound.setDate(upperBound.getDate() + upperDays);
 
