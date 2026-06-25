@@ -159,7 +159,7 @@ export default function ClubAdminChatPage() {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const swipeBack = useSwipeBack();
 
-  // AI Catch-me-up wiring.
+  // AI Chat Recap wiring.
   useEffect(() => { if (conversationId) markChatOpened("club_admin", conversationId); }, [conversationId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
   const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club_admin", conversationId);

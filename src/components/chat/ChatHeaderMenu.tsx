@@ -38,7 +38,7 @@ interface ChatHeaderMenuProps {
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
   /**
-   * Trigger an AI "Catch me up" summary of recent messages.
+   * Trigger an AI "Chat Recap" summary of recent messages.
    * Only pass this when AI is actually available to the user — it renders as
    * a first-class header action (Sparkles button), NOT inside the overflow.
    */

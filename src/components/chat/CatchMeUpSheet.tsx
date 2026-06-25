@@ -42,13 +42,13 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
     case "pro_required":
       return {
         title: "Pro feature",
-        body: "AI ‘Catch me up’ summaries are available on Pro clubs. Upgrade to unlock instant catch-up for your members.",
+        body: "AI ‘Chat Recap’ summaries are available on Pro clubs. Upgrade to unlock instant recap for your members.",
         isPro: true,
       };
     case "feature_disabled":
-      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Catch me up’ for this club. Ask a club admin to re-enable it in club settings." };
+      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Chat Recap’ for this club. Ask a club admin to re-enable it in club settings." };
     case "disclosure_required":
-      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Catch me up." };
+      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Chat Recap." };
     case "rate_limited":
       return { title: "Slow down", body: "Too many summary requests just now. Please try again in a minute." };
     case "credits_exhausted":
@@ -158,7 +158,7 @@ export function CatchMeUpSheet({
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
               <Sparkles className="h-5 w-5 text-primary" />
             </span>
-            Catch me up
+            Chat Recap
             {unreadCount > 0 && (
               <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {unreadCount} unread

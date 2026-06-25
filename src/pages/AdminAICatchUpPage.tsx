@@ -127,10 +127,10 @@ export default function AdminAICatchUpPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" />
-            AI Catch Me Up Rollout
+            AI Chat Recap Rollout
           </CardTitle>
           <CardDescription>
-            Turn on AI Catch Me Up across Pro clubs. This enables it at the club level and
+            Turn on AI Chat Recap across Pro clubs. This enables it at the club level and
             switches it on for every member's profile. Members can still turn it off in their own
             Settings.
           </CardDescription>
@@ -206,8 +206,8 @@ export default function AdminAICatchUpPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {scope === "all"
-                ? `Enable AI Catch Me Up on all ${clubs.length} Pro clubs?`
-                : `Enable AI Catch Me Up on ${selected.size} selected club${selected.size === 1 ? "" : "s"}?`}
+                ? `Enable AI Chat Recap on all ${clubs.length} Pro clubs?`
+                : `Enable AI Chat Recap on ${selected.size} selected club${selected.size === 1 ? "" : "s"}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               This switches the feature on at the club level and on every member's individual

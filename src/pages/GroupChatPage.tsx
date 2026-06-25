@@ -279,7 +279,7 @@ export default function GroupChatPage() {
     });
   }, [user, groupId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
-  // AI Catch-me-up wiring.
+  // AI Chat Recap wiring.
   useEffect(() => { if (groupId) markChatOpened("group", groupId); }, [groupId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
   const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("group", groupId);

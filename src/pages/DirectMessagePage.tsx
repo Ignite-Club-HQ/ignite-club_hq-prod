@@ -276,7 +276,7 @@ export default function DirectMessagePage() {
     });
   }, [user, conversationId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
-  // AI Catch-me-up wiring. DM Pro-gate mirrors schedule message gating.
+  // AI Chat Recap wiring. DM Pro-gate mirrors schedule message gating.
   useEffect(() => { if (conversationId) markChatOpened("direct", conversationId); }, [conversationId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
   const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("direct", conversationId);
