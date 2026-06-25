@@ -122,7 +122,7 @@ serve(async (req) => {
         let isClubAdmin = false;
         if (!isAppAdmin) {
           const { data: clubRoles } = await admin
-            .from("club_members")
+            .from("user_roles")
             .select("role")
             .eq("user_id", user.id)
             .eq("club_id", clubId)
