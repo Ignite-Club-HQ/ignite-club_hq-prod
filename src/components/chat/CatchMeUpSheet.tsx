@@ -203,7 +203,7 @@ export function CatchMeUpSheet({
 
               {/* Since your last visit */}
               {view.sinceHasAny && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:80ms] fill-mode-both">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:80ms] [animation-fill-mode:both]">
 
                   <div className="mb-2 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
@@ -236,7 +236,7 @@ export function CatchMeUpSheet({
 
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:180ms] fill-mode-both">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:180ms] [animation-fill-mode:both]">
 
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -264,7 +264,7 @@ export function CatchMeUpSheet({
 
               {/* Outstanding questions */}
               {view.questions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:280ms] fill-mode-both">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:280ms] [animation-fill-mode:both]">
                   <div className="mb-2 flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-rose-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
