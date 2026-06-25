@@ -76,7 +76,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!geminiKey && !lovableKey) {
       return new Response(JSON.stringify({ error: "ai_not_configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
