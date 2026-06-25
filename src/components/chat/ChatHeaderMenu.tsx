@@ -59,6 +59,7 @@ export function ChatHeaderMenu({
   pinnedVaultEnabled,
   onTogglePinnedVault,
   pinnedVaultLocked = false,
+  onUnpinVault,
   onSummarizeMessages,
 }: ChatHeaderMenuProps) {
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
