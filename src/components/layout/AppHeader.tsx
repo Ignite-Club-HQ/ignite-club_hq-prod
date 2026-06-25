@@ -519,18 +519,61 @@ export function AppHeader() {
         .select("id, message, type, created_at, is_read, related_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(activeClubFilter ? 20 : 5);
       // Include notifications scoped to the active club AND global ones (club_id IS NULL),
       // since some types like join_request / team_invite / role_request are intentionally
       // stored without a club_id and would otherwise be hidden by an active club filter.
       if (activeClubFilter) q = q.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
       const { data, error } = await q;
       if (error) throw error;
-      return data;
+      let rows = data || [];
+
+      // DM notifications are stored with club_id = NULL (DMs aren't club-scoped),
+      // so when a club filter is active we must hide DMs from senders who don't
+      // share that club with the recipient. Otherwise filtering by Club A still
+      // surfaces DMs from people only associated with Club B.
+      if (activeClubFilter && rows.length) {
+        const dmRows = rows.filter((n) => n.type === "direct_message" && n.related_id);
+        if (dmRows.length) {
+          const msgIds = dmRows.map((n) => n.related_id as string);
+          const { data: dms } = await supabase
+            .from("direct_messages")
+            .select("id, author_id")
+            .in("id", msgIds);
+          const authorByMsg = new Map((dms || []).map((m: any) => [m.id, m.author_id]));
+          const authorIds = [...new Set([...authorByMsg.values()].filter(Boolean) as string[])];
+          let allowedAuthors = new Set<string>();
+          if (authorIds.length) {
+            // Direct club role on the active club
+            const { data: directRoles } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .in("user_id", authorIds)
+              .eq("club_id", activeClubFilter);
+            (directRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
+            // Team role whose team belongs to the active club
+            const { data: teamRoles } = await supabase
+              .from("user_roles")
+              .select("user_id, teams!inner(club_id)")
+              .in("user_id", authorIds)
+              .eq("teams.club_id", activeClubFilter);
+            (teamRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
+          }
+          rows = rows.filter((n) => {
+            if (n.type !== "direct_message") return true;
+            const author = authorByMsg.get(n.related_id as string);
+            return author ? allowedAuthors.has(author) : false;
+          });
+        }
+        rows = rows.slice(0, 5);
+      }
+
+      return rows;
     },
     enabled: !!user?.id,
     staleTime: 0,
   });
+
 
   // Per-club unread count (only when a club filter is active)
   const { data: clubUnreadCount = 0 } = useQuery({
