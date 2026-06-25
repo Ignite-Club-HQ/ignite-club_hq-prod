@@ -35,6 +35,8 @@ interface ChatHeaderMenuProps {
   /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
   pinnedVaultEnabled?: boolean | null;
   onTogglePinnedVault?: (enabled: boolean) => void;
+  /** Remove the pinned vault entirely (admins only, when one exists). */
+  onUnpinVault?: () => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
   pinnedVaultLocked?: boolean;
   /**
