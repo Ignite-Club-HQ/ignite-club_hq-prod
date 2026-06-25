@@ -221,56 +221,29 @@ export function ScheduleMessageDialog({
           <ProFeatureLock
             title="Scheduling is a Pro feature"
             description="Schedule messages to send later. Upgrade your club to Pro to unlock."
-            showUpgradeButton={false}
+            clubId={target.club_id ?? null}
+            showUpgradeButton={!!target.club_id}
           />
         ) : (
         <div className="space-y-3 sm:space-y-4">
-          {isEditing ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="schedule-text">Message</Label>
-                <Textarea
-                  id="schedule-text"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Write your message…"
-                  rows={4}
-                  className="resize-none"
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="schedule-text">Message</Label>
+            <Textarea
+              id="schedule-text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Write your message…"
+              rows={4}
+              className="resize-none"
+            />
+          </div>
 
-              <ScheduleImageField
-                value={imageUrl}
-                onChange={setImageUrl}
-                uploadTarget={uploadTarget}
-                disabled={isSaving}
-              />
-            </>
-          ) : (
-            <div className="space-y-2">
-              <Label>Preview</Label>
-              {hasContent ? (
-                <div className="rounded-md border bg-muted/40 p-3 space-y-2">
-                  {imageUrl && (
-                    <img
-                      src={imageUrl}
-                      alt="Attachment preview"
-                      className="max-h-40 w-auto rounded object-cover"
-                    />
-                  )}
-                  {text.trim() && (
-                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                      {text}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-                  Type your message in the chat input first, then tap the clock icon to schedule it.
-                </div>
-              )}
-            </div>
-          )}
+          <ScheduleImageField
+            value={imageUrl}
+            onChange={setImageUrl}
+            uploadTarget={uploadTarget}
+            disabled={isSaving}
+          />
 
           <div className="grid grid-cols-3 gap-2">
             {QUICK_PRESETS.map((p) => {
