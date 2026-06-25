@@ -7,7 +7,10 @@ import {
   Crown,
   CalendarClock,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -55,6 +58,7 @@ export function ChatHeaderMenu({
   onUnpinVault,
   onSummarizeMessages,
 }: ChatHeaderMenuProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
   const hasDropdownAction =
     !!onRefresh || !!onScheduleMessage || hasMoreActions;
@@ -138,46 +142,63 @@ export function ChatHeaderMenu({
             {hasMoreActions && (
               <>
                 {(onRefresh || onScheduleMessage) && <DropdownMenuSeparator />}
-                {onManagePinnedVault && (
-                  <>
-                    <DropdownMenuItem onClick={onManagePinnedVault}>
-                      <Pin className="h-4 w-4 mr-2" />
-                      <span className="flex-1">Pinned vault…</span>
-                      {pinnedVaultLocked && (
-                        <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                          <Crown className="h-3 w-3" />
-                          Pro
-                        </span>
-                      )}
-                    </DropdownMenuItem>
-                    {!pinnedVaultLocked && onUnpinVault && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMoreOpen((v) => !v);
+                  }}
+                >
+                  <span className="flex-1">More</span>
+                  {moreOpen ? (
+                    <ChevronUp className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  )}
+                </DropdownMenuItem>
+                {moreOpen && (
+                  <div className="pl-2">
+                    {onManagePinnedVault && (
+                      <>
+                        <DropdownMenuItem onClick={onManagePinnedVault}>
+                          <Pin className="h-4 w-4 mr-2" />
+                          <span className="flex-1">Pinned vault…</span>
+                          {pinnedVaultLocked && (
+                            <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                              <Crown className="h-3 w-3" />
+                              Pro
+                            </span>
+                          )}
+                        </DropdownMenuItem>
+                        {!pinnedVaultLocked && onUnpinVault && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={onUnpinVault}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Unpin vault
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                    {onEditGroup && (
+                      <>
+                        {onManagePinnedVault && <DropdownMenuSeparator />}
+                        <DropdownMenuItem onClick={onEditGroup}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit group
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {onDeleteGroup && (
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onClick={onUnpinVault}
+                        onClick={onDeleteGroup}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Unpin vault
+                        Delete group
                       </DropdownMenuItem>
                     )}
-                  </>
-                )}
-                {onEditGroup && (
-                  <>
-                    {(onManagePinnedVault) && <DropdownMenuSeparator />}
-                    <DropdownMenuItem onClick={onEditGroup}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit group
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {onDeleteGroup && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={onDeleteGroup}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete group
-                  </DropdownMenuItem>
+                  </div>
                 )}
               </>
             )}

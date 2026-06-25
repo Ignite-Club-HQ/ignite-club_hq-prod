@@ -34,7 +34,23 @@ export function useAICatchUpAvailability(
         .select("ai_catch_up_enabled")
         .eq("id", clubId)
         .maybeSingle();
-      return (club as any)?.ai_catch_up_enabled === false;
+      const disabled = (club as any)?.ai_catch_up_enabled === false;
+      if (!disabled) return false;
+
+      // Admins (app_admin, club_admin of this club, committee_member of this club)
+      // bypass the club-level disable so they can test the feature.
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return true;
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role, club_id")
+        .eq("user_id", uid);
+      const isAdmin = (roles ?? []).some((r: any) =>
+        r.role === "app_admin" ||
+        ((r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)
+      );
+      return !isAdmin;
     },
   });
 

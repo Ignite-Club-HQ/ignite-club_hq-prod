@@ -15,7 +15,7 @@ interface Body {
   force?: boolean;
 }
 
-const MAX_MESSAGES = 80;
+const MAX_MESSAGES = 50;
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string }> = {
   team: { table: "team_messages", scopeCol: "team_id" },
@@ -75,12 +75,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ error: "ai_not_configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -98,6 +92,18 @@ serve(async (req) => {
       });
     }
 
+    const rawGeminiKey = Deno.env.get("GEMINI_API_KEY");
+    const geminiKey = rawGeminiKey?.trim();
+    if (!geminiKey) {
+      console.error("[summarize-chat] GEMINI_API_KEY unavailable", {
+        present: rawGeminiKey !== undefined,
+        blank: rawGeminiKey !== undefined && rawGeminiKey.trim().length === 0,
+      });
+      return new Response(JSON.stringify({ error: "ai_not_configured", detail: "missing_or_blank_gemini_api_key" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = (await req.json()) as Body;
     const { scope_type, scope_id, force } = body || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
@@ -110,16 +116,34 @@ serve(async (req) => {
     if (scope_type !== "direct") {
       const clubId = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubId) {
-        const { data: clubRow } = await admin
-          .from("clubs")
-          .select("ai_catch_up_enabled")
-          .eq("id", clubId)
-          .maybeSingle();
-        if ((clubRow as any)?.ai_catch_up_enabled === false) {
-          return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        // Admin bypass: app_admin / club_admin / committee_member can use the feature
+        // even when the club-level toggle is off (mirrors useAICatchUpAvailability on the client).
+        const { data: isAppAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "app_admin" });
+        let isClubAdmin = false;
+        if (!isAppAdmin) {
+          const { data: clubRoles } = await admin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("club_id", clubId)
+            .in("role", ["club_admin", "committee_member"]);
+          isClubAdmin = Array.isArray(clubRoles) && clubRoles.length > 0;
         }
+        const adminBypass = isAppAdmin === true || isClubAdmin;
+
+        if (!adminBypass) {
+          const { data: clubRow } = await admin
+            .from("clubs")
+            .select("ai_catch_up_enabled")
+            .eq("id", clubId)
+            .maybeSingle();
+          if ((clubRow as any)?.ai_catch_up_enabled === false) {
+            return new Response(JSON.stringify({ error: "feature_disabled", club_id: clubId }), {
+              status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
         const { data: hasPro } = await admin.rpc("has_active_pro_for_club", { _club_id: clubId });
         if (hasPro !== true) {
           return new Response(JSON.stringify({ error: "pro_required", club_id: clubId }), {
@@ -212,22 +236,71 @@ serve(async (req) => {
     // Pre-seed with author display names so mentions in body match the speaker label.
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
+    // Additionally pseudonymise CHILD names belonging to parents in this club.
+    // Children are minors — never allow their real names to leave our infra.
+    try {
+      const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
+      if (clubIdForChildren) {
+        const { data: clubParents } = await admin
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", clubIdForChildren);
+        const parentIds = Array.from(new Set((clubParents || []).map((r: any) => r.user_id).filter(Boolean)));
+        if (parentIds.length) {
+          const { data: kids } = await admin
+            .from("children")
+            .select("name")
+            .in("parent_id", parentIds);
+          (kids || []).forEach((k: any) => {
+            const n = (k?.name || "").trim();
+            if (n) {
+              // Use a distinct "Child N" label so the model knows it's a minor.
+              const key = n;
+              if (!pseudoByRealName.has(key)) {
+                personCounter += 1;
+                const p = `Child ${personCounter}`;
+                pseudoByRealName.set(key, p);
+                realByPseudo.set(p, key);
+              }
+              // Also pseudonymise first-name-only mentions
+              const first = n.split(/\s+/)[0];
+              if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+                pseudoByRealName.set(first, pseudoByRealName.get(key)!);
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[summarize-chat] child name seeding failed", e);
+    }
+
+    // Also pseudonymise FIRST names of every known adult so "Hi Sarah" gets caught
+    // even when the message uses only the first name.
+    Array.from(nameMap.values()).forEach((full) => {
+      const first = (full || "").trim().split(/\s+/)[0];
+      if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+        pseudoByRealName.set(first, pseudoByRealName.get(full)!);
+      }
+    });
+
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Strip identifying PII outright (not placeholder) before sending to Gemini.
+    // Strip identifying PII outright before sending to Gemini.
     // We deliberately KEEP venue / location names (Bridgewater Oval, etc.) because
     // they're useful context for sport summaries. We REMOVE: emails, phone numbers,
-    // URLs, street addresses (number + street word), postcodes (UK/AU/US/CA),
-    // long digit runs (card / account / licence numbers), IBAN-like tokens,
-    // dates of birth, and @handles.
+    // URLs, street addresses, postcodes (UK/US/CA/AU), long digit runs,
+    // IBAN-like tokens, sort codes, credit cards, dates of birth, and @handles.
     const STREET_WORDS =
       "(?:st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|cres|crescent|pl|place|blvd|boulevard|way|terr|terrace|hwy|highway|cl|close|pde|parade|sq|square)";
+    const AU_STATES = "(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT)";
     const redactPII = (raw: string): string => {
       let t = raw;
       // Emails
       t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "");
-      // URLs (full + bare www domain)
+      // URLs (full + bare www domain + bare hostnames)
       t = t.replace(/https?:\/\/\S+/gi, "");
       t = t.replace(/\bwww\.[^\s]+/gi, "");
+      t = t.replace(/\b[a-z0-9-]+\.(?:com|net|org|io|co|uk|au|ai)(?:\/\S*)?\b/gi, "");
       // Social @handles
       t = t.replace(/(^|\s)@[\w.]{2,}/g, "$1");
       // Street addresses: "12 Smith Street", "4/22 Park Rd"
@@ -237,19 +310,27 @@ serve(async (req) => {
       );
       // PO Box
       t = t.replace(/\bP\.?O\.?\s*Box\s+\d+\b/gi, "");
-      // Postcodes — UK (SW1A 1AA), US ZIP, CA (A1A 1A1)
+      // Postcodes — UK (SW1A 1AA), CA (A1A 1A1), AU (NSW 2000), US ZIP
       t = t.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/g, "");
-      t = t.replace(/\b\d{5}(?:-\d{4})?\b/g, "");
       t = t.replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/g, "");
+      t = t.replace(new RegExp(`\\b${AU_STATES}\\s+\\d{4}\\b`, "g"), "");
+      t = t.replace(/\b\d{5}(?:-\d{4})?\b/g, "");
+      // Credit card numbers (16 digits with spaces or dashes)
+      t = t.replace(/\b(?:\d[ -]?){13,19}\b/g, "");
       // Phone numbers (loose: 7+ digits with optional separators, allow leading +)
       t = t.replace(/\+?\d[\d\s().-]{6,}\d/g, "");
+      // UK sort codes (12-34-56) and US SSN (123-45-6789)
+      t = t.replace(/\b\d{2}-\d{2}-\d{2}\b/g, "");
+      t = t.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "");
       // IBAN-ish (2 letters + 13+ alnum)
       t = t.replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "");
-      // Dates of birth ("dob 12/03/1990", "born 12-3-90")
+      // Dates of birth — with prefix
       t = t.replace(/\b(?:dob|d\.o\.b\.?|born)[\s:]*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi, "");
+      // Bare dd/mm/yyyy or dd-mm-yyyy with 4-digit year (likely DOB / sensitive)
+      t = t.replace(/\b\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)\d{2}\b/g, "");
       // Remaining long digit runs (account / licence / member numbers)
       t = t.replace(/\b\d{6,}\b/g, "");
-      // Replace known real names with pseudonyms (longest first to avoid partial overlaps)
+      // Replace known real names (adults + children + first names) with pseudonyms.
       const names = Array.from(pseudoByRealName.keys()).sort((a, b) => b.length - a.length);
       for (const name of names) {
         if (name.length < 2) continue;
@@ -288,11 +369,10 @@ serve(async (req) => {
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
-    // Call Google Gemini directly (Generative Language API).
-    const GEMINI_MODEL = "gemini-2.0-flash";
     const userPrompt =
       `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
 
+    const GEMINI_MODEL = "gemini-2.5-flash-lite";
     const aiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
       {
@@ -301,14 +381,10 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.3,
-          },
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 600 },
         }),
       },
     );
-
     if (!aiRes.ok) {
       const txt = await aiRes.text();
       console.error("[summarize-chat] gemini error", aiRes.status, txt);
@@ -321,10 +397,9 @@ serve(async (req) => {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     const aiJson = await aiRes.json();
-    const raw: string =
-      aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
+    const raw: string = aiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "{}";
+
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
@@ -349,7 +424,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash-lite",
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
