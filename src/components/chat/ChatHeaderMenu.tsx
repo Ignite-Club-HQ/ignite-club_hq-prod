@@ -4,8 +4,6 @@ import {
   Pencil,
   Trash2,
   Pin,
-  EyeOff,
-  Eye,
   Crown,
   CalendarClock,
   Sparkles,
@@ -32,9 +30,6 @@ interface ChatHeaderMenuProps {
   scheduleMessageLocked?: boolean;
   /** Open the pinned-vault management sheet (admins only). */
   onManagePinnedVault?: () => void;
-  /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
-  pinnedVaultEnabled?: boolean | null;
-  onTogglePinnedVault?: (enabled: boolean) => void;
   /** Remove the pinned vault entirely (admins only, when one exists). */
   onUnpinVault?: () => void;
   /** When true, show Pinned vault as a Pro-locked entry (Crown + Pro badge). Toggle is hidden. */
@@ -56,8 +51,6 @@ export function ChatHeaderMenu({
   onScheduleMessage,
   scheduleMessageLocked = false,
   onManagePinnedVault,
-  pinnedVaultEnabled,
-  onTogglePinnedVault,
   pinnedVaultLocked = false,
   onUnpinVault,
   onSummarizeMessages,
