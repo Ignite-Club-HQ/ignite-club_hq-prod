@@ -60,6 +60,7 @@ export function ChatHeaderMenu({
   pinnedVaultLocked = false,
   onUnpinVault,
   onSummarizeMessages,
+  summarizeLocked = false,
 }: ChatHeaderMenuProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
