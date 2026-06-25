@@ -39,6 +39,19 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
     },
   });
 
+  const { data: hasJuniorTeams } = useQuery({
+    queryKey: ["club-has-junior-teams", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId)
+        .eq("team_type", "junior")
+        .limit(1);
+      return (data?.length ?? 0) > 0;
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async (ai_catch_up_enabled: boolean) => {
       const { error } = await supabase
