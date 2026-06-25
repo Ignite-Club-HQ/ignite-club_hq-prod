@@ -435,15 +435,13 @@ serve(async (req) => {
     const lastVisitLine = last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
-    // `/no_think` disables Qwen 3's reasoning preamble so the canister's limited
-    // output budget is spent on the JSON answer instead of <think> tokens.
+    // Llama doesn't need `/no_think`; keep prompt minimal for fastest decode.
     const userPrompt =
-      `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
+      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
-    // Call ICP — try Qwen first, fall back to Llama 3.1 8B on timeout. The
-    // DFINITY hosted Qwen 3 32B canister frequently rejects long-thread calls
-    // with "Reject code: 4 Timeout" (reasoning-model latency exceeds the IC
-    // ingress window).
+    // Call ICP — Llama 3.1 8B as primary (fast), Qwen 3 32B as fallback only
+    // if Llama itself fails. The DFINITY canister occasionally rejects with
+    // "Reject code: 4 Timeout" under load.
     let raw = "";
     let modelUsed = ICP_MODEL;
     const callIcp = async (model: string): Promise<string> => {
@@ -458,27 +456,24 @@ serve(async (req) => {
       ];
       return await actor.v0_chat({ model, messages: candidMessages });
     };
+    const t0 = Date.now();
     try {
       raw = await callIcp(ICP_MODEL);
+      console.log("[summarize-chat-icp] primary ok", { model: ICP_MODEL, ms: Date.now() - t0, messages: messages.length });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const isTimeout = /Timeout|Reject code:\s*4/i.test(msg);
-      console.error("[summarize-chat-icp] primary call failed", { model: ICP_MODEL, isTimeout, msg });
-      if (isTimeout) {
-        try {
-          modelUsed = "llama3.1:8b";
-          raw = await callIcp(modelUsed);
-          console.log("[summarize-chat-icp] fallback succeeded", { model: modelUsed });
-        } catch (e2) {
-          const msg2 = e2 instanceof Error ? e2.message : String(e2);
-          console.error("[summarize-chat-icp] fallback call failed", { model: modelUsed, msg: msg2 });
-          return new Response(JSON.stringify({ error: "ai_timeout", detail: msg2, provider: "icp" }), {
-            status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      } else {
-        return new Response(JSON.stringify({ error: "ai_failed", detail: msg, provider: "icp" }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("[summarize-chat-icp] primary call failed", { model: ICP_MODEL, isTimeout, ms: Date.now() - t0, msg });
+      try {
+        modelUsed = ICP_FALLBACK_MODEL;
+        const tf = Date.now();
+        raw = await callIcp(modelUsed);
+        console.log("[summarize-chat-icp] fallback succeeded", { model: modelUsed, ms: Date.now() - tf });
+      } catch (e2) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2);
+        console.error("[summarize-chat-icp] fallback call failed", { model: modelUsed, msg: msg2 });
+        return new Response(JSON.stringify({ error: isTimeout ? "ai_timeout" : "ai_failed", detail: msg2, provider: "icp" }), {
+          status: isTimeout ? 504 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
