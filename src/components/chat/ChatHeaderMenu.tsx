@@ -7,16 +7,16 @@ import {
   Crown,
   CalendarClock,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,7 @@ export function ChatHeaderMenu({
   onUnpinVault,
   onSummarizeMessages,
 }: ChatHeaderMenuProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
   const hasDropdownAction =
     !!onRefresh || !!onScheduleMessage || hasMoreActions;
@@ -141,9 +142,21 @@ export function ChatHeaderMenu({
             {hasMoreActions && (
               <>
                 {(onRefresh || onScheduleMessage) && <DropdownMenuSeparator />}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>More</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="bg-popover min-w-[200px]">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMoreOpen((v) => !v);
+                  }}
+                >
+                  <span className="flex-1">More</span>
+                  {moreOpen ? (
+                    <ChevronUp className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  )}
+                </DropdownMenuItem>
+                {moreOpen && (
+                  <div className="pl-2">
                     {onManagePinnedVault && (
                       <>
                         <DropdownMenuItem onClick={onManagePinnedVault}>
@@ -185,8 +198,8 @@ export function ChatHeaderMenu({
                         Delete group
                       </DropdownMenuItem>
                     )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                  </div>
+                )}
               </>
             )}
           </DropdownMenuContent>
