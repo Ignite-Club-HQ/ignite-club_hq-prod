@@ -24,6 +24,7 @@ interface Props {
 
 export function ClubAICatchUpSettings({ clubId }: Props) {
   const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: club, isLoading } = useQuery({
     queryKey: ["club-ai-catchup", clubId],
