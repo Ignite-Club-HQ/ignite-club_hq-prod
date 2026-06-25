@@ -401,3 +401,51 @@ function RevealItem({
   const cls = `${className ?? ""} transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`.trim();
   return <Tag className={cls} aria-hidden={!visible}>{children}</Tag>;
 }
+
+/**
+ * Typewriter shown while we wait for the summary to land. Starts typing
+ * immediately on mount (no skeleton wait), then types each subsequent stage
+ * line as `stage` advances. Gives the perception that work has already begun.
+ */
+function LoadingTypewriter({ stage }: { stage: number }) {
+  // Lines to type so far: every stage up to and including the current one.
+  const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
+  return (
+    <div className="space-y-2 py-1">
+      {lines.map((line, i) => (
+        <TypewriterLine
+          key={i}
+          text={line}
+          // Only the last (newest) line shows the blinking caret while it types.
+          showCaret={i === lines.length - 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setShown(i);
+      if (i >= text.length) clearInterval(id);
+    }, 28);
+    return () => clearInterval(id);
+  }, [text]);
+  const done = shown >= text.length;
+  return (
+    <p className="text-sm leading-snug text-foreground">
+      {text.slice(0, shown)}
+      {showCaret && (
+        <span
+          className={`ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 bg-primary ${done ? "animate-pulse" : ""}`}
+          aria-hidden
+        />
+      )}
+    </p>
+  );
+}
