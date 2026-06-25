@@ -236,7 +236,8 @@ export function CatchMeUpSheet({
 
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:180ms] fill-mode-both">
+
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
