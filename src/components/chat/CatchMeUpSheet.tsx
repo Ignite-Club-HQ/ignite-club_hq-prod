@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sparkles, AlertCircle, CheckCircle2, CalendarClock,
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
-  Loader2,
+  Loader2, X,
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
 
