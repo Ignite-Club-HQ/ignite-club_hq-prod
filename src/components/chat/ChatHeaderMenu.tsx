@@ -96,15 +96,25 @@ export function ChatHeaderMenu({
   return (
     <div className="flex items-center gap-0.5">
       {onSummarizeMessages && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
-          onClick={onSummarizeMessages}
-          aria-label="AI summary of recent messages"
-        >
-          <Sparkles className="h-[18px] w-[18px]" />
-        </Button>
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
+            onClick={onSummarizeMessages}
+            aria-label={summarizeLocked ? "AI Chat Recap (Pro)" : "AI summary of recent messages"}
+          >
+            <Sparkles className="h-[18px] w-[18px]" />
+          </Button>
+          {summarizeLocked && (
+            <span
+              className="pointer-events-none absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] leading-none font-bold px-1 py-0.5 rounded-full"
+              aria-hidden="true"
+            >
+              PRO
+            </span>
+          )}
+        </div>
       )}
 
       {hasDropdownAction && (
