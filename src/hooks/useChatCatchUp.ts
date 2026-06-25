@@ -41,6 +41,8 @@ export interface ChatSummaryResult {
   cached: boolean;
   /** True when the backend fell back to a 7-day floor because last_opened_at was missing or stale. */
   used_fallback?: boolean;
+  /** When the user explicitly chose a deeper time window, the hours covered. */
+  lookback_hours?: number;
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
