@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CatchMeUpCard } from "./CatchMeUpCard";
 import { CatchMeUpSheet } from "./CatchMeUpSheet";
+import { AICatchUpDisclosureDialog } from "./AICatchUpDisclosureDialog";
 import { useChatCatchUp, type ChatScopeType } from "@/hooks/useChatCatchUp";
 import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ export function ChatCatchUp({
 }: ChatCatchUpProps) {
   const navigate = useNavigate();
   const { clubDisabled, userDisabled, featureDisabled } = useAICatchUpAvailability(scope_type, scope_id);
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
 
   const {
     eligible, loading, error, result, sheetOpen, setSheetOpen,
@@ -38,6 +40,14 @@ export function ChatCatchUp({
     cardEnabled: !proLocked && !featureDisabled,
     latestMessageId,
   });
+
+  // Surface the first-use disclosure modal when the edge function rejects with disclosure_required.
+  useEffect(() => {
+    if (error === "disclosure_required") {
+      setSheetOpen(false);
+      setDisclosureOpen(true);
+    }
+  }, [error, setSheetOpen]);
 
   useEffect(() => {
     if (!registerTrigger) return;
@@ -81,6 +91,15 @@ export function ChatCatchUp({
         unreadCount={unreadCount}
         onRegenerate={() => void summarize({ force: true })}
         onUpgrade={upgradeHref ? () => navigate(upgradeHref) : undefined}
+      />
+
+      <AICatchUpDisclosureDialog
+        open={disclosureOpen}
+        onOpenChange={setDisclosureOpen}
+        onAcknowledged={() => {
+          setSheetOpen(true);
+          void summarize({ force: true });
+        }}
       />
     </>
   );
