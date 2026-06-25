@@ -121,6 +121,12 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
+    {
+      label: "Chat Recap",
+      description: "Catch up on unread threads with AI",
+      icon: Sparkles,
+      onClick: () => go("/messages?recap=1"),
+    },
   ];
 
   // More — low-frequency administrative actions
