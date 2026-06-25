@@ -579,8 +579,11 @@ serve(async (req) => {
         used_fallback: !validLookback && !last_opened_at,
         lookback_hours: validLookback ? lookback_hours : null,
         window_since: windowSinceIso,
+        truncated: validLookback && messages.length >= msgLimit,
+        message_cap: validLookback ? msgLimit : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+
     );
   } catch (err) {
     console.error("[summarize-chat] crash", err);
