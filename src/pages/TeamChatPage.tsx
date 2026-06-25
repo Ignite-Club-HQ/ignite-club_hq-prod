@@ -1743,10 +1743,6 @@ export default function TeamChatPage() {
                   : undefined
               }
               pinnedVaultLocked={!!isAdmin && pinnedVaultLocked}
-              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
-              onTogglePinnedVault={
-                pinnedVault.record && isAdmin && !pinnedVaultLocked ? (v) => pinnedVault.toggleEnabled(v) : undefined
-              }
               onUnpinVault={
                 pinnedVault.record && isAdmin && !pinnedVaultLocked ? () => pinnedVault.remove() : undefined
               }
