@@ -120,7 +120,54 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
             Saving...
           </div>
         )}
+
+        {enabled && (
+          <div className="pt-3 border-t space-y-2">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">Turn on for all members</Label>
+              <p className="text-xs text-muted-foreground">
+                Enables AI Catch Me Up on every member's account in this club. Members can still turn it off individually in their own Settings.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmOpen(true)}
+              disabled={enableAllMutation.isPending}
+            >
+              {enableAllMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Users className="h-4 w-4 mr-2" />
+              )}
+              Enable for all members
+            </Button>
+          </div>
+        )}
       </CardContent>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable AI Catch Me Up for all members?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This switches on AI Catch Me Up on every member's profile in this club. Individual members can opt out again from their own Settings at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={enableAllMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                enableAllMutation.mutate();
+              }}
+              disabled={enableAllMutation.isPending}
+            >
+              {enableAllMutation.isPending ? "Enabling..." : "Enable for all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
