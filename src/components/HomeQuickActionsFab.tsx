@@ -17,6 +17,7 @@ import {
   Settings,
   Shield,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveDialog,
