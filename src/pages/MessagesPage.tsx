@@ -208,12 +208,23 @@ export default function MessagesPage() {
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
+  const [showGlobalRecap, setShowGlobalRecap] = useState(false);
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    let changed = false;
     if (params.get("new") === "picker") {
       setShowNewMessageSheet(true);
       params.delete("new");
+      changed = true;
+    }
+    if (params.get("recap") === "1") {
+      setShowGlobalRecap(true);
+      params.delete("recap");
+      changed = true;
+    }
+    if (changed) {
       navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" }, { replace: true });
     }
   }, [location.search, location.pathname, navigate]);
