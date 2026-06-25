@@ -206,19 +206,19 @@ export function CatchMeUpSheet({
                       const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
                       return (
                         <div key={bucket}>
-                          <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                          <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-2 text-sm font-medium text-muted-foreground">
                             {label}
                           </Reveal>
-                          <ul className="relative space-y-3 border-l border-border/60 pl-4">
-                            {items.map((item, i) => (
-                              <li key={i} className="relative text-base leading-relaxed text-foreground">
-                                <Reveal delayMs={scheduleType(item)} as="span" className="absolute -left-[5px] top-[0.6em]">
-                                  <span className="block h-[5px] w-[5px] rounded-full bg-muted-foreground/50" />
-                                </Reveal>
-                                <Typed text={item} delayMs={scheduleType(item)} charMs={CHAR_MS} />
-                              </li>
-                            ))}
-                          </ul>
+                          <div className="space-y-3">
+                            {items.map((item) => {
+                              const delay = scheduleType(item);
+                              return (
+                                <div key={item} className="text-base leading-relaxed text-foreground">
+                                  <Typed text={item} delayMs={delay} charMs={CHAR_MS} />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
@@ -235,7 +235,7 @@ export function CatchMeUpSheet({
                       {view.actions.length === 1 ? "Outstanding action" : "Outstanding actions"}
                     </p>
                   </Reveal>
-                  <ul className="space-y-5">
+                  <ul className="space-y-4">
                     {view.actions.map((a, i) => {
                       const badgeDelay = scheduleReveal(80);
                       const textDelay = scheduleType(a.text);
@@ -276,16 +276,16 @@ export function CatchMeUpSheet({
                       <Typed text={view.questions[0]} delayMs={scheduleType(view.questions[0])} charMs={CHAR_MS} />
                     </p>
                   ) : (
-                    <ul className="space-y-3">
-                      {view.questions.map((q, i) => (
-                        <li key={i} className="relative pl-4 text-base leading-relaxed text-foreground">
-                          <Reveal delayMs={scheduleType(q)} as="span" className="absolute left-0 top-[0.6em]">
-                            <span className="block h-[5px] w-[5px] rounded-full bg-muted-foreground/50" />
-                          </Reveal>
-                          <Typed text={q} delayMs={scheduleType(q)} charMs={CHAR_MS} />
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-3">
+                      {view.questions.map((q) => {
+                        const delay = scheduleType(q);
+                        return (
+                          <div key={q} className="text-base leading-relaxed text-foreground">
+                            <Typed text={q} delayMs={delay} charMs={CHAR_MS} />
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </section>
               )}
@@ -373,14 +373,13 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
       {items.length === 1 ? (
         <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
       ) : (
-        <ul className="space-y-3">
-          {items.map((item, i) => (
-            <li key={i} className="relative pl-4 text-base leading-relaxed text-foreground">
-              <span className="absolute left-0 top-[0.6em] block h-[5px] w-[5px] rounded-full bg-muted-foreground/50" />
-              {item}
-            </li>
-          ))}
-        </ul>
+      <div className="space-y-3">
+        {items.map((item, i) => (
+          <div key={i} className="text-base leading-relaxed text-foreground">
+            {item}
+          </div>
+        ))}
+      </div>
       )}
     </div>
   );
