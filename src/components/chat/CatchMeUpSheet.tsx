@@ -236,7 +236,7 @@ export function CatchMeUpSheet({
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      {result?.used_fallback ? "Recent activity" : "Since your last visit"}
+                      {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
                   <div className="space-y-4">
