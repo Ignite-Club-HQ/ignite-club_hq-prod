@@ -528,22 +528,25 @@ serve(async (req) => {
       },
     };
 
-    // Upsert cache
-    await admin
-      .from("chat_summaries")
-      .upsert(
-        {
-          user_id: user.id,
-          scope_type,
-          scope_id,
-          last_message_id: lastMessageId,
-          message_count: messages.length,
-          summary,
-          model: "gemini-2.5-flash-lite",
-          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
-        },
-        { onConflict: "user_id,scope_type,scope_id,last_message_id" },
-      );
+    // Upsert cache — skip for explicit lookback windows so they don't pollute
+    // the default "since last visit" cache entry.
+    if (!validLookback) {
+      await admin
+        .from("chat_summaries")
+        .upsert(
+          {
+            user_id: user.id,
+            scope_type,
+            scope_id,
+            last_message_id: lastMessageId,
+            message_count: messages.length,
+            summary,
+            model: "gemini-2.5-flash-lite",
+            expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "user_id,scope_type,scope_id,last_message_id" },
+        );
+    }
 
     return new Response(
       JSON.stringify({
@@ -551,7 +554,8 @@ serve(async (req) => {
         message_count: messages.length,
         last_message_id: lastMessageId,
         cached: false,
-        used_fallback: !last_opened_at,
+        used_fallback: !validLookback && !last_opened_at,
+        lookback_hours: validLookback ? lookback_hours : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
