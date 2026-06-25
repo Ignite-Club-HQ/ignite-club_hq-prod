@@ -126,6 +126,14 @@ serve(async (req) => {
       });
     }
 
+    const ALLOWLIST = new Set(["f51dd664-b0d5-4956-b2d5-cec9222ae3dc"]);
+    if (!ALLOWLIST.has(user.id)) {
+      return new Response(JSON.stringify({ error: "Chat Recap is currently in restricted beta." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const rawGeminiKey = Deno.env.get("GEMINI_API_KEY");
     const geminiKey = rawGeminiKey?.trim();
     if (!geminiKey) {
