@@ -462,6 +462,17 @@ function Reveal({
 function LoadingTypewriter({ stage }: { stage: number }) {
   // Lines to type so far: every stage up to and including the current one.
   const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
+  const isFinalStage = stage >= LOADING_STAGES.length - 1;
+  const [showReassurance, setShowReassurance] = useState(false);
+
+  useEffect(() => {
+    if (!isFinalStage) { setShowReassurance(false); return; }
+    // Once the final stage is reached, wait 2.5s then show a reassuring
+    // activity indicator so the user knows work is still in flight.
+    const t = setTimeout(() => setShowReassurance(true), 2500);
+    return () => clearTimeout(t);
+  }, [isFinalStage, stage]);
+
   return (
     <div className="space-y-2 py-1">
       {lines.map((line, i) => (
@@ -472,6 +483,14 @@ function LoadingTypewriter({ stage }: { stage: number }) {
           showCaret={i === lines.length - 1}
         />
       ))}
+      {showReassurance && (
+        <div className="flex items-center gap-2 pt-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            Almost there… this usually takes a few seconds.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
