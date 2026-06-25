@@ -409,7 +409,7 @@ export default function EventsPage() {
   );
 
   const { data: events, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
-    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
+    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, pastDaysBack, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
       diagLog("events:start", { hasMemberships: !!userMemberships });
