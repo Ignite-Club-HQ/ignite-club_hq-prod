@@ -2636,18 +2636,31 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          {hasAICatchUpClub && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowGlobalRecap(true)}
-              className="h-10 w-10 relative"
-              aria-label="Recap all chats"
-              title="Recap all unread chats"
-            >
-              <Sparkles className="h-5 w-5" />
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              if (hasAICatchUpClub) {
+                setShowGlobalRecap(true);
+              } else {
+                toast({
+                  title: "Chat Recap is a Pro feature",
+                  description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
+                });
+                navigate("/upgrade-pro");
+              }
+            }}
+            className="h-10 w-10 relative"
+            aria-label="Recap all chats"
+            title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
+          >
+            <Sparkles className="h-5 w-5" />
+            {!hasAICatchUpClub && (
+              <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-primary text-primary-foreground rounded px-1 leading-tight">
+                PRO
+              </span>
+            )}
+          </Button>
 
           <Button
             variant="outline"
