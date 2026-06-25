@@ -40,9 +40,13 @@ export interface ChatSummaryResult {
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
+const PREV_OPENED_KEY = "chat-catchup:prev-opened";
 const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
+// Re-opens within this window are treated as the same "visit" — we keep the
+// previous-visit timestamp so Catch me up still has a meaningful cutoff.
+const SAME_VISIT_MS = 30 * 60 * 1000;
 
 function storeKey(scope_type: ChatScopeType, scope_id: string) {
   return `${scope_type}:${scope_id}`;
@@ -68,14 +72,36 @@ function writeMap(key: string, map: Record<string, number>) {
 /** Persist that the user just opened this thread. Call on mount. */
 export function markChatOpened(scope_type: ChatScopeType, scope_id: string) {
   if (!scope_id) return;
-  const map = readMap(LAST_OPENED_KEY);
-  map[storeKey(scope_type, scope_id)] = Date.now();
-  writeMap(LAST_OPENED_KEY, map);
+  const k = storeKey(scope_type, scope_id);
+  const lastMap = readMap(LAST_OPENED_KEY);
+  const prevMap = readMap(PREV_OPENED_KEY);
+  const now = Date.now();
+  const prior = lastMap[k];
+  // Only roll the previous-visit pointer forward when this is a distinct visit.
+  if (prior && now - prior > SAME_VISIT_MS) {
+    prevMap[k] = prior;
+    writeMap(PREV_OPENED_KEY, prevMap);
+  } else if (!prior) {
+    // First ever open — leave prev empty so cutoff falls back to the 7-day floor.
+  }
+  lastMap[k] = now;
+  writeMap(LAST_OPENED_KEY, lastMap);
 }
 
+/**
+ * Returns the timestamp Catch me up should treat as the user's previous visit.
+ * Prefers the stored previous-visit marker (set when a new visit begins) and
+ * falls back to the very first open we recorded.
+ */
 function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | null {
-  const map = readMap(LAST_OPENED_KEY);
-  return map[storeKey(scope_type, scope_id)] ?? null;
+  const k = storeKey(scope_type, scope_id);
+  const prev = readMap(PREV_OPENED_KEY)[k];
+  if (prev) return prev;
+  // Fall back to current open only if it is older than the same-visit window —
+  // otherwise we'd pass "now" and the cutoff would exclude every message.
+  const last = readMap(LAST_OPENED_KEY)[k];
+  if (last && Date.now() - last > SAME_VISIT_MS) return last;
+  return null;
 }
 
 function getDismissedFor(scope_type: ChatScopeType, scope_id: string): string | null {
