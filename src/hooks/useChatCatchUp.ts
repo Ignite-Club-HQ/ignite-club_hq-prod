@@ -39,6 +39,8 @@ export interface ChatSummaryResult {
   message_count: number;
   last_message_id: string | null;
   cached: boolean;
+  /** True when the backend fell back to a 7-day floor because last_opened_at was missing or stale. */
+  used_fallback?: boolean;
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";

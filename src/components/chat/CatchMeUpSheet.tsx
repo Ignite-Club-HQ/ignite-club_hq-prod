@@ -199,13 +199,13 @@ export function CatchMeUpSheet({
                 </p>
               )}
 
-              {/* Since your last visit — timeline-style activity feed */}
+              {/* Recent activity / Since your last visit — timeline-style activity feed */}
               {view.sinceHasAny && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      Since your last visit
+                      {result?.used_fallback ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
                   <div className="space-y-4">
