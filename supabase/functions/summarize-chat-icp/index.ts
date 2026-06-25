@@ -21,12 +21,15 @@ interface Body {
   last_opened_at?: string | null;
 }
 
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = 30;
 const SUMMARY_TTL_HOURS = 48;
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
 const IC_HOST = "https://icp-api.io";
-const ICP_MODEL = "qwen3:32b";
+// Llama 3.1 8B is ~5x faster than Qwen 3 32B on the DFINITY canister and
+// fits the IC ingress window reliably. Qwen is used only as a fallback.
+const ICP_MODEL = "llama3.1:8b";
+const ICP_FALLBACK_MODEL = "qwen3:32b";
 
 const idlFactory = ({ IDL }: any) => {
   const ChatMessageV1 = IDL.Record({
