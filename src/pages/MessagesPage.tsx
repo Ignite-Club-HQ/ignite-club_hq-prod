@@ -223,7 +223,7 @@ export default function MessagesPage() {
       if (hasAICatchUpClub) {
         setShowGlobalRecap(true);
       } else {
-        toast.info("Chat Recap is a Pro feature. Upgrade your club to unlock AI summaries.");
+        toast({ title: "Pro feature", description: "Chat Recap is a Pro feature. Upgrade your club to unlock AI summaries." });
       }
       params.delete("recap");
       changed = true;
