@@ -420,9 +420,10 @@ serve(async (req) => {
     const lastVisitLine = last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
-    // Llama doesn't need `/no_think`; keep prompt minimal for fastest decode.
+    // `/no_think` disables Qwen's reasoning preamble so the token budget goes
+    // straight to JSON output (Llama ignores it harmlessly).
     const userPrompt =
-      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
+      `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
     // Call ICP — Llama 3.1 8B as primary (fast), Qwen 3 32B as fallback only
     // if Llama itself fails. The DFINITY canister occasionally rejects with
