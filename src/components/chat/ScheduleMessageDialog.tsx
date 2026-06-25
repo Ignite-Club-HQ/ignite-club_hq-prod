@@ -305,7 +305,10 @@ export function ScheduleMessageDialog({
                   type="time"
                   value={timeStr}
                   onChange={(e) => { setTimeStr(e.target.value); setActivePreset(null); }}
-                  className="pl-9"
+                  className={cn(
+                    "pl-9",
+                    scheduledDate && !isInFuture && "border-destructive focus-visible:ring-destructive",
+                  )}
                 />
               </div>
             </div>
