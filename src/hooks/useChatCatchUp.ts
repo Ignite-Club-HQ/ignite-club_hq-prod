@@ -138,8 +138,10 @@ export function useChatCatchUp({
       setError(null);
       if (opts?.openSheet) setSheetOpen(true);
       try {
+        const lastOpenedMs = getLastOpened(scope_type, scope_id);
+        const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
         const { data, error } = await supabase.functions.invoke("summarize-chat", {
-          body: { scope_type, scope_id, force: !!opts?.force },
+          body: { scope_type, scope_id, force: !!opts?.force, last_opened_at },
         });
         if (error) {
           // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).
