@@ -97,10 +97,12 @@ function getLastOpened(scope_type: ChatScopeType, scope_id: string): number | nu
   const k = storeKey(scope_type, scope_id);
   const prev = readMap(PREV_OPENED_KEY)[k];
   if (prev) return prev;
-  // Fall back to current open only if it is older than the same-visit window —
-  // otherwise we'd pass "now" and the cutoff would exclude every message.
   const last = readMap(LAST_OPENED_KEY)[k];
-  if (last && Date.now() - last > SAME_VISIT_MS) return last;
+  // If we have no previous-visit record but we DO have a current visit,
+  // use it. This covers first-time users and rapid revisits within the
+  // same-visit window. It's more accurate than returning null (which
+  // causes the backend to fall back to a 7-day floor).
+  if (last) return last;
   return null;
 }
 
