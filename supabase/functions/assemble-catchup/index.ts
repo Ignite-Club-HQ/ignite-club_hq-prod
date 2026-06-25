@@ -114,6 +114,8 @@ serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
 
+    // Larger digest cap when user explicitly asked to look further back.
+    const digestLimit = validLookback ? 1000 : 300;
     const fetchDigests = (sinceIso: string) =>
       userClient
         .from("message_digests")
@@ -122,7 +124,7 @@ serve(async (req) => {
         .eq("chat_scope_id", scope_id)
         .gte("message_created_at", sinceIso)
         .order("message_created_at", { ascending: true })
-        .limit(300);
+        .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
     if (dErr) {
@@ -134,7 +136,8 @@ serve(async (req) => {
 
     // If nothing new since the user's last visit, widen the window to the 7-day
     // floor so they still get a recap rather than a "Nothing to summarise" error.
-    if ((!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
+    // Skip this when the user EXPLICITLY chose a window — respect their choice.
+    if (!validLookback && (!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
