@@ -429,7 +429,8 @@ function RevealItem({
   className?: string;
   children: React.ReactNode;
 }) {
-  if (!visible) return null;
-  const cls = `${className ?? ""} animate-in fade-in slide-in-from-bottom-1 duration-200`.trim();
-  return <Tag className={cls}>{children}</Tag>;
+  // Always render so layout height is reserved up-front (prevents the sheet
+  // from growing as each line appears). Toggle opacity for the reveal effect.
+  const cls = `${className ?? ""} transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`.trim();
+  return <Tag className={cls} aria-hidden={!visible}>{children}</Tag>;
 }
