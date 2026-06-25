@@ -268,6 +268,7 @@ serve(async (req) => {
         provider: "assembled",
         used_fallback: usedFallback,
         lookback_hours: validLookback ? lookback_hours : null,
+        window_since: cutoffIso,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
