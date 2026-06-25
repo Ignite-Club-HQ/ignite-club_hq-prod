@@ -15,9 +15,12 @@ interface Body {
   force?: boolean;
   /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
   last_opened_at?: string | null;
+  /** When provided, ignore last_opened_at and summarise the last N hours. */
+  lookback_hours?: number;
 }
 
 const MAX_MESSAGES = 50;
+const MAX_MESSAGES_LOOKBACK = 200;
 const SUMMARY_TTL_HOURS = 48;
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
