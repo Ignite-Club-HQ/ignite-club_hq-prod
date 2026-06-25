@@ -43,6 +43,8 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
       return { title: "AI not configured", body: "The AI provider isn’t set up yet. Ask an app admin to add the required API key." };
     case "ai_failed":
       return { title: "AI service unreachable", body: "We couldn’t reach the AI service. This usually clears up in a minute — please try again." };
+    case "ai_timeout":
+      return { title: "AI took too long", body: "The on-chain AI model timed out on this thread (long threads can exceed its window). Tap Regenerate to retry, or ask an app admin to switch the AI provider to Gemini in App Settings for faster results." };
     case "ai_invalid_output":
       return { title: "AI returned an unreadable summary", body: "The AI didn’t return valid output for this thread (often happens on very long or sparse chats). Try Regenerate, or ask an app admin to switch the AI provider in App Settings." };
     case "sensitive_content":
