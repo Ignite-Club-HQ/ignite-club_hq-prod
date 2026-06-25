@@ -136,7 +136,7 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
