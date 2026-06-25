@@ -137,10 +137,47 @@ export function useChatCatchUp({
       setLoading(true);
       setError(null);
       if (opts?.openSheet) setSheetOpen(true);
+
+      const parseErr = async (error: any): Promise<string> => {
+        let code = "unknown";
+        try {
+          const ctx: any = (error as any).context;
+          const resp: Response | undefined =
+            ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
+          if (resp) {
+            const j = await resp.clone().json().catch(() => null);
+            if (j?.error) code = j.error;
+          } else if (typeof ctx === "object" && ctx?.error) {
+            code = String(ctx.error);
+          }
+        } catch { /* ignore */ }
+        return code;
+      };
+
       try {
         const lastOpenedMs = getLastOpened(scope_type, scope_id);
         const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-        // Provider routing: app_settings.ai_summary_provider = "gemini" | "icp"
+        const body = { scope_type, scope_id, force: !!opts?.force, last_opened_at };
+
+        // Hot path: assemble from precomputed digests (no LLM call).
+        // Only supports team/club/group scopes; falls through for DMs & club_admin.
+        if (!opts?.force && (scope_type === "team" || scope_type === "club" || scope_type === "group")) {
+          const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
+          if (!fastErr && fast) {
+            setResult(fast as ChatSummaryResult);
+            return;
+          }
+          // If anything other than "digests_missing", surface it. Otherwise fall back to LLM.
+          if (fastErr) {
+            const code = await parseErr(fastErr);
+            if (code !== "digests_missing" && code !== "unknown") {
+              setError(code);
+              return;
+            }
+          }
+        }
+
+        // Fallback: full LLM summary (Gemini or ICP per app setting).
         let fnName = "summarize-chat";
         try {
           const { data: prov } = await supabase
@@ -152,25 +189,9 @@ export function useChatCatchUp({
           const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
           if (provider === "icp" || provider === '"icp"') fnName = "summarize-chat-icp";
         } catch { /* default to gemini */ }
-        const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { scope_type, scope_id, force: !!opts?.force, last_opened_at },
-        });
+        const { data, error } = await supabase.functions.invoke(fnName, { body });
         if (error) {
-          // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).
-          // Older docs show `context.response`; handle both shapes defensively.
-          let code = "unknown";
-          try {
-            const ctx: any = (error as any).context;
-            const resp: Response | undefined =
-              ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
-            if (resp) {
-              const j = await resp.clone().json().catch(() => null);
-              if (j?.error) code = j.error;
-            } else if (typeof ctx === "object" && ctx?.error) {
-              code = String(ctx.error);
-            }
-          } catch { /* ignore */ }
-          setError(code);
+          setError(await parseErr(error));
           return;
         }
         setResult(data as ChatSummaryResult);
