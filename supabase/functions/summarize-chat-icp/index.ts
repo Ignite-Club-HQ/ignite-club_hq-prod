@@ -437,9 +437,13 @@ serve(async (req) => {
     const userPrompt =
       `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
-    // Call ICP Qwen
+    // Call ICP — try Qwen first, fall back to Llama 3.1 8B on timeout. The
+    // DFINITY hosted Qwen 3 32B canister frequently rejects long-thread calls
+    // with "Reject code: 4 Timeout" (reasoning-model latency exceeds the IC
+    // ingress window).
     let raw = "";
-    try {
+    let modelUsed = ICP_MODEL;
+    const callIcp = async (model: string): Promise<string> => {
       const agent = await HttpAgent.create({ host: IC_HOST });
       const actor: any = Actor.createActor(idlFactory, {
         agent,
@@ -449,12 +453,31 @@ serve(async (req) => {
         { role: { system: null }, content: SYSTEM_PROMPT },
         { role: { user: null }, content: userPrompt },
       ];
-      raw = await actor.v0_chat({ model: ICP_MODEL, messages: candidMessages });
+      return await actor.v0_chat({ model, messages: candidMessages });
+    };
+    try {
+      raw = await callIcp(ICP_MODEL);
     } catch (e) {
-      console.error("[summarize-chat-icp] ICP call failed", e);
-      return new Response(JSON.stringify({ error: "ai_failed", detail: e instanceof Error ? e.message : String(e) }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = /Timeout|Reject code:\s*4/i.test(msg);
+      console.error("[summarize-chat-icp] primary call failed", { model: ICP_MODEL, isTimeout, msg });
+      if (isTimeout) {
+        try {
+          modelUsed = "llama3.1:8b";
+          raw = await callIcp(modelUsed);
+          console.log("[summarize-chat-icp] fallback succeeded", { model: modelUsed });
+        } catch (e2) {
+          const msg2 = e2 instanceof Error ? e2.message : String(e2);
+          console.error("[summarize-chat-icp] fallback call failed", { model: modelUsed, msg: msg2 });
+          return new Response(JSON.stringify({ error: "ai_timeout", detail: msg2, provider: "icp" }), {
+            status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: "ai_failed", detail: msg, provider: "icp" }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const parsed = extractJson(raw);
@@ -509,7 +532,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: `icp:${ICP_MODEL}`,
+          model: `icp:${modelUsed}`,
           expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
@@ -522,7 +545,7 @@ serve(async (req) => {
         last_message_id: lastMessageId,
         cached: false,
         provider: "icp",
-        model: ICP_MODEL,
+        model: modelUsed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
