@@ -425,9 +425,9 @@ serve(async (req) => {
     const userPrompt =
       `/no_think\nNow is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions. Do not include <think> blocks, prose, or code fences.\n\n${transcript}`;
 
-    // Call ICP — Llama 3.1 8B as primary (fast), Qwen 3 32B as fallback only
-    // if Llama itself fails. The DFINITY canister occasionally rejects with
-    // "Reject code: 4 Timeout" under load.
+    // Call ICP — Qwen 3 32B as primary (best quality), Llama 3.1 8B as
+    // fallback if Qwen times out. The DFINITY canister occasionally rejects
+    // with "Reject code: 4 Timeout" under load.
     let raw = "";
     let modelUsed = ICP_MODEL;
     const callIcp = async (model: string): Promise<string> => {
