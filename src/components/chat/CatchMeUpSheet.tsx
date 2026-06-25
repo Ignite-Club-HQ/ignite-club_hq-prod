@@ -124,11 +124,17 @@ export function CatchMeUpSheet({
   // from the running character total + a small gap between lines.
   const CHAR_MS = 16;
   const GAP_MS = 120;
+  const HEADER_REVEAL_MS = 220;
   const delayRef = useRef(0);
   delayRef.current = 0;
   const scheduleType = (text: string) => {
     const start = delayRef.current;
     delayRef.current = start + text.length * CHAR_MS + GAP_MS;
+    return start;
+  };
+  const scheduleReveal = (ms: number = HEADER_REVEAL_MS) => {
+    const start = delayRef.current;
+    delayRef.current = start + ms;
     return start;
   };
 
