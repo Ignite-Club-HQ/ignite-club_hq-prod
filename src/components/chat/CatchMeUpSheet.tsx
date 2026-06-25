@@ -230,7 +230,7 @@ export function CatchMeUpSheet({
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-base font-semibold text-muted-foreground">
                       Outstanding actions
                     </p>
                   </Reveal>
@@ -240,18 +240,18 @@ export function CatchMeUpSheet({
                       const textDelay = scheduleType(a.text);
                       const ownerDelay = a.owner ? scheduleReveal(120) : 0;
                       return (
-                        <li key={i} className="flex flex-col gap-1">
+                        <li key={i} className="flex flex-col">
                           <div className="flex items-start gap-2">
-                            <Reveal delayMs={badgeDelay} as="span" className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
-                              {a.priority}
+                            <Reveal delayMs={badgeDelay} as="span" className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold ${priorityBadgeClasses(a.priority)}`}>
+                              {a.priority === "high" ? "High" : a.priority === "low" ? "Low" : "Medium"}
                             </Reveal>
-                            <span className="text-sm leading-snug text-foreground">
+                            <span className="text-base leading-relaxed text-foreground">
                               <Typed text={a.text} delayMs={textDelay} charMs={CHAR_MS} />
                             </span>
                           </div>
                           {a.owner && (
-                            <Reveal delayMs={ownerDelay} as="span" className="pl-[52px] text-[11px] text-muted-foreground">
-                              Owner: {a.owner}
+                            <Reveal delayMs={ownerDelay} as="span" className="pl-[52px] text-sm font-medium text-muted-foreground">
+                              Owner • {a.owner}
                             </Reveal>
                           )}
                         </li>
@@ -266,13 +266,13 @@ export function CatchMeUpSheet({
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-rose-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-base font-semibold text-muted-foreground">
                       Outstanding questions
                     </p>
                   </Reveal>
                   <ul className="space-y-1 pl-1">
                     {view.questions.map((q, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm leading-snug">
+                      <li key={i} className="flex items-start gap-2 text-base leading-relaxed">
                         <Reveal delayMs={scheduleType(q)} as="span" className="mt-[0.35em] self-start shrink-0">
                           <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/60" />
                         </Reveal>
@@ -338,7 +338,7 @@ export function CatchMeUpSheet({
               )}
 
               <div className="mt-3 flex items-center justify-between gap-2">
-                <p className="text-[11px] leading-snug text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Summarised from the last {result!.message_count} message{result!.message_count === 1 ? "" : "s"}.
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
