@@ -113,6 +113,7 @@ const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage")
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
+const AdminAICatchUpPage = lazy(() => import("./pages/AdminAICatchUpPage"));
 const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
@@ -435,6 +436,7 @@ const App = () => {
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
                   <Route path="/admin/settings" element={<AppSettingsPage />} />
+                  <Route path="/admin/ai-catch-up" element={<AdminAICatchUpPage />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
                  <Route path="/admin/drills" element={<AdminDrillsPage />} />
