@@ -15,7 +15,7 @@ interface Body {
   force?: boolean;
 }
 
-const MAX_MESSAGES = 80;
+const MAX_MESSAGES = 50;
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string }> = {
   team: { table: "team_messages", scopeCol: "team_id" },
@@ -315,7 +315,7 @@ serve(async (req) => {
     const userPrompt =
       `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
 
-    const GEMINI_MODEL = "gemini-2.5-flash";
+    const GEMINI_MODEL = "gemini-2.5-flash-lite";
     const aiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
       {
@@ -324,7 +324,7 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 600 },
         }),
       },
     );
@@ -367,7 +367,7 @@ serve(async (req) => {
           last_message_id: lastMessageId,
           message_count: messages.length,
           summary,
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
         },
         { onConflict: "user_id,scope_type,scope_id,last_message_id" },
       );
