@@ -43,6 +43,8 @@ export interface ChatSummaryResult {
   used_fallback?: boolean;
   /** When the user explicitly chose a deeper time window, the hours covered. */
   lookback_hours?: number;
+  /** ISO timestamp of the start of the time window the summary covers. */
+  window_since?: string | null;
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
