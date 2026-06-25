@@ -273,7 +273,7 @@ serve(async (req) => {
     const lastMessageId = messages[messages.length - 1].id as string;
     console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
-    if (!force) {
+    if (!force && !validLookback) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at")
