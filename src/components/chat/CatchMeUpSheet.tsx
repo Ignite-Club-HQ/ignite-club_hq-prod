@@ -349,7 +349,7 @@ export function CatchMeUpSheet({
             </>
           )}
 
-          <p className="mt-4 rounded-md bg-muted/40 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          <p className="mt-4 text-xs text-muted-foreground/70">
             AI summaries can make mistakes. Check key details before acting.
           </p>
         </div>
@@ -363,11 +363,11 @@ function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: str
     <div className="px-3 py-3">
       <div className="mb-1.5 flex items-center gap-2">
         {icon}
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-base font-semibold text-muted-foreground">{label}</p>
       </div>
       <ul className="space-y-1 pl-1">
         {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm leading-snug">
+          <li key={i} className="flex items-start gap-2 text-base leading-relaxed">
             <span className="mt-[0.35em] inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
             <span className="text-foreground">{item}</span>
           </li>
