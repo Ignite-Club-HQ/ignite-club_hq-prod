@@ -45,6 +45,11 @@ export interface ChatSummaryResult {
   lookback_hours?: number;
   /** ISO timestamp of the start of the time window the summary covers. */
   window_since?: string | null;
+  /** True when message_count hit the per-window cap and older messages were dropped. */
+  truncated?: boolean;
+  /** Per-window message cap applied for this lookback, if any. */
+  message_cap?: number | null;
+
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";

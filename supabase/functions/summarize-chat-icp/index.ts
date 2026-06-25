@@ -23,9 +23,16 @@ interface Body {
 }
 
 const MAX_MESSAGES = 25;
-// Qwen ingress window is tight; keep lookback bounded but well above default.
-const MAX_MESSAGES_LOOKBACK = 120;
+// Qwen ingress window is tight; tier lookback caps by window length so a 30d
+// recap doesn't silently truncate to a few days of an active thread.
+const MAX_MESSAGES_LOOKBACK = 120; // legacy fallback
+function lookbackMessageCap(hours: number): number {
+  if (hours <= 24) return 80;
+  if (hours <= 24 * 7) return 200;
+  return 400; // up to 90d
+}
 const SUMMARY_TTL_HOURS = 48;
+
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
 const IC_HOST = "https://icp-api.io";
@@ -193,7 +200,7 @@ serve(async (req) => {
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
-    const msgLimit = validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES;
+    const msgLimit = validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES;
 
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
@@ -559,9 +566,12 @@ serve(async (req) => {
         model: modelUsed,
         lookback_hours: validLookback ? lookback_hours : null,
         window_since: windowSinceIso,
+        truncated: validLookback && messages.length >= msgLimit,
+        message_cap: validLookback ? msgLimit : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (err) {
     console.error("[summarize-chat-icp] crash", err);
     return new Response(JSON.stringify({ error: "server_error", detail: err instanceof Error ? err.message : String(err) }), {

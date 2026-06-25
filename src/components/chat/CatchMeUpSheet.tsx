@@ -388,11 +388,15 @@ export function CatchMeUpSheet({
                     const n = result!.message_count;
                     const msg = `${n} message${n === 1 ? "" : "s"}`;
                     if (result!.lookback_hours) {
-                      return `Summarised ${msg} from the ${formatLookbackLabel(result!.lookback_hours)}.`;
+                      const base = `Summarised ${msg} from the ${formatLookbackLabel(result!.lookback_hours)}`;
+                      return result!.truncated
+                        ? `${base}. Showing the most recent ${n} — older messages in this window were trimmed for length.`
+                        : `${base}.`;
                     }
                     if (result!.used_fallback) {
                       return `Summarised ${msg} from the last 7 days.`;
                     }
+
                     const since = formatSinceLabel(result!.window_since);
                     return since
                       ? `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit (${since}).`

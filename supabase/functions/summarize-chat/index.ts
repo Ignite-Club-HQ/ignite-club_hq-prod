@@ -20,8 +20,16 @@ interface Body {
 }
 
 const MAX_MESSAGES = 50;
-const MAX_MESSAGES_LOOKBACK = 200;
+const MAX_MESSAGES_LOOKBACK = 200; // legacy fallback
+// Tier lookback caps by window length so longer recaps actually cover the
+// requested period instead of silently truncating to the most recent N.
+function lookbackMessageCap(hours: number): number {
+  if (hours <= 24) return 100;
+  if (hours <= 24 * 7) return 250;
+  return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
+}
 const SUMMARY_TTL_HOURS = 48;
+
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
 // refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
@@ -237,13 +245,15 @@ serve(async (req) => {
     });
 
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
+    const msgLimit = validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES;
     let msgQuery = userClient
       .from(table)
       .select("id, text, author_id, created_at, image_url")
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES);
+      .limit(msgLimit);
+
     if (lookbackCutoffIso) {
       msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
     }
@@ -569,8 +579,11 @@ serve(async (req) => {
         used_fallback: !validLookback && !last_opened_at,
         lookback_hours: validLookback ? lookback_hours : null,
         window_since: windowSinceIso,
+        truncated: validLookback && messages.length >= msgLimit,
+        message_cap: validLookback ? msgLimit : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+
     );
   } catch (err) {
     console.error("[summarize-chat] crash", err);
