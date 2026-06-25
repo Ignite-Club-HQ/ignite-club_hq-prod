@@ -556,6 +556,10 @@ serve(async (req) => {
         );
     }
 
+    const windowSinceIso = lookbackCutoffIso
+      ?? (last_opened_at && !isNaN(Date.parse(last_opened_at)) ? new Date(last_opened_at as string).toISOString() : null)
+      ?? (messages[0]?.created_at as string | undefined)
+      ?? null;
     return new Response(
       JSON.stringify({
         summary,
@@ -564,6 +568,7 @@ serve(async (req) => {
         cached: false,
         used_fallback: !validLookback && !last_opened_at,
         lookback_hours: validLookback ? lookback_hours : null,
+        window_since: windowSinceIso,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

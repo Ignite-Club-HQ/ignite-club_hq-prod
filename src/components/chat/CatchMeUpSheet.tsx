@@ -52,6 +52,22 @@ function formatLookbackLabel(hours: number): string {
   return `last ${hours} hours`;
 }
 
+function formatSinceLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const diffMs = Date.now() - t;
+  if (diffMs < 0) return "just now";
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 36) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 14) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const weeks = Math.round(days / 7);
+  return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+}
+
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
@@ -368,11 +384,20 @@ export function CatchMeUpSheet({
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  {result!.lookback_hours
-                    ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the ${formatLookbackLabel(result!.lookback_hours)}.`
-                    : result!.used_fallback
-                      ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the last 7 days.`
-                      : `Summarised ${result!.message_count} new message${result!.message_count === 1 ? "" : "s"} since your last visit.`}
+                  {(() => {
+                    const n = result!.message_count;
+                    const msg = `${n} message${n === 1 ? "" : "s"}`;
+                    if (result!.lookback_hours) {
+                      return `Summarised ${msg} from the ${formatLookbackLabel(result!.lookback_hours)}.`;
+                    }
+                    if (result!.used_fallback) {
+                      return `Summarised ${msg} from the last 7 days.`;
+                    }
+                    const since = formatSinceLabel(result!.window_since);
+                    return since
+                      ? `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit (${since}).`
+                      : `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit.`;
+                  })()}
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
                   <RefreshCw className="h-3 w-3" />

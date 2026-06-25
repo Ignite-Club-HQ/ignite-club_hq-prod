@@ -19,9 +19,12 @@ interface Body {
   scope_id: string;
   force?: boolean;
   last_opened_at?: string | null;
+  lookback_hours?: number;
 }
 
 const MAX_MESSAGES = 25;
+// Qwen ingress window is tight; keep lookback bounded but well above default.
+const MAX_MESSAGES_LOOKBACK = 120;
 const SUMMARY_TTL_HOURS = 48;
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
@@ -180,29 +183,37 @@ serve(async (req) => {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { scope_type, scope_id, force, last_opened_at } = bodyParsed || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at, lookback_hours } = bodyParsed || ({} as Body);
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    const lookbackCutoffIso = validLookback
+      ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
+      : null;
+    const msgLimit = validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES;
 
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
 
+    let baseMsgQuery = userClient
+      .from(table)
+      .select("id, text, author_id, created_at, image_url")
+      .eq(scopeCol, scope_id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(msgLimit);
+    if (lookbackCutoffIso) baseMsgQuery = baseMsgQuery.gte("created_at", lookbackCutoffIso);
+
     // Fire profile, clubId, messages, and the IC agent in parallel.
     const [profRes, clubId, msgRes, agentPromise] = await Promise.all([
       admin.from("profiles").select("ai_catch_up_acknowledged_at").eq("id", user.id).maybeSingle(),
       scope_type === "direct" ? Promise.resolve(null) : getClubIdForScope(admin, scope_type, scope_id),
-      userClient
-        .from(table)
-        .select("id, text, author_id, created_at, image_url")
-        .eq(scopeCol, scope_id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(MAX_MESSAGES),
+      baseMsgQuery,
       HttpAgent.create({ host: IC_HOST }), // warm transport
     ]);
 
@@ -262,7 +273,7 @@ serve(async (req) => {
     const lastMessageId = messages[messages.length - 1].id as string;
     console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
-    if (!force) {
+    if (!force && !validLookback) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at")
@@ -423,7 +434,9 @@ serve(async (req) => {
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
     const nowIso = new Date().toISOString();
-    const lastVisitLine = last_opened_at
+    const lastVisitLine = validLookback
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      : last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     // `/no_think` disables Qwen's reasoning preamble so the token budget goes
@@ -512,22 +525,30 @@ serve(async (req) => {
       );
     }
 
-    await admin
-      .from("chat_summaries")
-      .upsert(
-        {
-          user_id: user.id,
-          scope_type,
-          scope_id,
-          last_message_id: lastMessageId,
-          message_count: messages.length,
-          summary,
-          model: `icp:${modelUsed}`,
-          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
-        },
-        { onConflict: "user_id,scope_type,scope_id,last_message_id" },
-      );
+    // Don't pollute the cache with lookback-window summaries — they're
+    // bespoke time windows the user explicitly requested.
+    if (!validLookback) {
+      await admin
+        .from("chat_summaries")
+        .upsert(
+          {
+            user_id: user.id,
+            scope_type,
+            scope_id,
+            last_message_id: lastMessageId,
+            message_count: messages.length,
+            summary,
+            model: `icp:${modelUsed}`,
+            expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "user_id,scope_type,scope_id,last_message_id" },
+        );
+    }
 
+    const windowSinceIso = lookbackCutoffIso
+      ?? (last_opened_at && !isNaN(Date.parse(last_opened_at)) ? new Date(last_opened_at as string).toISOString() : null)
+      ?? (messages[0]?.created_at as string | undefined)
+      ?? null;
     return new Response(
       JSON.stringify({
         summary,
@@ -536,6 +557,8 @@ serve(async (req) => {
         cached: false,
         provider: "icp",
         model: modelUsed,
+        lookback_hours: validLookback ? lookback_hours : null,
+        window_since: windowSinceIso,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
