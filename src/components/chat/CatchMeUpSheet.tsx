@@ -144,13 +144,13 @@ export function CatchMeUpSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="max-h-[85vh] flex flex-col rounded-t-2xl px-0 pb-0">
         <SheetHeader className="px-4 pt-1 text-left">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+          <SheetTitle className="flex items-center gap-2.5 text-2xl font-semibold">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="h-5 w-5 text-primary" />
             </span>
             Catch me up
             {unreadCount > 0 && (
-              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {unreadCount} unread
               </span>
             )}
@@ -184,7 +184,7 @@ export function CatchMeUpSheet({
           {!loading && !err && view && (
             <>
               {view.headline && (
-                <p className="mb-3 text-sm font-medium leading-snug text-foreground">
+                <p className="mb-3 text-base font-normal leading-relaxed text-foreground">
                   <Typed text={view.headline} delayMs={scheduleType(view.headline)} charMs={CHAR_MS} />
                 </p>
               )}
@@ -194,7 +194,7 @@ export function CatchMeUpSheet({
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-base font-semibold text-muted-foreground">
                       Since your last visit
                     </p>
                   </Reveal>
@@ -204,12 +204,12 @@ export function CatchMeUpSheet({
                     const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
                     return (
                       <div key={bucket} className="mb-2 last:mb-0">
-                        <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                        <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-1 text-sm font-medium text-muted-foreground">
                           {label}
                         </Reveal>
                         <ul className="space-y-1 pl-1">
                           {items.map((item, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm leading-snug">
+                            <li key={i} className="flex items-start gap-2 text-base leading-relaxed">
                               <Reveal delayMs={scheduleType(item)} as="span" className="mt-[0.35em] self-start shrink-0">
                                 <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/60" />
                               </Reveal>
