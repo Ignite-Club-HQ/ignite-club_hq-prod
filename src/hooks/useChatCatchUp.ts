@@ -123,13 +123,18 @@ export function useChatCatchUp({
           body: { scope_type, scope_id, force: !!opts?.force },
         });
         if (error) {
-          // FunctionsHttpError exposes context.response (a Response object) with the JSON error body.
+          // FunctionsHttpError: `context` is a Response in supabase-js v2 (not { response }).
+          // Older docs show `context.response`; handle both shapes defensively.
           let code = "unknown";
           try {
-            const ctx = (error as any).context;
-            if (ctx?.response) {
-              const j = await ctx.response.json();
-              code = j?.error ?? code;
+            const ctx: any = (error as any).context;
+            const resp: Response | undefined =
+              ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
+            if (resp) {
+              const j = await resp.clone().json().catch(() => null);
+              if (j?.error) code = j.error;
+            } else if (typeof ctx === "object" && ctx?.error) {
+              code = String(ctx.error);
             }
           } catch { /* ignore */ }
           setError(code);
