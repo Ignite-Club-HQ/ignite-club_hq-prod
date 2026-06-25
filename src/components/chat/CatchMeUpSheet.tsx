@@ -33,7 +33,7 @@ const SECTIONS: Array<{
   { key: "unanswered_questions", label: "Questions still unanswered", icon: <HelpCircle className="h-4 w-4 text-rose-500" /> },
 ];
 
-function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean } {
+function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
       return {
@@ -55,6 +55,12 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
       return {
         title: "Nothing to summarise",
         body: "There aren’t any recent messages in this chat yet.",
+      };
+    case "sensitive_content":
+      return {
+        title: "Summary blocked",
+        body: "This thread contains sensitive content (medical, safeguarding or disciplinary). For privacy we don’t send these messages to AI — please read them directly.",
+        isSensitive: true,
       };
     default:
       return {
