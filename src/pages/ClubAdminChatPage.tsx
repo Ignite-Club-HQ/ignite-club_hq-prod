@@ -27,6 +27,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -161,7 +162,7 @@ export default function ClubAdminChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (conversationId) markChatOpened("club_admin", conversationId); }, [conversationId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
-
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club_admin", conversationId);
 
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
@@ -922,8 +923,7 @@ export default function ClubAdminChatPage() {
               isRefreshing={isManualRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
-              summarizeLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
             />
         </div>
       </div>

@@ -25,6 +25,7 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
@@ -230,6 +231,7 @@ export default function TeamChatPage() {
   // Record that the user opened this team chat (drives the AI catch-up trigger).
   useEffect(() => { if (teamId) markChatOpened("team", teamId); }, [teamId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("team", teamId);
   const { data: teamUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!teamId,
     select: (d) => (teamId ? d.teams[teamId] ?? 0 : 0),
@@ -1727,8 +1729,7 @@ export default function TeamChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
-              summarizeLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               onManagePinnedVault={
                 isAdmin
                   ? () => {
@@ -1742,9 +1743,8 @@ export default function TeamChatPage() {
                   : undefined
               }
               pinnedVaultLocked={!!isAdmin && pinnedVaultLocked}
-              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
-              onTogglePinnedVault={
-                pinnedVault.record && isAdmin && !pinnedVaultLocked ? (v) => pinnedVault.toggleEnabled(v) : undefined
+              onUnpinVault={
+                pinnedVault.record && isAdmin && !pinnedVaultLocked ? () => pinnedVault.remove() : undefined
               }
             />
           </>

@@ -21,6 +21,7 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
+import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
@@ -201,6 +202,7 @@ export default function ClubChatPage() {
   // AI Catch-me-up wiring.
   useEffect(() => { if (clubId) markChatOpened("club", clubId); }, [clubId]);
   const summarizeTriggerRef = useRef<(() => void) | null>(null);
+  const { featureDisabled: aiCatchUpDisabled } = useAICatchUpAvailability("club", clubId);
   const { data: clubUnreadCount = 0 } = useUnreadMessageCounts<number>(user?.id ?? null, {
     enabled: !!clubId,
     select: (d) => (clubId ? d.clubs[clubId] ?? 0 : 0),
@@ -1497,8 +1499,7 @@ export default function ClubChatPage() {
               isRefreshing={isAnyRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={() => summarizeTriggerRef.current?.()}
-              summarizeLocked={!clubProLoading && !clubHasPro}
+              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
               onManagePinnedVault={
                 (isClubAdmin || isAppAdmin)
                   ? () => {
@@ -1512,10 +1513,9 @@ export default function ClubChatPage() {
                   : undefined
               }
               pinnedVaultLocked={!!(isClubAdmin || isAppAdmin) && pinnedVaultLocked}
-              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
-              onTogglePinnedVault={
+              onUnpinVault={
                 pinnedVault.record && (isClubAdmin || isAppAdmin) && !pinnedVaultLocked
-                  ? (v) => pinnedVault.toggleEnabled(v)
+                  ? () => pinnedVault.remove()
                   : undefined
               }
             />

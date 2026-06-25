@@ -17,6 +17,7 @@ import { usePasskey } from "@/hooks/usePasskey";
 import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
+import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -117,6 +118,7 @@ export default function SettingsPage() {
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
   const [aiCatchUpEnabled, setAiCatchUpEnabled] = useState(true);
   const [aiCatchUpLoading, setAiCatchUpLoading] = useState(false);
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
   
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -756,7 +758,7 @@ export default function SettingsPage() {
       )}
 
       {/* AI Catch Me Up */}
-      {user && (
+      {user && hasAICatchUpClub && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
