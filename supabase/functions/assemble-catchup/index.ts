@@ -91,9 +91,11 @@ serve(async (req) => {
     // Cutoff: last_opened_at OR 7 days back as a soft floor.
     const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
     const FLOOR_ISO = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
-    let cutoffIso = last_opened_at && !isNaN(Date.parse(last_opened_at))
+    const hasLastOpened = last_opened_at && !isNaN(Date.parse(last_opened_at));
+    let cutoffIso = hasLastOpened
       ? new Date(last_opened_at).toISOString()
       : FLOOR_ISO;
+    let usedFallback = !hasLastOpened;
 
     // RLS on message_digests gates this to chats the user can access.
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -122,6 +124,7 @@ serve(async (req) => {
     // floor so they still get a recap rather than a "Nothing to summarise" error.
     if ((!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
       cutoffIso = FLOOR_ISO;
+      usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
       digests = retry.data ?? [];
     }
@@ -242,6 +245,7 @@ serve(async (req) => {
         last_message_id: lastMessageId,
         cached: true,
         provider: "assembled",
+        used_fallback: usedFallback,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
