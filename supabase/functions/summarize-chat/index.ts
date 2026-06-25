@@ -139,7 +139,11 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    const lookbackCutoffIso = validLookback
+      ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
+      : null;
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
