@@ -124,11 +124,17 @@ export function CatchMeUpSheet({
   // from the running character total + a small gap between lines.
   const CHAR_MS = 16;
   const GAP_MS = 120;
+  const HEADER_REVEAL_MS = 220;
   const delayRef = useRef(0);
   delayRef.current = 0;
   const scheduleType = (text: string) => {
     const start = delayRef.current;
     delayRef.current = start + text.length * CHAR_MS + GAP_MS;
+    return start;
+  };
+  const scheduleReveal = (ms: number = HEADER_REVEAL_MS) => {
+    const start = delayRef.current;
+    delayRef.current = start + ms;
     return start;
   };
 
@@ -186,21 +192,21 @@ export function CatchMeUpSheet({
               {/* Since your last visit */}
               {view.sinceHasAny && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Since your last visit
                     </p>
-                  </div>
+                  </Reveal>
                   {(["today", "yesterday", "earlier"] as const).map((bucket) => {
                     const items = view.since[bucket];
                     if (!items || items.length === 0) return null;
                     const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
                     return (
                       <div key={bucket} className="mb-2 last:mb-0">
-                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                        <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
                           {label}
-                        </p>
+                        </Reveal>
                         <ul className="space-y-1 pl-1">
                           {items.map((item, i) => (
                             <li key={i} className="flex gap-2 text-sm leading-snug">
@@ -220,28 +226,35 @@ export function CatchMeUpSheet({
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Outstanding actions
                     </p>
-                  </div>
+                  </Reveal>
                   <ul className="space-y-2">
-                    {view.actions.map((a, i) => (
-                      <li key={i} className="flex flex-col gap-1">
-                        <div className="flex items-start gap-2">
-                          <span className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
-                            {a.priority}
-                          </span>
-                          <span className="text-sm leading-snug text-foreground">
-                            <Typed text={a.text} delayMs={scheduleType(a.text)} charMs={CHAR_MS} />
-                          </span>
-                        </div>
-                        {a.owner && (
-                          <span className="pl-[52px] text-[11px] text-muted-foreground">Owner: {a.owner}</span>
-                        )}
-                      </li>
-                    ))}
+                    {view.actions.map((a, i) => {
+                      const badgeDelay = scheduleReveal(80);
+                      const textDelay = scheduleType(a.text);
+                      const ownerDelay = a.owner ? scheduleReveal(120) : 0;
+                      return (
+                        <li key={i} className="flex flex-col gap-1">
+                          <div className="flex items-start gap-2">
+                            <Reveal delayMs={badgeDelay} as="span" className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${priorityBadgeClasses(a.priority)}`}>
+                              {a.priority}
+                            </Reveal>
+                            <span className="text-sm leading-snug text-foreground">
+                              <Typed text={a.text} delayMs={textDelay} charMs={CHAR_MS} />
+                            </span>
+                          </div>
+                          {a.owner && (
+                            <Reveal delayMs={ownerDelay} as="span" className="pl-[52px] text-[11px] text-muted-foreground">
+                              Owner: {a.owner}
+                            </Reveal>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}
@@ -249,12 +262,12 @@ export function CatchMeUpSheet({
               {/* Outstanding questions */}
               {view.questions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-rose-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Outstanding questions
                     </p>
-                  </div>
+                  </Reveal>
                   <ul className="space-y-1 pl-1">
                     {view.questions.map((q, i) => (
                       <li key={i} className="flex gap-2 text-sm leading-snug">
@@ -401,6 +414,39 @@ function Typed({
     </span>
   );
 }
+
+/**
+ * Fades children in after `delayMs`. Reserves layout space upfront (renders
+ * invisibly) so the sheet height stays stable while siblings reveal.
+ */
+function Reveal({
+  delayMs = 0,
+  as: As = "div",
+  className,
+  children,
+}: {
+  delayMs?: number;
+  as?: "div" | "span" | "p";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [shown, setShown] = useState(delayMs === 0);
+  useEffect(() => {
+    setShown(delayMs === 0);
+    if (delayMs === 0) return;
+    const t = setTimeout(() => setShown(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  return (
+    <As
+      className={className}
+      style={{ opacity: shown ? 1 : 0, transition: "opacity 180ms ease-out" }}
+    >
+      {children}
+    </As>
+  );
+}
+
 
 
 /**
