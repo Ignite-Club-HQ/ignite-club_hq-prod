@@ -232,17 +232,18 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit?
+    // Cache hit? (respect TTL)
     if (!force) {
       const { data: cached } = await admin
         .from("chat_summaries")
-        .select("summary, message_count, last_message_id, created_at")
+        .select("summary, message_count, last_message_id, created_at, expires_at")
         .eq("user_id", user.id)
         .eq("scope_type", scope_type)
         .eq("scope_id", scope_id)
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
-      if (cached?.summary) {
+      const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
+      if (cached?.summary && stillFresh) {
         return new Response(
           JSON.stringify({
             summary: cached.summary,
@@ -253,6 +254,16 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+    }
+
+    // Sensitive content block — refuse to send any medical / safeguarding /
+    // disciplinary discussion to a third-party LLM.
+    const sensitiveHit = detectSensitive(messages.map((m: any) => m.text || "").join("\n"));
+    if (sensitiveHit) {
+      return new Response(
+        JSON.stringify({ error: "sensitive_content", category: sensitiveHit }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Resolve author names
