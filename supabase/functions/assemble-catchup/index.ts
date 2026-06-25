@@ -19,6 +19,8 @@ interface Body {
   scope_type: ScopeType;
   scope_id: string;
   last_opened_at?: string | null;
+  /** When provided, ignore last_opened_at and summarise the last N hours. */
+  lookback_hours?: number;
 }
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string; digestType?: "team" | "club" | "group" }> = {
