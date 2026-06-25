@@ -366,18 +366,22 @@ export function CatchMeUpSheet({
 function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
   return (
     <div className="px-3 py-3">
-      <div className="mb-1.5 flex items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-base font-semibold text-muted-foreground">{label}</p>
       </div>
-      <ul className="space-y-1 pl-1">
-        {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-base leading-relaxed">
-            <span className="mt-[0.35em] inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-            <span className="text-foreground">{item}</span>
-          </li>
-        ))}
-      </ul>
+      {items.length === 1 ? (
+        <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+      ) : (
+        <ul className="space-y-3">
+          {items.map((item, i) => (
+            <li key={i} className="relative pl-4 text-base leading-relaxed text-foreground">
+              <span className="absolute left-0 top-[0.6em] block h-[5px] w-[5px] rounded-full bg-muted-foreground/50" />
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
