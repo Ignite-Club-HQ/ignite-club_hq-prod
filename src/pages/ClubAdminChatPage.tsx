@@ -923,7 +923,8 @@ export default function ClubAdminChatPage() {
               isRefreshing={isManualRefreshing}
               onScheduleMessage={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               scheduleMessageLocked={!clubProLoading && !clubHasPro}
-              onSummarizeMessages={(!clubProLoading && clubHasPro && !aiCatchUpDisabled) ? () => summarizeTriggerRef.current?.() : undefined}
+              onSummarizeMessages={!aiCatchUpDisabled ? () => summarizeTriggerRef.current?.() : undefined}
+              summarizeLocked={!clubProLoading && !clubHasPro}
             />
         </div>
       </div>

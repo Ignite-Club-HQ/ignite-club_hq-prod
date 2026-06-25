@@ -39,10 +39,13 @@ interface ChatHeaderMenuProps {
   pinnedVaultLocked?: boolean;
   /**
    * Trigger an AI "Chat Recap" summary of recent messages.
-   * Only pass this when AI is actually available to the user — it renders as
-   * a first-class header action (Sparkles button), NOT inside the overflow.
+   * Renders as a first-class header action (Sparkles button), NOT inside the overflow.
+   * Pass even for free-tier users together with `summarizeLocked` so the entry
+   * point is visible and clicking can route to the upgrade flow.
    */
   onSummarizeMessages?: () => void;
+  /** When true, decorate the Sparkles button with a PRO badge (free tier). */
+  summarizeLocked?: boolean;
 }
 
 export function ChatHeaderMenu({
@@ -57,6 +60,7 @@ export function ChatHeaderMenu({
   pinnedVaultLocked = false,
   onUnpinVault,
   onSummarizeMessages,
+  summarizeLocked = false,
 }: ChatHeaderMenuProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
@@ -92,15 +96,25 @@ export function ChatHeaderMenu({
   return (
     <div className="flex items-center gap-0.5">
       {onSummarizeMessages && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
-          onClick={onSummarizeMessages}
-          aria-label="AI summary of recent messages"
-        >
-          <Sparkles className="h-[18px] w-[18px]" />
-        </Button>
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
+            onClick={onSummarizeMessages}
+            aria-label={summarizeLocked ? "AI Chat Recap (Pro)" : "AI summary of recent messages"}
+          >
+            <Sparkles className="h-[18px] w-[18px]" />
+          </Button>
+          {summarizeLocked && (
+            <span
+              className="pointer-events-none absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] leading-none font-bold px-1 py-0.5 rounded-full"
+              aria-hidden="true"
+            >
+              PRO
+            </span>
+          )}
+        </div>
       )}
 
       {hasDropdownAction && (
