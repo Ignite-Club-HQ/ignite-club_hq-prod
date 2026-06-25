@@ -196,7 +196,9 @@ export function CatchMeUpSheet({
           {!loading && !err && view && (
             <>
               {view.headline && (
-                <p className="mb-3 text-sm font-medium leading-snug text-foreground">{view.headline}</p>
+                <p className="mb-3 text-sm font-medium leading-snug text-foreground animate-in fade-in slide-in-from-bottom-1 duration-300">
+                  {view.headline}
+                </p>
               )}
 
               {/* Since your last visit */}
