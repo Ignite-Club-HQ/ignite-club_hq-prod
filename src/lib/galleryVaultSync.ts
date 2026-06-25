@@ -36,6 +36,14 @@ export async function syncGalleryPhotoToVault({
   try {
     if (!clubId || !fileUrl) return;
 
+    // Pro-gate: free clubs do not mirror gallery photos to the vault.
+    // Vault is a Pro feature; keeping the gallery as the sole store on Free
+    // also prevents inflating the vault file count against Free caps.
+    const { data: isPro } = await supabase.rpc("has_active_pro_for_club", {
+      _club_id: clubId,
+    });
+    if (isPro !== true) return;
+
     // Dedupe — the photo storage URL is unique, so if it's already in the
     // vault we skip (covers retries and the "already mirrored" case).
     const { data: existing } = await supabase
