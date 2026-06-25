@@ -125,8 +125,8 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Team Admin Tools */}
-      {isTeamAdminOrCoach && (
+      {/* Team Admin Tools — Pro Football only */}
+      {isTeamAdminOrCoach && hasProFootballForAnyTeam && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Team Tools</CardTitle>
