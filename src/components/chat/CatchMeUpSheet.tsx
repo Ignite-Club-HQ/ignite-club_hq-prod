@@ -192,21 +192,21 @@ export function CatchMeUpSheet({
               {/* Since your last visit */}
               {view.sinceHasAny && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Since your last visit
                     </p>
-                  </div>
+                  </Reveal>
                   {(["today", "yesterday", "earlier"] as const).map((bucket) => {
                     const items = view.since[bucket];
                     if (!items || items.length === 0) return null;
                     const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
                     return (
                       <div key={bucket} className="mb-2 last:mb-0">
-                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                        <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">
                           {label}
-                        </p>
+                        </Reveal>
                         <ul className="space-y-1 pl-1">
                           {items.map((item, i) => (
                             <li key={i} className="flex gap-2 text-sm leading-snug">
@@ -226,12 +226,12 @@ export function CatchMeUpSheet({
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Outstanding actions
                     </p>
-                  </div>
+                  </Reveal>
                   <ul className="space-y-2">
                     {view.actions.map((a, i) => (
                       <li key={i} className="flex flex-col gap-1">
