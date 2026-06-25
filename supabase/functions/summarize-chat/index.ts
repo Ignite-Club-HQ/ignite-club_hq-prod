@@ -443,8 +443,12 @@ serve(async (req) => {
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
+    const nowIso = new Date().toISOString();
+    const lastVisitLine = last_opened_at
+      ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
+      : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
-      `Summarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only.\n\n${transcript}`;
+      `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
 
     const GEMINI_MODEL = "gemini-2.5-flash-lite";
     const aiRes = await fetch(
@@ -455,7 +459,7 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 600 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 700 },
         }),
       },
     );
@@ -477,14 +481,37 @@ serve(async (req) => {
     let parsed: any;
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
+    const sinceRaw = (parsed.since_last_visit && typeof parsed.since_last_visit === "object") ? parsed.since_last_visit : {};
+    const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
+      (Array.isArray(parsed.outstanding_actions) ? parsed.outstanding_actions : [])
+        .map((a: any) => {
+          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const };
+          const text = typeof a?.text === "string" ? rehydrate(a.text) : "";
+          const owner = typeof a?.owner === "string" && a.owner.trim() ? rehydrate(a.owner.trim()) : null;
+          const p = (a?.priority === "high" || a?.priority === "low") ? a.priority : "medium";
+          return { text, owner, priority: p as "high" | "medium" | "low" };
+        })
+        .filter((a: any) => a.text)
+        .sort((a: any, b: any) => priorityRank[a.priority] - priorityRank[b.priority])
+        .slice(0, 5);
+
+    const detailedRaw = (parsed.detailed && typeof parsed.detailed === "object") ? parsed.detailed : {};
+
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
-      important_updates: rehydrateArr(parsed.important_updates).slice(0, 5),
-      actions_needed: rehydrateArr(parsed.actions_needed).slice(0, 5),
-      schedule_changes: rehydrateArr(parsed.schedule_changes).slice(0, 5),
-      people_mentioned: rehydrateArr(parsed.people_mentioned).slice(0, 8),
-      files_shared: rehydrateArr(parsed.files_shared).slice(0, 5),
-      unanswered_questions: rehydrateArr(parsed.unanswered_questions).slice(0, 5),
+      since_last_visit: {
+        today: rehydrateArr(sinceRaw.today).slice(0, 3),
+        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 2),
+        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
+      },
+      outstanding_actions: actionsArr,
+      outstanding_questions: rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5),
+      detailed: {
+        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
+        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
+        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 5),
+      },
     };
 
     // Upsert cache
