@@ -34,8 +34,15 @@ interface CatchMeUpSheetProps {
   result: ChatSummaryResult | null;
   unreadCount: number;
   onRegenerate: () => void;
+  onLookback?: (hours: number) => void;
   onUpgrade?: () => void;
 }
+
+const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
