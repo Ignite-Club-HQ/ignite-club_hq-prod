@@ -90,6 +90,7 @@ export function ChatCatchUp({
         result={result}
         unreadCount={unreadCount}
         onRegenerate={() => void summarize({ force: true })}
+        onLookback={(hours) => void summarize({ lookbackHours: hours })}
         onUpgrade={upgradeHref ? () => navigate(upgradeHref) : undefined}
       />
 
