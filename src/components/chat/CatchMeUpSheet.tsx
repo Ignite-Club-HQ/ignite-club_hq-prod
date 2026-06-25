@@ -398,6 +398,13 @@ export function CatchMeUpSheet({
                     }
 
                     const since = formatSinceLabel(result!.window_since);
+                    // If the user has nothing unread, "since your last visit" is misleading —
+                    // their read state was updated elsewhere (push, another device, mark-as-read).
+                    if (unreadCount === 0) {
+                      return since
+                        ? `Summarised ${msg} of recent activity (${since}).`
+                        : `Summarised ${msg} of recent activity.`;
+                    }
                     return since
                       ? `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit (${since}).`
                       : `Summarised ${n} new message${n === 1 ? "" : "s"} since your last visit.`;
