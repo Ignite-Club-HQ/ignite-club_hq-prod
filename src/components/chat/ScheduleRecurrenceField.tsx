@@ -61,7 +61,7 @@ export function ScheduleRecurrenceField({
       {showEnd && (
         <div className="space-y-2 pt-1">
           <Label className="text-xs text-muted-foreground">
-            Stops repeating after (optional)
+            Stops repeating after <span className="text-destructive">*</span>
           </Label>
           <div className="flex items-center gap-2">
             <Popover>
@@ -69,11 +69,14 @@ export function ScheduleRecurrenceField({
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn("flex-1 justify-start text-left font-normal")}
+                  className={cn(
+                    "flex-1 justify-start text-left font-normal",
+                    !endDate && "border-destructive text-destructive",
+                  )}
                   disabled={disabled}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {endDate ? format(endDate, "MMM d, yyyy") : "No end date"}
+                  {endDate ? format(endDate, "MMM d, yyyy") : "Choose end date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
