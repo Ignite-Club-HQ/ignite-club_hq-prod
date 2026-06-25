@@ -15,9 +15,12 @@ interface Body {
   force?: boolean;
   /** ISO timestamp of when the user last opened this thread (used to anchor "since your last visit"). */
   last_opened_at?: string | null;
+  /** When provided, ignore last_opened_at and summarise the last N hours. */
+  lookback_hours?: number;
 }
 
 const MAX_MESSAGES = 50;
+const MAX_MESSAGES_LOOKBACK = 200;
 const SUMMARY_TTL_HOURS = 48;
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
@@ -136,7 +139,11 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const { scope_type, scope_id, force, last_opened_at } = body || ({} as Body);
+    const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    const lookbackCutoffIso = validLookback
+      ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
+      : null;
     if (!scope_type || !scope_id || !SCOPE_TABLES[scope_type]) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -222,13 +229,17 @@ serve(async (req) => {
     });
 
     const { table, scopeCol } = SCOPE_TABLES[scope_type];
-    const { data: msgRows, error: msgErr } = await userClient
+    let msgQuery = userClient
       .from(table)
       .select("id, text, author_id, created_at, image_url")
       .eq(scopeCol, scope_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(MAX_MESSAGES);
+      .limit(validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES);
+    if (lookbackCutoffIso) {
+      msgQuery = msgQuery.gte("created_at", lookbackCutoffIso);
+    }
+    const { data: msgRows, error: msgErr } = await msgQuery;
 
     if (msgErr) {
       console.error("[summarize-chat] msg fetch failed", msgErr);
@@ -246,8 +257,9 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL)
-    if (!force) {
+    // Cache hit? (respect TTL) — skip cache entirely when user asked for a
+    // bespoke time window so we don't return a narrower cached recap.
+    if (!force && !validLookback) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at")
@@ -444,9 +456,11 @@ serve(async (req) => {
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
 
     const nowIso = new Date().toISOString();
-    const lastVisitLine = last_opened_at
-      ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
-      : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
+    const lastVisitLine = validLookback
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      : last_opened_at
+        ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
+        : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
     const userPrompt =
       `Now is ${nowIso}. ${lastVisitLine}\n\nSummarise the following ${messages.length} chat messages from a sports-club ${scope_type} chat. Return JSON only matching the schema in the system instructions.\n\n${transcript}`;
 
@@ -514,22 +528,25 @@ serve(async (req) => {
       },
     };
 
-    // Upsert cache
-    await admin
-      .from("chat_summaries")
-      .upsert(
-        {
-          user_id: user.id,
-          scope_type,
-          scope_id,
-          last_message_id: lastMessageId,
-          message_count: messages.length,
-          summary,
-          model: "gemini-2.5-flash-lite",
-          expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
-        },
-        { onConflict: "user_id,scope_type,scope_id,last_message_id" },
-      );
+    // Upsert cache — skip for explicit lookback windows so they don't pollute
+    // the default "since last visit" cache entry.
+    if (!validLookback) {
+      await admin
+        .from("chat_summaries")
+        .upsert(
+          {
+            user_id: user.id,
+            scope_type,
+            scope_id,
+            last_message_id: lastMessageId,
+            message_count: messages.length,
+            summary,
+            model: "gemini-2.5-flash-lite",
+            expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "user_id,scope_type,scope_id,last_message_id" },
+        );
+    }
 
     return new Response(
       JSON.stringify({
@@ -537,7 +554,8 @@ serve(async (req) => {
         message_count: messages.length,
         last_message_id: lastMessageId,
         cached: false,
-        used_fallback: !last_opened_at,
+        used_fallback: !validLookback && !last_opened_at,
+        lookback_hours: validLookback ? lookback_hours : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

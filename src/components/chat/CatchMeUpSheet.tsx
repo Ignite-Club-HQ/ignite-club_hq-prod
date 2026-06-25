@@ -34,7 +34,22 @@ interface CatchMeUpSheetProps {
   result: ChatSummaryResult | null;
   unreadCount: number;
   onRegenerate: () => void;
+  onLookback?: (hours: number) => void;
   onUpgrade?: () => void;
+}
+
+const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
+
+function formatLookbackLabel(hours: number): string {
+  if (hours >= 24 && hours % 24 === 0) {
+    const days = hours / 24;
+    return days === 1 ? "last 24 hours" : `last ${days} days`;
+  }
+  return `last ${hours} hours`;
 }
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
@@ -90,7 +105,7 @@ function priorityBadgeClasses(p: OutstandingAction["priority"]) {
 }
 
 export function CatchMeUpSheet({
-  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onUpgrade,
+  open, onOpenChange, loading, error, result, unreadCount, onRegenerate, onLookback, onUpgrade,
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
@@ -353,15 +368,43 @@ export function CatchMeUpSheet({
 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  {result!.used_fallback
-                    ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the last 7 days.`
-                    : `Summarised ${result!.message_count} new message${result!.message_count === 1 ? "" : "s"} since your last visit.`}
+                  {result!.lookback_hours
+                    ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the ${formatLookbackLabel(result!.lookback_hours)}.`
+                    : result!.used_fallback
+                      ? `Summarised ${result!.message_count} message${result!.message_count === 1 ? "" : "s"} from the last 7 days.`
+                      : `Summarised ${result!.message_count} new message${result!.message_count === 1 ? "" : "s"} since your last visit.`}
                 </p>
                 <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onRegenerate}>
                   <RefreshCw className="h-3 w-3" />
                   Regenerate
                 </Button>
               </div>
+
+              {onLookback && (
+                <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-foreground">Look further back</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Summarise a longer time window of this chat.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {LOOKBACK_OPTIONS.map((opt) => {
+                      const active = result!.lookback_hours === opt.hours;
+                      return (
+                        <Button
+                          key={opt.hours}
+                          size="sm"
+                          variant={active ? "default" : "outline"}
+                          className="h-7 text-xs"
+                          disabled={loading || active}
+                          onClick={() => onLookback(opt.hours)}
+                        >
+                          {opt.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

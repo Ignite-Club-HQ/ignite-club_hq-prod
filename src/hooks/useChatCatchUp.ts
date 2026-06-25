@@ -41,6 +41,8 @@ export interface ChatSummaryResult {
   cached: boolean;
   /** True when the backend fell back to a 7-day floor because last_opened_at was missing or stale. */
   used_fallback?: boolean;
+  /** When the user explicitly chose a deeper time window, the hours covered. */
+  lookback_hours?: number;
 }
 
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
@@ -165,13 +167,15 @@ export function useChatCatchUp({
   }, [scope_type, scope_id, unreadCount, hasRecentBroadcastWithReplies, cardEnabled, latestMessageId, dismissTick]);
 
   const summarize = useCallback(
-    async (opts?: { force?: boolean; openSheet?: boolean }) => {
+    async (opts?: { force?: boolean; openSheet?: boolean; lookbackHours?: number }) => {
       if (!scope_id) return;
+      const lookbackHours = opts?.lookbackHours;
+      const forceFresh = !!opts?.force || lookbackHours != null;
       setLoading(true);
       setError(null);
-      // On forced regenerate, clear the existing result so the sheet shows the
-      // loading typewriter instead of the stale summary while the new one is built.
-      if (opts?.force) setResult(null);
+      // On forced regenerate or explicit lookback, clear the existing result so
+      // the sheet shows the loading typewriter instead of the stale summary.
+      if (forceFresh) setResult(null);
       if (opts?.openSheet) setSheetOpen(true);
 
       const parseErr = async (error: any): Promise<string> => {
@@ -193,11 +197,18 @@ export function useChatCatchUp({
       try {
         const lastOpenedMs = getLastOpened(scope_type, scope_id);
         const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-        const body = { scope_type, scope_id, force: !!opts?.force, last_opened_at };
+        const body: Record<string, unknown> = {
+          scope_type,
+          scope_id,
+          force: forceFresh,
+          last_opened_at,
+        };
+        if (lookbackHours != null) body.lookback_hours = lookbackHours;
 
         // Hot path: assemble from precomputed digests (no LLM call).
         // Only supports team/club/group scopes; falls through for DMs & club_admin.
-        if (!opts?.force && (scope_type === "team" || scope_type === "club" || scope_type === "group")) {
+        // We use this path even for explicit lookbacks — it ignores cache by design.
+        if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
           const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
           if (!fastErr && fast) {
             setResult(fast as ChatSummaryResult);

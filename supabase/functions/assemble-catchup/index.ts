@@ -19,6 +19,8 @@ interface Body {
   scope_type: ScopeType;
   scope_id: string;
   last_opened_at?: string | null;
+  /** When provided, ignore last_opened_at and summarise the last N hours. */
+  lookback_hours?: number;
 }
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string; digestType?: "team" | "club" | "group" }> = {
@@ -73,7 +75,7 @@ serve(async (req) => {
       });
     }
 
-    const { scope_type, scope_id, last_opened_at } = bodyParsed || ({} as Body);
+    const { scope_type, scope_id, last_opened_at, lookback_hours } = bodyParsed || ({} as Body);
     const cfg = SCOPE_TABLES[scope_type];
     if (!scope_type || !scope_id || !cfg) {
       return new Response(JSON.stringify({ error: "Invalid scope" }), {
@@ -88,20 +90,32 @@ serve(async (req) => {
       });
     }
 
-    // Cutoff: last_opened_at OR 7 days back as a soft floor.
+    // Cutoff resolution:
+    //  - explicit lookback_hours wins (user asked to look further back)
+    //  - else last_opened_at when valid
+    //  - else 7-day floor (and flag used_fallback)
     const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
     const FLOOR_ISO = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
+    const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
     const hasLastOpened = last_opened_at && !isNaN(Date.parse(last_opened_at));
-    let cutoffIso = hasLastOpened
-      ? new Date(last_opened_at).toISOString()
-      : FLOOR_ISO;
-    let usedFallback = !hasLastOpened;
+    let cutoffIso: string;
+    let usedFallback = false;
+    if (validLookback) {
+      cutoffIso = new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString();
+    } else if (hasLastOpened) {
+      cutoffIso = new Date(last_opened_at as string).toISOString();
+    } else {
+      cutoffIso = FLOOR_ISO;
+      usedFallback = true;
+    }
 
     // RLS on message_digests gates this to chats the user can access.
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
 
+    // Larger digest cap when user explicitly asked to look further back.
+    const digestLimit = validLookback ? 1000 : 300;
     const fetchDigests = (sinceIso: string) =>
       userClient
         .from("message_digests")
@@ -110,7 +124,7 @@ serve(async (req) => {
         .eq("chat_scope_id", scope_id)
         .gte("message_created_at", sinceIso)
         .order("message_created_at", { ascending: true })
-        .limit(300);
+        .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
     if (dErr) {
@@ -122,7 +136,8 @@ serve(async (req) => {
 
     // If nothing new since the user's last visit, widen the window to the 7-day
     // floor so they still get a recap rather than a "Nothing to summarise" error.
-    if ((!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
+    // Skip this when the user EXPLICITLY chose a window — respect their choice.
+    if (!validLookback && (!digests || digests.length === 0) && cutoffIso !== FLOOR_ISO) {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
@@ -246,6 +261,7 @@ serve(async (req) => {
         cached: true,
         provider: "assembled",
         used_fallback: usedFallback,
+        lookback_hours: validLookback ? lookback_hours : null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
