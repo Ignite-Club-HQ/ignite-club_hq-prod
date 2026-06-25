@@ -782,8 +782,10 @@ export default function EventsPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
 
-          {/* Filter button - hidden in club theme mode or when user belongs to ≤1 club */}
-          {(!activeClubFilter && (userClubs?.length || 0) > 1) && (
+          {/* Filter button - show when there are multiple clubs to switch between,
+              OR when in club-theme mode and there are teams/mini-leagues to filter by */}
+          {(((!activeClubFilter && (userClubs?.length || 0) > 1)) ||
+            (activeClubFilter && ((userTeams?.length || 0) + (userMiniLeagues?.length || 0)) > 1)) && (
             <Button
               variant={hasActiveFilters ? "default" : "outline"}
               size="icon"
