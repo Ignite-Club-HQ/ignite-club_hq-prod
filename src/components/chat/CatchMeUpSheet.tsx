@@ -179,7 +179,7 @@ export function CatchMeUpSheet({
             <>
               {view.headline && (
                 <p className="mb-3 text-sm font-medium leading-snug text-foreground">
-                  <Typed text={view.headline} delayMs={nextOrder() * STAGGER_MS} />
+                  <Typed text={view.headline} delayMs={scheduleType(__TXT__)} charMs={CHAR_MS} />
                 </p>
               )}
 
@@ -206,7 +206,7 @@ export function CatchMeUpSheet({
                             <li key={i} className="flex gap-2 text-sm leading-snug">
                               <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
                               <span className="text-foreground">
-                                <Typed text={item} delayMs={nextOrder() * STAGGER_MS} />
+                                <Typed text={item} delayMs={scheduleType(__TXT__)} charMs={CHAR_MS} />
                               </span>
                             </li>
                           ))}
@@ -234,7 +234,7 @@ export function CatchMeUpSheet({
                             {a.priority}
                           </span>
                           <span className="text-sm leading-snug text-foreground">
-                            <Typed text={a.text} delayMs={nextOrder() * STAGGER_MS} />
+                            <Typed text={a.text} delayMs={scheduleType(__TXT__)} charMs={CHAR_MS} />
                           </span>
                         </div>
                         {a.owner && (
@@ -260,7 +260,7 @@ export function CatchMeUpSheet({
                       <li key={i} className="flex gap-2 text-sm leading-snug">
                         <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
                         <span className="text-foreground">
-                          <Typed text={q} delayMs={nextOrder() * STAGGER_MS} />
+                          <Typed text={q} delayMs={scheduleType(__TXT__)} charMs={CHAR_MS} />
                         </span>
                       </li>
                     ))}
@@ -270,7 +270,7 @@ export function CatchMeUpSheet({
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={nextOrder() * STAGGER_MS} />
+                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={scheduleType(__TXT__)} charMs={CHAR_MS} />
                 </div>
               )}
             </>
