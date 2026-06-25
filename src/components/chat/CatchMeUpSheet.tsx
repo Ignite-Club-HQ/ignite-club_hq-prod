@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,6 +7,23 @@ import {
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+
+const LOADING_STAGES = [
+  "Reading recent messages…",
+  "Sorting by when they arrived…",
+  "Pulling out actions & questions…",
+  "Polishing the summary…",
+];
+
+function useLoadingStage(active: boolean) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!active) { setStage(0); return; }
+    const id = setInterval(() => setStage((s) => Math.min(s + 1, LOADING_STAGES.length - 1)), 1800);
+    return () => clearInterval(id);
+  }, [active]);
+  return stage;
+}
 
 interface CatchMeUpSheetProps {
   open: boolean;
@@ -76,6 +93,7 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  const loadingStage = useLoadingStage(loading && !result);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
@@ -120,15 +138,39 @@ export function CatchMeUpSheet({
 
         <div className="px-4 pt-2 pb-6">
           {loading && !result && (
-            <div className="space-y-3 py-2">
+            <div className="space-y-3 py-1">
+              {/* Headline placeholder */}
               <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-3 w-3/5" />
-              <div className="mt-4 space-y-2">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-11/12" />
-                <Skeleton className="h-3 w-9/12" />
+              <Skeleton className="h-3 w-2/5" />
+
+              {/* Section-shaped placeholders so the layout doesn't jump when content lands */}
+              {[0, 1, 2].map((i) => (
+                <section
+                  key={i}
+                  className="rounded-xl border border-border bg-card p-3"
+                  style={{ animation: `pulse 1.6s ease-in-out ${i * 0.15}s infinite` }}
+                >
+                  <Skeleton className="mb-2 h-3 w-1/3" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-11/12" />
+                    {i === 0 && <Skeleton className="h-3 w-8/12" />}
+                  </div>
+                </section>
+              ))}
+
+              <div className="flex items-center gap-2 pt-1">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                </span>
+                <p
+                  key={loadingStage}
+                  className="text-xs text-muted-foreground animate-in fade-in slide-in-from-bottom-1 duration-300"
+                >
+                  {LOADING_STAGES[loadingStage]}
+                </p>
               </div>
-              <p className="pt-3 text-xs text-muted-foreground">Reading the last messages and pulling out what matters…</p>
             </div>
           )}
 
@@ -154,12 +196,15 @@ export function CatchMeUpSheet({
           {!loading && !err && view && (
             <>
               {view.headline && (
-                <p className="mb-3 text-sm font-medium leading-snug text-foreground">{view.headline}</p>
+                <p className="mb-3 text-sm font-medium leading-snug text-foreground animate-in fade-in slide-in-from-bottom-1 duration-300">
+                  {view.headline}
+                </p>
               )}
 
               {/* Since your last visit */}
               {view.sinceHasAny && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:80ms] [animation-fill-mode:both]">
+
                   <div className="mb-2 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -191,7 +236,8 @@ export function CatchMeUpSheet({
 
               {/* Outstanding actions */}
               {view.actions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:180ms] [animation-fill-mode:both]">
+
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -218,7 +264,7 @@ export function CatchMeUpSheet({
 
               {/* Outstanding questions */}
               {view.questions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                <section className="mb-3 rounded-xl border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-2 duration-300 [animation-delay:280ms] [animation-fill-mode:both]">
                   <div className="mb-2 flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-rose-500" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
