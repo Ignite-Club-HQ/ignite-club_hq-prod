@@ -143,8 +143,17 @@ export function CatchMeUpSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] flex flex-col rounded-t-2xl px-0 pb-0">
-        <SheetHeader className="px-4 pt-1 text-left">
+      <SheetContent side="bottom" hideCloseButton className="max-h-[85vh] flex flex-col rounded-t-2xl px-0 pb-0">
+        <SheetHeader className="relative px-4 pt-1 text-left">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-2 h-8 w-8 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </Button>
           <SheetTitle className="flex items-center gap-2.5 text-2xl font-semibold">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
               <Sparkles className="h-5 w-5 text-primary" />
