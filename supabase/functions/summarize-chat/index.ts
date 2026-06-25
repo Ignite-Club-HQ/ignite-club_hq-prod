@@ -16,6 +16,23 @@ interface Body {
 }
 
 const MAX_MESSAGES = 50;
+const SUMMARY_TTL_HOURS = 48;
+
+// Sensitive-topic blocklist — if the recent transcript hits any of these we
+// refuse to send it to the LLM. Keeps medical, safeguarding and disciplinary
+// context out of third-party AI even when an admin tries to summarise it.
+const SENSITIVE_PATTERNS: { label: string; re: RegExp }[] = [
+  { label: "medical", re: /\b(?:medical|medication|diagnosis|diagnosed|prescription|prescribed|hospital(?:ised|ized)?|surgery|injur(?:y|ies|ed)\s+report|concussion|seizure|allerg(?:y|ic)|epi[- ]?pen|asthma|insulin|mental health|self[- ]harm|suicid(?:e|al)|overdose)\b/i },
+  { label: "safeguarding", re: /\b(?:safeguard(?:ing)?|child protection|abuse|abusive|assault|grooming|inappropriate touch|disclosure|mandatory report|police report|incident report|welfare concern|cps|family court|restraining order|dvo|avo|domestic violence)\b/i },
+  { label: "disciplinary", re: /\b(?:disciplinary|misconduct|suspension|suspended|expel(?:led|sion)?|tribunal|hearing\s+(?:date|panel)|formal warning|grievance|complaint\s+against|investigation\s+into|sanction(?:ed)?|banned\s+from)\b/i },
+];
+
+function detectSensitive(text: string): string | null {
+  for (const { label, re } of SENSITIVE_PATTERNS) {
+    if (re.test(text)) return label;
+  }
+  return null;
+}
 
 const SCOPE_TABLES: Record<ScopeType, { table: string; scopeCol: string }> = {
   team: { table: "team_messages", scopeCol: "team_id" },
