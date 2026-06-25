@@ -166,7 +166,7 @@ export function CatchMeUpSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="px-4 pt-2 pb-6">
+        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
           {loading && !result && (
             <div className="space-y-3 py-1">
               {/* Headline placeholder */}
