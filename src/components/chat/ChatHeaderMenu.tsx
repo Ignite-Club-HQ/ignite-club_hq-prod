@@ -142,9 +142,21 @@ export function ChatHeaderMenu({
             {hasMoreActions && (
               <>
                 {(onRefresh || onScheduleMessage) && <DropdownMenuSeparator />}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>More</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="bg-popover min-w-[200px]">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMoreOpen((v) => !v);
+                  }}
+                >
+                  <span className="flex-1">More</span>
+                  {moreOpen ? (
+                    <ChevronUp className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  )}
+                </DropdownMenuItem>
+                {moreOpen && (
+                  <div className="pl-2">
                     {onManagePinnedVault && (
                       <>
                         <DropdownMenuItem onClick={onManagePinnedVault}>
@@ -186,8 +198,8 @@ export function ChatHeaderMenu({
                         Delete group
                       </DropdownMenuItem>
                     )}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                  </div>
+                )}
               </>
             )}
           </DropdownMenuContent>
