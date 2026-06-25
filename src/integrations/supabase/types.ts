@@ -9682,6 +9682,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      app_admin_enable_ai_catch_up_for_pro_clubs: {
+        Args: { p_club_ids?: string[] }
+        Returns: Json
+      }
       approve_chat_group_join_request: {
         Args: { _request_id: string }
         Returns: string
