@@ -200,7 +200,7 @@ serve(async (req) => {
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
-    const msgLimit = validLookback ? MAX_MESSAGES_LOOKBACK : MAX_MESSAGES;
+    const msgLimit = validLookback ? lookbackMessageCap(lookback_hours as number) : MAX_MESSAGES;
 
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
