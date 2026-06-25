@@ -27,20 +27,34 @@ function errorMessage(code: string | null): { title: string; body: string; isPro
         body: "AI ‘Catch me up’ summaries are available on Pro clubs. Upgrade to unlock instant catch-up for your members.",
         isPro: true,
       };
+    case "feature_disabled":
+      return { title: "Turned off for this club", body: "An admin has disabled AI ‘Catch me up’ for this club. Ask a club admin to re-enable it in club settings." };
+    case "disclosure_required":
+      return { title: "One-time acknowledgement needed", body: "Please accept the AI privacy notice to use Catch me up." };
     case "rate_limited":
       return { title: "Slow down", body: "Too many summary requests just now. Please try again in a minute." };
     case "credits_exhausted":
       return { title: "AI temporarily unavailable", body: "Our AI provider has run out of credits. Please try again later." };
     case "no_messages":
       return { title: "Nothing to summarise", body: "There aren’t any recent messages in this chat yet." };
+    case "fetch_failed":
+      return { title: "Couldn’t read messages", body: "We couldn’t load the recent messages for this chat. Check your connection and try again." };
+    case "ai_not_configured":
+      return { title: "AI not configured", body: "The AI provider isn’t set up yet. Ask an app admin to add the required API key." };
+    case "ai_failed":
+      return { title: "AI service unreachable", body: "We couldn’t reach the AI service. This usually clears up in a minute — please try again." };
+    case "ai_invalid_output":
+      return { title: "AI returned an unreadable summary", body: "The AI didn’t return valid output for this thread (often happens on very long or sparse chats). Try Regenerate, or ask an app admin to switch the AI provider in App Settings." };
     case "sensitive_content":
       return {
         title: "Summary blocked",
         body: "This thread contains sensitive content (medical, safeguarding or disciplinary). For privacy we don’t send these messages to AI — please read them directly.",
         isSensitive: true,
       };
+    case "server_error":
+      return { title: "Something went wrong", body: "An unexpected error occurred while preparing your summary. Please try again." };
     default:
-      return { title: "Couldn’t generate summary", body: "Something went wrong while preparing your summary. Please try again." };
+      return { title: "Couldn’t generate summary", body: "Something went wrong while preparing your summary. Please try again, or switch providers in App Settings if it keeps happening." };
   }
 }
 
