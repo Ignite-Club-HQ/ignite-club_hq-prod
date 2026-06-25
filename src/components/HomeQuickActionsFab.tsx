@@ -63,6 +63,7 @@ export function HomeQuickActionsFab({
   hasProContext = false,
 }: HomeQuickActionsFabProps) {
   const proLocked = !hasProContext && !isAppAdmin;
+  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
