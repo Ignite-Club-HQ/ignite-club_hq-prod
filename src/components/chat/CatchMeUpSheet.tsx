@@ -44,6 +44,14 @@ const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
   { label: "Last 30 days", hours: 24 * 30 },
 ];
 
+function formatLookbackLabel(hours: number): string {
+  if (hours >= 24 && hours % 24 === 0) {
+    const days = hours / 24;
+    return days === 1 ? "last 24 hours" : `last ${days} days`;
+  }
+  return `last ${hours} hours`;
+}
+
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
