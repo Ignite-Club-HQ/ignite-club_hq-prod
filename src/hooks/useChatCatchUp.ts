@@ -23,6 +23,8 @@ export interface ChatSummaryPayload {
     files_shared: string[];
     discussion: string[];
   };
+  /** True when the backend had to fall back to a 7-day floor because last_opened_at was missing or stale. */
+  used_fallback?: boolean;
   // Legacy fields (may still appear in cached summaries from the previous schema).
   important_updates?: string[];
   actions_needed?: string[];
