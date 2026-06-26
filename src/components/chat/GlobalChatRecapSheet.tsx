@@ -433,16 +433,22 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                           <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
                         )}
                         {details.length > 0 && (
-                          <ul className="mt-1.5 space-y-1">
+                          <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
                             {details.map((d, j) => (
                               <li
                                 key={`${scope.scope_id}-d-${i}-${j}`}
-                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                                className="relative -ml-[15px] pl-5"
                               >
-                                {d}
+                                <span className="absolute left-3 top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
+                                {d.time && (
+                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    {d.time}
+                                  </span>
+                                )}
+                                <span className="block text-sm leading-snug text-foreground">{d.text}</span>
                               </li>
                             ))}
-                          </ul>
+                          </ol>
                         )}
                         <Link
                           to={scope.link}
