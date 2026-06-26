@@ -273,7 +273,14 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
-      n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
+      // Only surface questions when the backend actually scoped to the unread
+      // window. If it fell back to the 7-day floor (no last_opened_at cutoff),
+      // the "questions" may be ancient and not from unread messages — skip
+      // them to match the per-thread behaviour.
+      const usedFallback = !!(p.result as any).used_fallback;
+      if (!usedFallback) {
+        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
+      }
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
