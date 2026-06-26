@@ -301,12 +301,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
-    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: string[] }> = [];
+    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: TimelineEntry[] }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
       if (n.headline || n.details.length > 0) {
-        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 4) });
+        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 6) });
       }
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
