@@ -516,7 +516,11 @@ serve(async (req) => {
         earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
       },
       outstanding_actions: actionsArr,
-      outstanding_questions: rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5),
+      // Open questions only from the unread window — suppress entirely when
+      // there is no last-visit cutoff and no explicit lookback.
+      outstanding_questions: (validLookback || last_opened_at)
+        ? rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
+        : [],
       detailed: {
         schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
         files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
