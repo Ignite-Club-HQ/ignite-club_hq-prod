@@ -19,6 +19,7 @@ import {
   Inbox,
   Loader2,
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getCatchUpLastOpened,
@@ -53,7 +54,12 @@ interface PerScope {
   result: ChatSummaryResult | null;
 }
 
-const CONCURRENCY = 4;
+// Lower concurrency on native Android WebView: each in-flight edge-function
+// invocation holds its response payload in memory, and 4-up parallelism while
+// the user is on the recap sheet has caused white-screen crashes on lower-end
+// devices. Web keeps the original 4-up batch size.
+const CONCURRENCY = Capacitor.isNativePlatform() ? 2 : 4;
+
 
 function priorityBadgeClasses(p: OutstandingAction["priority"]) {
   switch (p) {
