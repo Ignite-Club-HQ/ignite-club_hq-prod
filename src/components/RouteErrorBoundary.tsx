@@ -1,0 +1,109 @@
+import React from "react";
+
+/**
+ * Catches uncaught render errors anywhere inside the route tree so a single
+ * bad component (commonly during a notification-tap cold start on Android
+ * WebView) does NOT tear React down to a blank white screen.
+ *
+ * Symptom before this existed: tap a chat push notification → app launches →
+ * page mid-render throws → React unmounts the entire tree → user sees a
+ * blank white WebView until they force-quit. With this boundary in place,
+ * we render a recovery surface with a "Go to Inbox" button and stash the
+ * error in localStorage so we can diagnose on the next session.
+ */
+
+interface State {
+  error: Error | null;
+}
+
+const LAST_ERROR_KEY = "ignite_last_route_error";
+
+export class RouteErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  State
+> {
+  state: State = { error: null };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    try {
+      const payload = {
+        message: error?.message ?? String(error),
+        stack: error?.stack ?? null,
+        componentStack: info?.componentStack ?? null,
+        url: typeof window !== "undefined" ? window.location.href : null,
+        at: new Date().toISOString(),
+      };
+      localStorage.setItem(LAST_ERROR_KEY, JSON.stringify(payload));
+      // eslint-disable-next-line no-console
+      console.error("[RouteErrorBoundary] caught render error", payload);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private handleReset = () => {
+    this.setState({ error: null });
+  };
+
+  private handleHome = () => {
+    try {
+      // Clear any pending notification-driven jump so the inbox doesn't
+      // immediately re-trigger the same broken path.
+      sessionStorage.removeItem("pendingPushNavigationUrl");
+      sessionStorage.removeItem("ignite_pending_chat_jump");
+    } catch { /* ignore */ }
+    this.setState({ error: null });
+    if (typeof window !== "undefined") {
+      window.location.replace("/messages");
+    }
+  };
+
+  private handleReload = () => {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  };
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center px-6 text-center bg-background text-foreground">
+        <div className="max-w-sm w-full space-y-4">
+          <h1 className="text-xl font-semibold">Something went wrong</h1>
+          <p className="text-sm text-muted-foreground leading-snug">
+            We hit an unexpected error opening this screen. You can head back
+            to your inbox or try again.
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              type="button"
+              onClick={this.handleHome}
+              className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-medium"
+            >
+              Go to Inbox
+            </button>
+            <button
+              type="button"
+              onClick={this.handleReload}
+              className="w-full h-11 rounded-xl border border-border font-medium"
+            >
+              Reload app
+            </button>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              className="w-full h-9 text-xs text-muted-foreground underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}

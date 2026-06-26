@@ -24,6 +24,7 @@ import { NativeAppUpdatePrompt } from "@/components/NativeAppUpdatePrompt";
 
 import { StatusBarManager } from "@/components/StatusBarManager";
 import { NotifDebugOverlay } from "@/components/NotifDebugOverlay";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { IcsPreviewFallbackDialog } from "@/components/IcsPreviewFallbackDialog";
 import { Loader2 } from "lucide-react";
 
@@ -343,6 +344,7 @@ const App = () => {
             <MessagesBootstrapPrefetcher />
 
             <Suspense fallback={<PageLoader />}>
+              <RouteErrorBoundary>
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<AuthPage />} />
@@ -464,6 +466,7 @@ const App = () => {
                 <Route path="/c/:id" element={<PublicCompetitionPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </RouteErrorBoundary>
             </Suspense>
             <CookieConsentBanner />
             <IOSInstallPrompt />
