@@ -401,8 +401,8 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
           {scopes.length > 0 && totalLoading === 0 && (
             <>
-              {/* Cross-thread overview: one-line headline per thread */}
-              {aggregated.headlines.length > 0 && (
+              {/* Cross-thread overview: headline + key detail bullets per thread */}
+              {aggregated.overviews.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <div className="mb-3 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
@@ -410,18 +410,39 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                       Across your chats
                     </p>
                   </div>
-                  <ul className="space-y-2.5">
-                    {aggregated.headlines.map(({ scope, headline }, i) => (
-                      <li key={`${scope.scope_id}-h-${i}`}>
-                        <p className="text-sm leading-snug text-foreground">
-                          <span className="font-semibold">{scope.name}:</span>{" "}
-                          {headline}
-                        </p>
+                  <ul className="space-y-3.5">
+                    {aggregated.overviews.map(({ scope, headline, details }, i) => (
+                      <li key={`${scope.scope_id}-h-${i}`} className="border-l-2 border-border pl-3">
+                        <p className="text-sm font-semibold text-foreground">{scope.name}</p>
+                        {headline && (
+                          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
+                        )}
+                        {details.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {details.map((d, j) => (
+                              <li
+                                key={`${scope.scope_id}-d-${i}-${j}`}
+                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                              >
+                                {d}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <Link
+                          to={scope.link}
+                          onClick={() => onOpenChange(false)}
+                          className="mt-1.5 inline-flex items-center text-xs text-muted-foreground hover:text-primary"
+                        >
+                          Open {scope.name}
+                          <ChevronRight className="h-3 w-3" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
                 </section>
               )}
+
 
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
