@@ -17,6 +17,7 @@ import {
   AlertCircle,
   RefreshCw,
   Inbox,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
