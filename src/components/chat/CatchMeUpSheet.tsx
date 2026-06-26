@@ -7,7 +7,8 @@ import {
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
   Loader2, X,
 } from "lucide-react";
-import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
+import { normalizeQuestion } from "@/hooks/useChatCatchUp";
 
 const LOADING_STAGES = [
   "Reading recent messages…",
