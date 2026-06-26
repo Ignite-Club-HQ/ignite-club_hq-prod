@@ -135,20 +135,28 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
   }
 }
 
+export interface TimelineEntry { time: string | null; text: string }
+
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
-  // Collect richer detail bullets so the cross-thread overview can show more
-  // than just the one-line headline that already appears on the per-thread card.
-  const details: string[] = [];
+  // Build a chronological-ish timeline. Each bullet's leading [time] tag is
+  // parsed out so the UI can render it as a chip next to the bullet.
+  const details: TimelineEntry[] = [];
+  const seen = new Set<string>();
   const push = (arr?: string[] | null) => {
     if (!arr) return;
-    for (const t of arr) {
-      const s = stripRecapDatePrefix((t ?? "").toString().trim());
-      if (s && !details.includes(s)) details.push(s);
+    for (const raw of arr) {
+      const s = (raw ?? "").toString().trim();
+      if (!s) continue;
+      const parsed = parseRecapTimeTag(s);
+      const clean = parsed.text || stripRecapDatePrefix(s);
+      if (!clean || seen.has(clean)) continue;
+      seen.add(clean);
+      details.push({ time: parsed.time, text: clean });
     }
   };
   push(summary.since_last_visit?.today);
