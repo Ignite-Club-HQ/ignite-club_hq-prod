@@ -86,30 +86,30 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. An answer includes responses such as "yes", "no", "I can", "I'll do it", "done", "sorted", "confirmed", "ok", "sure", or any message that directly resolves the question. Drop anything that was already resolved in the transcript.
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
   "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
   "since_last_visit": {
-    "today": string[],     // max 5 bullets, most important first
-    "yesterday": string[], // max 3 bullets
-    "earlier": string[]    // max 3 bullets ("Earlier this week")
+    "today": string[],     // max 8 bullets, most important first
+    "yesterday": string[], // max 5 bullets
+    "earlier": string[]    // max 5 bullets ("Earlier this week")
   },
   "outstanding_actions": Array<{
     "text": string,                        // <=200 chars, the action itself
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
     "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
   }>, // max 5, sorted high -> low priority
-  "outstanding_questions": Array<{ "text": string, "date": string }>, // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. If the user has no last-visit cutoff (whole transcript counts), still exclude questions you cannot confirm are recent and unresolved. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.). The "date" field must be the YYYY-MM-DD extracted from the transcript timestamp of the message that asked the question.
+  "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
-    "schedule_changes": string[], // max 5 bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 5 bullets — photos / docs shared, with sender if useful
-    "discussion": string[]        // max 5 bullets — other notable discussion that wasn't an action or schedule change
+    "schedule_changes": string[], // max 8 bullets — training/match time, date, location changes
+    "files_shared": string[],     // max 8 bullets — photos / docs shared, with sender if useful
+    "discussion": string[]        // max 10 bullets — other notable discussion, decisions, questions raised, opinions, suggestions
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 4-8 bullets total — fewer only if the chat genuinely had less activity. Every array and object MUST exist (use [] or null). Keep bullets <=200 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 6-12 bullets total — fewer only if the chat genuinely had less activity. Be DETAILED: each bullet should carry the specific fact (who, what, when, where, why) — not a vague headline. If something was asked but not answered, state it as a bullet ("Coach asked who can ref the U10 game Sat — no reply yet") rather than dropping it. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
