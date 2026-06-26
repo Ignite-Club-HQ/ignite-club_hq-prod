@@ -520,20 +520,17 @@ serve(async (req) => {
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
       since_last_visit: {
-        today: rehydrateArr(sinceRaw.today).slice(0, 3),
-        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 2),
-        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
+        today: rehydrateArr(sinceRaw.today).slice(0, 8),
+        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 5),
+        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 5),
       },
       outstanding_actions: actionsArr,
-      // Open questions only from the unread window — suppress entirely when
-      // there is no last-visit cutoff and no explicit lookback.
-      outstanding_questions: (validLookback || last_opened_at)
-        ? rehydrateQuestions(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
-        : [],
+      // Open questions removed — folded into since_last_visit/discussion for richer detail.
+      outstanding_questions: [],
       detailed: {
-        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
-        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
-        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 5),
+        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 8),
+        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 8),
+        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 10),
       },
     };
 
