@@ -256,44 +256,41 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    // Open questions: only surface from genuinely unread messages (since the
-    // user's last visit). If we had to fall back to the 7-day floor because
-    // there were no new messages, suppress the section entirely — questions
-    // from previous history are not "open" to the user. Explicit lookback
-    // (user clicked "Look further back") is honoured.
-    const questionsFromUnreadOnly = validLookback || (hasLastOpened && !usedFallback);
-    const outstanding_questions = questionsFromUnreadOnly
-      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => ({
-          text: q.text,
-          date: new Date(digests[q.idx].message_created_at).toISOString().slice(0, 10),
-        }))
-      : [];
+    // Open questions removed from the UI — fold them into the activity buckets
+    // (with a trailing hint) so users still see the question without a flaky
+    // "is it really unanswered?" gate.
+    for (const q of questions) {
+      if (isResolved(q.text, q.topic, q.idx)) continue;
+      const bucket = bucketDay(now, new Date(digests[q.idx].message_created_at));
+      const phrased = /\?\s*$/.test(q.text) ? q.text : `${q.text}?`;
+      buckets[bucket].push(phrased);
+    }
+    const outstanding_questions: { text: string; date: string }[] = [];
 
     const headline = (() => {
       const newCount = (digests || []).length;
       if (decisions.length) return `${decisions.length} decision${decisions.length > 1 ? "s" : ""} and ${outstanding_actions.length} action${outstanding_actions.length === 1 ? "" : "s"} pending`;
       if (outstanding_actions.length) return `${outstanding_actions.length} action${outstanding_actions.length === 1 ? "" : "s"} need attention`;
-      if (outstanding_questions.length) return `${outstanding_questions.length} open question${outstanding_questions.length === 1 ? "" : "s"}`;
       return `${newCount} new message${newCount === 1 ? "" : "s"} since your last visit`;
     })();
 
     const summary = {
       headline: headline.slice(0, 110),
       since_last_visit: {
-        today: buckets.today.slice(0, 3),
-        yesterday: buckets.yesterday.slice(0, 2),
-        earlier: buckets.earlier.slice(0, 2),
+        today: buckets.today.slice(0, 8),
+        yesterday: buckets.yesterday.slice(0, 5),
+        earlier: buckets.earlier.slice(0, 5),
       },
       outstanding_actions,
       outstanding_questions,
       detailed: {
-        schedule_changes: decisions.slice(0, 5),
+        schedule_changes: decisions.slice(0, 8),
         files_shared: [],
         discussion: (digests || [])
-          .filter((d: any) => d.classification === "info")
+          .filter((d: any) => d.classification === "info" || d.classification === "question")
           .map((d: any) => d.summary)
           .filter(Boolean)
-          .slice(0, 5),
+          .slice(0, 10),
       },
     };
 
