@@ -558,7 +558,7 @@ export function AppHeader() {
         .or(`club_id.eq.${activeClubFilter},club_id.is.null`)
         .eq("is_read", false)
         .limit(200);
-      const filtered = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
+      const filtered = await filterClubScopedNotifications(data || [], user.id, activeClubFilter);
       return filtered.length;
     },
     enabled: !!user?.id && !!activeClubFilter,
