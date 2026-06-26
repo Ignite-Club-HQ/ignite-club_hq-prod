@@ -281,7 +281,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       // them to match the per-thread behaviour.
       const usedFallback = !!(p.result as any).used_fallback;
       if (!usedFallback) {
-        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
+        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q.text, date: q.date }));
       }
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
