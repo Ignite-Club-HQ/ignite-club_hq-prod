@@ -443,9 +443,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                     </p>
                   </div>
                   <ul className="space-y-3">
-                    {aggregated.questions.slice(0, 8).map(({ scope, text }, i) => (
+                    {aggregated.questions.slice(0, 8).map(({ scope, text, date }, i) => (
                       <li key={`${scope.scope_id}-q-${i}`}>
                         <p className="text-base leading-relaxed text-foreground">{text}</p>
+                        {date && (
+                          <p className="text-xs text-muted-foreground">{date}</p>
+                        )}
                         <Link
                           to={scope.link}
                           onClick={() => onOpenChange(false)}
