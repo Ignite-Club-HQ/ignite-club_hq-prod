@@ -48,6 +48,29 @@ function bucketDay(now: Date, ts: Date): "today" | "yesterday" | "earlier" {
   return "earlier";
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatTimeOfDay(ts: Date): string {
+  let h = ts.getHours();
+  const m = ts.getMinutes();
+  const suffix = h >= 12 ? "pm" : "am";
+  h = h % 12; if (h === 0) h = 12;
+  return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
+}
+/** Short human time tag: "9:30am" / "Yest 6pm" / "Mon 6pm" / "21 Jun 6pm". */
+function shortTimeTag(now: Date, ts: Date): string {
+  const bucket = bucketDay(now, ts);
+  const t = formatTimeOfDay(ts);
+  if (bucket === "today") return t;
+  if (bucket === "yesterday") return `Yest ${t}`;
+  const daysAgo = Math.floor((now.getTime() - ts.getTime()) / (24 * 3600 * 1000));
+  if (daysAgo < 7) return `${WEEKDAYS[ts.getDay()]} ${t}`;
+  return `${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
+}
+function tagBullet(now: Date, ts: Date, text: string): string {
+  return `[${shortTimeTag(now, ts)}] ${text}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
