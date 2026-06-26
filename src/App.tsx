@@ -344,6 +344,7 @@ const App = () => {
             <MessagesBootstrapPrefetcher />
 
             <Suspense fallback={<PageLoader />}>
+              <RouteErrorBoundary>
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<AuthPage />} />
