@@ -236,9 +236,11 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
+    const headlines: Array<{ scope: RecapScopeRef; headline: string }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
+      if (n.headline) headlines.push({ scope: p.ref, headline: n.headline });
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
@@ -246,7 +248,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
-    return { actions, questions };
+    return { actions, questions, headlines };
   }, [perScope, myNames]);
 
   const allEmpty =
