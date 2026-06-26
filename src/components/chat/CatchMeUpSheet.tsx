@@ -532,17 +532,22 @@ function Typed({
   delayMs?: number;
   charMs?: number;
 }) {
-  const [n, setN] = useState(0);
-  const [started, setStarted] = useState(delayMs === 0);
+  // staticMode is signalled by charMs === 0 (set by useStaticReveal): render
+  // the full text immediately, no setInterval/setTimeout, no per-character
+  // re-render storm. This is the Android-WebView crash mitigation.
+  const isStatic = charMs <= 0;
+  const [n, setN] = useState(isStatic ? text.length : 0);
+  const [started, setStarted] = useState(isStatic || delayMs === 0);
   useEffect(() => {
+    if (isStatic) { setN(text.length); setStarted(true); return; }
     setN(0);
     setStarted(delayMs === 0);
     if (delayMs === 0) return;
     const t = setTimeout(() => setStarted(true), delayMs);
     return () => clearTimeout(t);
-  }, [text, delayMs]);
+  }, [text, delayMs, isStatic]);
   useEffect(() => {
-    if (!started) return;
+    if (isStatic || !started) return;
     let i = 0;
     const id = setInterval(() => {
       i += 1;
@@ -550,7 +555,8 @@ function Typed({
       if (i >= text.length) clearInterval(id);
     }, charMs);
     return () => clearInterval(id);
-  }, [started, text, charMs]);
+  }, [started, text, charMs, isStatic]);
+
   // Grid stack: invisible full text reserves space; visible partial overlays it.
   return (
     <span className="grid">
