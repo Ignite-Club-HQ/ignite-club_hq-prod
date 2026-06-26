@@ -103,10 +103,11 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
   const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
   try {
     const { data, error } = await supabase.functions.invoke("assemble-catchup", { body });
-    if (!error && data) {
+    const fastCode = (data as any)?.error as string | undefined;
+    if (!error && data && !fastCode) {
       return { result: data as ChatSummaryResult, error: null };
     }
-    const code = error ? await parseInvokeError(error) : "unknown";
+    const code = error ? await parseInvokeError(error) : (fastCode ?? "unknown");
     // If digests aren't ready yet (worker hasn't covered this thread), fall back
     // to the full-LLM summariser — same behaviour as the per-thread hook.
     if (code === "digests_missing" || code === "unknown") {
@@ -116,6 +117,7 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
       return { result: llmData as ChatSummaryResult, error: null };
     }
     return { result: null, error: code };
+
   } catch (e: any) {
     return { result: null, error: e?.message || "unknown" };
   }
