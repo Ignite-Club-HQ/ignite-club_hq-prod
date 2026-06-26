@@ -266,7 +266,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
-    const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
+    const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
     const headlines: Array<{ scope: RecapScopeRef; headline: string }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
