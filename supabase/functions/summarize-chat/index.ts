@@ -551,7 +551,7 @@ serve(async (req) => {
       // When there is no last-visit cutoff and no explicit lookback, suppress
       // them entirely so we don't surface questions from old history.
       outstanding_questions: (validLookback || last_opened_at)
-        ? rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
+        ? rehydrateQuestions(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
         : [],
       detailed: {
         schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
