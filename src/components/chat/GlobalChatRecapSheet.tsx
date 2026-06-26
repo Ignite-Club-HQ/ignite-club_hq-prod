@@ -237,7 +237,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       if (!p.result) continue;
       const n = normalise(p.result.summary);
       n.actions.forEach((a) => {
-        if (isMine(a.owner)) actions.push({ scope: p.ref, action: a });
+        if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
       n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
     }
