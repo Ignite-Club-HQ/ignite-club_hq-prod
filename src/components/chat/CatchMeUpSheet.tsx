@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
+import { stripRecapDatePrefix } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -163,11 +164,15 @@ export function CatchMeUpSheet({
   const view = useMemo(() => {
     if (!result) return null;
     const s = result.summary;
-    const since = s.since_last_visit ?? {
-      today: s.important_updates?.slice(0, 3) ?? [],
-      yesterday: [] as string[],
-      earlier: [] as string[],
+    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix);
+    const since = {
+      today: clean(s.since_last_visit?.today),
+      yesterday: clean(s.since_last_visit?.yesterday),
+      earlier: clean(s.since_last_visit?.earlier),
     };
+    if (!s.since_last_visit) {
+      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
+    }
     const actions: OutstandingAction[] = s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
