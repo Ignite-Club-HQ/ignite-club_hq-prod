@@ -108,7 +108,7 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. An answer includes responses such as "yes", "no", "I can", "I'll do it", "done", "sorted", "confirmed", "ok", "sure", or any message that directly resolves the question. Drop anything that was already resolved in the transcript.
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
@@ -123,7 +123,7 @@ Return STRICT JSON only that matches this TypeScript type:
     "owner": string | null,
     "priority": "high" | "medium" | "low"
   }>,
-  "outstanding_questions": Array<{ "text": string, "date": string }>, // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.). The "date" field must be the YYYY-MM-DD extracted from the transcript timestamp of the message that asked the question.
+  "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
     "schedule_changes": string[],
     "files_shared": string[],
@@ -131,7 +131,11 @@ Return STRICT JSON only that matches this TypeScript type:
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 4-8 bullets total — fewer only if the chat genuinely had less activity. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=200 chars. Preserve concrete facts when they are stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent name, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown, no code fences.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 6-12 bullets total — fewer only if the chat genuinely had less activity. Be DETAILED: each bullet should carry the specific fact (who, what, when, where, why). If something was asked but not answered, state it as a bullet ("Coach asked who can ref the U10 game Sat — no reply yet") rather than dropping it. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when they are stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent name, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+
+RELATIVE TIME RESOLUTION (critical): Words like "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" inside the transcript were written from the SENDER's point in time, not NOW. You MUST re-anchor them against NOW (the timestamp given in the user message). Example: a message sent yesterday saying "training tomorrow at 6pm" — if "tomorrow" relative to that sender is actually TODAY relative to NOW, write the bullet as "training today at 6pm" (or with the weekday/date). Never copy a relative time word verbatim if it would mislead the reader at NOW. When in doubt, use the weekday + date (e.g. "Sat 27 Jun") instead of a relative word. Output JSON only — no prose, no markdown, no code fences.`;
 
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
@@ -520,20 +524,17 @@ serve(async (req) => {
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
       since_last_visit: {
-        today: rehydrateArr(sinceRaw.today).slice(0, 3),
-        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 2),
-        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
+        today: rehydrateArr(sinceRaw.today).slice(0, 8),
+        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 5),
+        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 5),
       },
       outstanding_actions: actionsArr,
-      // Open questions only from the unread window — suppress entirely when
-      // there is no last-visit cutoff and no explicit lookback.
-      outstanding_questions: (validLookback || last_opened_at)
-        ? rehydrateQuestions(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
-        : [],
+      // Open questions removed — folded into since_last_visit/discussion for richer detail.
+      outstanding_questions: [],
       detailed: {
-        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
-        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
-        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 5),
+        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 8),
+        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 8),
+        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 10),
       },
     };
 

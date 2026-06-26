@@ -86,30 +86,34 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. An answer includes responses such as "yes", "no", "I can", "I'll do it", "done", "sorted", "confirmed", "ok", "sure", or any message that directly resolves the question. Drop anything that was already resolved in the transcript.
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
   "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
   "since_last_visit": {
-    "today": string[],     // max 5 bullets, most important first
-    "yesterday": string[], // max 3 bullets
-    "earlier": string[]    // max 3 bullets ("Earlier this week")
+    "today": string[],     // max 8 bullets, most important first
+    "yesterday": string[], // max 5 bullets
+    "earlier": string[]    // max 5 bullets ("Earlier this week")
   },
   "outstanding_actions": Array<{
     "text": string,                        // <=200 chars, the action itself
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
     "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
   }>, // max 5, sorted high -> low priority
-  "outstanding_questions": Array<{ "text": string, "date": string }>, // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. If the user has no last-visit cutoff (whole transcript counts), still exclude questions you cannot confirm are recent and unresolved. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.). The "date" field must be the YYYY-MM-DD extracted from the transcript timestamp of the message that asked the question.
+  "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
-    "schedule_changes": string[], // max 5 bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 5 bullets — photos / docs shared, with sender if useful
-    "discussion": string[]        // max 5 bullets — other notable discussion that wasn't an action or schedule change
+    "schedule_changes": string[], // max 8 bullets — training/match time, date, location changes
+    "files_shared": string[],     // max 8 bullets — photos / docs shared, with sender if useful
+    "discussion": string[]        // max 10 bullets — other notable discussion, decisions, questions raised, opinions, suggestions
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 4-8 bullets total — fewer only if the chat genuinely had less activity. Every array and object MUST exist (use [] or null). Keep bullets <=200 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details. Output JSON only — no prose, no markdown.`;
+Across "since_last_visit.today/yesterday/earlier" combined, return 6-12 bullets total — fewer only if the chat genuinely had less activity. Be DETAILED: each bullet should carry the specific fact (who, what, when, where, why) — not a vague headline. If something was asked but not answered, state it as a bullet ("Coach asked who can ref the U10 game Sat — no reply yet") rather than dropping it. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+
+RELATIVE TIME RESOLUTION (critical): Words like "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" inside the transcript were written from the SENDER's point in time, not NOW. You MUST re-anchor them against NOW (the timestamp given in the user message). Example: a message sent yesterday saying "training tomorrow at 6pm" — if "tomorrow" relative to that sender is actually TODAY relative to NOW, write the bullet as "training today at 6pm" (or with the weekday/date). Never copy a relative time word verbatim if it would mislead the reader at NOW. When in doubt, use the weekday + date (e.g. "Sat 27 Jun") instead of a relative word. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -542,21 +546,17 @@ serve(async (req) => {
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
       since_last_visit: {
-        today: rehydrateArr(sinceRaw.today).slice(0, 3),
-        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 2),
-        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
+        today: rehydrateArr(sinceRaw.today).slice(0, 8),
+        yesterday: rehydrateArr(sinceRaw.yesterday).slice(0, 5),
+        earlier: rehydrateArr(sinceRaw.earlier).slice(0, 5),
       },
       outstanding_actions: actionsArr,
-      // Open questions only make sense when we have a real "unread" window.
-      // When there is no last-visit cutoff and no explicit lookback, suppress
-      // them entirely so we don't surface questions from old history.
-      outstanding_questions: (validLookback || last_opened_at)
-        ? rehydrateQuestions(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
-        : [],
+      // Open questions removed — context is now folded into since_last_visit/discussion.
+      outstanding_questions: [],
       detailed: {
-        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
-        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),
-        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 5),
+        schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 8),
+        files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 8),
+        discussion: rehydrateArr(detailedRaw.discussion ?? parsed.important_updates).slice(0, 10),
       },
     };
 

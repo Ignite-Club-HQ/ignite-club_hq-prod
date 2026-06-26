@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
+import { stripRecapDatePrefix } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -163,11 +164,15 @@ export function CatchMeUpSheet({
   const view = useMemo(() => {
     if (!result) return null;
     const s = result.summary;
-    const since = s.since_last_visit ?? {
-      today: s.important_updates?.slice(0, 3) ?? [],
-      yesterday: [] as string[],
-      earlier: [] as string[],
+    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix);
+    const since = {
+      today: clean(s.since_last_visit?.today),
+      yesterday: clean(s.since_last_visit?.yesterday),
+      earlier: clean(s.since_last_visit?.earlier),
     };
+    if (!s.since_last_visit) {
+      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
+    }
     const actions: OutstandingAction[] = s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
@@ -339,39 +344,7 @@ export function CatchMeUpSheet({
                 </section>
               )}
 
-              {/* Outstanding questions — plain text when single item */}
-              {view.questions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-rose-500" />
-                    <p className="text-base font-semibold text-muted-foreground">
-                      {view.questions.length === 1 ? "Outstanding question" : "Outstanding questions"}
-                    </p>
-                  </Reveal>
-                  {view.questions.length === 1 ? (
-                    <div className="text-base leading-relaxed text-foreground">
-                      <Typed text={view.questions[0].text} delayMs={scheduleType(view.questions[0].text)} charMs={CHAR_MS} />
-                      {view.questions[0].date && (
-                        <p className="mt-1 text-xs text-muted-foreground">{view.questions[0].date}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {view.questions.map((q) => {
-                        const delay = scheduleType(q.text);
-                        return (
-                          <div key={q.text} className="text-base leading-relaxed text-foreground">
-                            <Typed text={q.text} delayMs={delay} charMs={CHAR_MS} />
-                            {q.date && (
-                              <p className="mt-0.5 text-xs text-muted-foreground">{q.date}</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              )}
+              {/* Outstanding questions removed — folded into activity for richer detail */}
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">

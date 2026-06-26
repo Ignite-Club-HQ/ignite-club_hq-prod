@@ -30,6 +30,7 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
+import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
@@ -43,7 +44,7 @@ export interface RecapScopeRef {
 interface GlobalChatRecapSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Conversations with unread messages the recap should cover. */
+  /** Conversations to recap (typically those with unread messages). */
   scopes: RecapScopeRef[];
 }
 
@@ -134,20 +135,28 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
   }
 }
 
+export interface TimelineEntry { time: string | null; text: string }
+
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
-  // Collect richer detail bullets so the cross-thread overview can show more
-  // than just the one-line headline that already appears on the per-thread card.
-  const details: string[] = [];
+  // Build a chronological-ish timeline. Each bullet's leading [time] tag is
+  // parsed out so the UI can render it as a chip next to the bullet.
+  const details: TimelineEntry[] = [];
+  const seen = new Set<string>();
   const push = (arr?: string[] | null) => {
     if (!arr) return;
-    for (const t of arr) {
-      const s = (t ?? "").toString().trim();
-      if (s && !details.includes(s)) details.push(s);
+    for (const raw of arr) {
+      const s = (raw ?? "").toString().trim();
+      if (!s) continue;
+      const parsed = parseRecapTimeTag(s);
+      const clean = parsed.text || stripRecapDatePrefix(s);
+      if (!clean || seen.has(clean)) continue;
+      seen.add(clean);
+      details.push({ time: parsed.time, text: clean });
     }
   };
   push(summary.since_last_visit?.today);
@@ -292,12 +301,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
-    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: string[] }> = [];
+    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: TimelineEntry[] }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
       if (n.headline || n.details.length > 0) {
-        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 4) });
+        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 6) });
       }
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
@@ -347,8 +356,8 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             {scopes.length === 0
               ? "You're all caught up."
               : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}…`
-                : `Summarised ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}.`}
+                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
+                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
           </p>
         </SheetHeader>
 
@@ -372,7 +381,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    Reading your unread chats…
+                    Reading your latest messages…
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Summarised {completed} of {scopes.length} · {totalLoading} to go
@@ -424,16 +433,22 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                           <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
                         )}
                         {details.length > 0 && (
-                          <ul className="mt-1.5 space-y-1">
+                          <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
                             {details.map((d, j) => (
                               <li
                                 key={`${scope.scope_id}-d-${i}-${j}`}
-                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                                className="relative -ml-[15px] pl-5"
                               >
-                                {d}
+                                <span className="absolute left-3 top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
+                                {d.time && (
+                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    {d.time}
+                                  </span>
+                                )}
+                                <span className="block text-sm leading-snug text-foreground">{d.text}</span>
                               </li>
                             ))}
-                          </ul>
+                          </ol>
                         )}
                         <Link
                           to={scope.link}
@@ -482,34 +497,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                 </section>
               )}
 
-              {aggregated.questions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-rose-500" />
-                    <p className="text-base font-semibold text-muted-foreground">
-                      Open questions
-                    </p>
-                  </div>
-                  <ul className="space-y-3">
-                    {aggregated.questions.slice(0, 8).map(({ scope, text, date }, i) => (
-                      <li key={`${scope.scope_id}-q-${i}`}>
-                        <p className="text-base leading-relaxed text-foreground">{text}</p>
-                        {date && (
-                          <p className="text-xs text-muted-foreground">{date}</p>
-                        )}
-                        <Link
-                          to={scope.link}
-                          onClick={() => onOpenChange(false)}
-                          className="mt-0.5 inline-flex items-center text-xs text-muted-foreground hover:text-primary"
-                        >
-                          {scope.name}
-                          <ChevronRight className="h-3 w-3" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              {/* Open questions section removed — folded into per-thread details for richer context */}
 
               {/* Per-thread cards */}
               <div className="mb-2 mt-4 flex items-center justify-between">
@@ -602,18 +590,11 @@ function ThreadCard({ item, onOpen }: { item: PerScope; onOpen: () => void }) {
       {!loading && !error && result && (
         <>
           {n.headline && <p className="text-sm leading-snug text-foreground">{n.headline}</p>}
-          {(n.actions.length > 0 || n.questions.length > 0) && (
+          {n.actions.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {n.actions.length > 0 && (
-                <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  {n.actions.length} action{n.actions.length === 1 ? "" : "s"}
-                </span>
-              )}
-              {n.questions.length > 0 && (
-                <span className="rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
-                  {n.questions.length} question{n.questions.length === 1 ? "" : "s"}
-                </span>
-              )}
+              <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                {n.actions.length} action{n.actions.length === 1 ? "" : "s"}
+              </span>
             </div>
           )}
         </>

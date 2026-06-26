@@ -27,6 +27,7 @@ import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
+import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -533,38 +534,7 @@ export function AppHeader() {
       // share that club with the recipient. Otherwise filtering by Club A still
       // surfaces DMs from people only associated with Club B.
       if (activeClubFilter && rows.length) {
-        const dmRows = rows.filter((n) => n.type === "direct_message" && n.related_id);
-        if (dmRows.length) {
-          const msgIds = dmRows.map((n) => n.related_id as string);
-          const { data: dms } = await supabase
-            .from("direct_messages")
-            .select("id, author_id")
-            .in("id", msgIds);
-          const authorByMsg = new Map((dms || []).map((m: any) => [m.id, m.author_id]));
-          const authorIds = [...new Set([...authorByMsg.values()].filter(Boolean) as string[])];
-          let allowedAuthors = new Set<string>();
-          if (authorIds.length) {
-            // Direct club role on the active club
-            const { data: directRoles } = await supabase
-              .from("user_roles")
-              .select("user_id")
-              .in("user_id", authorIds)
-              .eq("club_id", activeClubFilter);
-            (directRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-            // Team role whose team belongs to the active club
-            const { data: teamRoles } = await supabase
-              .from("user_roles")
-              .select("user_id, teams!inner(club_id)")
-              .in("user_id", authorIds)
-              .eq("teams.club_id", activeClubFilter);
-            (teamRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-          }
-          rows = rows.filter((n) => {
-            if (n.type !== "direct_message") return true;
-            const author = authorByMsg.get(n.related_id as string);
-            return author ? allowedAuthors.has(author) : false;
-          });
-        }
+        rows = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
         rows = rows.slice(0, 5);
       }
 
@@ -589,36 +559,8 @@ export function AppHeader() {
         .or(`club_id.eq.${activeClubFilter},club_id.is.null`)
         .eq("is_read", false)
         .limit(200);
-      const rows = data || [];
-      const dmRows = rows.filter((n) => n.type === "direct_message" && n.related_id);
-      if (!dmRows.length) return rows.length;
-      const msgIds = dmRows.map((n) => n.related_id as string);
-      const { data: dms } = await supabase
-        .from("direct_messages")
-        .select("id, author_id")
-        .in("id", msgIds);
-      const authorByMsg = new Map((dms || []).map((m: any) => [m.id, m.author_id]));
-      const authorIds = [...new Set([...authorByMsg.values()].filter(Boolean) as string[])];
-      const allowedAuthors = new Set<string>();
-      if (authorIds.length) {
-        const { data: directRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .in("user_id", authorIds)
-          .eq("club_id", activeClubFilter);
-        (directRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-        const { data: teamRoles } = await supabase
-          .from("user_roles")
-          .select("user_id, teams!inner(club_id)")
-          .in("user_id", authorIds)
-          .eq("teams.club_id", activeClubFilter);
-        (teamRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-      }
-      return rows.filter((n) => {
-        if (n.type !== "direct_message") return true;
-        const a = authorByMsg.get(n.related_id as string);
-        return a ? allowedAuthors.has(a) : false;
-      }).length;
+      const filtered = await filterClubScopedNotifications(data || [], user.id, activeClubFilter);
+      return filtered.length;
     },
     enabled: !!user?.id && !!activeClubFilter,
     staleTime: 10_000,

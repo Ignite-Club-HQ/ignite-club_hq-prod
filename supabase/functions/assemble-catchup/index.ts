@@ -48,6 +48,29 @@ function bucketDay(now: Date, ts: Date): "today" | "yesterday" | "earlier" {
   return "earlier";
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatTimeOfDay(ts: Date): string {
+  let h = ts.getHours();
+  const m = ts.getMinutes();
+  const suffix = h >= 12 ? "pm" : "am";
+  h = h % 12; if (h === 0) h = 12;
+  return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
+}
+/** Short human time tag: "9:30am" / "Yest 6pm" / "Mon 6pm" / "21 Jun 6pm". */
+function shortTimeTag(now: Date, ts: Date): string {
+  const bucket = bucketDay(now, ts);
+  const t = formatTimeOfDay(ts);
+  if (bucket === "today") return t;
+  if (bucket === "yesterday") return `Yest ${t}`;
+  const daysAgo = Math.floor((now.getTime() - ts.getTime()) / (24 * 3600 * 1000));
+  if (daysAgo < 7) return `${WEEKDAYS[ts.getDay()]} ${t}`;
+  return `${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
+}
+function tagBullet(now: Date, ts: Date, text: string): string {
+  return `[${shortTimeTag(now, ts)}] ${text}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -200,25 +223,26 @@ serve(async (req) => {
       const bucket = bucketDay(now, ts);
       const s = (d.summary || "").trim();
       if (!s) continue;
+      const tagged = tagBullet(now, ts, s);
       switch (d.classification) {
         case "action":
           actions.push({ text: s, owner: null, priority: "medium", topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
           break;
         case "question":
           questions.push({ text: s, topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
           break;
         case "decision":
-          decisions.push(s);
-          buckets[bucket].push(s);
+          decisions.push(tagged);
+          buckets[bucket].push(tagged);
           break;
         case "social":
           social_count.n += 1;
           break;
         case "info":
         default:
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
       }
     }
 
@@ -244,11 +268,9 @@ serve(async (req) => {
         const later = digests[j];
         const laterText = (later.summary || "").toLowerCase();
         if (laterText === k) continue;
-        // Same topic with answer-like language → likely answered.
         if (topic && later.topic && later.topic.toLowerCase() === topic.toLowerCase()) {
           if (looksLikeAnswer(later.summary || "")) return true;
         }
-        // Decision or info that mentions the question's key phrase.
         if (later.classification === "decision" || later.classification === "info") {
           if (laterText.includes(k.slice(0, 25)) && laterText !== k) return true;
         }
@@ -256,44 +278,42 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    // Open questions: only surface from genuinely unread messages (since the
-    // user's last visit). If we had to fall back to the 7-day floor because
-    // there were no new messages, suppress the section entirely — questions
-    // from previous history are not "open" to the user. Explicit lookback
-    // (user clicked "Look further back") is honoured.
-    const questionsFromUnreadOnly = validLookback || (hasLastOpened && !usedFallback);
-    const outstanding_questions = questionsFromUnreadOnly
-      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => ({
-          text: q.text,
-          date: new Date(digests[q.idx].message_created_at).toISOString().slice(0, 10),
-        }))
-      : [];
+    for (const q of questions) {
+      if (isResolved(q.text, q.topic, q.idx)) continue;
+      const ts = new Date(digests[q.idx].message_created_at);
+      const bucket = bucketDay(now, ts);
+      const phrased = /\?\s*$/.test(q.text) ? q.text : `${q.text}?`;
+      buckets[bucket].push(tagBullet(now, ts, phrased));
+    }
+    const outstanding_questions: { text: string; date: string }[] = [];
 
     const headline = (() => {
       const newCount = (digests || []).length;
       if (decisions.length) return `${decisions.length} decision${decisions.length > 1 ? "s" : ""} and ${outstanding_actions.length} action${outstanding_actions.length === 1 ? "" : "s"} pending`;
       if (outstanding_actions.length) return `${outstanding_actions.length} action${outstanding_actions.length === 1 ? "" : "s"} need attention`;
-      if (outstanding_questions.length) return `${outstanding_questions.length} open question${outstanding_questions.length === 1 ? "" : "s"}`;
       return `${newCount} new message${newCount === 1 ? "" : "s"} since your last visit`;
     })();
 
     const summary = {
       headline: headline.slice(0, 110),
       since_last_visit: {
-        today: buckets.today.slice(0, 3),
-        yesterday: buckets.yesterday.slice(0, 2),
-        earlier: buckets.earlier.slice(0, 2),
+        today: buckets.today.slice(0, 8),
+        yesterday: buckets.yesterday.slice(0, 5),
+        earlier: buckets.earlier.slice(0, 5),
       },
       outstanding_actions,
       outstanding_questions,
       detailed: {
-        schedule_changes: decisions.slice(0, 5),
+        schedule_changes: decisions.slice(0, 8),
         files_shared: [],
         discussion: (digests || [])
-          .filter((d: any) => d.classification === "info")
-          .map((d: any) => d.summary)
+          .filter((d: any) => d.classification === "info" || d.classification === "question")
+          .map((d: any) => {
+            const ts = new Date(d.message_created_at);
+            return d.summary ? tagBullet(now, ts, d.summary) : null;
+          })
           .filter(Boolean)
-          .slice(0, 5),
+          .slice(0, 10),
       },
     };
 
