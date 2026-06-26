@@ -293,7 +293,49 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             </div>
           )}
 
-          {scopes.length > 0 && (
+          {scopes.length > 0 && totalLoading > 0 && (
+            <div className="py-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="relative h-5 w-5 shrink-0">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
+                  <Sparkles className="relative h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Reading your unread chats…
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Summarised {completed} of {scopes.length} · {totalLoading} to go
+                  </p>
+                </div>
+              </div>
+              <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: `${scopes.length === 0 ? 0 : (completed / scopes.length) * 100}%` }}
+                />
+              </div>
+              <ul className="space-y-2">
+                {perScope.map((p) => (
+                  <li
+                    key={`${p.ref.scope_type}-${p.ref.scope_id}`}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
+                  >
+                    {p.loading ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                    ) : p.error ? (
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    )}
+                    <span className="truncate text-sm text-foreground">{p.ref.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {scopes.length > 0 && totalLoading === 0 && (
             <>
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
