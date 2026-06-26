@@ -36,7 +36,7 @@ export interface ChatSummaryPayload {
   schedule_changes?: string[];
   people_mentioned?: string[];
   files_shared?: string[];
-  unanswered_questions?: string[];
+  unanswered_questions?: (OutstandingQuestion | string)[];
 }
 
 export interface ChatSummaryResult {
