@@ -71,17 +71,14 @@ export function ChatCatchUp({
 
   if (!scope_id) return null;
 
+  // Inline recap card removed — users trigger Chat Recap via the AI summary
+  // icon in the chat header instead. We keep `eligible`/`dismissCard` wired
+  // so the trigger registration above continues to work.
+  void eligible;
+  void dismissCard;
+
   return (
     <>
-      {eligible && !proLocked && !featureDisabled && (
-        <CatchMeUpCard
-          unreadCount={unreadCount}
-          teaser={result?.summary?.headline ?? null}
-          loading={loading && !result}
-          onView={openSheet}
-          onDismiss={dismissCard}
-        />
-      )}
 
       <CatchMeUpSheet
         open={sheetOpen}
