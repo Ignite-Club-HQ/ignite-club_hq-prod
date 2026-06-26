@@ -129,12 +129,31 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "" };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
-  return { actions, questions, headline: summary.headline ?? "" };
+  // Collect richer detail bullets so the cross-thread overview can show more
+  // than just the one-line headline that already appears on the per-thread card.
+  const details: string[] = [];
+  const push = (arr?: string[] | null) => {
+    if (!arr) return;
+    for (const t of arr) {
+      const s = (t ?? "").toString().trim();
+      if (s && !details.includes(s)) details.push(s);
+    }
+  };
+  push(summary.since_last_visit?.today);
+  push(summary.since_last_visit?.yesterday);
+  push(summary.detailed?.schedule_changes);
+  push(summary.schedule_changes);
+  push(summary.detailed?.discussion);
+  push(summary.since_last_visit?.earlier);
+  push(summary.detailed?.files_shared);
+  push(summary.files_shared);
+  push(summary.important_updates);
+  return { actions, questions, headline: summary.headline ?? "", details };
 }
 
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
@@ -267,11 +286,13 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
-    const headlines: Array<{ scope: RecapScopeRef; headline: string }> = [];
+    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: string[] }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
-      if (n.headline) headlines.push({ scope: p.ref, headline: n.headline });
+      if (n.headline || n.details.length > 0) {
+        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 4) });
+      }
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
@@ -286,7 +307,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
-    return { actions, questions, headlines };
+    return { actions, questions, overviews };
   }, [perScope, myNames]);
 
   const allEmpty =
@@ -380,8 +401,8 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
           {scopes.length > 0 && totalLoading === 0 && (
             <>
-              {/* Cross-thread overview: one-line headline per thread */}
-              {aggregated.headlines.length > 0 && (
+              {/* Cross-thread overview: headline + key detail bullets per thread */}
+              {aggregated.overviews.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <div className="mb-3 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
@@ -389,18 +410,39 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                       Across your chats
                     </p>
                   </div>
-                  <ul className="space-y-2.5">
-                    {aggregated.headlines.map(({ scope, headline }, i) => (
-                      <li key={`${scope.scope_id}-h-${i}`}>
-                        <p className="text-sm leading-snug text-foreground">
-                          <span className="font-semibold">{scope.name}:</span>{" "}
-                          {headline}
-                        </p>
+                  <ul className="space-y-3.5">
+                    {aggregated.overviews.map(({ scope, headline, details }, i) => (
+                      <li key={`${scope.scope_id}-h-${i}`} className="border-l-2 border-border pl-3">
+                        <p className="text-sm font-semibold text-foreground">{scope.name}</p>
+                        {headline && (
+                          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
+                        )}
+                        {details.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {details.map((d, j) => (
+                              <li
+                                key={`${scope.scope_id}-d-${i}-${j}`}
+                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                              >
+                                {d}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <Link
+                          to={scope.link}
+                          onClick={() => onOpenChange(false)}
+                          className="mt-1.5 inline-flex items-center text-xs text-muted-foreground hover:text-primary"
+                        >
+                          Open {scope.name}
+                          <ChevronRight className="h-3 w-3" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
                 </section>
               )}
+
 
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
