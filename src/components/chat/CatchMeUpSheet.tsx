@@ -599,7 +599,7 @@ function Reveal({
  * immediately on mount (no skeleton wait), then types each subsequent stage
  * line as `stage` advances. Gives the perception that work has already begun.
  */
-function LoadingTypewriter({ stage }: { stage: number }) {
+function LoadingTypewriter({ stage, staticMode = false }: { stage: number; staticMode?: boolean }) {
   // Lines to type so far: every stage up to and including the current one.
   const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
   const isFinalStage = stage >= LOADING_STAGES.length - 1;
@@ -607,8 +607,6 @@ function LoadingTypewriter({ stage }: { stage: number }) {
 
   useEffect(() => {
     if (!isFinalStage) { setShowReassurance(false); return; }
-    // Once the final stage is reached, wait 2.5s then show a reassuring
-    // activity indicator so the user knows work is still in flight.
     const t = setTimeout(() => setShowReassurance(true), 2500);
     return () => clearTimeout(t);
   }, [isFinalStage, stage]);
@@ -619,8 +617,8 @@ function LoadingTypewriter({ stage }: { stage: number }) {
         <TypewriterLine
           key={i}
           text={line}
-          // Only the last (newest) line shows the blinking caret while it types.
-          showCaret={i === lines.length - 1}
+          showCaret={!staticMode && i === lines.length - 1}
+          staticMode={staticMode}
         />
       ))}
       {showReassurance && (
@@ -635,9 +633,10 @@ function LoadingTypewriter({ stage }: { stage: number }) {
   );
 }
 
-function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean }) {
-  const [shown, setShown] = useState(0);
+function TypewriterLine({ text, showCaret, staticMode = false }: { text: string; showCaret: boolean; staticMode?: boolean }) {
+  const [shown, setShown] = useState(staticMode ? text.length : 0);
   useEffect(() => {
+    if (staticMode) { setShown(text.length); return; }
     setShown(0);
     let i = 0;
     const id = setInterval(() => {
@@ -646,7 +645,7 @@ function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean 
       if (i >= text.length) clearInterval(id);
     }, 28);
     return () => clearInterval(id);
-  }, [text]);
+  }, [text, staticMode]);
   const done = shown >= text.length;
   return (
     <p className="text-sm leading-snug text-foreground">
@@ -658,5 +657,6 @@ function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean 
         />
       )}
     </p>
+
   );
 }
