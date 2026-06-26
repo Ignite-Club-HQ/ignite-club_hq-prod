@@ -48,6 +48,29 @@ function bucketDay(now: Date, ts: Date): "today" | "yesterday" | "earlier" {
   return "earlier";
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatTimeOfDay(ts: Date): string {
+  let h = ts.getHours();
+  const m = ts.getMinutes();
+  const suffix = h >= 12 ? "pm" : "am";
+  h = h % 12; if (h === 0) h = 12;
+  return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
+}
+/** Short human time tag: "9:30am" / "Yest 6pm" / "Mon 6pm" / "21 Jun 6pm". */
+function shortTimeTag(now: Date, ts: Date): string {
+  const bucket = bucketDay(now, ts);
+  const t = formatTimeOfDay(ts);
+  if (bucket === "today") return t;
+  if (bucket === "yesterday") return `Yest ${t}`;
+  const daysAgo = Math.floor((now.getTime() - ts.getTime()) / (24 * 3600 * 1000));
+  if (daysAgo < 7) return `${WEEKDAYS[ts.getDay()]} ${t}`;
+  return `${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
+}
+function tagBullet(now: Date, ts: Date, text: string): string {
+  return `[${shortTimeTag(now, ts)}] ${text}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -200,25 +223,26 @@ serve(async (req) => {
       const bucket = bucketDay(now, ts);
       const s = (d.summary || "").trim();
       if (!s) continue;
+      const tagged = tagBullet(now, ts, s);
       switch (d.classification) {
         case "action":
           actions.push({ text: s, owner: null, priority: "medium", topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
           break;
         case "question":
           questions.push({ text: s, topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
           break;
         case "decision":
-          decisions.push(s);
-          buckets[bucket].push(s);
+          decisions.push(tagged);
+          buckets[bucket].push(tagged);
           break;
         case "social":
           social_count.n += 1;
           break;
         case "info":
         default:
-          buckets[bucket].push(s);
+          buckets[bucket].push(tagged);
       }
     }
 
@@ -244,11 +268,9 @@ serve(async (req) => {
         const later = digests[j];
         const laterText = (later.summary || "").toLowerCase();
         if (laterText === k) continue;
-        // Same topic with answer-like language → likely answered.
         if (topic && later.topic && later.topic.toLowerCase() === topic.toLowerCase()) {
           if (looksLikeAnswer(later.summary || "")) return true;
         }
-        // Decision or info that mentions the question's key phrase.
         if (later.classification === "decision" || later.classification === "info") {
           if (laterText.includes(k.slice(0, 25)) && laterText !== k) return true;
         }
@@ -256,14 +278,12 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    // Open questions removed from the UI — fold them into the activity buckets
-    // (with a trailing hint) so users still see the question without a flaky
-    // "is it really unanswered?" gate.
     for (const q of questions) {
       if (isResolved(q.text, q.topic, q.idx)) continue;
-      const bucket = bucketDay(now, new Date(digests[q.idx].message_created_at));
+      const ts = new Date(digests[q.idx].message_created_at);
+      const bucket = bucketDay(now, ts);
       const phrased = /\?\s*$/.test(q.text) ? q.text : `${q.text}?`;
-      buckets[bucket].push(phrased);
+      buckets[bucket].push(tagBullet(now, ts, phrased));
     }
     const outstanding_questions: { text: string; date: string }[] = [];
 
@@ -288,7 +308,10 @@ serve(async (req) => {
         files_shared: [],
         discussion: (digests || [])
           .filter((d: any) => d.classification === "info" || d.classification === "question")
-          .map((d: any) => d.summary)
+          .map((d: any) => {
+            const ts = new Date(d.message_created_at);
+            return d.summary ? tagBullet(now, ts, d.summary) : null;
+          })
           .filter(Boolean)
           .slice(0, 10),
       },

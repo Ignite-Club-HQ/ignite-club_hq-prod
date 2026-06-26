@@ -30,7 +30,7 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
-import { stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
@@ -135,20 +135,28 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
   }
 }
 
+export interface TimelineEntry { time: string | null; text: string }
+
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
-  // Collect richer detail bullets so the cross-thread overview can show more
-  // than just the one-line headline that already appears on the per-thread card.
-  const details: string[] = [];
+  // Build a chronological-ish timeline. Each bullet's leading [time] tag is
+  // parsed out so the UI can render it as a chip next to the bullet.
+  const details: TimelineEntry[] = [];
+  const seen = new Set<string>();
   const push = (arr?: string[] | null) => {
     if (!arr) return;
-    for (const t of arr) {
-      const s = stripRecapDatePrefix((t ?? "").toString().trim());
-      if (s && !details.includes(s)) details.push(s);
+    for (const raw of arr) {
+      const s = (raw ?? "").toString().trim();
+      if (!s) continue;
+      const parsed = parseRecapTimeTag(s);
+      const clean = parsed.text || stripRecapDatePrefix(s);
+      if (!clean || seen.has(clean)) continue;
+      seen.add(clean);
+      details.push({ time: parsed.time, text: clean });
     }
   };
   push(summary.since_last_visit?.today);
@@ -293,12 +301,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
-    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: string[] }> = [];
+    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: TimelineEntry[] }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
       if (n.headline || n.details.length > 0) {
-        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 4) });
+        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 6) });
       }
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
@@ -425,16 +433,22 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                           <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
                         )}
                         {details.length > 0 && (
-                          <ul className="mt-1.5 space-y-1">
+                          <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
                             {details.map((d, j) => (
                               <li
                                 key={`${scope.scope_id}-d-${i}-${j}`}
-                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                                className="relative -ml-[15px] pl-5"
                               >
-                                {d}
+                                <span className="absolute left-3 top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
+                                {d.time && (
+                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    {d.time}
+                                  </span>
+                                )}
+                                <span className="block text-sm leading-snug text-foreground">{d.text}</span>
                               </li>
                             ))}
-                          </ul>
+                          </ol>
                         )}
                         <Link
                           to={scope.link}
