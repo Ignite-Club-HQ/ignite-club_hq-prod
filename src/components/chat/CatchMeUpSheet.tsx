@@ -156,6 +156,7 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
@@ -185,17 +186,21 @@ export function CatchMeUpSheet({
   // Sequential top-to-bottom typing: each line waits for all previous lines to
   // finish typing before it starts. We compute the cumulative delay per line
   // from the running character total + a small gap between lines.
-  const CHAR_MS = 16;
-  const GAP_MS = 120;
-  const HEADER_REVEAL_MS = 220;
+  // In staticMode (native / reduced motion) we collapse all delays to 0 so
+  // every Typed/Reveal renders instantly — no per-character setInterval storm.
+  const CHAR_MS = staticMode ? 0 : 16;
+  const GAP_MS = staticMode ? 0 : 120;
+  const HEADER_REVEAL_MS = staticMode ? 0 : 220;
   const delayRef = useRef(0);
   delayRef.current = 0;
   const scheduleType = (text: string) => {
+    if (staticMode) return 0;
     const start = delayRef.current;
     delayRef.current = start + text.length * CHAR_MS + GAP_MS;
     return start;
   };
   const scheduleReveal = (ms: number = HEADER_REVEAL_MS) => {
+    if (staticMode) return 0;
     const start = delayRef.current;
     delayRef.current = start + ms;
     return start;
@@ -231,8 +236,9 @@ export function CatchMeUpSheet({
 
         <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
           {loading && !result && (
-            <LoadingTypewriter stage={loadingStage} />
+            <LoadingTypewriter stage={loadingStage} staticMode={staticMode} />
           )}
+
 
           {!loading && err && (
             <div className="rounded-xl border border-border bg-card p-4">
