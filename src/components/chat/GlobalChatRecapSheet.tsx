@@ -381,7 +381,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    Reading your unread chats…
+                    Reading your latest messages…
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Summarised {completed} of {scopes.length} · {totalLoading} to go
