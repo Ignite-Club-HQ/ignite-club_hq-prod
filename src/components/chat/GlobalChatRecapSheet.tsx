@@ -129,12 +129,31 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "" };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
-  return { actions, questions, headline: summary.headline ?? "" };
+  // Collect richer detail bullets so the cross-thread overview can show more
+  // than just the one-line headline that already appears on the per-thread card.
+  const details: string[] = [];
+  const push = (arr?: string[] | null) => {
+    if (!arr) return;
+    for (const t of arr) {
+      const s = (t ?? "").toString().trim();
+      if (s && !details.includes(s)) details.push(s);
+    }
+  };
+  push(summary.since_last_visit?.today);
+  push(summary.since_last_visit?.yesterday);
+  push(summary.detailed?.schedule_changes);
+  push(summary.schedule_changes);
+  push(summary.detailed?.discussion);
+  push(summary.since_last_visit?.earlier);
+  push(summary.detailed?.files_shared);
+  push(summary.files_shared);
+  push(summary.important_updates);
+  return { actions, questions, headline: summary.headline ?? "", details };
 }
 
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
