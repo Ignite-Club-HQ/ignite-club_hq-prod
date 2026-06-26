@@ -139,7 +139,7 @@ export function CatchMeUpSheet({
     };
     const actions: OutstandingAction[] = s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-    const questions = s.outstanding_questions ?? s.unanswered_questions ?? [];
+    const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailed = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
       files_shared: s.files_shared ?? [],
