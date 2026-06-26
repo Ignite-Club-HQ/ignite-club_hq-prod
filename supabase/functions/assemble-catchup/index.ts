@@ -90,11 +90,14 @@ serve(async (req) => {
     }
 
     // DMs and club_admin chats have no digest pipeline today → fall back signal.
+    // Return 200 so supabase-js doesn't log it as a runtime error; client treats
+    // `digests_missing` as a fallback trigger.
     if (!cfg.digestType) {
       return new Response(JSON.stringify({ error: "digests_missing", reason: "scope_not_supported" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Cutoff resolution:
     //  - explicit lookback_hours wins (user asked to look further back)
@@ -167,9 +170,11 @@ serve(async (req) => {
     }
     // Require >=80% coverage to avoid misleading summaries.
     if (covered / Math.max(1, total) < 0.8) {
+      // 200 (not 409) so supabase-js doesn't surface it as a runtime error;
+      // the client hook treats `digests_missing` as a signal to fall back to LLM.
       return new Response(
         JSON.stringify({ error: "digests_missing", coverage: covered, total }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

@@ -217,19 +217,25 @@ export function useChatCatchUp({
         // We use this path even for explicit lookbacks — it ignores cache by design.
         if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
           const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
-          if (!fastErr && fast) {
+          const fastCode = (fast as any)?.error;
+          if (!fastErr && fast && !fastCode) {
             setResult(fast as ChatSummaryResult);
             return;
           }
-          // If anything other than "digests_missing", surface it. Otherwise fall back to LLM.
+          // 200 with { error: "digests_missing" } → fall through to LLM.
+          // Any other surfaced error → show it.
           if (fastErr) {
             const code = await parseErr(fastErr);
             if (code !== "digests_missing" && code !== "unknown") {
               setError(code);
               return;
             }
+          } else if (fastCode && fastCode !== "digests_missing") {
+            setError(String(fastCode));
+            return;
           }
         }
+
 
         // Fallback: full LLM summary (Gemini or ICP per app setting).
         let fnName = "summarize-chat";
