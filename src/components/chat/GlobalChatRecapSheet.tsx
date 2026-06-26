@@ -44,7 +44,7 @@ export interface RecapScopeRef {
 interface GlobalChatRecapSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Conversations with unread messages the recap should cover. */
+  /** Conversations to recap (typically those with unread messages). */
   scopes: RecapScopeRef[];
 }
 
