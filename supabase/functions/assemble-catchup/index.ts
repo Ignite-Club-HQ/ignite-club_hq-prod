@@ -263,7 +263,10 @@ serve(async (req) => {
     // (user clicked "Look further back") is honoured.
     const questionsFromUnreadOnly = validLookback || (hasLastOpened && !usedFallback);
     const outstanding_questions = questionsFromUnreadOnly
-      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => q.text)
+      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => ({
+          text: q.text,
+          date: new Date(digests[q.idx].message_created_at).toISOString().slice(0, 10),
+        }))
       : [];
 
     const headline = (() => {
