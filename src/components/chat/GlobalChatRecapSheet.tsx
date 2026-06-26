@@ -26,6 +26,8 @@ import {
   type ChatSummaryPayload,
   type ChatSummaryResult,
   type OutstandingAction,
+  type OutstandingQuestion,
+  normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
 
 export interface RecapScopeRef {
