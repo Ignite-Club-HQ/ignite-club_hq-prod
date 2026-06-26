@@ -342,6 +342,28 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
           {scopes.length > 0 && totalLoading === 0 && (
             <>
+              {/* Cross-thread overview: one-line headline per thread */}
+              {aggregated.headlines.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <p className="text-base font-semibold text-muted-foreground">
+                      Across your chats
+                    </p>
+                  </div>
+                  <ul className="space-y-2.5">
+                    {aggregated.headlines.map(({ scope, headline }, i) => (
+                      <li key={`${scope.scope_id}-h-${i}`}>
+                        <p className="text-sm leading-snug text-foreground">
+                          <span className="font-semibold">{scope.name}:</span>{" "}
+                          {headline}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
