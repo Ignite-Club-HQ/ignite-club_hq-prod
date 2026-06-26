@@ -558,36 +558,8 @@ export function AppHeader() {
         .or(`club_id.eq.${activeClubFilter},club_id.is.null`)
         .eq("is_read", false)
         .limit(200);
-      const rows = data || [];
-      const dmRows = rows.filter((n) => n.type === "direct_message" && n.related_id);
-      if (!dmRows.length) return rows.length;
-      const msgIds = dmRows.map((n) => n.related_id as string);
-      const { data: dms } = await supabase
-        .from("direct_messages")
-        .select("id, author_id")
-        .in("id", msgIds);
-      const authorByMsg = new Map((dms || []).map((m: any) => [m.id, m.author_id]));
-      const authorIds = [...new Set([...authorByMsg.values()].filter(Boolean) as string[])];
-      const allowedAuthors = new Set<string>();
-      if (authorIds.length) {
-        const { data: directRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .in("user_id", authorIds)
-          .eq("club_id", activeClubFilter);
-        (directRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-        const { data: teamRoles } = await supabase
-          .from("user_roles")
-          .select("user_id, teams!inner(club_id)")
-          .in("user_id", authorIds)
-          .eq("teams.club_id", activeClubFilter);
-        (teamRoles || []).forEach((r: any) => allowedAuthors.add(r.user_id));
-      }
-      return rows.filter((n) => {
-        if (n.type !== "direct_message") return true;
-        const a = authorByMsg.get(n.related_id as string);
-        return a ? allowedAuthors.has(a) : false;
-      }).length;
+      const filtered = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
+      return filtered.length;
     },
     enabled: !!user?.id && !!activeClubFilter,
     staleTime: 10_000,
