@@ -189,8 +189,8 @@ serve(async (req) => {
     // Bucket and pick top bullets
     const now = new Date();
     const buckets: Record<"today" | "yesterday" | "earlier", string[]> = { today: [], yesterday: [], earlier: [] };
-    const actions: { text: string; owner: null; priority: "high" | "medium" | "low" }[] = [];
-    const questions: string[] = [];
+    const actions: { text: string; owner: null; priority: "high" | "medium" | "low"; topic: string | null; idx: number }[] = [];
+    const questions: { text: string; topic: string | null; idx: number }[] = [];
     const decisions: string[] = [];
     const social_count = { n: 0 };
 
