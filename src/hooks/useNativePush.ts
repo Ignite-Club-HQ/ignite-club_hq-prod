@@ -173,7 +173,11 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     // Try immediately. Only schedule fallback retries if a URL is still
     // pending — prevents this effect's timers from racing with the cold-start
     // retry cascade above for already-drained navigations.
-    const tryConsume = () => processPendingNotificationNavigation(navigate);
+    const safeNavigate = (p: string) => {
+      try { navigate(p); } catch (err) { console.error('[useNativePush] navigate failed:', err); }
+    };
+    const tryConsume = () => processPendingNotificationNavigation(safeNavigate);
+
     if (tryConsume()) {
       console.log('[useNativePush] Consumed pending nav after auth ready');
       return;
