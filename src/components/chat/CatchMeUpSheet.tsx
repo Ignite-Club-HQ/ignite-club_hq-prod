@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
+import { stripRecapDatePrefix } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
