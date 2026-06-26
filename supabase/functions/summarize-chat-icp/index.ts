@@ -108,7 +108,7 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. Drop anything that was already resolved in the transcript.
+An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. A question is "outstanding" only if nobody clearly answers it later in the transcript. An answer includes responses such as "yes", "no", "I can", "I'll do it", "done", "sorted", "confirmed", "ok", "sure", or any message that directly resolves the question. Drop anything that was already resolved in the transcript.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
