@@ -206,10 +206,13 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
 
+  const GENERIC_GROUP = new Set(["everyone", "all", "team", "club", "we", "us", "parents", "players", "members", "anyone"]);
+  const GENERIC_YOU = new Set(["you", "me", "self", "your", "yours"]);
+
   const nameMatchesMe = (name: string): boolean => {
     const o = name.trim().toLowerCase();
-    if (!o) return true;
-    if (["you", "me", "self", "your", "yours", "everyone", "all", "team", "club", "we", "us"].includes(o)) return true;
+    if (!o) return false;
+    if (GENERIC_YOU.has(o)) return true;
     if (myNames.length === 0) return false;
     return myNames.some((n) => n.length >= 2 && (o === n || o.split(/\s+/)[0] === n));
   };
@@ -222,15 +225,41 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     return m[1].split(/\s*(?:,|&|and)\s*/).map((s) => s.trim()).filter(Boolean);
   };
 
+  // Strict: only surface actions the *current user* is specifically asked to do.
+  // Generic group references (everyone/team/all) and unassigned items DO NOT count.
   const isMine = (action: OutstandingAction): boolean => {
-    // 1. Explicit owner field wins.
-    if (action.owner && action.owner.trim()) return nameMatchesMe(action.owner);
-    // 2. Try to infer owner(s) from the leading text. If any inferred owner is
-    //    you (or a generic group), keep it. Otherwise drop — it's someone else's todo.
-    const inferred = inferOwnersFromText(action.text);
-    if (inferred && inferred.length > 0) return inferred.some(nameMatchesMe);
-    // 3. Truly unassigned — keep it; you might be the one to action it.
-    return true;
+    const text = action.text ?? "";
+    const lower = text.toLowerCase();
+
+    // 1. Explicit owner field.
+    if (action.owner && action.owner.trim()) {
+      const o = action.owner.trim().toLowerCase();
+      if (GENERIC_GROUP.has(o)) return false;
+      return nameMatchesMe(action.owner);
+    }
+
+    // 2. @mention of me.
+    for (const n of myNames) {
+      if (n.length >= 2 && new RegExp(`@${n}\\b`, "i").test(text)) return true;
+    }
+
+    // 3. Leading "Name to ..." pattern — must include me.
+    const inferred = inferOwnersFromText(text);
+    if (inferred && inferred.length > 0) {
+      return inferred.some((o) => {
+        const lo = o.toLowerCase();
+        if (GENERIC_GROUP.has(lo)) return false;
+        return nameMatchesMe(o);
+      });
+    }
+
+    // 4. Direct second-person address to the reader.
+    if (/\byou(?:'re| are| need| should| must| can| have to| will)\b/i.test(lower)) return true;
+    if (/\b(?:your)\s+(?:turn|action|input|response|reply|confirmation|approval)\b/i.test(lower)) return true;
+    if (/^\s*please\b/i.test(lower)) return true;
+
+    // 5. Otherwise: not specifically directed at me.
+    return false;
   };
 
   const aggregated = useMemo(() => {
