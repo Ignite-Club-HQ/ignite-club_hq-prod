@@ -127,11 +127,11 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as string[], headline: "" };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "" };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-  const questions = summary.outstanding_questions ?? summary.unanswered_questions ?? [];
+  const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
   return { actions, questions, headline: summary.headline ?? "" };
 }
 
