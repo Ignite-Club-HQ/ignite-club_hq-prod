@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CatchMeUpCard } from "./CatchMeUpCard";
+// CatchMeUpCard import removed — inline recap banner is no longer rendered.
 import { CatchMeUpSheet } from "./CatchMeUpSheet";
 import { AICatchUpDisclosureDialog } from "./AICatchUpDisclosureDialog";
 import { useChatCatchUp, type ChatScopeType } from "@/hooks/useChatCatchUp";
