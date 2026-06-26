@@ -253,18 +253,29 @@ async function checkLaunchNotification(PushNotifications: any) {
  */
 export function processPendingNotificationNavigation(navigate: (path: string) => void): boolean {
   const url = getPendingNotificationNavigation();
-  if (url) {
-    let path = url;
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      try {
-        const urlObj = new URL(url);
-        path = urlObj.pathname + urlObj.search + urlObj.hash;
-      } catch {
-        path = url;
-      }
+  if (!url) return false;
+  let path = url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const urlObj = new URL(url);
+      path = urlObj.pathname + urlObj.search + urlObj.hash;
+    } catch {
+      path = url;
     }
+  }
+  // Validate: must be a non-empty string starting with '/'. A malformed
+  // path causes React Router to render nothing and downstream consumers
+  // throw — better to drop the navigation than crash the app.
+  if (typeof path !== 'string' || !path.startsWith('/') || path.length < 2) {
+    console.warn('[NotificationLaunch] Dropping invalid pending nav path:', path);
+    return false;
+  }
+  try {
     navigate(path);
     return true;
+  } catch (err) {
+    console.error('[NotificationLaunch] navigate threw, dropping:', err);
+    return false;
   }
-  return false;
 }
+

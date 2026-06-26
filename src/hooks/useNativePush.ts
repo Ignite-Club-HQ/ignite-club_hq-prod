@@ -79,43 +79,25 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
 
   // Check if we're on native platform. The single Capacitor action listener
   // lives in notificationLaunchHandler.ts (installed at app start). Here we
-  // only register a navigator so warm taps can navigate immediately, and
-  // drain any URL stashed from a cold-start tap.
+  // only register a navigator so warm taps can navigate immediately. Cold-
+  // start drain is deferred to the auth-gated effect below — navigating to
+  // a chat route before auth/profile is hydrated causes downstream chat
+  // hooks to throw on null context and unmounts the React tree (white screen).
   useEffect(() => {
-    const nav: (path: string) => void = (path) => navigate(path);
+    const nav: (path: string) => void = (path) => {
+      try {
+        navigate(path);
+      } catch (err) {
+        console.error('[useNativePush] navigator threw:', err);
+      }
+    };
 
     loadNativePushModule().then(mod => {
       if (!mod) return;
       try {
         const native = mod.isNativePlatform();
         setIsNative(native);
-
-        if (native) {
-          setNotificationNavigator(nav);
-
-          // Cold start: try to drain any URL already stashed by the launch handler.
-          if (!pendingNavProcessed.current) {
-            pendingNavProcessed.current = true;
-            const wasProcessed = processPendingNotificationNavigation(navigate);
-            if (wasProcessed) {
-              console.log('[useNativePush] Processed pending notification navigation');
-            } else if (peekPendingNotificationNavigation()) {
-              // Only schedule retries if a URL is actually still pending —
-              // avoids wasted setTimeouts when there's nothing to drain.
-              const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
-              retryDelays.forEach(delay => {
-                setTimeout(() => {
-                  if (isNotificationNavigationHandled()) return;
-                  if (!peekPendingNotificationNavigation()) return;
-                  const wasProcessedRetry = processPendingNotificationNavigation(navigate);
-                  if (wasProcessedRetry) {
-                    console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
-                  }
-                }, delay);
-              });
-            }
-          }
-        }
+        if (native) setNotificationNavigator(nav);
       } catch {
         setIsNative(false);
       }
@@ -125,6 +107,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
       clearNotificationNavigator(nav);
     };
   }, [navigate]);
+
 
 
   // Save refreshed token to database
@@ -190,7 +173,11 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     // Try immediately. Only schedule fallback retries if a URL is still
     // pending — prevents this effect's timers from racing with the cold-start
     // retry cascade above for already-drained navigations.
-    const tryConsume = () => processPendingNotificationNavigation(navigate);
+    const safeNavigate = (p: string) => {
+      try { navigate(p); } catch (err) { console.error('[useNativePush] navigate failed:', err); }
+    };
+    const tryConsume = () => processPendingNotificationNavigation(safeNavigate);
+
     if (tryConsume()) {
       console.log('[useNativePush] Consumed pending nav after auth ready');
       return;
