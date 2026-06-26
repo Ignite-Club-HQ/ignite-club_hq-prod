@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +10,35 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
+
+/**
+ * On native Android WebView, running 20–40 concurrent setInterval-driven
+ * typewriter animations (one per Typed/Reveal in the summary) while large
+ * edge-function payloads land has crashed the WebView to a white screen.
+ * We short-circuit the animation path on native and when the user prefers
+ * reduced motion — content renders immediately, no per-character timers.
+ */
+function useStaticReveal(): boolean {
+  const [staticMode, setStaticMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    if (Capacitor.isNativePlatform()) return true;
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    } catch { return false; }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (Capacitor.isNativePlatform()) { setStaticMode(true); return; }
+    try {
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const onChange = () => setStaticMode(mq.matches);
+      mq.addEventListener?.("change", onChange);
+      return () => mq.removeEventListener?.("change", onChange);
+    } catch { /* ignore */ }
+  }, []);
+  return staticMode;
+}
+
 
 const LOADING_STAGES = [
   "Reading recent messages…",
