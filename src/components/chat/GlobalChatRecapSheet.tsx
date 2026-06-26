@@ -203,13 +203,31 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
 
-  const isMine = (owner: string | null | undefined): boolean => {
-    if (!owner) return true; // unassigned — keep, could include you
-    const o = owner.trim().toLowerCase();
+  const nameMatchesMe = (name: string): boolean => {
+    const o = name.trim().toLowerCase();
     if (!o) return true;
-    if (["you", "me", "self", "your", "yours", "everyone", "all", "team", "club"].some((k) => o === k)) return true;
-    if (myNames.length === 0) return false; // user identity unknown — be conservative and drop named owners
-    return myNames.some((n) => n.length >= 2 && (o === n || o.includes(n)));
+    if (["you", "me", "self", "your", "yours", "everyone", "all", "team", "club", "we", "us"].includes(o)) return true;
+    if (myNames.length === 0) return false;
+    return myNames.some((n) => n.length >= 2 && (o === n || o.split(/\s+/)[0] === n));
+  };
+
+  // Extract a leading "Name(s) to ..." pattern from the action text — the LLM
+  // often puts owners in the sentence rather than the owner field.
+  const inferOwnersFromText = (text: string): string[] | null => {
+    const m = text.match(/^\s*([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+)?(?:\s*(?:,|&|and)\s*[A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+)?)*)\s+(?:to|will|should|needs? to|is going to|are going to)\b/);
+    if (!m) return null;
+    return m[1].split(/\s*(?:,|&|and)\s*/).map((s) => s.trim()).filter(Boolean);
+  };
+
+  const isMine = (action: OutstandingAction): boolean => {
+    // 1. Explicit owner field wins.
+    if (action.owner && action.owner.trim()) return nameMatchesMe(action.owner);
+    // 2. Try to infer owner(s) from the leading text. If any inferred owner is
+    //    you (or a generic group), keep it. Otherwise drop — it's someone else's todo.
+    const inferred = inferOwnersFromText(action.text);
+    if (inferred && inferred.length > 0) return inferred.some(nameMatchesMe);
+    // 3. Truly unassigned — keep it; you might be the one to action it.
+    return true;
   };
 
   const aggregated = useMemo(() => {
@@ -219,7 +237,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       if (!p.result) continue;
       const n = normalise(p.result.summary);
       n.actions.forEach((a) => {
-        if (isMine(a.owner)) actions.push({ scope: p.ref, action: a });
+        if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
       n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
     }
