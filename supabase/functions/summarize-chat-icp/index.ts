@@ -123,7 +123,7 @@ Return STRICT JSON only that matches this TypeScript type:
     "owner": string | null,
     "priority": "high" | "medium" | "low"
   }>,
-  "outstanding_questions": string[],
+  "outstanding_questions": string[], // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.).
   "detailed": {
     "schedule_changes": string[],
     "files_shared": string[],
