@@ -9,6 +9,15 @@ export interface OutstandingAction {
   priority: "high" | "medium" | "low";
 }
 
+export interface OutstandingQuestion {
+  text: string;
+  date?: string; // ISO date (YYYY-MM-DD) the question was asked
+}
+
+export function normalizeQuestion(q: OutstandingQuestion | string): OutstandingQuestion {
+  return typeof q === "string" ? { text: q } : q;
+}
+
 export interface ChatSummaryPayload {
   headline: string;
   since_last_visit?: {
@@ -17,7 +26,7 @@ export interface ChatSummaryPayload {
     earlier: string[];
   };
   outstanding_actions?: OutstandingAction[];
-  outstanding_questions?: string[];
+  outstanding_questions?: OutstandingQuestion[];
   detailed?: {
     schedule_changes: string[];
     files_shared: string[];
@@ -31,7 +40,7 @@ export interface ChatSummaryPayload {
   schedule_changes?: string[];
   people_mentioned?: string[];
   files_shared?: string[];
-  unanswered_questions?: string[];
+  unanswered_questions?: (OutstandingQuestion | string)[];
 }
 
 export interface ChatSummaryResult {

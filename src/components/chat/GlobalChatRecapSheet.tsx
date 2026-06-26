@@ -26,6 +26,8 @@ import {
   type ChatSummaryPayload,
   type ChatSummaryResult,
   type OutstandingAction,
+  type OutstandingQuestion,
+  normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
 
 export interface RecapScopeRef {
@@ -127,11 +129,11 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as string[], headline: "" };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "" };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-  const questions = summary.outstanding_questions ?? summary.unanswered_questions ?? [];
+  const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
   return { actions, questions, headline: summary.headline ?? "" };
 }
 
@@ -264,7 +266,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
-    const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
+    const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
     const headlines: Array<{ scope: RecapScopeRef; headline: string }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
@@ -279,7 +281,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       // them to match the per-thread behaviour.
       const usedFallback = !!(p.result as any).used_fallback;
       if (!usedFallback) {
-        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
+        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q.text, date: q.date }));
       }
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
@@ -441,9 +443,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                     </p>
                   </div>
                   <ul className="space-y-3">
-                    {aggregated.questions.slice(0, 8).map(({ scope, text }, i) => (
+                    {aggregated.questions.slice(0, 8).map(({ scope, text, date }, i) => (
                       <li key={`${scope.scope_id}-q-${i}`}>
                         <p className="text-base leading-relaxed text-foreground">{text}</p>
+                        {date && (
+                          <p className="text-xs text-muted-foreground">{date}</p>
+                        )}
                         <Link
                           to={scope.link}
                           onClick={() => onOpenChange(false)}

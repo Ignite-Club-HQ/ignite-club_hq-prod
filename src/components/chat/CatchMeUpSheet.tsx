@@ -7,7 +7,8 @@ import {
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
   Loader2, X,
 } from "lucide-react";
-import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
+import { normalizeQuestion } from "@/hooks/useChatCatchUp";
 
 const LOADING_STAGES = [
   "Reading recent messages…",
@@ -138,7 +139,7 @@ export function CatchMeUpSheet({
     };
     const actions: OutstandingAction[] = s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-    const questions = s.outstanding_questions ?? s.unanswered_questions ?? [];
+    const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailed = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
       files_shared: s.files_shared ?? [],
@@ -312,16 +313,22 @@ export function CatchMeUpSheet({
                     </p>
                   </Reveal>
                   {view.questions.length === 1 ? (
-                    <p className="text-base leading-relaxed text-foreground">
-                      <Typed text={view.questions[0]} delayMs={scheduleType(view.questions[0])} charMs={CHAR_MS} />
-                    </p>
+                    <div className="text-base leading-relaxed text-foreground">
+                      <Typed text={view.questions[0].text} delayMs={scheduleType(view.questions[0].text)} charMs={CHAR_MS} />
+                      {view.questions[0].date && (
+                        <p className="mt-1 text-xs text-muted-foreground">{view.questions[0].date}</p>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {view.questions.map((q) => {
-                        const delay = scheduleType(q);
+                        const delay = scheduleType(q.text);
                         return (
-                          <div key={q} className="text-base leading-relaxed text-foreground">
-                            <Typed text={q} delayMs={delay} charMs={CHAR_MS} />
+                          <div key={q.text} className="text-base leading-relaxed text-foreground">
+                            <Typed text={q.text} delayMs={delay} charMs={CHAR_MS} />
+                            {q.date && (
+                              <p className="mt-0.5 text-xs text-muted-foreground">{q.date}</p>
+                            )}
                           </div>
                         );
                       })}

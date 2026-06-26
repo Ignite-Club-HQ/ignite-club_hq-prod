@@ -101,7 +101,7 @@ Return STRICT JSON only that matches this TypeScript type:
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
     "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
   }>, // max 5, sorted high -> low priority
-  "outstanding_questions": string[], // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. If the user has no last-visit cutoff (whole transcript counts), still exclude questions you cannot confirm are recent and unresolved. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.).
+  "outstanding_questions": Array<{ "text": string, "date": string }>, // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. If the user has no last-visit cutoff (whole transcript counts), still exclude questions you cannot confirm are recent and unresolved. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.). The "date" field must be the YYYY-MM-DD extracted from the transcript timestamp of the message that asked the question.
   "detailed": {
     "schedule_changes": string[], // max 5 bullets — training/match time, date, location changes
     "files_shared": string[],     // max 5 bullets — photos / docs shared, with sender if useful
@@ -472,6 +472,15 @@ serve(async (req) => {
     };
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
+    const rehydrateQuestions = (arr: any): Array<{ text: string; date?: string }> => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map((x: any) => {
+        if (typeof x === "string") return { text: rehydrate(x) };
+        const text = typeof x?.text === "string" ? rehydrate(x.text) : "";
+        const date = typeof x?.date === "string" ? x.date : undefined;
+        return text ? { text, date } : null;
+      }).filter(Boolean) as Array<{ text: string; date?: string }>;
+    };
 
     const nowIso = new Date().toISOString();
     const lastVisitLine = validLookback
@@ -542,7 +551,7 @@ serve(async (req) => {
       // When there is no last-visit cutoff and no explicit lookback, suppress
       // them entirely so we don't surface questions from old history.
       outstanding_questions: (validLookback || last_opened_at)
-        ? rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
+        ? rehydrateQuestions(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
         : [],
       detailed: {
         schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
