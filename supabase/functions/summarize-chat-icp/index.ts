@@ -123,7 +123,7 @@ Return STRICT JSON only that matches this TypeScript type:
     "owner": string | null,
     "priority": "high" | "medium" | "low"
   }>,
-  "outstanding_questions": string[],
+  "outstanding_questions": string[], // max 5; ONLY include questions asked WITHIN the "since their last visit" window that are still unanswered. Exclude any question whose message timestamp is OLDER than the user's last-visit cutoff, even if it appears unanswered. Also exclude questions answered later in the transcript (yes/no/will do/done/sorted/I'll do it/on it/confirmed/etc.).
   "detailed": {
     "schedule_changes": string[],
     "files_shared": string[],
@@ -516,7 +516,11 @@ serve(async (req) => {
         earlier: rehydrateArr(sinceRaw.earlier).slice(0, 2),
       },
       outstanding_actions: actionsArr,
-      outstanding_questions: rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5),
+      // Open questions only from the unread window — suppress entirely when
+      // there is no last-visit cutoff and no explicit lookback.
+      outstanding_questions: (validLookback || last_opened_at)
+        ? rehydrateArr(parsed.outstanding_questions ?? parsed.unanswered_questions).slice(0, 5)
+        : [],
       detailed: {
         schedule_changes: rehydrateArr(detailedRaw.schedule_changes ?? parsed.schedule_changes).slice(0, 5),
         files_shared: rehydrateArr(detailedRaw.files_shared ?? parsed.files_shared).slice(0, 5),

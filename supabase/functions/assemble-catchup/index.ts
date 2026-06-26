@@ -256,7 +256,15 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    const outstanding_questions = questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => q.text);
+    // Open questions: only surface from genuinely unread messages (since the
+    // user's last visit). If we had to fall back to the 7-day floor because
+    // there were no new messages, suppress the section entirely — questions
+    // from previous history are not "open" to the user. Explicit lookback
+    // (user clicked "Look further back") is honoured.
+    const questionsFromUnreadOnly = validLookback || (hasLastOpened && !usedFallback);
+    const outstanding_questions = questionsFromUnreadOnly
+      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => q.text)
+      : [];
 
     const headline = (() => {
       const newCount = (digests || []).length;
