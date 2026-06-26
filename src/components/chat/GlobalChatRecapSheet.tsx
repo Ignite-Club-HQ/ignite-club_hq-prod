@@ -135,6 +135,40 @@ function normalise(summary: ChatSummaryPayload | undefined) {
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
   const [perScope, setPerScope] = useState<PerScope[]>([]);
   const [runId, setRunId] = useState(0);
+  const [myNames, setMyNames] = useState<string[]>([]);
+
+  // Resolve the current user's name tokens so "Needs your attention" can be
+  // filtered to actions actually assigned to *you* (or unassigned), not to
+  // other people in the thread.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth?.user?.id;
+        if (!uid) return;
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("display_name, first_name")
+          .eq("id", uid)
+          .maybeSingle();
+        if (cancelled) return;
+        const tokens = new Set<string>();
+        const push = (v: string | null | undefined) => {
+          if (!v) return;
+          const t = v.trim().toLowerCase();
+          if (t) tokens.add(t);
+          const first = t.split(/\s+/)[0];
+          if (first) tokens.add(first);
+        };
+        push((prof as any)?.display_name);
+        push((prof as any)?.first_name);
+        setMyNames(Array.from(tokens));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Kick off batched fetches whenever the sheet opens with a fresh set of scopes.
   useEffect(() => {
@@ -169,20 +203,30 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
 
+  const isMine = (owner: string | null | undefined): boolean => {
+    if (!owner) return true; // unassigned — keep, could include you
+    const o = owner.trim().toLowerCase();
+    if (!o) return true;
+    if (["you", "me", "self", "your", "yours", "everyone", "all", "team", "club"].some((k) => o === k)) return true;
+    if (myNames.length === 0) return false; // user identity unknown — be conservative and drop named owners
+    return myNames.some((n) => n.length >= 2 && (o === n || o.includes(n)));
+  };
+
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
-      n.actions.forEach((a) => actions.push({ scope: p.ref, action: a }));
+      n.actions.forEach((a) => {
+        if (isMine(a.owner)) actions.push({ scope: p.ref, action: a });
+      });
       n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
     }
-    // High priority first, then medium, then low
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
     return { actions, questions };
-  }, [perScope]);
+  }, [perScope, myNames]);
 
   const allEmpty =
     !totalLoading &&
