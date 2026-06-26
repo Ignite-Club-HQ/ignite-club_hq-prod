@@ -472,6 +472,15 @@ serve(async (req) => {
     };
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
+    const rehydrateQuestions = (arr: any): Array<{ text: string; date?: string }> => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map((x: any) => {
+        if (typeof x === "string") return { text: rehydrate(x) };
+        const text = typeof x?.text === "string" ? rehydrate(x.text) : "";
+        const date = typeof x?.date === "string" ? x.date : undefined;
+        return text ? { text, date } : null;
+      }).filter(Boolean) as Array<{ text: string; date?: string }>;
+    };
 
     const nowIso = new Date().toISOString();
     const lastVisitLine = validLookback
