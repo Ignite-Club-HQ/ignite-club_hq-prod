@@ -44,7 +44,7 @@ export interface RecapScopeRef {
 interface GlobalChatRecapSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Conversations with unread messages the recap should cover. */
+  /** Conversations to recap (typically those with unread messages). */
   scopes: RecapScopeRef[];
 }
 
@@ -356,8 +356,8 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             {scopes.length === 0
               ? "You're all caught up."
               : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}…`
-                : `Summarised ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}.`}
+                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
+                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
           </p>
         </SheetHeader>
 
@@ -381,7 +381,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    Reading your unread chats…
+                    Reading your latest messages…
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Summarised {completed} of {scopes.length} · {totalLoading} to go
