@@ -482,34 +482,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                 </section>
               )}
 
-              {aggregated.questions.length > 0 && (
-                <section className="mb-3 rounded-xl border border-border bg-card p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-rose-500" />
-                    <p className="text-base font-semibold text-muted-foreground">
-                      Open questions
-                    </p>
-                  </div>
-                  <ul className="space-y-3">
-                    {aggregated.questions.slice(0, 8).map(({ scope, text, date }, i) => (
-                      <li key={`${scope.scope_id}-q-${i}`}>
-                        <p className="text-base leading-relaxed text-foreground">{text}</p>
-                        {date && (
-                          <p className="text-xs text-muted-foreground">{date}</p>
-                        )}
-                        <Link
-                          to={scope.link}
-                          onClick={() => onOpenChange(false)}
-                          className="mt-0.5 inline-flex items-center text-xs text-muted-foreground hover:text-primary"
-                        >
-                          {scope.name}
-                          <ChevronRight className="h-3 w-3" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              {/* Open questions section removed — folded into per-thread details for richer context */}
 
               {/* Per-thread cards */}
               <div className="mb-2 mt-4 flex items-center justify-between">
