@@ -30,6 +30,7 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
+import { stripRecapDatePrefix } from "@/lib/recapFormat";
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
