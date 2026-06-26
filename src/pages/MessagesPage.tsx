@@ -2702,14 +2702,14 @@ export default function MessagesPage() {
           .filter((c) =>
             c.unreadCount > 0 &&
             !c.isLocked &&
-            (c.type === "team" || c.type === "club" || c.type === "group" || c.type === "league" || c.type === "direct")
+            (c.type === "team" || c.type === "club" || c.type === "group" || c.type === "league" || c.type === "dm")
           )
           .map((c): RecapScopeRef => ({
             scope_type: (c.type === "team"
               ? "team"
               : c.type === "club"
               ? "club"
-              : c.type === "direct"
+              : c.type === "dm"
               ? "direct"
               : "group") as RecapScopeRef["scope_type"],
             scope_id: c.id,
