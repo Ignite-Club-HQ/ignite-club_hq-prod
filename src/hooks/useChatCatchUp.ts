@@ -9,6 +9,11 @@ export interface OutstandingAction {
   priority: "high" | "medium" | "low";
 }
 
+export interface OutstandingQuestion {
+  text: string;
+  date?: string; // ISO date (YYYY-MM-DD) the question was asked
+}
+
 export interface ChatSummaryPayload {
   headline: string;
   since_last_visit?: {
