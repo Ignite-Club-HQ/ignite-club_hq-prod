@@ -95,30 +95,32 @@ async function getLLMFnName(): Promise<string> {
 }
 
 async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
-  // assemble-catchup supports team / club / group only; DMs + admin groups skipped.
-  if (ref.scope_type !== "team" && ref.scope_type !== "club" && ref.scope_type !== "group") {
-    return { result: null, error: "unsupported" };
-  }
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
   const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
   try {
-    const { data, error } = await supabase.functions.invoke("assemble-catchup", { body });
-    const fastCode = (data as any)?.error as string | undefined;
-    if (!error && data && !fastCode) {
-      return { result: data as ChatSummaryResult, error: null };
+    // assemble-catchup supports team / club / group only. For DMs and admin
+    // groups go straight to the LLM summariser so users get a real recap
+    // instead of "Open the thread to see new messages."
+    const supportsDigest = ref.scope_type === "team" || ref.scope_type === "club" || ref.scope_type === "group";
+    if (supportsDigest) {
+      const { data, error } = await supabase.functions.invoke("assemble-catchup", { body });
+      const fastCode = (data as any)?.error as string | undefined;
+      if (!error && data && !fastCode) {
+        return { result: data as ChatSummaryResult, error: null };
+      }
+      const code = error ? await parseInvokeError(error) : (fastCode ?? "unknown");
+      if (code !== "digests_missing" && code !== "unknown") {
+        return { result: null, error: code };
+      }
+      // fall through to LLM
     }
-    const code = error ? await parseInvokeError(error) : (fastCode ?? "unknown");
-    // If digests aren't ready yet (worker hasn't covered this thread), fall back
-    // to the full-LLM summariser — same behaviour as the per-thread hook.
-    if (code === "digests_missing" || code === "unknown") {
-      const fnName = await getLLMFnName();
-      const { data: llmData, error: llmErr } = await supabase.functions.invoke(fnName, { body });
-      if (llmErr) return { result: null, error: await parseInvokeError(llmErr) };
-      return { result: llmData as ChatSummaryResult, error: null };
-    }
-    return { result: null, error: code };
-
+    const fnName = await getLLMFnName();
+    const { data: llmData, error: llmErr } = await supabase.functions.invoke(fnName, { body });
+    if (llmErr) return { result: null, error: await parseInvokeError(llmErr) };
+    const llmCode = (llmData as any)?.error as string | undefined;
+    if (llmCode) return { result: null, error: llmCode };
+    return { result: llmData as ChatSummaryResult, error: null };
   } catch (e: any) {
     return { result: null, error: e?.message || "unknown" };
   }
@@ -234,9 +236,11 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
     const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
+    const headlines: Array<{ scope: RecapScopeRef; headline: string }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
+      if (n.headline) headlines.push({ scope: p.ref, headline: n.headline });
       n.actions.forEach((a) => {
         if (isMine(a)) actions.push({ scope: p.ref, action: a });
       });
@@ -244,7 +248,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
-    return { actions, questions };
+    return { actions, questions, headlines };
   }, [perScope, myNames]);
 
   const allEmpty =
@@ -338,6 +342,28 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
           {scopes.length > 0 && totalLoading === 0 && (
             <>
+              {/* Cross-thread overview: one-line headline per thread */}
+              {aggregated.headlines.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <p className="text-base font-semibold text-muted-foreground">
+                      Across your chats
+                    </p>
+                  </div>
+                  <ul className="space-y-2.5">
+                    {aggregated.headlines.map(({ scope, headline }, i) => (
+                      <li key={`${scope.scope_id}-h-${i}`}>
+                        <p className="text-sm leading-snug text-foreground">
+                          <span className="font-semibold">{scope.name}:</span>{" "}
+                          {headline}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
