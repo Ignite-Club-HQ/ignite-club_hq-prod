@@ -575,18 +575,11 @@ function ThreadCard({ item, onOpen }: { item: PerScope; onOpen: () => void }) {
       {!loading && !error && result && (
         <>
           {n.headline && <p className="text-sm leading-snug text-foreground">{n.headline}</p>}
-          {(n.actions.length > 0 || n.questions.length > 0) && (
+          {n.actions.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {n.actions.length > 0 && (
-                <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  {n.actions.length} action{n.actions.length === 1 ? "" : "s"}
-                </span>
-              )}
-              {n.questions.length > 0 && (
-                <span className="rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
-                  {n.questions.length} question{n.questions.length === 1 ? "" : "s"}
-                </span>
-              )}
+              <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                {n.actions.length} action{n.actions.length === 1 ? "" : "s"}
+              </span>
             </div>
           )}
         </>
