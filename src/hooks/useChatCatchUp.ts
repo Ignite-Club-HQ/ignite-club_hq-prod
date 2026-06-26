@@ -14,6 +14,10 @@ export interface OutstandingQuestion {
   date?: string; // ISO date (YYYY-MM-DD) the question was asked
 }
 
+export function normalizeQuestion(q: OutstandingQuestion | string): OutstandingQuestion {
+  return typeof q === "string" ? { text: q } : q;
+}
+
 export interface ChatSummaryPayload {
   headline: string;
   since_last_visit?: {
