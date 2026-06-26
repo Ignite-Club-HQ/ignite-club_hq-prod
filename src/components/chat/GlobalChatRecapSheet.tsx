@@ -17,7 +17,9 @@ import {
   AlertCircle,
   RefreshCw,
   Inbox,
+  Loader2,
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getCatchUpLastOpened,
@@ -25,6 +27,8 @@ import {
   type ChatSummaryPayload,
   type ChatSummaryResult,
   type OutstandingAction,
+  type OutstandingQuestion,
+  normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
 
 export interface RecapScopeRef {
@@ -50,7 +54,12 @@ interface PerScope {
   result: ChatSummaryResult | null;
 }
 
-const CONCURRENCY = 4;
+// Lower concurrency on native Android WebView: each in-flight edge-function
+// invocation holds its response payload in memory, and 4-up parallelism while
+// the user is on the recap sheet has caused white-screen crashes on lower-end
+// devices. Web keeps the original 4-up batch size.
+const CONCURRENCY = Capacitor.isNativePlatform() ? 2 : 4;
+
 
 function priorityBadgeClasses(p: OutstandingAction["priority"]) {
   switch (p) {
@@ -63,48 +72,133 @@ function priorityBadgeClasses(p: OutstandingAction["priority"]) {
   }
 }
 
+async function parseInvokeError(error: any): Promise<string> {
+  let code = "unknown";
+  try {
+    const ctx: any = error?.context;
+    const r: Response | undefined =
+      ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
+    if (r) {
+      const j = await r.clone().json().catch(() => null);
+      if (j?.error) code = String(j.error);
+    } else if (typeof ctx === "object" && ctx?.error) {
+      code = String(ctx.error);
+    }
+  } catch { /* ignore */ }
+  return code;
+}
+
+async function getLLMFnName(): Promise<string> {
+  try {
+    const { data: prov } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "ai_summary_provider")
+      .maybeSingle();
+    const v = (prov as any)?.value;
+    const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
+    if (provider === "icp" || provider === '"icp"') return "summarize-chat-icp";
+  } catch { /* default to gemini */ }
+  return "summarize-chat";
+}
+
 async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
-  // assemble-catchup supports team / club / group only; DMs + admin groups skipped.
-  if (ref.scope_type !== "team" && ref.scope_type !== "club" && ref.scope_type !== "group") {
-    return { result: null, error: "unsupported" };
-  }
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
+  const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
   try {
-    const { data, error } = await supabase.functions.invoke("assemble-catchup", {
-      body: { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at },
-    });
-    if (error) {
-      let code = "unknown";
-      try {
-        const resp: any = (error as any).context;
-        const r: Response | undefined =
-          resp instanceof Response ? resp : resp?.response instanceof Response ? resp.response : undefined;
-        if (r) {
-          const j = await r.clone().json().catch(() => null);
-          if (j?.error) code = String(j.error);
-        }
-      } catch { /* ignore */ }
-      return { result: null, error: code };
+    // assemble-catchup supports team / club / group only. For DMs and admin
+    // groups go straight to the LLM summariser so users get a real recap
+    // instead of "Open the thread to see new messages."
+    const supportsDigest = ref.scope_type === "team" || ref.scope_type === "club" || ref.scope_type === "group";
+    if (supportsDigest) {
+      const { data, error } = await supabase.functions.invoke("assemble-catchup", { body });
+      const fastCode = (data as any)?.error as string | undefined;
+      if (!error && data && !fastCode) {
+        return { result: data as ChatSummaryResult, error: null };
+      }
+      const code = error ? await parseInvokeError(error) : (fastCode ?? "unknown");
+      if (code !== "digests_missing" && code !== "unknown") {
+        return { result: null, error: code };
+      }
+      // fall through to LLM
     }
-    return { result: data as ChatSummaryResult, error: null };
+    const fnName = await getLLMFnName();
+    const { data: llmData, error: llmErr } = await supabase.functions.invoke(fnName, { body });
+    if (llmErr) return { result: null, error: await parseInvokeError(llmErr) };
+    const llmCode = (llmData as any)?.error as string | undefined;
+    if (llmCode) return { result: null, error: llmCode };
+    return { result: llmData as ChatSummaryResult, error: null };
   } catch (e: any) {
     return { result: null, error: e?.message || "unknown" };
   }
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
-  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as string[], headline: "" };
+  if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as string[] };
   const actions: OutstandingAction[] =
     summary.outstanding_actions ??
     (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-  const questions = summary.outstanding_questions ?? summary.unanswered_questions ?? [];
-  return { actions, questions, headline: summary.headline ?? "" };
+  const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
+  // Collect richer detail bullets so the cross-thread overview can show more
+  // than just the one-line headline that already appears on the per-thread card.
+  const details: string[] = [];
+  const push = (arr?: string[] | null) => {
+    if (!arr) return;
+    for (const t of arr) {
+      const s = (t ?? "").toString().trim();
+      if (s && !details.includes(s)) details.push(s);
+    }
+  };
+  push(summary.since_last_visit?.today);
+  push(summary.since_last_visit?.yesterday);
+  push(summary.detailed?.schedule_changes);
+  push(summary.schedule_changes);
+  push(summary.detailed?.discussion);
+  push(summary.since_last_visit?.earlier);
+  push(summary.detailed?.files_shared);
+  push(summary.files_shared);
+  push(summary.important_updates);
+  return { actions, questions, headline: summary.headline ?? "", details };
 }
 
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
   const [perScope, setPerScope] = useState<PerScope[]>([]);
   const [runId, setRunId] = useState(0);
+  const [myNames, setMyNames] = useState<string[]>([]);
+
+  // Resolve the current user's name tokens so "Needs your attention" can be
+  // filtered to actions actually assigned to *you* (or unassigned), not to
+  // other people in the thread.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth?.user?.id;
+        if (!uid) return;
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("display_name, first_name")
+          .eq("id", uid)
+          .maybeSingle();
+        if (cancelled) return;
+        const tokens = new Set<string>();
+        const push = (v: string | null | undefined) => {
+          if (!v) return;
+          const t = v.trim().toLowerCase();
+          if (t) tokens.add(t);
+          const first = t.split(/\s+/)[0];
+          if (first) tokens.add(first);
+        };
+        push((prof as any)?.display_name);
+        push((prof as any)?.first_name);
+        setMyNames(Array.from(tokens));
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Kick off batched fetches whenever the sheet opens with a fresh set of scopes.
   useEffect(() => {
@@ -139,20 +233,88 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
 
+  const GENERIC_GROUP = new Set(["everyone", "all", "team", "club", "we", "us", "parents", "players", "members", "anyone"]);
+  const GENERIC_YOU = new Set(["you", "me", "self", "your", "yours"]);
+
+  const nameMatchesMe = (name: string): boolean => {
+    const o = name.trim().toLowerCase();
+    if (!o) return false;
+    if (GENERIC_YOU.has(o)) return true;
+    if (myNames.length === 0) return false;
+    return myNames.some((n) => n.length >= 2 && (o === n || o.split(/\s+/)[0] === n));
+  };
+
+  // Extract a leading "Name(s) to ..." pattern from the action text — the LLM
+  // often puts owners in the sentence rather than the owner field.
+  const inferOwnersFromText = (text: string): string[] | null => {
+    const m = text.match(/^\s*([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+)?(?:\s*(?:,|&|and)\s*[A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+)?)*)\s+(?:to|will|should|needs? to|is going to|are going to)\b/);
+    if (!m) return null;
+    return m[1].split(/\s*(?:,|&|and)\s*/).map((s) => s.trim()).filter(Boolean);
+  };
+
+  // Strict: only surface actions the *current user* is specifically asked to do.
+  // Generic group references (everyone/team/all) and unassigned items DO NOT count.
+  const isMine = (action: OutstandingAction): boolean => {
+    const text = action.text ?? "";
+    const lower = text.toLowerCase();
+
+    // 1. Explicit owner field.
+    if (action.owner && action.owner.trim()) {
+      const o = action.owner.trim().toLowerCase();
+      if (GENERIC_GROUP.has(o)) return false;
+      return nameMatchesMe(action.owner);
+    }
+
+    // 2. @mention of me.
+    for (const n of myNames) {
+      if (n.length >= 2 && new RegExp(`@${n}\\b`, "i").test(text)) return true;
+    }
+
+    // 3. Leading "Name to ..." pattern — must include me.
+    const inferred = inferOwnersFromText(text);
+    if (inferred && inferred.length > 0) {
+      return inferred.some((o) => {
+        const lo = o.toLowerCase();
+        if (GENERIC_GROUP.has(lo)) return false;
+        return nameMatchesMe(o);
+      });
+    }
+
+    // 4. Direct second-person address to the reader.
+    if (/\byou(?:'re| are| need| should| must| can| have to| will)\b/i.test(lower)) return true;
+    if (/\b(?:your)\s+(?:turn|action|input|response|reply|confirmation|approval)\b/i.test(lower)) return true;
+    if (/^\s*please\b/i.test(lower)) return true;
+
+    // 5. Otherwise: not specifically directed at me.
+    return false;
+  };
+
   const aggregated = useMemo(() => {
     const actions: Array<{ scope: RecapScopeRef; action: OutstandingAction }> = [];
-    const questions: Array<{ scope: RecapScopeRef; text: string }> = [];
+    const questions: Array<{ scope: RecapScopeRef; text: string; date?: string }> = [];
+    const overviews: Array<{ scope: RecapScopeRef; headline: string; details: string[] }> = [];
     for (const p of perScope) {
       if (!p.result) continue;
       const n = normalise(p.result.summary);
-      n.actions.forEach((a) => actions.push({ scope: p.ref, action: a }));
-      n.questions.forEach((q) => questions.push({ scope: p.ref, text: q }));
+      if (n.headline || n.details.length > 0) {
+        overviews.push({ scope: p.ref, headline: n.headline, details: n.details.slice(0, 4) });
+      }
+      n.actions.forEach((a) => {
+        if (isMine(a)) actions.push({ scope: p.ref, action: a });
+      });
+      // Only surface questions when the backend actually scoped to the unread
+      // window. If it fell back to the 7-day floor (no last_opened_at cutoff),
+      // the "questions" may be ancient and not from unread messages — skip
+      // them to match the per-thread behaviour.
+      const usedFallback = !!(p.result as any).used_fallback;
+      if (!usedFallback) {
+        n.questions.forEach((q) => questions.push({ scope: p.ref, text: q.text, date: q.date }));
+      }
     }
-    // High priority first, then medium, then low
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
-    return { actions, questions };
-  }, [perScope]);
+    return { actions, questions, overviews };
+  }, [perScope, myNames]);
 
   const allEmpty =
     !totalLoading &&
@@ -201,8 +363,93 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             </div>
           )}
 
-          {scopes.length > 0 && (
+          {scopes.length > 0 && totalLoading > 0 && (
+            <div className="py-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="relative h-5 w-5 shrink-0">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
+                  <Sparkles className="relative h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Reading your unread chats…
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Summarised {completed} of {scopes.length} · {totalLoading} to go
+                  </p>
+                </div>
+              </div>
+              <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: `${scopes.length === 0 ? 0 : (completed / scopes.length) * 100}%` }}
+                />
+              </div>
+              <ul className="space-y-2">
+                {perScope.map((p) => (
+                  <li
+                    key={`${p.ref.scope_type}-${p.ref.scope_id}`}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
+                  >
+                    {p.loading ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                    ) : p.error ? (
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    )}
+                    <span className="truncate text-sm text-foreground">{p.ref.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {scopes.length > 0 && totalLoading === 0 && (
             <>
+              {/* Cross-thread overview: headline + key detail bullets per thread */}
+              {aggregated.overviews.length > 0 && (
+                <section className="mb-3 rounded-xl border border-border bg-card p-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <p className="text-base font-semibold text-muted-foreground">
+                      Across your chats
+                    </p>
+                  </div>
+                  <ul className="space-y-3.5">
+                    {aggregated.overviews.map(({ scope, headline, details }, i) => (
+                      <li key={`${scope.scope_id}-h-${i}`} className="border-l-2 border-border pl-3">
+                        <p className="text-sm font-semibold text-foreground">{scope.name}</p>
+                        {headline && (
+                          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
+                        )}
+                        {details.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {details.map((d, j) => (
+                              <li
+                                key={`${scope.scope_id}-d-${i}-${j}`}
+                                className="relative pl-3.5 text-sm leading-snug text-foreground before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:rounded-full before:bg-muted-foreground/60"
+                              >
+                                {d}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <Link
+                          to={scope.link}
+                          onClick={() => onOpenChange(false)}
+                          className="mt-1.5 inline-flex items-center text-xs text-muted-foreground hover:text-primary"
+                        >
+                          Open {scope.name}
+                          <ChevronRight className="h-3 w-3" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+
               {/* Roll-up: outstanding actions across all threads */}
               {aggregated.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
@@ -244,9 +491,12 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                     </p>
                   </div>
                   <ul className="space-y-3">
-                    {aggregated.questions.slice(0, 8).map(({ scope, text }, i) => (
+                    {aggregated.questions.slice(0, 8).map(({ scope, text, date }, i) => (
                       <li key={`${scope.scope_id}-q-${i}`}>
                         <p className="text-base leading-relaxed text-foreground">{text}</p>
+                        {date && (
+                          <p className="text-xs text-muted-foreground">{date}</p>
+                        )}
                         <Link
                           to={scope.link}
                           onClick={() => onOpenChange(false)}

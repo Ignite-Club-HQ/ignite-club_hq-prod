@@ -90,11 +90,14 @@ serve(async (req) => {
     }
 
     // DMs and club_admin chats have no digest pipeline today → fall back signal.
+    // Return 200 so supabase-js doesn't log it as a runtime error; client treats
+    // `digests_missing` as a fallback trigger.
     if (!cfg.digestType) {
       return new Response(JSON.stringify({ error: "digests_missing", reason: "scope_not_supported" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Cutoff resolution:
     //  - explicit lookback_hours wins (user asked to look further back)
@@ -167,9 +170,11 @@ serve(async (req) => {
     }
     // Require >=80% coverage to avoid misleading summaries.
     if (covered / Math.max(1, total) < 0.8) {
+      // 200 (not 409) so supabase-js doesn't surface it as a runtime error;
+      // the client hook treats `digests_missing` as a signal to fall back to LLM.
       return new Response(
         JSON.stringify({ error: "digests_missing", coverage: covered, total }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -184,23 +189,24 @@ serve(async (req) => {
     // Bucket and pick top bullets
     const now = new Date();
     const buckets: Record<"today" | "yesterday" | "earlier", string[]> = { today: [], yesterday: [], earlier: [] };
-    const actions: { text: string; owner: null; priority: "high" | "medium" | "low" }[] = [];
-    const questions: string[] = [];
+    const actions: { text: string; owner: null; priority: "high" | "medium" | "low"; topic: string | null; idx: number }[] = [];
+    const questions: { text: string; topic: string | null; idx: number }[] = [];
     const decisions: string[] = [];
     const social_count = { n: 0 };
 
-    for (const d of digests || []) {
+    for (let i = 0; i < (digests || []).length; i++) {
+      const d = digests[i];
       const ts = new Date(d.message_created_at);
       const bucket = bucketDay(now, ts);
       const s = (d.summary || "").trim();
       if (!s) continue;
       switch (d.classification) {
         case "action":
-          actions.push({ text: s, owner: null, priority: "medium" });
+          actions.push({ text: s, owner: null, priority: "medium", topic: d.topic ?? null, idx: i });
           buckets[bucket].push(s);
           break;
         case "question":
-          questions.push(s);
+          questions.push({ text: s, topic: d.topic ?? null, idx: i });
           buckets[bucket].push(s);
           break;
         case "decision":
@@ -216,16 +222,52 @@ serve(async (req) => {
       }
     }
 
-    // Outstanding actions/questions: drop ones that look resolved later
-    // (cheap heuristic — same string appearing in a later decision/info).
-    const allLater = new Set((digests || []).map((d: any) => (d.summary || "").toLowerCase()));
-    const isResolved = (s: string) => {
-      const k = s.toLowerCase();
-      // crude: if any later decision summary mentions a key noun, treat as resolved
-      return decisions.some((dec) => dec.toLowerCase().includes(k.slice(0, 20)) && dec.toLowerCase() !== k);
+    // Outstanding actions/questions: drop ones that look resolved later.
+    const ANSWER_HINTS = [
+      "yes", "no", "yeah", "yep", "nope", "sure", "ok ", "okay", "will do",
+      "i can", "i'll ", "ill ", "we can", "done", "sorted", "confirmed",
+      "already", "taken care", "np ", "no worries", "absolutely",
+      "i have", "ive ", "i am ", "im ", "i will ", "happy to",
+      "not a problem", "all good", "got it", "on it", "i do", "we do",
+      "i did", "we did", "me too", "agreed", "correct", "that's right",
+      "that is right", "sounds good", "works for me", "fine by me",
+      "perfect", "great", "good", "sure thing", "of course", "definitely",
+      "certainly", "roger", "copy that", "10-4"
+    ];
+    const looksLikeAnswer = (t: string) => {
+      const lower = t.toLowerCase();
+      return ANSWER_HINTS.some((h) => lower.startsWith(h) || lower.includes(" " + h + " "));
     };
-    const outstanding_actions = actions.filter((a) => !isResolved(a.text)).slice(0, 5);
-    const outstanding_questions = questions.filter((q) => !isResolved(q)).slice(0, 5);
+    const isResolved = (text: string, topic: string | null, digestIndex: number) => {
+      const k = text.toLowerCase();
+      for (let j = digestIndex + 1; j < (digests || []).length; j++) {
+        const later = digests[j];
+        const laterText = (later.summary || "").toLowerCase();
+        if (laterText === k) continue;
+        // Same topic with answer-like language → likely answered.
+        if (topic && later.topic && later.topic.toLowerCase() === topic.toLowerCase()) {
+          if (looksLikeAnswer(later.summary || "")) return true;
+        }
+        // Decision or info that mentions the question's key phrase.
+        if (later.classification === "decision" || later.classification === "info") {
+          if (laterText.includes(k.slice(0, 25)) && laterText !== k) return true;
+        }
+      }
+      return false;
+    };
+    const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
+    // Open questions: only surface from genuinely unread messages (since the
+    // user's last visit). If we had to fall back to the 7-day floor because
+    // there were no new messages, suppress the section entirely — questions
+    // from previous history are not "open" to the user. Explicit lookback
+    // (user clicked "Look further back") is honoured.
+    const questionsFromUnreadOnly = validLookback || (hasLastOpened && !usedFallback);
+    const outstanding_questions = questionsFromUnreadOnly
+      ? questions.filter((q) => !isResolved(q.text, q.topic, q.idx)).slice(0, 5).map((q) => ({
+          text: q.text,
+          date: new Date(digests[q.idx].message_created_at).toISOString().slice(0, 10),
+        }))
+      : [];
 
     const headline = (() => {
       const newCount = (digests || []).length;

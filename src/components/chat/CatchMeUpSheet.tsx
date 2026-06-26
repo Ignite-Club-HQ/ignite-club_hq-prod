@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,7 +8,37 @@ import {
   Paperclip, HelpCircle, RefreshCw, MessageSquare, ChevronDown, ChevronUp, Pin,
   Loader2, X,
 } from "lucide-react";
-import type { ChatSummaryResult, OutstandingAction } from "@/hooks/useChatCatchUp";
+import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
+import { normalizeQuestion } from "@/hooks/useChatCatchUp";
+
+/**
+ * On native Android WebView, running 20–40 concurrent setInterval-driven
+ * typewriter animations (one per Typed/Reveal in the summary) while large
+ * edge-function payloads land has crashed the WebView to a white screen.
+ * We short-circuit the animation path on native and when the user prefers
+ * reduced motion — content renders immediately, no per-character timers.
+ */
+function useStaticReveal(): boolean {
+  const [staticMode, setStaticMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    if (Capacitor.isNativePlatform()) return true;
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    } catch { return false; }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (Capacitor.isNativePlatform()) { setStaticMode(true); return; }
+    try {
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const onChange = () => setStaticMode(mq.matches);
+      mq.addEventListener?.("change", onChange);
+      return () => mq.removeEventListener?.("change", onChange);
+    } catch { /* ignore */ }
+  }, []);
+  return staticMode;
+}
+
 
 const LOADING_STAGES = [
   "Reading recent messages…",
@@ -125,6 +156,7 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
@@ -138,7 +170,7 @@ export function CatchMeUpSheet({
     };
     const actions: OutstandingAction[] = s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
-    const questions = s.outstanding_questions ?? s.unanswered_questions ?? [];
+    const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailed = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
       files_shared: s.files_shared ?? [],
@@ -154,17 +186,21 @@ export function CatchMeUpSheet({
   // Sequential top-to-bottom typing: each line waits for all previous lines to
   // finish typing before it starts. We compute the cumulative delay per line
   // from the running character total + a small gap between lines.
-  const CHAR_MS = 16;
-  const GAP_MS = 120;
-  const HEADER_REVEAL_MS = 220;
+  // In staticMode (native / reduced motion) we collapse all delays to 0 so
+  // every Typed/Reveal renders instantly — no per-character setInterval storm.
+  const CHAR_MS = staticMode ? 0 : 16;
+  const GAP_MS = staticMode ? 0 : 120;
+  const HEADER_REVEAL_MS = staticMode ? 0 : 220;
   const delayRef = useRef(0);
   delayRef.current = 0;
   const scheduleType = (text: string) => {
+    if (staticMode) return 0;
     const start = delayRef.current;
     delayRef.current = start + text.length * CHAR_MS + GAP_MS;
     return start;
   };
   const scheduleReveal = (ms: number = HEADER_REVEAL_MS) => {
+    if (staticMode) return 0;
     const start = delayRef.current;
     delayRef.current = start + ms;
     return start;
@@ -200,8 +236,9 @@ export function CatchMeUpSheet({
 
         <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
           {loading && !result && (
-            <LoadingTypewriter stage={loadingStage} />
+            <LoadingTypewriter stage={loadingStage} staticMode={staticMode} />
           )}
+
 
           {!loading && err && (
             <div className="rounded-xl border border-border bg-card p-4">
@@ -312,16 +349,22 @@ export function CatchMeUpSheet({
                     </p>
                   </Reveal>
                   {view.questions.length === 1 ? (
-                    <p className="text-base leading-relaxed text-foreground">
-                      <Typed text={view.questions[0]} delayMs={scheduleType(view.questions[0])} charMs={CHAR_MS} />
-                    </p>
+                    <div className="text-base leading-relaxed text-foreground">
+                      <Typed text={view.questions[0].text} delayMs={scheduleType(view.questions[0].text)} charMs={CHAR_MS} />
+                      {view.questions[0].date && (
+                        <p className="mt-1 text-xs text-muted-foreground">{view.questions[0].date}</p>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {view.questions.map((q) => {
-                        const delay = scheduleType(q);
+                        const delay = scheduleType(q.text);
                         return (
-                          <div key={q} className="text-base leading-relaxed text-foreground">
-                            <Typed text={q} delayMs={delay} charMs={CHAR_MS} />
+                          <div key={q.text} className="text-base leading-relaxed text-foreground">
+                            <Typed text={q.text} delayMs={delay} charMs={CHAR_MS} />
+                            {q.date && (
+                              <p className="mt-0.5 text-xs text-muted-foreground">{q.date}</p>
+                            )}
                           </div>
                         );
                       })}
@@ -489,17 +532,22 @@ function Typed({
   delayMs?: number;
   charMs?: number;
 }) {
-  const [n, setN] = useState(0);
-  const [started, setStarted] = useState(delayMs === 0);
+  // staticMode is signalled by charMs === 0 (set by useStaticReveal): render
+  // the full text immediately, no setInterval/setTimeout, no per-character
+  // re-render storm. This is the Android-WebView crash mitigation.
+  const isStatic = charMs <= 0;
+  const [n, setN] = useState(isStatic ? text.length : 0);
+  const [started, setStarted] = useState(isStatic || delayMs === 0);
   useEffect(() => {
+    if (isStatic) { setN(text.length); setStarted(true); return; }
     setN(0);
     setStarted(delayMs === 0);
     if (delayMs === 0) return;
     const t = setTimeout(() => setStarted(true), delayMs);
     return () => clearTimeout(t);
-  }, [text, delayMs]);
+  }, [text, delayMs, isStatic]);
   useEffect(() => {
-    if (!started) return;
+    if (isStatic || !started) return;
     let i = 0;
     const id = setInterval(() => {
       i += 1;
@@ -507,7 +555,8 @@ function Typed({
       if (i >= text.length) clearInterval(id);
     }, charMs);
     return () => clearInterval(id);
-  }, [started, text, charMs]);
+  }, [started, text, charMs, isStatic]);
+
   // Grid stack: invisible full text reserves space; visible partial overlays it.
   return (
     <span className="grid">
@@ -556,7 +605,7 @@ function Reveal({
  * immediately on mount (no skeleton wait), then types each subsequent stage
  * line as `stage` advances. Gives the perception that work has already begun.
  */
-function LoadingTypewriter({ stage }: { stage: number }) {
+function LoadingTypewriter({ stage, staticMode = false }: { stage: number; staticMode?: boolean }) {
   // Lines to type so far: every stage up to and including the current one.
   const lines = LOADING_STAGES.slice(0, Math.max(1, stage + 1));
   const isFinalStage = stage >= LOADING_STAGES.length - 1;
@@ -564,8 +613,6 @@ function LoadingTypewriter({ stage }: { stage: number }) {
 
   useEffect(() => {
     if (!isFinalStage) { setShowReassurance(false); return; }
-    // Once the final stage is reached, wait 2.5s then show a reassuring
-    // activity indicator so the user knows work is still in flight.
     const t = setTimeout(() => setShowReassurance(true), 2500);
     return () => clearTimeout(t);
   }, [isFinalStage, stage]);
@@ -576,8 +623,8 @@ function LoadingTypewriter({ stage }: { stage: number }) {
         <TypewriterLine
           key={i}
           text={line}
-          // Only the last (newest) line shows the blinking caret while it types.
-          showCaret={i === lines.length - 1}
+          showCaret={!staticMode && i === lines.length - 1}
+          staticMode={staticMode}
         />
       ))}
       {showReassurance && (
@@ -592,9 +639,10 @@ function LoadingTypewriter({ stage }: { stage: number }) {
   );
 }
 
-function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean }) {
-  const [shown, setShown] = useState(0);
+function TypewriterLine({ text, showCaret, staticMode = false }: { text: string; showCaret: boolean; staticMode?: boolean }) {
+  const [shown, setShown] = useState(staticMode ? text.length : 0);
   useEffect(() => {
+    if (staticMode) { setShown(text.length); return; }
     setShown(0);
     let i = 0;
     const id = setInterval(() => {
@@ -603,7 +651,7 @@ function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean 
       if (i >= text.length) clearInterval(id);
     }, 28);
     return () => clearInterval(id);
-  }, [text]);
+  }, [text, staticMode]);
   const done = shown >= text.length;
   return (
     <p className="text-sm leading-snug text-foreground">
@@ -615,5 +663,6 @@ function TypewriterLine({ text, showCaret }: { text: string; showCaret: boolean 
         />
       )}
     </p>
+
   );
 }

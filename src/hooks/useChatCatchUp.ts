@@ -9,6 +9,15 @@ export interface OutstandingAction {
   priority: "high" | "medium" | "low";
 }
 
+export interface OutstandingQuestion {
+  text: string;
+  date?: string; // ISO date (YYYY-MM-DD) the question was asked
+}
+
+export function normalizeQuestion(q: OutstandingQuestion | string): OutstandingQuestion {
+  return typeof q === "string" ? { text: q } : q;
+}
+
 export interface ChatSummaryPayload {
   headline: string;
   since_last_visit?: {
@@ -17,7 +26,7 @@ export interface ChatSummaryPayload {
     earlier: string[];
   };
   outstanding_actions?: OutstandingAction[];
-  outstanding_questions?: string[];
+  outstanding_questions?: OutstandingQuestion[];
   detailed?: {
     schedule_changes: string[];
     files_shared: string[];
@@ -31,7 +40,7 @@ export interface ChatSummaryPayload {
   schedule_changes?: string[];
   people_mentioned?: string[];
   files_shared?: string[];
-  unanswered_questions?: string[];
+  unanswered_questions?: (OutstandingQuestion | string)[];
 }
 
 export interface ChatSummaryResult {
@@ -217,19 +226,25 @@ export function useChatCatchUp({
         // We use this path even for explicit lookbacks — it ignores cache by design.
         if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
           const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
-          if (!fastErr && fast) {
+          const fastCode = (fast as any)?.error;
+          if (!fastErr && fast && !fastCode) {
             setResult(fast as ChatSummaryResult);
             return;
           }
-          // If anything other than "digests_missing", surface it. Otherwise fall back to LLM.
+          // 200 with { error: "digests_missing" } → fall through to LLM.
+          // Any other surfaced error → show it.
           if (fastErr) {
             const code = await parseErr(fastErr);
             if (code !== "digests_missing" && code !== "unknown") {
               setError(code);
               return;
             }
+          } else if (fastCode && fastCode !== "digests_missing") {
+            setError(String(fastCode));
+            return;
           }
         }
+
 
         // Fallback: full LLM summary (Gemini or ICP per app setting).
         let fnName = "summarize-chat";
