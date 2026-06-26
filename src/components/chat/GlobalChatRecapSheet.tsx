@@ -63,6 +63,36 @@ function priorityBadgeClasses(p: OutstandingAction["priority"]) {
   }
 }
 
+async function parseInvokeError(error: any): Promise<string> {
+  let code = "unknown";
+  try {
+    const ctx: any = error?.context;
+    const r: Response | undefined =
+      ctx instanceof Response ? ctx : ctx?.response instanceof Response ? ctx.response : undefined;
+    if (r) {
+      const j = await r.clone().json().catch(() => null);
+      if (j?.error) code = String(j.error);
+    } else if (typeof ctx === "object" && ctx?.error) {
+      code = String(ctx.error);
+    }
+  } catch { /* ignore */ }
+  return code;
+}
+
+async function getLLMFnName(): Promise<string> {
+  try {
+    const { data: prov } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "ai_summary_provider")
+      .maybeSingle();
+    const v = (prov as any)?.value;
+    const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
+    if (provider === "icp" || provider === '"icp"') return "summarize-chat-icp";
+  } catch { /* default to gemini */ }
+  return "summarize-chat";
+}
+
 async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
   // assemble-catchup supports team / club / group only; DMs + admin groups skipped.
   if (ref.scope_type !== "team" && ref.scope_type !== "club" && ref.scope_type !== "group") {
@@ -70,24 +100,22 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
   }
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
+  const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
   try {
-    const { data, error } = await supabase.functions.invoke("assemble-catchup", {
-      body: { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at },
-    });
-    if (error) {
-      let code = "unknown";
-      try {
-        const resp: any = (error as any).context;
-        const r: Response | undefined =
-          resp instanceof Response ? resp : resp?.response instanceof Response ? resp.response : undefined;
-        if (r) {
-          const j = await r.clone().json().catch(() => null);
-          if (j?.error) code = String(j.error);
-        }
-      } catch { /* ignore */ }
-      return { result: null, error: code };
+    const { data, error } = await supabase.functions.invoke("assemble-catchup", { body });
+    if (!error && data) {
+      return { result: data as ChatSummaryResult, error: null };
     }
-    return { result: data as ChatSummaryResult, error: null };
+    const code = error ? await parseInvokeError(error) : "unknown";
+    // If digests aren't ready yet (worker hasn't covered this thread), fall back
+    // to the full-LLM summariser — same behaviour as the per-thread hook.
+    if (code === "digests_missing" || code === "unknown") {
+      const fnName = await getLLMFnName();
+      const { data: llmData, error: llmErr } = await supabase.functions.invoke(fnName, { body });
+      if (llmErr) return { result: null, error: await parseInvokeError(llmErr) };
+      return { result: llmData as ChatSummaryResult, error: null };
+    }
+    return { result: null, error: code };
   } catch (e: any) {
     return { result: null, error: e?.message || "unknown" };
   }
