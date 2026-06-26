@@ -356,8 +356,8 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             {scopes.length === 0
               ? "You're all caught up."
               : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}…`
-                : `Summarised ${scopes.length} unread thread${scopes.length === 1 ? "" : "s"}.`}
+                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
+                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
           </p>
         </SheetHeader>
 
