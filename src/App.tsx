@@ -466,6 +466,7 @@ const App = () => {
                 <Route path="/c/:id" element={<PublicCompetitionPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </RouteErrorBoundary>
             </Suspense>
             <CookieConsentBanner />
             <IOSInstallPrompt />
