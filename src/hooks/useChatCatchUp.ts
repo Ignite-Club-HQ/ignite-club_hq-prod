@@ -22,7 +22,7 @@ export interface ChatSummaryPayload {
     earlier: string[];
   };
   outstanding_actions?: OutstandingAction[];
-  outstanding_questions?: string[];
+  outstanding_questions?: OutstandingQuestion[];
   detailed?: {
     schedule_changes: string[];
     files_shared: string[];
