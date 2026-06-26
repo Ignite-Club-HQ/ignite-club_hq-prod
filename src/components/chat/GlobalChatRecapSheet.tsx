@@ -147,7 +147,7 @@ function normalise(summary: ChatSummaryPayload | undefined) {
   const push = (arr?: string[] | null) => {
     if (!arr) return;
     for (const t of arr) {
-      const s = (t ?? "").toString().trim();
+      const s = stripRecapDatePrefix((t ?? "").toString().trim());
       if (s && !details.includes(s)) details.push(s);
     }
   };
