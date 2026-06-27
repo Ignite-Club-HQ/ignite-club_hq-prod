@@ -164,6 +164,15 @@ export function CatchMeUpSheet({
 }: CatchMeUpSheetProps) {
   const err = error ? errorMessage(error) : null;
   const [showDetailed, setShowDetailed] = useState(false);
+  // Auto-expand the detailed summary whenever there is no top-level activity
+  // feed to show — otherwise the user just sees Outstanding actions with no
+  // narrative context until they tap "View detailed summary".
+  useEffect(() => {
+    if (!result) return;
+    if (view && view.detailedHasAny && !view.sinceHasAny) {
+      setShowDetailed(true);
+    }
+  }, [result, view?.detailedHasAny, view?.sinceHasAny]);
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
 
