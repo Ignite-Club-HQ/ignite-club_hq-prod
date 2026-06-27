@@ -517,7 +517,7 @@ export function AppHeader() {
       if (!user?.id) return [];
       let q = supabase
         .from("notifications")
-        .select("id, message, type, created_at, is_read, related_id")
+        .select("id, message, type, created_at, is_read, related_id, club_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(activeClubFilter ? 20 : 5);
