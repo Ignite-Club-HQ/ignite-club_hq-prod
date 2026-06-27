@@ -454,7 +454,8 @@ serve(async (req) => {
       for (const p of pseudos) {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
         out = out.replace(re, realByPseudo.get(p)!);
-      }
+      out = out.replace(/\bChild\s+\d+\b/g, "a child");
+      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
