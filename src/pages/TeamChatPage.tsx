@@ -414,20 +414,23 @@ export default function TeamChatPage() {
   const { data: isAdmin } = useQuery({
     queryKey: ["team-chat-admin", teamId, user?.id, team?.club_id],
     queryFn: async () => {
+      const uid = user?.id;
+      const tid = teamId;
+      if (!uid || !tid) return false;
       // Run all checks in parallel
       const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
         supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", user!.id)
-          .eq("team_id", teamId!)
+          .eq("user_id", uid)
+          .eq("team_id", tid)
           .in("role", ["team_admin", "coach"])
           .maybeSingle(),
         team?.club_id
           ? supabase
               .from("user_roles")
               .select("role")
-              .eq("user_id", user!.id)
+              .eq("user_id", uid)
               .eq("club_id", team.club_id)
               .eq("role", "club_admin")
               .maybeSingle()
@@ -435,14 +438,14 @@ export default function TeamChatPage() {
         supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", user!.id)
+          .eq("user_id", uid)
           .eq("role", "app_admin")
           .maybeSingle(),
       ]);
       
       return !!teamRoleResult.data || !!clubRoleResult.data || !!appAdminResult.data;
     },
-    enabled: !!teamId && authReady,
+    enabled: !!teamId && authReady && !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -1548,6 +1551,7 @@ export default function TeamChatPage() {
     }
 
     if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;

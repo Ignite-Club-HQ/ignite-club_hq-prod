@@ -339,31 +339,36 @@ export default function ClubChatPage() {
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
+      const uid = user?.id;
+      if (!uid) return false;
       const { data } = await supabase
         .from("user_roles")
         .select("id")
-        .eq("user_id", user!.id)
+        .eq("user_id", uid)
         .eq("role", "app_admin")
         .maybeSingle();
       return !!data;
     },
-    enabled: authReady,
+    enabled: authReady && !!user?.id,
   });
 
   // Check if user is club admin
   const { data: isClubAdmin } = useQuery({
     queryKey: ["is-club-admin", clubId, user?.id],
     queryFn: async () => {
+      const uid = user?.id;
+      const cid = clubId;
+      if (!uid || !cid) return false;
       const { data } = await supabase
         .from("user_roles")
         .select("id")
-        .eq("user_id", user!.id)
-        .eq("club_id", clubId!)
+        .eq("user_id", uid)
+        .eq("club_id", cid)
         .eq("role", "club_admin")
         .maybeSingle();
       return !!data;
     },
-    enabled: authReady && !!clubId,
+    enabled: authReady && !!clubId && !!user?.id,
   });
 
   // Check for club-level subscription (Club Chat requires CLUB-level Pro, not team-level Pro)
@@ -1313,6 +1318,7 @@ export default function ClubChatPage() {
     }
 
     if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!user?.id || !clubId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;

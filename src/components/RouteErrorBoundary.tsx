@@ -54,7 +54,8 @@ export class RouteErrorBoundary extends React.Component<
       // Clear any pending notification-driven jump so the inbox doesn't
       // immediately re-trigger the same broken path.
       sessionStorage.removeItem("pendingPushNavigationUrl");
-      sessionStorage.removeItem("ignite_pending_chat_jump");
+      sessionStorage.removeItem("ignite_pending_chat_jump_v1");
+      sessionStorage.removeItem("ignite_pending_web_push_nav");
     } catch { /* ignore */ }
     this.setState({ error: null });
     if (typeof window !== "undefined") {
@@ -68,17 +69,46 @@ export class RouteErrorBoundary extends React.Component<
     }
   };
 
+  private handleCopy = async () => {
+    const err = this.state.error;
+    if (!err) return;
+    const payload = `${err.message}\n\n${err.stack ?? ""}`;
+    try {
+      await navigator.clipboard.writeText(payload);
+      // eslint-disable-next-line no-alert
+      alert("Error copied to clipboard");
+    } catch {
+      // eslint-disable-next-line no-alert
+      alert(payload.slice(0, 1500));
+    }
+  };
+
   render() {
     if (!this.state.error) return this.props.children;
+    const err = this.state.error;
 
     return (
-      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center px-6 text-center bg-background text-foreground">
+      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center px-6 py-8 bg-background text-foreground">
         <div className="max-w-sm w-full space-y-4">
-          <h1 className="text-xl font-semibold">Something went wrong</h1>
-          <p className="text-sm text-muted-foreground leading-snug">
+          <h1 className="text-xl font-semibold text-center">Something went wrong</h1>
+          <p className="text-sm text-muted-foreground leading-snug text-center">
             We hit an unexpected error opening this screen. You can head back
             to your inbox or try again.
           </p>
+          <details className="text-left bg-muted/50 rounded-lg p-3 text-[11px] leading-snug">
+            <summary className="cursor-pointer font-medium">Error details</summary>
+            <div className="mt-2 font-mono break-words whitespace-pre-wrap max-h-64 overflow-auto">
+              <div className="font-semibold">{err.message}</div>
+              {err.stack ? <div className="mt-2 opacity-70">{err.stack}</div> : null}
+            </div>
+            <button
+              type="button"
+              onClick={this.handleCopy}
+              className="mt-2 text-xs underline text-primary"
+            >
+              Copy error
+            </button>
+          </details>
           <div className="flex flex-col gap-2 pt-2">
             <button
               type="button"

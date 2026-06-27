@@ -40,11 +40,18 @@ export function prefetchChatChunkForUrl(rawUrl: string | null | undefined): void
     once("club-admin-chat", () => import("@/pages/ClubAdminChatPage"));
   } else if (path.startsWith("/clubs/")) {
     once("club-chat", () => import("@/pages/ClubChatPage"));
-  } else if (path.startsWith("/dm/") || path.startsWith("/messages/")) {
-    once("dm", () => import("@/pages/DirectMessagePage"));
-  } else if (path.startsWith("/broadcast")) {
+  } else if (path.startsWith("/messages/broadcast") || path.startsWith("/broadcast")) {
     once("broadcast", () => import("@/pages/BroadcastChatPage"));
-  } else if (path.startsWith("/messages")) {
+  } else if (path.startsWith("/messages/club-admin/")) {
+    once("club-admin-chat", () => import("@/pages/ClubAdminChatPage"));
+  } else if (path.startsWith("/messages/club/")) {
+    once("club-chat", () => import("@/pages/ClubChatPage"));
+  } else if (path.startsWith("/messages/dm/") || path.startsWith("/dm/")) {
+    once("dm", () => import("@/pages/DirectMessagePage"));
+  } else if (path === "/messages" || path === "/messages/") {
     once("messages", () => import("@/pages/MessagesPage"));
+  } else if (path.startsWith("/messages/")) {
+    // /messages/:teamId → TeamChatPage (most common notification target)
+    once("team-chat", () => import("@/pages/TeamChatPage"));
   }
 }
