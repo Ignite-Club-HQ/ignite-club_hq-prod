@@ -104,7 +104,7 @@ async function getClubIdForScope(
 
 const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
 
-You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates by when they happened RELATIVE TO NOW: "today" (since 00:00 local today), "yesterday", "earlier" (older than yesterday but still within the window).
+You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates into the legacy JSON buckets by send date: current-date bucket, previous-date bucket, and earlier bucket. The bucket names are schema keys only and must never appear in user-visible strings.
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
 
@@ -136,9 +136,9 @@ Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets t
 BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 12-30 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
 
 
-TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag derived from when the underlying message was sent. Format: "[Sat 27 Jun 9:30am]" or "[Wed 2 Jul 6pm]". Always include weekday, day number, month, and time. Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. NEVER use relative tags such as "[Today]", "[Yest]", "[Yesterday]", "[Tomorrow]", or a bare "[9:30am]". Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
 
-EVENT DATE ACCURACY (critical): Inside bullet TEXT (not the timeline tag), do NOT use the words "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" to describe when an event/training/match happens. Always use the explicit weekday and date (e.g. "Wednesday", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's point in time — re-anchor everything against NOW (given in the user message) and resolve to a concrete weekday/date before writing. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown, no code fences.`;
+EVENT DATE ACCURACY (critical): Inside every user-visible string (headline, bullets, actions, details), NEVER use "today", "tonight", "tomorrow", "yesterday", "this morning", "this afternoon", "this evening", "this week", or "next week". Always use an explicit weekday/date when an event/training/match date is clear (e.g. "Wednesday's training", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's message timestamp — resolve "today/tomorrow/yesterday" against the timestamp on that specific transcript line, then write the resulting concrete weekday/date. NOW is only for knowing the generation time; do not use NOW to interpret a sender's relative word. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown, no code fences.`;
 
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
@@ -297,7 +297,7 @@ serve(async (req) => {
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v4");
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v6");
       if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
@@ -464,7 +464,7 @@ serve(async (req) => {
 
     const nowIso = new Date().toISOString();
     const lastVisitLine = validLookback
-      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window. Use the legacy today/yesterday/earlier JSON keys only as internal buckets; do not write those words in any user-visible text.`
       : last_opened_at
       ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
       : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
@@ -568,7 +568,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: `icp:${modelUsed}:recap-v4`,
+            model: `icp:${modelUsed}:recap-v6`,
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },

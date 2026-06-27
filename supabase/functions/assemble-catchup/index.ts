@@ -1,5 +1,5 @@
 // Fast no-LLM Catch Me Up. Reads pre-computed digests from `message_digests`
-// and assembles a personal view bucketed by today/yesterday/earlier relative
+// and assembles a personal view bucketed internally by day relative
 // to the caller's `last_opened_at`. Falls back to the LLM functions when
 // digests are missing for too many recent messages.
 //
@@ -57,15 +57,10 @@ function formatTimeOfDay(ts: Date): string {
   h = h % 12; if (h === 0) h = 12;
   return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
 }
-/** Short human time tag: "9:30am" / "Yest 6pm" / "Mon 6pm" / "21 Jun 6pm". */
+/** Short human time tag with explicit date: "Sat 27 Jun 9:30am". */
 function shortTimeTag(now: Date, ts: Date): string {
-  const bucket = bucketDay(now, ts);
   const t = formatTimeOfDay(ts);
-  if (bucket === "today") return t;
-  if (bucket === "yesterday") return `Yest ${t}`;
-  const daysAgo = Math.floor((now.getTime() - ts.getTime()) / (24 * 3600 * 1000));
-  if (daysAgo < 7) return `${WEEKDAYS[ts.getDay()]} ${t}`;
-  return `${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
+  return `${WEEKDAYS[ts.getDay()]} ${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
 }
 function tagBullet(now: Date, ts: Date, text: string): string {
   return `[${shortTimeTag(now, ts)}] ${text}`;
@@ -292,7 +287,7 @@ serve(async (req) => {
         .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
-    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v4"));
+    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v6"));
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -307,7 +302,7 @@ serve(async (req) => {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
-      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v4"));
+      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v6"));
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
