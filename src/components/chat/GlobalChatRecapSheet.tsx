@@ -168,7 +168,7 @@ function normalise(summary: ChatSummaryPayload | undefined) {
   push(summary.detailed?.files_shared);
   push(summary.files_shared);
   push(summary.important_updates);
-  return { actions, questions, headline: summary.headline ?? "", details };
+  return { actions, questions, headline: stripRecapDatePrefix(summary.headline ?? ""), details };
 }
 
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
