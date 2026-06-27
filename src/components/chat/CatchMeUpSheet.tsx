@@ -381,6 +381,12 @@ export function CatchMeUpSheet({
                        };
                        const WEEKDAYS = "(?:Mon|Tue|Tues|Wed|Wednes|Thu|Thur|Thurs|Fri|Sat|Satur|Sun)(?:day)?";
                        const MONTHS = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*";
+                       const RELATIVE_WORDS = /^(?:earlier|recent|recently|previously|past|older|today|tonight|this\s+week|this\s+weekend|last\s+week)$/i;
+                       const isMeaningfulDate = (s: string) => {
+                         if (!s) return false;
+                         if (RELATIVE_WORDS.test(s.trim())) return false;
+                         return new RegExp(`${WEEKDAYS}|${MONTHS}|\\d`, "i").test(s);
+                       };
                        const extractDateFromText = (text: string): string => {
                          // Pattern: "Monday 8 June" or "Thursday 4 June"
                          const wkdayDate = new RegExp(`\\b(${WEEKDAYS})\\s+(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(text);
@@ -402,8 +408,12 @@ export function CatchMeUpSheet({
                        const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
                        const indexByDate = new Map<string, number>();
                        for (const item of view.sinceTimeline) {
-                         const date = stripTime(item.time) || extractDateFromText(item.text) || "Earlier";
+                         // Prefer extracted date from text over generic time labels like "Earlier"
+                         const extracted = extractDateFromText(item.text);
+                         const fromTime = stripTime(item.time);
+                         const date = extracted || (isMeaningfulDate(fromTime) ? fromTime : "") || "Earlier";
                          const existing = indexByDate.get(date);
+
                          if (existing != null) {
                            groups[existing].items.push(item);
                          } else {
