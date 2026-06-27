@@ -61,6 +61,24 @@ export interface ChatSummaryResult {
 
 }
 
+function hasUsefulRecapContent(result: ChatSummaryResult | null | undefined): boolean {
+  const s = result?.summary;
+  if (!s) return false;
+  return (
+    (s.since_last_visit?.today?.length ?? 0) +
+    (s.since_last_visit?.yesterday?.length ?? 0) +
+    (s.since_last_visit?.earlier?.length ?? 0) +
+    (s.outstanding_actions?.length ?? 0) +
+    (s.detailed?.schedule_changes?.length ?? 0) +
+    (s.detailed?.files_shared?.length ?? 0) +
+    (s.detailed?.discussion?.length ?? 0) +
+    (s.important_updates?.length ?? 0) +
+    (s.actions_needed?.length ?? 0) +
+    (s.schedule_changes?.length ?? 0) +
+    (s.files_shared?.length ?? 0)
+  ) > 0;
+}
+
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
 const PREV_OPENED_KEY = "chat-catchup:prev-opened";
 const DISMISSED_KEY = "chat-catchup:dismissed";
@@ -228,8 +246,13 @@ export function useChatCatchUp({
           const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
           const fastCode = (fast as any)?.error;
           if (!fastErr && fast && !fastCode) {
-            setResult(fast as ChatSummaryResult);
-            return;
+            const fastResult = fast as ChatSummaryResult;
+            if (hasUsefulRecapContent(fastResult)) {
+              setResult(fastResult);
+              return;
+            }
+            // Empty assembled digests are too vague; fall through to the Gemini/Qwen
+            // path so users get a real recap of informational messages too.
           }
           // 200 with { error: "digests_missing" } → fall through to LLM.
           // Any other surfaced error → show it.
