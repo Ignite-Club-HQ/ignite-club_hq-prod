@@ -381,9 +381,10 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL) — skip cache entirely when user asked for a
-    // bespoke time window so we don't return a narrower cached recap.
-    if (!force && !validLookback) {
+    // Cache hit? (respect TTL) — skip cache only when the user asked for a
+    // bespoke (non-default) time window so we don't return a narrower cached
+    // recap. The default 24h call still uses the cache.
+    if (!force && (!validLookback || isDefaultLookback)) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at, model")
