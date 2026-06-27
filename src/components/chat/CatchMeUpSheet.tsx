@@ -167,6 +167,16 @@ export function CatchMeUpSheet({
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
 
+  // Increment on each open so Typed/Reveal components remount and replay the
+  // typewriter — critical when the result was cached/pre-fetched, where the
+  // sheet pops open with `result` already populated and would otherwise reuse
+  // the previous mount's "fully typed" state. Also offsets the start of typing
+  // so it doesn't run while the sheet is still sliding in.
+  const [openKey, setOpenKey] = useState(0);
+  useEffect(() => {
+    if (open) setOpenKey((k) => k + 1);
+  }, [open]);
+
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
     if (!result) return null;
@@ -253,8 +263,11 @@ export function CatchMeUpSheet({
   const CHAR_MS = staticMode ? 0 : 16;
   const GAP_MS = staticMode ? 0 : 120;
   const HEADER_REVEAL_MS = staticMode ? 0 : 220;
+  // Sheet slide-in is ~300ms; buffer the first character so typing is visible
+  // even when results were cached and the sheet opens with content ready.
+  const OPEN_BUFFER_MS = staticMode ? 0 : 320;
   const delayRef = useRef(0);
-  delayRef.current = 0;
+  delayRef.current = OPEN_BUFFER_MS;
   const scheduleType = (text: string) => {
     if (staticMode) return 0;
     const start = delayRef.current;
@@ -296,7 +309,7 @@ export function CatchMeUpSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
+        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0" key={openKey}>
           {loading && !result && (
             <LoadingTypewriter stage={loadingStage} staticMode={staticMode} />
           )}
