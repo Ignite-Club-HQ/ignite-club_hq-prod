@@ -22,8 +22,12 @@ function parseRecapTagDate(rawTag: string | null | undefined): Date | null {
   if (month < 0) return null;
 
   const currentYear = new Date().getFullYear();
-  const year = explicit[4] ? Number(explicit[4]) : currentYear;
-  const d = new Date(year, month, Number(explicit[2]));
+  const years = explicit[4] ? [Number(explicit[4])] : [currentYear - 1, currentYear, currentYear + 1];
+  const expectedWeekday = explicit[1].slice(0, 3).toLowerCase();
+  const d = years
+    .map((year) => new Date(year, month, Number(explicit[2])))
+    .find((candidate) => WEEKDAYS[candidate.getDay()]?.toLowerCase() === expectedWeekday)
+    ?? new Date(years[0], month, Number(explicit[2]));
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
