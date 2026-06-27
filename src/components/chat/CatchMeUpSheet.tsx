@@ -212,7 +212,27 @@ export function CatchMeUpSheet({
     };
     const detailedHasAny =
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
-    const sinceHasAny = since.today.length + since.yesterday.length + since.earlier.length > 0;
+
+    // Fallback: when the model didn't return a since_last_visit timeline but
+    // we DO have detailed bullets, synthesize the activity feed from those so
+    // users always see a narrative timeline rather than just Outstanding actions.
+    if (sinceTimeline.length === 0 && detailedHasAny) {
+      const pushDetailed = (arr: string[]) => {
+        for (const raw of arr) {
+          const parsed = parseRecapTimeTag(raw);
+          const text = parsed.text || stripRecapDatePrefix(raw);
+          if (!text || seenSince.has(text)) continue;
+          if (isVagueRecapBullet(text)) continue;
+          seenSince.add(text);
+          sinceTimeline.push({ time: parsed.time, text });
+        }
+      };
+      pushDetailed(detailed.schedule_changes);
+      pushDetailed(detailed.discussion);
+      pushDetailed(detailed.files_shared);
+    }
+
+    const sinceHasAny = sinceTimeline.length > 0 || since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
     return { headline: cleanHeadline(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
