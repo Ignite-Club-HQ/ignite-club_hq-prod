@@ -30,7 +30,7 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
-import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
