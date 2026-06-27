@@ -747,9 +747,9 @@ serve(async (req) => {
       summary.detailed.discussion = localBullets.slice(0, 8);
     }
 
-    // Upsert cache — skip for explicit lookback windows so they don't pollute
-    // the default "since last visit" cache entry.
-    if (!validLookback) {
+    // Upsert cache — skip for explicit non-default lookback windows so they
+    // don't pollute the default cache entry. Default 24h windows are cached.
+    if (!validLookback || isDefaultLookback) {
       await admin
         .from("chat_summaries")
         .upsert(
