@@ -71,6 +71,53 @@ function tagBullet(now: Date, ts: Date, text: string): string {
   return `[${shortTimeTag(now, ts)}] ${text}`;
 }
 
+/** Strip accidental "Name: " speaker prefix the digest LLM sometimes still emits. */
+function stripSpeakerPrefix(s: string): string {
+  return s.replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "").trim();
+}
+
+/** Title-case a short topic tag for display ("venue change" → "Venue change"). */
+function titleTopic(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const trimmed = t.trim();
+  if (!trimmed) return null;
+  return trimmed[0].toUpperCase() + trimmed.slice(1);
+}
+
+/** Group digest entries by topic within a bucket and emit one synthesised bullet per topic. */
+function synthesiseBucket(
+  now: Date,
+  entries: { ts: Date; summary: string; topic: string | null }[],
+  maxBullets: number,
+): string[] {
+  if (!entries.length) return [];
+  const groups = new Map<string, { ts: Date; topic: string | null; facts: string[] }>();
+  for (const e of entries) {
+    const cleaned = stripSpeakerPrefix(e.summary).replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    const key = (e.topic || "").toLowerCase().trim() || `__solo_${groups.size}`;
+    const g = groups.get(key);
+    if (g) {
+      // Dedupe near-identical facts
+      if (!g.facts.some((f) => f.toLowerCase() === cleaned.toLowerCase())) g.facts.push(cleaned);
+      if (e.ts > g.ts) g.ts = e.ts;
+    } else {
+      groups.set(key, { ts: e.ts, topic: e.topic ?? null, facts: [cleaned] });
+    }
+  }
+  const ordered = Array.from(groups.values()).sort((a, b) => b.ts.getTime() - a.ts.getTime());
+  const out: string[] = [];
+  for (const g of ordered) {
+    const title = titleTopic(g.topic);
+    const facts = g.facts.slice(0, 3).join("; ");
+    let line = title ? `${title}: ${facts}` : facts;
+    if (line.length > 200) line = line.slice(0, 197) + "…";
+    out.push(tagBullet(now, g.ts, line));
+    if (out.length >= maxBullets) break;
+  }
+  return out;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -211,42 +258,47 @@ serve(async (req) => {
 
     // Bucket and pick top bullets
     const now = new Date();
-    const buckets: Record<"today" | "yesterday" | "earlier", string[]> = { today: [], yesterday: [], earlier: [] };
+    const bucketEntries: Record<"today" | "yesterday" | "earlier", { ts: Date; summary: string; topic: string | null }[]> = {
+      today: [], yesterday: [], earlier: [],
+    };
     const actions: { text: string; owner: null; priority: "high" | "medium" | "low"; topic: string | null; idx: number }[] = [];
     const questions: { text: string; topic: string | null; idx: number }[] = [];
-    const decisions: string[] = [];
+    const decisionEntries: { ts: Date; summary: string; topic: string | null }[] = [];
+    const discussionEntries: { ts: Date; summary: string; topic: string | null }[] = [];
     const social_count = { n: 0 };
 
     for (let i = 0; i < (digests || []).length; i++) {
       const d = digests[i];
       const ts = new Date(d.message_created_at);
       const bucket = bucketDay(now, ts);
-      const s = (d.summary || "").trim();
+      const s = stripSpeakerPrefix((d.summary || "").trim());
       if (!s) continue;
-      const tagged = tagBullet(now, ts, s);
+      const entry = { ts, summary: s, topic: d.topic ?? null };
       switch (d.classification) {
         case "action":
           actions.push({ text: s, owner: null, priority: "medium", topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
           break;
         case "question":
           questions.push({ text: s, topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
+          discussionEntries.push(entry);
           break;
         case "decision":
-          decisions.push(tagged);
-          buckets[bucket].push(tagged);
+          decisionEntries.push(entry);
+          bucketEntries[bucket].push(entry);
           break;
         case "social":
           social_count.n += 1;
           break;
         case "info":
         default:
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
+          discussionEntries.push(entry);
       }
     }
 
-    // Outstanding actions/questions: drop ones that look resolved later.
+    // Outstanding actions: drop ones that look resolved later.
     const ANSWER_HINTS = [
       "yes", "no", "yeah", "yep", "nope", "sure", "ok ", "okay", "will do",
       "i can", "i'll ", "ill ", "we can", "done", "sorted", "confirmed",
@@ -256,7 +308,7 @@ serve(async (req) => {
       "i did", "we did", "me too", "agreed", "correct", "that's right",
       "that is right", "sounds good", "works for me", "fine by me",
       "perfect", "great", "good", "sure thing", "of course", "definitely",
-      "certainly", "roger", "copy that", "10-4"
+      "certainly", "roger", "copy that", "10-4", "volunteered", "took",
     ];
     const looksLikeAnswer = (t: string) => {
       const lower = t.toLowerCase();
@@ -278,14 +330,14 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    for (const q of questions) {
-      if (isResolved(q.text, q.topic, q.idx)) continue;
-      const ts = new Date(digests[q.idx].message_created_at);
-      const bucket = bucketDay(now, ts);
-      const phrased = /\?\s*$/.test(q.text) ? q.text : `${q.text}?`;
-      buckets[bucket].push(tagBullet(now, ts, phrased));
-    }
     const outstanding_questions: { text: string; date: string }[] = [];
+
+    // Synthesise per-topic bullets per bucket.
+    const today = synthesiseBucket(now, bucketEntries.today, 6);
+    const yesterday = synthesiseBucket(now, bucketEntries.yesterday, 5);
+    const earlier = synthesiseBucket(now, bucketEntries.earlier, 5);
+    const decisions = synthesiseBucket(now, decisionEntries, 6);
+    const discussion = synthesiseBucket(now, discussionEntries, 8);
 
     const headline = (() => {
       const newCount = (digests || []).length;
@@ -296,24 +348,13 @@ serve(async (req) => {
 
     const summary = {
       headline: headline.slice(0, 110),
-      since_last_visit: {
-        today: buckets.today.slice(0, 8),
-        yesterday: buckets.yesterday.slice(0, 5),
-        earlier: buckets.earlier.slice(0, 5),
-      },
+      since_last_visit: { today, yesterday, earlier },
       outstanding_actions,
       outstanding_questions,
       detailed: {
-        schedule_changes: decisions.slice(0, 8),
+        schedule_changes: decisions,
         files_shared: [],
-        discussion: (digests || [])
-          .filter((d: any) => d.classification === "info" || d.classification === "question")
-          .map((d: any) => {
-            const ts = new Date(d.message_created_at);
-            return d.summary ? tagBullet(now, ts, d.summary) : null;
-          })
-          .filter(Boolean)
-          .slice(0, 10),
+        discussion,
       },
     };
 
