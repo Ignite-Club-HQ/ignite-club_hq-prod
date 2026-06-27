@@ -189,6 +189,13 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const [perScope, setPerScope] = useState<PerScope[]>([]);
   const [runId, setRunId] = useState(0);
   const [myNames, setMyNames] = useState<string[]>([]);
+  const [lookbackHours, setLookbackHours] = useState<number>(DEFAULT_LOOKBACK_HOURS);
+
+  // Reset to the default window whenever the sheet is closed so the next open
+  // starts fresh on the last 24 hours.
+  useEffect(() => {
+    if (!open) setLookbackHours(DEFAULT_LOOKBACK_HOURS);
+  }, [open]);
 
   // Resolve the current user's name tokens so "Needs your attention" can be
   // filtered to actions actually assigned to *you* (or unassigned), not to
