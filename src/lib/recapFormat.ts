@@ -14,10 +14,11 @@ const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|p
 const RECAP_LEADING_DECORATION = /^(?:\[[^\]]{1,40}\]\s*)?(?:[•\-*]\s*)?/;
 
 const MEDIA_STOPWORDS = new Set([
-  "in","to","on","the","a","an","of","from","via","with","into","just","now",
+  "in","to","on","the","a","an","of","from","via","with","into","by","just","now",
   "recent","recently","today","yesterday","match","game","training","chat",
   "team","group","club","thread","message","messages","conversation","and","or",
   "was","were","been","has","have","got","sent","shared","posted","uploaded","added",
+  "bridgewater","white","blue","red","black","green","yellow","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18",
 ]);
 
 export function isVagueRecapBullet(text: string | null | undefined): boolean {
@@ -49,7 +50,7 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
       .replace(/[^a-z\s]+/g, " ")
       .split(/\s+/)
       .filter((w) => w.length > 2 && !MEDIA_STOPWORDS.has(w));
-    if (!hasProperNoun && meaningful.length === 0) return true;
+    if (meaningful.length === 0) return true;
   }
 
   // Extra safety for stale cached/generated lines that include a date prefix or
@@ -63,7 +64,11 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
       .replace(/[^A-Za-z\s]+/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim();
-    if (!hasProperNoun && withoutMediaPhrase.split(/\s+/).filter((w) => w.length > 2).length === 0) return true;
+    const descriptiveWords = withoutMediaPhrase
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !MEDIA_STOPWORDS.has(w));
+    if (descriptiveWords.length === 0) return true;
   }
 
   if (!VAGUE_SUBJECT.test(t)) return false;
