@@ -359,19 +359,22 @@ export function CatchMeUpSheet({
                         return t.replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
                       };
                       const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
+                      const indexByDate = new Map<string, number>();
                       for (const item of view.sinceTimeline) {
-                        const date = stripTime(item.time) || "";
-                        const last = groups[groups.length - 1];
-                        if (last && last.date === date) last.items.push(item);
-                        else groups.push({ date, items: [item] });
+                        const date = stripTime(item.time) || "Earlier";
+                        const existing = indexByDate.get(date);
+                        if (existing != null) {
+                          groups[existing].items.push(item);
+                        } else {
+                          indexByDate.set(date, groups.length);
+                          groups.push({ date, items: [item] });
+                        }
                       }
                       return groups.map((g, gi) => (
                         <div key={`${g.date}-${gi}`}>
-                          {g.date && (
-                            <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              {g.date}
-                            </Reveal>
-                          )}
+                          <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {g.date}
+                          </Reveal>
                           <ul className="space-y-3">
                             {g.items.map((item) => {
                               const delay = scheduleType(item.text);
