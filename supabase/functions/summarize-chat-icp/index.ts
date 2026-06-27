@@ -207,6 +207,9 @@ serve(async (req) => {
       });
     }
     const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    // Client sends lookback_hours=24 by default — treat as the standard
+    // window so cache/TTL still apply.
+    const isDefaultLookback = validLookback && (lookback_hours as number) === 24;
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
