@@ -468,31 +468,45 @@ export function AppHeader() {
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
-      // Match the same scope the dropdown renders: when a club filter is active,
-      // include both club-scoped notifications AND global ones (club_id IS NULL)
-      // — RSVP / invite / role-request notifications are intentionally stored
-      // without a club_id and would otherwise remain after "Clear all".
-      const scopeFilter = activeClubFilter
-        ? `club_id.eq.${activeClubFilter},club_id.is.null`
-        : null;
 
-      // First mark all unread in scope as read
-      let markQ = supabase
+      // Fetch all candidate notifications in the current scope, then delete by
+      // explicit ID list. This avoids any `.or()` + `.delete()` chaining quirks
+      // (which were silently no-op'ing for club_id IS NULL rows in some cases)
+      // and also lets us apply the same client-side cross-club drop filter the
+      // dropdown uses so "Clear all" wipes exactly what the user can see.
+      let listQ = supabase
+        .from("notifications")
+        .select("id, type, related_id, club_id")
+        .eq("user_id", user.id)
+        .limit(500);
+      if (activeClubFilter) {
+        listQ = listQ.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
+      }
+      const { data: candidates, error: listErr } = await listQ;
+      if (listErr) throw listErr;
+
+      let toDelete = candidates || [];
+      if (activeClubFilter && toDelete.length) {
+        toDelete = await filterClubScopedNotifications(toDelete as any[], user.id, activeClubFilter);
+      }
+
+      const ids = toDelete.map((n: any) => n.id);
+      if (!ids.length) return;
+
+      // Mark read first so unread counters drop even if delete is partially
+      // blocked by RLS for any row.
+      await supabase
         .from("notifications")
         .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
-      if (scopeFilter) markQ = markQ.or(scopeFilter);
-      await markQ;
+        .in("id", ids)
+        .eq("user_id", user.id);
 
-      // Then delete notifications in the same scope
-      let delQ = supabase
+      const { error: delErr } = await supabase
         .from("notifications")
         .delete()
+        .in("id", ids)
         .eq("user_id", user.id);
-      if (scopeFilter) delQ = delQ.or(scopeFilter);
-      const { error } = await delQ;
-      if (error) throw error;
+      if (delErr) throw delErr;
     },
     onMutate: () => {
       // Optimistically clear the badge and dropdown immediately
@@ -508,6 +522,13 @@ export function AppHeader() {
       setNotificationsOpen(false);
       // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
+    },
+    onError: () => {
+      // Re-fetch so the dropdown reflects true server state instead of the
+      // optimistic empty list.
+      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      refreshUnreadCount();
     },
   });
 
