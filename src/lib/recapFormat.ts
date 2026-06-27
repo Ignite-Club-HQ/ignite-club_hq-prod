@@ -9,7 +9,21 @@ export function stripRecapDatePrefix(text: string): string {
   let out = text.replace(/^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\]\s*/, "").trim();
   // Strip short bracketed time tags (max ~30 chars, no nested brackets)
   out = out.replace(/^\[[^\[\]]{1,30}\]\s*/, "").trim();
+  out = stripRecapSpeakerPrefix(out);
   return out;
+}
+
+/**
+ * Remove accidental speaker labels from recap bullets. This is a UI-level guard
+ * for legacy cached summaries/digests; server prompts still own the real
+ * summarisation quality.
+ */
+export function stripRecapSpeakerPrefix(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
+    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .trim();
 }
 
 /**
@@ -23,5 +37,5 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   if (machine) return { time: null, text: text.slice(machine[0].length).trim() };
   const m = text.match(/^\[([^\[\]]{1,30})\]\s*/);
   if (!m) return { time: null, text: text.trim() };
-  return { time: m[1].trim(), text: text.slice(m[0].length).trim() };
+  return { time: m[1].trim(), text: stripRecapSpeakerPrefix(text.slice(m[0].length).trim()) };
 }

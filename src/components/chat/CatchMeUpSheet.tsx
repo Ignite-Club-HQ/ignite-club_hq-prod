@@ -173,13 +173,19 @@ export function CatchMeUpSheet({
     if (!s.since_last_visit) {
       since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
     }
-    const actions: OutstandingAction[] = s.outstanding_actions
-      ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
+    const actions: OutstandingAction[] = (s.outstanding_actions
+      ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
+      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }));
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
-    const detailed = s.detailed ?? {
+    const detailedRaw = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
       files_shared: s.files_shared ?? [],
       discussion: s.important_updates ?? [],
+    };
+    const detailed = {
+      schedule_changes: clean(detailedRaw.schedule_changes),
+      files_shared: clean(detailedRaw.files_shared),
+      discussion: clean(detailedRaw.discussion),
     };
     const detailedHasAny =
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
