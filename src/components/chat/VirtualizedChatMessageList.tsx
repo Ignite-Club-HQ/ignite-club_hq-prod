@@ -2211,7 +2211,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }}
     >
     {uniqueMessages.length > 0 ? (
-    <Virtuoso
+      <Virtuoso
       ref={virtuosoRef}
       className={className}
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
@@ -2298,7 +2298,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}
       components={components as any}
-    />
+      />
     ) : null}
     {renderJumpOverlay ? <JumpHydrationSkeleton visible={isJumpHydrating} /> : null}
     </div>
