@@ -1,3 +1,32 @@
+/**
+ * True when a recap bullet has no identifying context: it uses a vague
+ * placeholder like "someone"/"a player"/"a parent"/"a volunteer" AND contains
+ * no proper-noun name to anchor who/what it refers to. The recap pipeline is
+ * supposed to use real names from the transcript — anything left as vague
+ * filler is filtered at display time.
+ */
+const VAGUE_SUBJECT = /\b(?:someone|somebody|anyone|anybody|a\s+(?:player|parent|member|volunteer|coach|user|person)|another\s+(?:player|parent|member|volunteer|person)|one\s+(?:player|parent|member|volunteer)|the\s+(?:player|parent|member))\b/i;
+const MONTH_OR_DAY = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December|Sun|Mon|Tue|Wed|Thu|Fri|Sat|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|PS|ASAP|AM|PM|TBC|TBD|RSVP)$/;
+
+export function isVagueRecapBullet(text: string | null | undefined): boolean {
+  if (!text) return true;
+  const t = text.trim();
+  if (!t) return true;
+  if (!VAGUE_SUBJECT.test(t)) return false;
+  // Look for a proper-noun token (capitalised word) that is NOT the sentence-
+  // initial word and NOT a weekday/month/known acronym. If we find one, the
+  // bullet has enough context to display.
+  const tokens = t.split(/\s+/);
+  for (let i = 1; i < tokens.length; i++) {
+    const raw = tokens[i].replace(/[^A-Za-z'’\-]/g, "");
+    if (raw.length < 2) continue;
+    if (!/^[A-Z][a-z'’\-]+$/.test(raw)) continue;
+    if (MONTH_OR_DAY.test(raw)) continue;
+    return false;
+  }
+  return true;
+}
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LONG_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
