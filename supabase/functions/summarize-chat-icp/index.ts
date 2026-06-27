@@ -487,8 +487,30 @@ serve(async (req) => {
       return /\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\b.{0,80}\b(?:shared|posted|uploaded|added|sent|sharing|posting|uploading|adding|sending)\b.{0,80}\b(?:photo|photos|image|images|picture|pictures|video|videos)\b/i.test(t)
         || /\b(?:photo|photos|image|images|picture|pictures|video|videos)\b.{0,80}\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\b/i.test(t);
     };
+    const sanitizeOutputBullet = (s: string): string => {
+      let out = s;
+      out = out.replace(/https?:\/\/\S+/gi, "");
+      out = out.replace(/\bwww\.[^\s)]+/gi, "");
+      out = out.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+      out = out.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+      out = out.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+      out = out.replace(/[“”„‟«»]/g, "");
+      out = out.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+      out = out.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+      out = out.replace(/[\s,;:–-]+$/g, "").trim();
+      const tagMatch = out.match(/^(\[[^\]]{1,40}\]\s*)/);
+      const tag = tagMatch?.[1] ?? "";
+      const body = tag ? out.slice(tag.length) : out;
+      if (body.length > 140) {
+        const slice = body.slice(0, 140);
+        const lastSpace = slice.lastIndexOf(" ");
+        const truncated = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+        out = `${tag}${truncated}`;
+      }
+      return out;
+    };
     const cleanBullet = (s: string): string => {
-      const cleaned = stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim();
+      const cleaned = sanitizeOutputBullet(stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim());
       return isBareMediaShare(cleaned) || isInferredMediaDescription(cleaned) ? "" : cleaned;
     };
     const rehydrateArr = (arr: any): string[] =>
