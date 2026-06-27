@@ -133,9 +133,12 @@ Return STRICT JSON only that matches this TypeScript type:
 
 Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less activity. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Headline <=110 chars. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when they are stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent name, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
 
+BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 12-30 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
+
+
 TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
 
-RELATIVE TIME RESOLUTION (critical): Words like "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" inside the transcript were written from the SENDER's point in time, not NOW. You MUST re-anchor them against NOW (the timestamp given in the user message). Example: a message sent yesterday saying "training tomorrow at 6pm" — if "tomorrow" relative to that sender is actually TODAY relative to NOW, write the bullet as "training today at 6pm" (or with the weekday/date). Never copy a relative time word verbatim if it would mislead the reader at NOW. When in doubt, use the weekday + date (e.g. "Sat 27 Jun") instead of a relative word. Output JSON only — no prose, no markdown, no code fences.`;
+EVENT DATE ACCURACY (critical): Inside bullet TEXT (not the timeline tag), do NOT use the words "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" to describe when an event/training/match happens. Always use the explicit weekday and date (e.g. "Wednesday", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's point in time — re-anchor everything against NOW (given in the user message) and resolve to a concrete weekday/date before writing. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown, no code fences.`;
 
 // Extract JSON object from a possibly-noisy LLM string.
 function extractJson(s: string): any {
@@ -294,7 +297,7 @@ serve(async (req) => {
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v3");
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v4");
       if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
@@ -565,7 +568,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: `icp:${modelUsed}:recap-v3`,
+            model: `icp:${modelUsed}:recap-v4`,
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },
