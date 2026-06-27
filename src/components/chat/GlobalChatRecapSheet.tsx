@@ -430,9 +430,9 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                   <ul className="space-y-3.5">
                     {aggregated.overviews.map(({ scope, headline, details }, i) => (
                       <li key={`${scope.scope_id}-h-${i}`} className="border-l-2 border-border pl-3">
-                        <p className="text-sm font-semibold text-foreground">{scope.name}</p>
+                        <p className="text-base font-semibold text-foreground">{scope.name}</p>
                         {headline && (
-                          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
+                          <p className="mt-0.5 text-base leading-snug text-muted-foreground">{headline}</p>
                         )}
                         {details.length > 0 && (
                           <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
@@ -447,7 +447,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                                     {d.time}
                                   </span>
                                 )}
-                                <span className="block text-sm leading-snug text-foreground">{d.text}</span>
+                                <span className="block text-base leading-snug text-foreground">{d.text}</span>
                               </li>
                             ))}
                           </ol>
