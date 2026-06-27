@@ -76,6 +76,11 @@ const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
   { label: "Last 30 days", hours: 24 * 30 },
 ];
 
+function cleanHeadline(text: string | null | undefined): string {
+  const cleaned = stripRecapDatePrefix(text ?? "").trim();
+  return /nothing actionable|casual chat/i.test(cleaned) ? "" : cleaned;
+}
+
 function formatLookbackLabel(hours: number): string {
   if (hours >= 24 && hours % 24 === 0) {
     const days = hours / 24;
@@ -207,7 +212,7 @@ export function CatchMeUpSheet({
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
     const sinceHasAny = since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
-    return { headline: stripRecapDatePrefix(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
+    return { headline: cleanHeadline(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
   // Sequential top-to-bottom typing: each line waits for all previous lines to
@@ -364,7 +369,7 @@ export function CatchMeUpSheet({
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={scheduleType("Nothing actionable in the recent messages — looks like casual chat.")} charMs={CHAR_MS} />
+                  <Typed text="No useful team updates were found in the recent messages." delayMs={scheduleType("No useful team updates were found in the recent messages.")} charMs={CHAR_MS} />
                 </div>
               )}
             </>
