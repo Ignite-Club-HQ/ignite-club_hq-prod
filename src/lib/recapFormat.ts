@@ -329,7 +329,7 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   const machine = text.match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\]\s*/);
   const bracket = machine ?? text.match(/^\[([^\[\]]{1,30})\]\s*/);
   if (!bracket) {
-    return { time: null, text: stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.trim()))) };
+    return { time: null, text: sanitizeRecapBullet(stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.trim())))) };
   }
 
   const rawTag = bracket[1].trim();
@@ -337,6 +337,6 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   const body = text.slice(bracket[0].length).trim();
   return {
     time: isLegacyRelativeTag || machine ? null : rawTag,
-    text: resolveRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(body)), isLegacyRelativeTag ? null : rawTag),
+    text: sanitizeRecapBullet(resolveRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(body)), isLegacyRelativeTag ? null : rawTag)),
   };
 }
