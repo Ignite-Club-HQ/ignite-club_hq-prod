@@ -244,7 +244,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
           const idx = cursor++;
           if (idx >= scopes.length) return;
           const ref = scopes[idx];
-          const { result, error } = await fetchOne(ref);
+          const { result, error } = await fetchOne(ref, lookbackHours);
           if (cancelled) return;
           setPerScope((prev) => {
             const next = prev.slice();
