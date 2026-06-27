@@ -76,6 +76,7 @@ export function rewriteRawChatEcho(text: string): string {
   }
 
   return stripRelativeDateWords(t);
+}
 
 /**
  * Final UI guard for stale cached recaps or model slips. If the backend cannot
@@ -91,7 +92,6 @@ export function stripRelativeDateWords(text: string): string {
     .replace(/\s{2,}/g, " ")
     .replace(/\b(for|on|at)\s+([,.;:]|$)/gi, "")
     .trim();
-}
 
 /**
  * Parse a leading bracket time tag (e.g. "[Sat 27 Jun 9:30am] Coach asked …")
