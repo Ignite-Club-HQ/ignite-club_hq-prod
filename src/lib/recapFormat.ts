@@ -1,7 +1,7 @@
 /**
  * Strip machine-style `[YYYY-MM-DD HH:MM]` prefixes from AI-generated recap
- * bullets. Also strips short human time tags like `[Today 9:30am]`,
- * `[Yesterday 6pm]`, `[Mon 21 Jun 6pm]` that the backend adds for the
+ * bullets. Also strips short human time tags like `[Sat 27 Jun 9:30am]`
+ * that the backend adds for the
  * timeline view — used by surfaces that don't render the timeline chip.
  */
 export function stripRecapDatePrefix(text: string): string {
@@ -11,6 +11,7 @@ export function stripRecapDatePrefix(text: string): string {
   out = out.replace(/^\[[^\[\]]{1,30}\]\s*/, "").trim();
   out = stripRecapSpeakerPrefix(out);
   out = rewriteRawChatEcho(out);
+  out = stripRelativeDateWords(out);
   return out;
 }
 
@@ -42,11 +43,11 @@ export function rewriteRawChatEcho(text: string): string {
     return "Another member is interested if the dates work";
   }
   if (/\b(?:could|can)\s+someone\b.*\b(?:linesperson|line\s*person|ref(?:eree)?)\b/i.test(t)) {
-    return /\btoday\b/i.test(t) ? "A linesperson was requested for today" : "A match official was requested";
+    return "A match official was requested";
   }
   if (/^(?:yep|yes|yeah)\b.*\bi can\b.*\b(?:this week|today|do it|cover)/i.test(t) || /^i can\b/i.test(t)) {
     return /\bthis week\b/i.test(t)
-      ? "A volunteer confirmed they can cover the match official role this week"
+      ? "A volunteer confirmed they can cover the match official role"
       : "A volunteer confirmed they can cover the match official role";
   }
   if (/^sorry\b.*\b(?:would have loved|can't|cannot|unavailable)\b/i.test(t) || /\bi would have loved to\b/i.test(t)) {
@@ -74,11 +75,27 @@ export function rewriteRawChatEcho(text: string): string {
       .trim();
   }
 
-  return t;
+  return stripRelativeDateWords(t);
 }
 
 /**
- * Parse a leading short bracket time tag (e.g. "[Today 9:30am] Coach asked …")
+ * Final UI guard for stale cached recaps or model slips. If the backend cannot
+ * confidently resolve a relative date, it should omit it; this mirrors that in
+ * the client so inaccurate "today/yesterday/tomorrow" wording never surfaces.
+ */
+export function stripRelativeDateWords(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\b(?:today|tonight|tomorrow|yesterday)\'?s\s+/gi, "")
+    .replace(/\b(?:this\s+morning|this\s+afternoon|this\s+evening|today|tonight|tomorrow|yesterday|this\s+week|next\s+week)\b/gi, "")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\b(for|on|at)\s+([,.;:]|$)/gi, "")
+    .trim();
+}
+
+/**
+ * Parse a leading bracket time tag (e.g. "[Sat 27 Jun 9:30am] Coach asked …")
  * and split it from the bullet text. Used by the cross-thread recap timeline.
  */
 export function parseRecapTimeTag(text: string): { time: string | null; text: string } {
@@ -88,5 +105,11 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   if (machine) return { time: null, text: text.slice(machine[0].length).trim() };
   const m = text.match(/^\[([^\[\]]{1,30})\]\s*/);
   if (!m) return { time: null, text: text.trim() };
-  return { time: m[1].trim(), text: rewriteRawChatEcho(stripRecapSpeakerPrefix(text.slice(m[0].length).trim())) };
+  const rawTag = m[1].trim();
+  const isLegacyRelativeTag = /\b(?:today|yest|yesterday|tomorrow)\b/i.test(rawTag) || /^\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(rawTag);
+  return {
+    time: isLegacyRelativeTag ? null : rawTag,
+    text: stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.slice(m[0].length).trim()))),
+  };
+}
 }

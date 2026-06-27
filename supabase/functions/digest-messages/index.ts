@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v4`;
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v5`;
 
 interface DigestRow {
   message_id: string;
@@ -73,14 +73,14 @@ You receive a JSON array of messages. For EACH message return one object with:
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
   * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
-  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday") from the message. If a weekday or date is mentioned in the message text, use that; otherwise omit the time reference (the assembler will re-anchor it later).
+  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. If a weekday or date is mentioned in the message text, use that; otherwise omit the time reference entirely.
   * If the message has no informational value, classify as "social" and set summary to "".
 
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
 
 Examples:
-- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for the next game", topic "match official".
-- "Andrew: Yep I can do it this week" → summary "Andrew volunteered for the match official role this week", topic "match official".
+- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for the match", topic "match official".
+- "Andrew: Yep I can do it this week" → summary "Andrew volunteered for the match official role", topic "match official".
 - "Bec: Also interested depending on days" → summary "Another member is interested if the dates work", topic "tournament interest".
 - "Sorry Dan, I would have loved to" → summary "One member declined because they are unavailable", topic "match official".
 
@@ -182,7 +182,7 @@ serve(async (req) => {
         .gte("message_created_at", sinceIso);
       const seen = new Set(
         (existing || [])
-          .filter((r: any) => String(r.provider || "").endsWith(":recap-v4"))
+          .filter((r: any) => String(r.provider || "").endsWith(":recap-v5"))
           .map((r: any) => r.message_id),
       );
 

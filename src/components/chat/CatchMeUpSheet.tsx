@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
-import { stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -100,6 +100,8 @@ function formatSinceLabel(iso: string | null | undefined): string | null {
   return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
 }
 
+interface RecapTimelineItem { time: string | null; text: string }
+
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
@@ -170,6 +172,20 @@ export function CatchMeUpSheet({
       yesterday: clean(s.since_last_visit?.yesterday),
       earlier: clean(s.since_last_visit?.earlier),
     };
+    const sinceTimeline: RecapTimelineItem[] = [];
+    const seenSince = new Set<string>();
+    const pushSince = (arr?: string[] | null) => {
+      for (const raw of arr ?? []) {
+        const parsed = parseRecapTimeTag(raw);
+        const text = parsed.text || stripRecapDatePrefix(raw);
+        if (!text || seenSince.has(text)) continue;
+        seenSince.add(text);
+        sinceTimeline.push({ time: parsed.time, text });
+      }
+    };
+    pushSince(s.since_last_visit?.today);
+    pushSince(s.since_last_visit?.yesterday);
+    pushSince(s.since_last_visit?.earlier);
     if (!s.since_last_visit) {
       since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
     }
@@ -191,7 +207,7 @@ export function CatchMeUpSheet({
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
     const sinceHasAny = since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
-    return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
+    return { headline: stripRecapDatePrefix(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
   // Sequential top-to-bottom typing: each line waits for all previous lines to
@@ -287,30 +303,24 @@ export function CatchMeUpSheet({
                       {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
-                  <div className="space-y-4">
-                    {(["today", "yesterday", "earlier"] as const).map((bucket) => {
-                      const items = view.since[bucket];
-                      if (!items || items.length === 0) return null;
-                      const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
+                  <ol className="space-y-3.5 border-l border-border/70 pl-3">
+                    {view.sinceTimeline.map((item) => {
+                      const delay = scheduleType(item.text);
                       return (
-                        <div key={bucket}>
-                          <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-2 text-sm font-medium text-muted-foreground">
-                            {label}
-                          </Reveal>
-                          <div className="space-y-3">
-                            {items.map((item) => {
-                              const delay = scheduleType(item);
-                              return (
-                                <div key={item} className="text-base leading-relaxed text-foreground">
-                                  <Typed text={item} delayMs={delay} charMs={CHAR_MS} />
-                                </div>
-                              );
-                            })}
+                        <li key={`${item.time ?? "item"}-${item.text}`} className="relative -ml-[13px] pl-5">
+                          <span className="absolute left-3 top-2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
+                          {item.time && (
+                            <Reveal delayMs={scheduleReveal(80)} as="span" className="mb-0.5 block text-[11px] font-medium uppercase text-muted-foreground">
+                              {item.time}
+                            </Reveal>
+                          )}
+                          <div className="text-base leading-relaxed text-foreground">
+                            <Typed text={item.text} delayMs={delay} charMs={CHAR_MS} />
                           </div>
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ol>
                 </section>
               )}
 
