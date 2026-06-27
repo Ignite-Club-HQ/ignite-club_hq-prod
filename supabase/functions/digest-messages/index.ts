@@ -73,7 +73,9 @@ You receive a JSON array of messages. For EACH message return one object with:
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
   * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
+  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday") from the message. If a weekday or date is mentioned in the message text, use that; otherwise omit the time reference (the assembler will re-anchor it later).
   * If the message has no informational value, classify as "social" and set summary to "".
+
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
 
 Examples:
