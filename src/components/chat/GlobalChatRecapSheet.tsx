@@ -23,6 +23,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getCatchUpLastOpened,
+  DEFAULT_LOOKBACK_HOURS,
   type ChatScopeType,
   type ChatSummaryPayload,
   type ChatSummaryResult,
@@ -31,6 +32,12 @@ import {
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
 import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+
+const GLOBAL_LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
@@ -103,10 +110,15 @@ async function getLLMFnName(): Promise<string> {
   return "summarize-chat";
 }
 
-async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
+async function fetchOne(ref: RecapScopeRef, lookbackHours: number): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-  const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
+  const body: Record<string, unknown> = {
+    scope_type: ref.scope_type,
+    scope_id: ref.scope_id,
+    last_opened_at,
+    lookback_hours: lookbackHours,
+  };
   try {
     // assemble-catchup supports team / club / group only. For DMs and admin
     // groups go straight to the LLM summariser so users get a real recap
@@ -177,6 +189,13 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
   const [perScope, setPerScope] = useState<PerScope[]>([]);
   const [runId, setRunId] = useState(0);
   const [myNames, setMyNames] = useState<string[]>([]);
+  const [lookbackHours, setLookbackHours] = useState<number>(DEFAULT_LOOKBACK_HOURS);
+
+  // Reset to the default window whenever the sheet is closed so the next open
+  // starts fresh on the last 24 hours.
+  useEffect(() => {
+    if (!open) setLookbackHours(DEFAULT_LOOKBACK_HOURS);
+  }, [open]);
 
   // Resolve the current user's name tokens so "Needs your attention" can be
   // filtered to actions actually assigned to *you* (or unassigned), not to
@@ -225,7 +244,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
           const idx = cursor++;
           if (idx >= scopes.length) return;
           const ref = scopes[idx];
-          const { result, error } = await fetchOne(ref);
+          const { result, error } = await fetchOne(ref, lookbackHours);
           if (cancelled) return;
           setPerScope((prev) => {
             const next = prev.slice();
@@ -239,7 +258,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, runId]);
+  }, [open, runId, lookbackHours]);
 
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
@@ -355,12 +374,39 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             Recap all chats
           </SheetTitle>
           <p className="text-sm text-muted-foreground">
-            {scopes.length === 0
-              ? "You're all caught up."
-              : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
-                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
+            {(() => {
+              const windowLabel =
+                lookbackHours === 24
+                  ? "the last 24 hours"
+                  : lookbackHours % 24 === 0
+                    ? `the last ${lookbackHours / 24} days`
+                    : `the last ${lookbackHours} hours`;
+              if (scopes.length === 0) return "You're all caught up.";
+              if (totalLoading > 0) {
+                return `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}…`;
+              }
+              return `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}.`;
+            })()}
           </p>
+          {scopes.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {GLOBAL_LOOKBACK_OPTIONS.map((opt) => {
+                const active = lookbackHours === opt.hours;
+                return (
+                  <Button
+                    key={opt.hours}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={totalLoading > 0 || active}
+                    onClick={() => setLookbackHours(opt.hours)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </SheetHeader>
 
         <div className="px-4 pt-3 pb-6 overflow-y-auto flex-1 min-h-0">

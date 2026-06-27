@@ -260,6 +260,9 @@ serve(async (req) => {
     const body = (await req.json()) as Body;
     const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
     const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    // The client sends lookback_hours=24 by default — treat that as the
+    // standard "default" window so it still benefits from cache and TTL.
+    const isDefaultLookback = validLookback && (lookback_hours as number) === 24;
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
@@ -378,9 +381,10 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL) — skip cache entirely when user asked for a
-    // bespoke time window so we don't return a narrower cached recap.
-    if (!force && !validLookback) {
+    // Cache hit? (respect TTL) — skip cache only when the user asked for a
+    // bespoke (non-default) time window so we don't return a narrower cached
+    // recap. The default 24h call still uses the cache.
+    if (!force && (!validLookback || isDefaultLookback)) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at, model")
@@ -743,9 +747,9 @@ serve(async (req) => {
       summary.detailed.discussion = localBullets.slice(0, 8);
     }
 
-    // Upsert cache — skip for explicit lookback windows so they don't pollute
-    // the default "since last visit" cache entry.
-    if (!validLookback) {
+    // Upsert cache — skip for explicit non-default lookback windows so they
+    // don't pollute the default cache entry. Default 24h windows are cached.
+    if (!validLookback || isDefaultLookback) {
       await admin
         .from("chat_summaries")
         .upsert(

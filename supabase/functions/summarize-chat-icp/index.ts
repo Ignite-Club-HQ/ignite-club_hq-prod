@@ -207,6 +207,9 @@ serve(async (req) => {
       });
     }
     const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    // Client sends lookback_hours=24 by default — treat as the standard
+    // window so cache/TTL still apply.
+    const isDefaultLookback = validLookback && (lookback_hours as number) === 24;
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
@@ -290,7 +293,7 @@ serve(async (req) => {
     const lastMessageId = messages[messages.length - 1].id as string;
     console.log("[summarize-chat-icp] preflight done", { ms: Date.now() - tPre, msgs: messages.length });
 
-    if (!force && !validLookback) {
+    if (!force && (!validLookback || isDefaultLookback)) {
       const { data: cached } = await admin
         .from("chat_summaries")
         .select("summary, message_count, last_message_id, created_at, expires_at, model")
@@ -618,9 +621,9 @@ serve(async (req) => {
       );
     }
 
-    // Don't pollute the cache with lookback-window summaries — they're
-    // bespoke time windows the user explicitly requested.
-    if (!validLookback) {
+    // Don't pollute the cache with bespoke non-default lookback windows.
+    // The client-default 24h window IS cached.
+    if (!validLookback || isDefaultLookback) {
       await admin
         .from("chat_summaries")
         .upsert(
