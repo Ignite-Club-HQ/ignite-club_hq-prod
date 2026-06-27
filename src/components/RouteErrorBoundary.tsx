@@ -69,6 +69,12 @@ export class RouteErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Stale-chunk auto-recovery: after a redeploy the cached HTML points at
+    // hashed JS files that no longer exist. Reload once to pick up the new
+    // manifest before showing the error UI.
+    if (isChunkLoadError(error) && tryRecoverFromChunkError()) {
+      return;
+    }
     try {
       const payload = {
         message: error?.message ?? String(error),
