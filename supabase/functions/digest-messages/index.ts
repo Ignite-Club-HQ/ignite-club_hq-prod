@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v6`;
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v8`;
 
 interface DigestRow {
   message_id: string;
@@ -71,7 +71,7 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
   * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
-  * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered for the match official role", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
+  * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
   * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
   * If the message has no informational value, classify as "social" and set summary to "".
@@ -79,10 +79,10 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
 
 Examples:
-- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for the match", topic "match official".
-- "Andrew: Yep I can do it this week" → summary "Andrew volunteered for the match official role", topic "match official".
-- "Bec: Also interested depending on days" → summary "Another member is interested if the dates work", topic "tournament interest".
-- "Sorry Dan, I would have loved to" → summary "One member declined because they are unavailable", topic "match official".
+- "Dan: Could someone please be linesperson today?" → summary "Dan asked for a linesperson for the match", topic "match official".
+- "Andrew: Yep I can do it this week" → summary "Andrew volunteered to be linesperson this week", topic "match official".
+- "Bec: Also interested depending on days" → summary "Bec is interested in the tournament if the dates work", topic "tournament interest".
+- "Jas: Sorry Dan, I would have loved to" → summary "Jas declined the linesperson request, unavailable", topic "match official".
 
 Return STRICT JSON: { "items": [ {...}, ... ] }. No prose, no markdown, no code fences.`;
 
