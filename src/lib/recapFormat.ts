@@ -200,7 +200,10 @@ export function stripRecapSpeakerPrefix(text: string): string {
  */
 export function rewriteRawChatEcho(text: string): string {
   if (!text) return text;
-  const t = text.replace(/\s+/g, " ").trim();
+  let t = text.replace(/\s+/g, " ").trim();
+  // Strip any leaked pseudonyms from the privacy scrubber so users never see
+  // "Child 9" / "Person 4" in a recap. These are internal labels.
+  t = t.replace(/\bChild\s+\d+\b/g, "a child").replace(/\bPerson\s+\d+\b/g, "someone");
   const lower = t.toLowerCase();
 
   if (/\balso interested\b.*\bdepending on days\b/i.test(t)) {
