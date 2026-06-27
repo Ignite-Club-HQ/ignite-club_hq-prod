@@ -1,10 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { createRef } from "react";
+import { createRef, type ReactNode } from "react";
 import { render, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
 } from "./VirtualizedChatMessageList";
+
+function withQuery(ui: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: Infinity } },
+  });
+  return <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
+}
 
 /**
  * Regression guard for the Android team/club chat notification crash:
