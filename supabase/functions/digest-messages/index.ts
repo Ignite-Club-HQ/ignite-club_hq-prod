@@ -79,7 +79,7 @@ You receive a JSON array of messages. For EACH message return one object with:
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
 
 Examples:
-- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for today", topic "match official".
+- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for the next game", topic "match official".
 - "Andrew: Yep I can do it this week" → summary "Andrew volunteered for the match official role this week", topic "match official".
 - "Bec: Also interested depending on days" → summary "Another member is interested if the dates work", topic "tournament interest".
 - "Sorry Dan, I would have loved to" → summary "One member declined because they are unavailable", topic "match official".
