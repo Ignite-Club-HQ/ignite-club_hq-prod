@@ -92,6 +92,7 @@ export function stripRelativeDateWords(text: string): string {
     .replace(/\s{2,}/g, " ")
     .replace(/\b(for|on|at)\s+([,.;:]|$)/gi, "")
     .trim();
+}
 
 /**
  * Parse a leading bracket time tag (e.g. "[Sat 27 Jun 9:30am] Coach asked …")
@@ -110,5 +111,4 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
     time: isLegacyRelativeTag ? null : rawTag,
     text: stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.slice(m[0].length).trim()))),
   };
-}
 }
