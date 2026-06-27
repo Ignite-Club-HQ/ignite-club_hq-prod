@@ -203,8 +203,15 @@ export function useChatCatchUp({
   const summarize = useCallback(
     async (opts?: { force?: boolean; openSheet?: boolean; lookbackHours?: number }) => {
       if (!scope_id) return;
-      const lookbackHours = opts?.lookbackHours;
-      const forceFresh = !!opts?.force || lookbackHours != null;
+      // Default lookback for every recap is the last 24 hours. Users can opt
+      // into deeper windows (7d / 30d) on demand from the sheet.
+      const explicitLookback = opts?.lookbackHours;
+      const lookbackHours = explicitLookback ?? DEFAULT_LOOKBACK_HOURS;
+      // Only bypass cache when the user explicitly asked for a non-default
+      // (deeper) window or hit Regenerate — the default 24h call should still
+      // hit the chat_summaries cache.
+      const forceFresh =
+        !!opts?.force || (explicitLookback != null && explicitLookback !== DEFAULT_LOOKBACK_HOURS);
       setLoading(true);
       setError(null);
       // On forced regenerate or explicit lookback, clear the existing result so
@@ -236,8 +243,8 @@ export function useChatCatchUp({
           scope_id,
           force: forceFresh,
           last_opened_at,
+          lookback_hours: lookbackHours,
         };
-        if (lookbackHours != null) body.lookback_hours = lookbackHours;
 
         // Hot path: assemble from precomputed digests (no LLM call).
         // Only supports team/club/group scopes; falls through for DMs & club_admin.
