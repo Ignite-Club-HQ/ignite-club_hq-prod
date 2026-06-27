@@ -1858,7 +1858,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         markChatScrollWrite();
       }
     };
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+    safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "own-message-send-pin");
     pin();
     const r = requestAnimationFrame(() => requestAnimationFrame(pin));
     // Trailing passes absorb composer collapse (reply pill clears, textarea
@@ -1911,11 +1911,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // Passing offset would apply the composer padding twice and push
           // the last message (and the composer's visual baseline) high up
           // the screen.
-          virtuosoRef.current?.scrollToIndex({
+          safeScrollToIndex({
             index: "LAST",
             align: "end",
             behavior,
-          });
+          }, "imperative-scroll-to-bottom");
           requestAnimationFrame(() => {
             const el = scrollerElRef.current;
             if (!el || isChatJumpActive()) return;
@@ -1937,6 +1937,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       },
 
       scrollToIndex: (index, align = "center") => {
+        if (messagesLengthRef.current <= 0) return;
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
         const offset = align === "end" && dataIndex !== last ? getChatBottomPaddingOffset(bottomPadding) : 0;
@@ -1945,12 +1946,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         // shifted absolute index gets clamped by Virtuoso to LAST, which is why
         // notification jumps highlighted the right row but kept the viewport at
         // the bottom of the committee chat.
-        virtuosoRef.current?.scrollToIndex({
+        safeScrollToIndex({
           index: dataIndex,
           align,
           offset,
           behavior: "auto",
-        });
+        }, "imperative-scroll-to-index");
       },
       scrollToMessageId: (messageId, align = "center") => {
         const el = scrollerElRef.current;
@@ -1990,7 +1991,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [bottomPadding],
+    [bottomPadding, safeScrollToIndex],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
