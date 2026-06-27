@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v5`;
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v6`;
 
 interface DigestRow {
   message_id: string;
@@ -57,7 +57,7 @@ function redactPII(raw: string, nameMap: Map<string, string>): string {
 
 const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a SYNTHESISED fact note for each.
 
-You receive a JSON array of messages. For EACH message return one object with:
+You receive a JSON array of messages including created_at ISO timestamps. For EACH message return one object with:
 - "message_id": echo back exactly
 - "classification": one of "action"|"question"|"decision"|"social"|"info"
   - "action": someone is asked to do something, or commits to do something
@@ -73,7 +73,7 @@ You receive a JSON array of messages. For EACH message return one object with:
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
   * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
-  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. If a weekday or date is mentioned in the message text, use that; otherwise omit the time reference entirely.
+  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
   * If the message has no informational value, classify as "social" and set summary to "".
 
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
@@ -88,7 +88,7 @@ Return STRICT JSON: { "items": [ {...}, ... ] }. No prose, no markdown, no code 
 
 async function callGemini(messages: any[], apiKey: string): Promise<DigestRow[] | null> {
   const userPrompt = `Classify these ${messages.length} messages:\n${JSON.stringify(
-    messages.map((m) => ({ message_id: m.id, speaker: m.speaker, text: m.text })),
+    messages.map((m) => ({ message_id: m.id, created_at: m.created_at, speaker: m.speaker, text: m.text })),
   )}`;
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -182,7 +182,7 @@ serve(async (req) => {
         .gte("message_created_at", sinceIso);
       const seen = new Set(
         (existing || [])
-          .filter((r: any) => String(r.provider || "").endsWith(":recap-v5"))
+          .filter((r: any) => String(r.provider || "").endsWith(":recap-v6"))
           .map((r: any) => r.message_id),
       );
 
@@ -242,6 +242,7 @@ serve(async (req) => {
           callGemini(
             batch.map((x) => ({
               id: x.row.id,
+              created_at: x.row.created_at,
               speaker: profileName.get(x.row.author_id) || "Someone",
               text: redactPII((x.row.text || "").slice(0, 600), nameMap),
             })),
