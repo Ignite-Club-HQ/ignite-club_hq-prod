@@ -273,7 +273,7 @@ serve(async (req) => {
             chat_scope_id: x.row[x.src.scopeCol],
             message_created_at: x.row.created_at,
             classification,
-            summary: typeof cls.summary === "string" ? cls.summary.slice(0, 280) : "",
+            summary: typeof cls.summary === "string" ? sanitizeDigestSummary(cls.summary) : "",
             topic: typeof cls.topic === "string" ? cls.topic.slice(0, 60) : null,
             mentions_user_ids: [],
             provider: DIGEST_PROVIDER,
