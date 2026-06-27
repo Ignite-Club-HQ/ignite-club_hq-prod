@@ -199,7 +199,45 @@ export function stripRecapDatePrefix(text: string): string {
   out = stripRecapSpeakerPrefix(out);
   out = rewriteRawChatEcho(out);
   out = resolveRelativeDateWords(out, rawTag);
+  out = sanitizeRecapBullet(out);
   return out;
+}
+
+/**
+ * Strip URLs, internal app route paths (e.g. /events/abc-123), raw UUIDs,
+ * surrounding quote characters, and trailing "view event"/"open link" CTAs.
+ * Caps the bullet at 140 chars on a word boundary. The summariser is asked to
+ * paraphrase, but this guard catches stale cache entries or any line the model
+ * leaks verbatim.
+ */
+const RECAP_ITEM_MAX_CHARS = 140;
+const INTERNAL_ROUTE_RE = /\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi;
+const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+const URL_RE = /\bhttps?:\/\/\S+/gi;
+const WWW_RE = /\bwww\.[^\s)]+/gi;
+const VIEW_EVENT_FRAG_RE = /\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi;
+
+export function sanitizeRecapBullet(text: string): string {
+  if (!text) return text;
+  let t = text;
+  t = t.replace(URL_RE, "");
+  t = t.replace(WWW_RE, "");
+  t = t.replace(INTERNAL_ROUTE_RE, "");
+  t = t.replace(UUID_RE, "");
+  t = t.replace(VIEW_EVENT_FRAG_RE, "");
+  // Drop directional quote glyphs and unwrap balanced straight-quoted spans so
+  // bullets read as paraphrase rather than literal quotes.
+  t = t.replace(/[“”„‟«»]/g, "");
+  t = t.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+  t = t.replace(/\s+([,.;:!?])/g, "$1");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  t = t.replace(/[\s,;:–-]+$/g, "").trim();
+  if (t.length > RECAP_ITEM_MAX_CHARS) {
+    const slice = t.slice(0, RECAP_ITEM_MAX_CHARS);
+    const lastSpace = slice.lastIndexOf(" ");
+    t = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+  }
+  return t;
 }
 
 /**
@@ -291,7 +329,7 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   const machine = text.match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\]\s*/);
   const bracket = machine ?? text.match(/^\[([^\[\]]{1,30})\]\s*/);
   if (!bracket) {
-    return { time: null, text: stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.trim()))) };
+    return { time: null, text: sanitizeRecapBullet(stripRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(text.trim())))) };
   }
 
   const rawTag = bracket[1].trim();
@@ -299,6 +337,6 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
   const body = text.slice(bracket[0].length).trim();
   return {
     time: isLegacyRelativeTag || machine ? null : rawTag,
-    text: resolveRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(body)), isLegacyRelativeTag ? null : rawTag),
+    text: sanitizeRecapBullet(resolveRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(body)), isLegacyRelativeTag ? null : rawTag)),
   };
 }
