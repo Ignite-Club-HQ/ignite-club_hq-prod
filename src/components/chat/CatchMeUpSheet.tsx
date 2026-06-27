@@ -364,7 +364,7 @@ export function CatchMeUpSheet({
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={scheduleType("Nothing actionable in the recent messages — looks like casual chat.")} charMs={CHAR_MS} />
+                  <Typed text="No useful team updates were found in the recent messages." delayMs={scheduleType("No useful team updates were found in the recent messages.")} charMs={CHAR_MS} />
                 </div>
               )}
             </>
