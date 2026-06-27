@@ -1318,6 +1318,7 @@ export default function ClubChatPage() {
     }
 
     if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!user?.id || !clubId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
