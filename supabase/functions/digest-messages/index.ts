@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v2`;
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v3`;
 
 interface DigestRow {
   message_id: string;
@@ -180,7 +180,7 @@ serve(async (req) => {
         .gte("message_created_at", sinceIso);
       const seen = new Set(
         (existing || [])
-          .filter((r: any) => String(r.provider || "").endsWith(":recap-v2"))
+          .filter((r: any) => String(r.provider || "").endsWith(":recap-v3"))
           .map((r: any) => r.message_id),
       );
 

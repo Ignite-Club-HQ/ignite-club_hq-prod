@@ -294,7 +294,7 @@ serve(async (req) => {
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v2");
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v3");
       if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
@@ -565,7 +565,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: `icp:${modelUsed}:recap-v2`,
+            model: `icp:${modelUsed}:recap-v3`,
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },

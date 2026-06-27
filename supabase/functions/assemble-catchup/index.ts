@@ -292,7 +292,7 @@ serve(async (req) => {
         .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
-    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v2"));
+    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v3"));
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -307,7 +307,7 @@ serve(async (req) => {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
-      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v2"));
+      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v3"));
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
