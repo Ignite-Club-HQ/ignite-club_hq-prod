@@ -41,9 +41,13 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
   // title, etc.). Generic context words like "match"/"training"/"chat" don't
   // count as descriptive.
   if (BARE_MEDIA_SHARE.test(t)) {
-    const remainder = t.replace(BARE_MEDIA_SHARE, "").replace(MEDIA_CONTEXT_WORDS, "").trim();
-    const meaningful = remainder.replace(/[^A-Za-z]+/g, " ").trim().split(/\s+/).filter((w) => w.length > 2);
-    if (!hasProperNoun && meaningful.length < 2) return true;
+    const remainder = t.replace(BARE_MEDIA_SHARE, "");
+    const meaningful = remainder
+      .toLowerCase()
+      .replace(/[^a-z\s]+/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !MEDIA_STOPWORDS.has(w));
+    if (!hasProperNoun && meaningful.length === 0) return true;
   }
 
   if (!VAGUE_SUBJECT.test(t)) return false;
