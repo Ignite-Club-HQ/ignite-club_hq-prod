@@ -258,7 +258,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, runId]);
+  }, [open, runId, lookbackHours]);
 
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
