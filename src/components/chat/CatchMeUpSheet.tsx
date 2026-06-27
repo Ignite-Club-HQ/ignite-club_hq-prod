@@ -167,6 +167,16 @@ export function CatchMeUpSheet({
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
 
+  // Increment on each open so Typed/Reveal components remount and replay the
+  // typewriter — critical when the result was cached/pre-fetched, where the
+  // sheet pops open with `result` already populated and would otherwise reuse
+  // the previous mount's "fully typed" state. Also offsets the start of typing
+  // so it doesn't run while the sheet is still sliding in.
+  const [openKey, setOpenKey] = useState(0);
+  useEffect(() => {
+    if (open) setOpenKey((k) => k + 1);
+  }, [open]);
+
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
     if (!result) return null;
