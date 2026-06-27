@@ -309,7 +309,7 @@ export function CatchMeUpSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
+        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0" key={openKey}>
           {loading && !result && (
             <LoadingTypewriter stage={loadingStage} staticMode={staticMode} />
           )}
