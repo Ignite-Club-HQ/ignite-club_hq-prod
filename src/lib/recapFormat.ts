@@ -8,23 +8,41 @@
 const VAGUE_SUBJECT = /\b(?:someone|somebody|anyone|anybody|a\s+(?:player|parent|member|volunteer|coach|user|person)|another\s+(?:player|parent|member|volunteer|person)|one\s+(?:player|parent|member|volunteer)|the\s+(?:player|parent|member))\b/i;
 const MONTH_OR_DAY = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December|Sun|Mon|Tue|Wed|Thu|Fri|Sat|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|PS|ASAP|AM|PM|TBC|TBD|RSVP)$/;
 
+// Bullets that just announce a media drop with no subject/context. Filtered
+// unless extra descriptive context is present.
+const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents)\s+(?:was|were|has been|have been|got|were just)?\s*(?:shared|posted|uploaded|added|sent)\b/i;
+const MEDIA_CONTEXT_WORDS = /\b(?:match|game|training|chat|team|group|club|thread|today|yesterday|recent|recently)\b/i;
+
 export function isVagueRecapBullet(text: string | null | undefined): boolean {
   if (!text) return true;
   const t = text.trim();
   if (!t) return true;
-  if (!VAGUE_SUBJECT.test(t)) return false;
-  // Look for a proper-noun token (capitalised word) that is NOT the sentence-
-  // initial word and NOT a weekday/month/known acronym. If we find one, the
-  // bullet has enough context to display.
-  const tokens = t.split(/\s+/);
-  for (let i = 1; i < tokens.length; i++) {
-    const raw = tokens[i].replace(/[^A-Za-z'’\-]/g, "");
-    if (raw.length < 2) continue;
-    if (!/^[A-Z][a-z'’\-]+$/.test(raw)) continue;
-    if (MONTH_OR_DAY.test(raw)) continue;
+
+  const hasProperNoun = (() => {
+    const tokens = t.split(/\s+/);
+    for (let i = 1; i < tokens.length; i++) {
+      const raw = tokens[i].replace(/[^A-Za-z'’\-]/g, "");
+      if (raw.length < 2) continue;
+      if (!/^[A-Z][a-z'’\-]+$/.test(raw)) continue;
+      if (MONTH_OR_DAY.test(raw)) continue;
+      return true;
+    }
     return false;
+  })();
+
+  // Bare "A photo was shared in the team chat" style bullets — drop unless the
+  // sentence carries a descriptive subject (a name, place, opponent, event
+  // title, etc.). Generic context words like "match"/"training"/"chat" don't
+  // count as descriptive.
+  if (BARE_MEDIA_SHARE.test(t)) {
+    const remainder = t.replace(BARE_MEDIA_SHARE, "").replace(MEDIA_CONTEXT_WORDS, "").trim();
+    const meaningful = remainder.replace(/[^A-Za-z]+/g, " ").trim().split(/\s+/).filter((w) => w.length > 2);
+    if (!hasProperNoun && meaningful.length < 2) return true;
   }
-  return true;
+
+  if (!VAGUE_SUBJECT.test(t)) return false;
+  // For vague-subject bullets, a proper-noun token elsewhere is enough context.
+  return !hasProperNoun;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
