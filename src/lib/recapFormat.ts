@@ -10,7 +10,8 @@ const MONTH_OR_DAY = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Januar
 
 // Bullets that just announce a media drop with no subject/context. Filtered
 // unless extra descriptive context is present.
-const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents)\s+(?:was|were|has been|have been|got|were just)?\s*(?:shared|posted|uploaded|added|sent)\b/i;
+const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents)\s+(?:is|are|was|were|has been|have been|got|were just)?\s*(?:shared|posted|uploaded|added|sent)\b/i;
+const RECAP_LEADING_DECORATION = /^(?:\[[^\]]{1,40}\]\s*)?(?:[•\-*]\s*)?/;
 
 const MEDIA_STOPWORDS = new Set([
   "in","to","on","the","a","an","of","from","via","with","into","just","now",
@@ -21,7 +22,8 @@ const MEDIA_STOPWORDS = new Set([
 
 export function isVagueRecapBullet(text: string | null | undefined): boolean {
   if (!text) return true;
-  const t = text.trim();
+  const original = text.trim();
+  const t = original.replace(RECAP_LEADING_DECORATION, "").trim();
   if (!t) return true;
 
   const hasProperNoun = (() => {
@@ -48,6 +50,20 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
       .split(/\s+/)
       .filter((w) => w.length > 2 && !MEDIA_STOPWORDS.has(w));
     if (!hasProperNoun && meaningful.length === 0) return true;
+  }
+
+  // Extra safety for stale cached/generated lines that include a date prefix or
+  // slightly different grammar: "A photo is/was shared in the team chat" is not
+  // useful unless it says what the photo/video/file is actually of.
+  if (/\b(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b.{0,40}\b(?:is|are|was|were|has been|have been)?\s*(?:shared|posted|uploaded|added|sent)\b/i.test(t)) {
+    const withoutMediaPhrase = t
+      .replace(/\b(?:a|an|some|the)?\s*(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b/gi, " ")
+      .replace(/\b(?:is|are|was|were|has|have|been|shared|posted|uploaded|added|sent)\b/gi, " ")
+      .replace(/\b(?:in|to|on|the|a|an|of|from|via|with|into|team|group|club|chat|thread|message|conversation|recent|activity)\b/gi, " ")
+      .replace(/[^A-Za-z\s]+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (!hasProperNoun && withoutMediaPhrase.split(/\s+/).filter((w) => w.length > 2).length === 0) return true;
   }
 
   if (!VAGUE_SUBJECT.test(t)) return false;
