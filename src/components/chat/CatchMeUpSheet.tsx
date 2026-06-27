@@ -193,11 +193,12 @@ export function CatchMeUpSheet({
     pushSince(s.since_last_visit?.yesterday);
     pushSince(s.since_last_visit?.earlier);
     if (!s.since_last_visit) {
-      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
+      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     }
     const actions: OutstandingAction[] = (s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
-      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }));
+      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }))
+      .filter((a) => !isVagueRecapBullet(a.text));
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailedRaw = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
