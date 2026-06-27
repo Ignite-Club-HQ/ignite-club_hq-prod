@@ -109,7 +109,7 @@ Return STRICT JSON only that matches this TypeScript type:
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 6-12 bullets total — fewer only if the chat genuinely had less activity. Be DETAILED: each bullet should carry the specific fact (who, what, when, where, why) — not a vague headline. If something was asked but not answered, state it as a bullet ("Coach asked who can ref the U10 game Sat — no reply yet") rather than dropping it. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less activity. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
 
 TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
 
@@ -284,14 +284,15 @@ serve(async (req) => {
     if (!force && !validLookback) {
       const { data: cached } = await admin
         .from("chat_summaries")
-        .select("summary, message_count, last_message_id, created_at, expires_at")
+        .select("summary, message_count, last_message_id, created_at, expires_at, model")
         .eq("user_id", user.id)
         .eq("scope_type", scope_type)
         .eq("scope_id", scope_id)
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      if (cached?.summary && stillFresh) {
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v3");
+      if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
             summary: cached.summary,
@@ -474,8 +475,13 @@ serve(async (req) => {
       }
       return out;
     };
+    const stripSpeakerPrefix = (s: string): string => s
+      .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
+      .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+      .trim();
+    const cleanBullet = (s: string): string => stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim();
     const rehydrateArr = (arr: any): string[] =>
-      Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
+      Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? cleanBullet(x) : "")).filter(Boolean) : [];
     const rehydrateQuestions = (arr: any): Array<{ text: string; date?: string }> => {
       if (!Array.isArray(arr)) return [];
       return arr.map((x: any) => {
@@ -573,7 +579,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.5-flash-lite:recap-v3",
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },

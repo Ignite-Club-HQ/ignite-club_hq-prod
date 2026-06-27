@@ -139,9 +139,9 @@ export interface TimelineEntry { time: string | null; text: string }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
   if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
-  const actions: OutstandingAction[] =
-    summary.outstanding_actions ??
-    (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
+  const actions: OutstandingAction[] = (summary.outstanding_actions ??
+    (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
+    .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
   // Build a chronological-ish timeline. Each bullet's leading [time] tag is
   // parsed out so the UI can render it as a chip next to the bullet.

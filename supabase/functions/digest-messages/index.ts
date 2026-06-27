@@ -25,6 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v3`;
 
 interface DigestRow {
   message_id: string;
@@ -54,7 +55,7 @@ function redactPII(raw: string, nameMap: Map<string, string>): string {
   return t.replace(/\s{2,}/g, " ").trim();
 }
 
-const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a PARAPHRASED fact summary for each.
+const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a SYNTHESISED fact note for each.
 
 You receive a JSON array of messages. For EACH message return one object with:
 - "message_id": echo back exactly
@@ -64,14 +65,22 @@ You receive a JSON array of messages. For EACH message return one object with:
   - "decision": a concrete decision is announced (time changed, venue moved, role assigned)
   - "social": banter, thanks, emoji, greetings
   - "info": anything else useful (status updates, sharing files, FYI)
-- "summary": ONE short third-person fact (<=110 chars) that paraphrases what happened. STRICT RULES:
+- "summary": ONE short third-person fact (<=110 chars) that says what the message MEANS. STRICT RULES:
   * NEVER start with a speaker name or "Name:" prefix.
-  * NEVER quote or copy the message text verbatim — rewrite it as a neutral fact.
+  * NEVER copy the sentence structure of the original message.
+  * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
+  * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
   * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
   * If the message has no informational value, classify as "social" and set summary to "".
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
+
+Examples:
+- "Dan: Could someone please be linesperson today?" → summary "A linesperson was requested for today", topic "match official".
+- "Andrew: Yep I can do it this week" → summary "Andrew volunteered for the match official role this week", topic "match official".
+- "Bec: Also interested depending on days" → summary "Another member is interested if the dates work", topic "tournament interest".
+- "Sorry Dan, I would have loved to" → summary "One member declined because they are unavailable", topic "match official".
 
 Return STRICT JSON: { "items": [ {...}, ... ] }. No prose, no markdown, no code fences.`;
 
@@ -166,10 +175,14 @@ serve(async (req) => {
       // Existing digested ids (just message_ids) for this source within the window.
       const { data: existing } = await admin
         .from("message_digests")
-        .select("message_id")
+        .select("message_id, provider")
         .eq("message_type", src.type)
         .gte("message_created_at", sinceIso);
-      const seen = new Set((existing || []).map((r: any) => r.message_id));
+      const seen = new Set(
+        (existing || [])
+          .filter((r: any) => String(r.provider || "").endsWith(":recap-v3"))
+          .map((r: any) => r.message_id),
+      );
 
       const { data: rows, error } = await admin
         .from(src.table)
@@ -253,7 +266,7 @@ serve(async (req) => {
             summary: typeof cls.summary === "string" ? cls.summary.slice(0, 280) : "",
             topic: typeof cls.topic === "string" ? cls.topic.slice(0, 60) : null,
             mentions_user_ids: [],
-            provider: `gemini:${GEMINI_MODEL}`,
+            provider: DIGEST_PROVIDER,
           });
         }
       });
@@ -262,7 +275,7 @@ serve(async (req) => {
     if (inserts.length) {
       const { error: insErr, count } = await admin
         .from("message_digests")
-        .upsert(inserts, { onConflict: "message_type,message_id", count: "exact", ignoreDuplicates: true });
+        .upsert(inserts, { onConflict: "message_type,message_id", count: "exact" });
       if (insErr) console.error("[digest-messages] insert error", insErr.message);
       totalWritten = count ?? inserts.length;
     }

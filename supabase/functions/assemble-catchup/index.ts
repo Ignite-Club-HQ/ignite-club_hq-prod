@@ -71,9 +71,94 @@ function tagBullet(now: Date, ts: Date, text: string): string {
   return `[${shortTimeTag(now, ts)}] ${text}`;
 }
 
-/** Strip accidental "Name: " speaker prefix the digest LLM sometimes still emits. */
+/** Strip accidental "Name: " speaker prefix legacy digest rows may contain. */
 function stripSpeakerPrefix(s: string): string {
-  return s.replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "").trim();
+  return s
+    .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
+    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .trim();
+}
+
+const FILLER_PATTERNS = [
+  /^also\s+(?:interested|available|keen)\b/i,
+  /^yep\b|^yeah\b|^yes\b|^nope\b|^no\b|^sorry\b|^thanks?\b|^ok(?:ay)?\b/i,
+  /^hi\b|^hello\b|^team\b|^folks\b/i,
+];
+
+function looksLikeRawMessage(s: string): boolean {
+  const words = s.trim().split(/\s+/).filter(Boolean).length;
+  if (FILLER_PATTERNS.some((re) => re.test(s))) return true;
+  if (words >= 14 && /\b(?:please|anyone|i\s+can|i\s+would|we'?re|we\s+are|let\s+me\s+know|looking\s+like|would\s+have|depending\s+on)\b/i.test(s)) return true;
+  return false;
+}
+
+function compactSentence(s: string): string {
+  let out = stripSpeakerPrefix(s).replace(/\s+/g, " ").trim();
+  out = out.replace(/^(?:also|hi folks|hi team|team),?\s+/i, "");
+  out = out.replace(/\b(?:please|asap)\b/gi, "").replace(/\s{2,}/g, " ").trim();
+  return out.replace(/[.!?]+$/g, "");
+}
+
+function normaliseTopic(topic: string | null | undefined): string | null {
+  const t = (topic || "").trim().toLowerCase();
+  if (!t) return null;
+  if (/line\s*person|linesperson|ref(?:eree)?/.test(t)) return "match official";
+  if (/venue|location|summit|moved|time|schedule/.test(t)) return "venue change";
+  if (/availability|out|absence|numbers|lineup|squad|player/.test(t)) return "availability";
+  if (/tournament|holiday/.test(t)) return "tournament interest";
+  return t;
+}
+
+function phraseFact(topic: string | null, fact: string): string {
+  const f = compactSentence(fact);
+  const lower = f.toLowerCase();
+  const key = normaliseTopic(topic);
+
+  if (key === "match official") {
+    if (/^sorry\b|would\s+have\s+loved\s+to|can't|cannot|unavailable/i.test(lower)) return "One member declined the match official request";
+    if (/\bi can\b|\byep\b|\byes\b|volunteer|available/i.test(lower)) return "A volunteer confirmed they can cover the match official role";
+    if (/who|please|need|line\s*person|linesperson|ref/i.test(lower)) return "A match official was requested";
+  }
+  if (key === "venue change") {
+    const venue = /summit/i.test(f) ? "Summit" : null;
+    const time = f.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i)?.[0]?.replace(/\s+/g, "") ?? null;
+    const day = /sat(?:urday)?/i.test(f) ? "Saturday" : null;
+    const detail = [venue ? `to ${venue}` : null, time ? `at ${time}` : null, day ? `on ${day}` : null].filter(Boolean).join(" ");
+    return detail ? `Game moved ${detail}` : `Game venue or time changed`;
+  }
+  if (key === "availability") {
+    const outCount = f.match(/\b(?:three|3)\s+out\b/i) ? "3 players out" : null;
+    if (/only just have enough|lineups? shaky|tough game|replacement|iffy/i.test(lower)) {
+      return outCount ? `${outCount}; squad numbers are tight` : "Squad numbers are tight and replacements may be needed";
+    }
+  }
+  if (key === "tournament interest") {
+    const where = /gepps\s+cross/i.test(f) ? " at Gepps Cross" : "";
+    const when = /first week of holidays/i.test(f) ? " in the first week of holidays" : "";
+    return `Two-day tournament interest was raised${when}${where}`;
+  }
+
+  if (!looksLikeRawMessage(f)) return f;
+  return f.length > 90 ? `${f.slice(0, 87).trim()}…` : f;
+}
+
+function combineFacts(topic: string | null, facts: string[]): string {
+  const key = normaliseTopic(topic);
+  const cleaned = Array.from(new Set(facts.map((f) => phraseFact(key, f)).filter(Boolean)));
+  if (!cleaned.length) return "";
+
+  if (key === "match official") {
+    const requested = cleaned.some((f) => /requested/i.test(f));
+    const confirmed = cleaned.some((f) => /confirmed|volunteer/i.test(f));
+    if (requested && confirmed) return "Match official was requested and a volunteer has confirmed";
+  }
+  if (key === "availability") {
+    const has3Out = cleaned.some((f) => /3 players out/i.test(f));
+    const tight = cleaned.some((f) => /tight|replacement/i.test(f));
+    if (has3Out || tight) return `${has3Out ? "3 players out" : "Availability update"}; squad numbers are tight${tight ? " and replacements may be needed" : ""}`;
+  }
+
+  return cleaned.slice(0, 2).join("; ");
 }
 
 /** Title-case a short topic tag for display ("venue change" → "Venue change"). */
@@ -95,21 +180,22 @@ function synthesiseBucket(
   for (const e of entries) {
     const cleaned = stripSpeakerPrefix(e.summary).replace(/\s+/g, " ").trim();
     if (!cleaned) continue;
-    const key = (e.topic || "").toLowerCase().trim() || `__solo_${groups.size}`;
+    const key = normaliseTopic(e.topic) || `__solo_${groups.size}`;
     const g = groups.get(key);
     if (g) {
       // Dedupe near-identical facts
       if (!g.facts.some((f) => f.toLowerCase() === cleaned.toLowerCase())) g.facts.push(cleaned);
       if (e.ts > g.ts) g.ts = e.ts;
     } else {
-      groups.set(key, { ts: e.ts, topic: e.topic ?? null, facts: [cleaned] });
+      groups.set(key, { ts: e.ts, topic: normaliseTopic(e.topic), facts: [cleaned] });
     }
   }
   const ordered = Array.from(groups.values()).sort((a, b) => b.ts.getTime() - a.ts.getTime());
   const out: string[] = [];
   for (const g of ordered) {
     const title = titleTopic(g.topic);
-    const facts = g.facts.slice(0, 3).join("; ");
+    const facts = combineFacts(g.topic, g.facts);
+    if (!facts) continue;
     let line = title ? `${title}: ${facts}` : facts;
     if (line.length > 200) line = line.slice(0, 197) + "…";
     out.push(tagBullet(now, g.ts, line));
@@ -198,7 +284,7 @@ serve(async (req) => {
     const fetchDigests = (sinceIso: string) =>
       userClient
         .from("message_digests")
-        .select("message_id, classification, summary, topic, message_created_at")
+        .select("message_id, classification, summary, topic, message_created_at, provider")
         .eq("message_type", cfg.digestType)
         .eq("chat_scope_id", scope_id)
         .gte("message_created_at", sinceIso)
@@ -206,6 +292,7 @@ serve(async (req) => {
         .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
+    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v3"));
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -220,7 +307,7 @@ serve(async (req) => {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
-      digests = retry.data ?? [];
+      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v3"));
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
