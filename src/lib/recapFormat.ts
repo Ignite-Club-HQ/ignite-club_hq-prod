@@ -11,6 +11,18 @@ const MONTH_OR_DAY = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Januar
 // Bullets that just announce a media drop with no subject/context. Filtered
 // unless extra descriptive context is present.
 const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents)\s+(?:is|are|was|were|has been|have been|got|were just)?\s*(?:shared|posted|uploaded|added|sent)\b/i;
+const MEDIA_WORDS = "photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents";
+const MEDIA_ACTION_WORDS = "shared|posted|uploaded|added|sent";
+const MEDIA_THANKS_RE = new RegExp(
+  `\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b.{0,80}\\b(?:${MEDIA_ACTION_WORDS}|sharing|posting|uploading|adding|sending)\\b.{0,80}\\b(?:${MEDIA_WORDS})\\b|` +
+  `\\b(?:${MEDIA_WORDS})\\b.{0,80}\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b`,
+  "i",
+);
+const DESCRIPTIVE_MEDIA_SHARE_RE = new RegExp(
+  `\\b(?:${MEDIA_WORDS})\\b\\s+of\\s+.{3,120}\\b(?:${MEDIA_ACTION_WORDS})\\b|` +
+  `\\b(?:${MEDIA_ACTION_WORDS})\\b\\s+(?:a|an|some|the)?\\s*(?:${MEDIA_WORDS})\\b\\s+of\\s+.{3,120}`,
+  "i",
+);
 const RECAP_LEADING_DECORATION = /^(?:\[[^\]]{1,40}\]\s*)?(?:[•\-*]\s*)?/;
 
 const MEDIA_STOPWORDS = new Set([
@@ -26,6 +38,17 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
   const original = text.trim();
   const t = original.replace(RECAP_LEADING_DECORATION, "").trim();
   if (!t) return true;
+
+  // The recap AI cannot see uploaded images. If a bullet's only evidence is a
+  // thank-you/comment around a photo share, it can mislead users by inventing
+  // what the photo showed (e.g. "kids celebrating together"). Drop those lines
+  // unless the original upload had an explicit caption, which the backend now
+  // distinguishes by not exposing image-only placeholders to the model.
+  if (MEDIA_THANKS_RE.test(t)) return true;
+  // Legacy cached summaries may already contain invented image descriptions.
+  // The UI cannot prove whether "photos of X were shared" came from a real
+  // caption or model inference, so fail closed and hide it.
+  if (DESCRIPTIVE_MEDIA_SHARE_RE.test(t)) return true;
 
   const hasProperNoun = (() => {
     const tokens = t.split(/\s+/);
