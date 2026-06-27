@@ -260,6 +260,9 @@ serve(async (req) => {
     const body = (await req.json()) as Body;
     const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
     const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    // The client sends lookback_hours=24 by default — treat that as the
+    // standard "default" window so it still benefits from cache and TTL.
+    const isDefaultLookback = validLookback && (lookback_hours as number) === 24;
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
