@@ -13,6 +13,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RECAP_VERSION = "recap-v11";
+
 type ScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
 interface Body {
@@ -72,6 +74,25 @@ function stripSpeakerPrefix(s: string): string {
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
     .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
     .trim();
+}
+
+const MEDIA_WORDS = "photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents";
+const MEDIA_ACTION_WORDS = "shared|posted|uploaded|added|sent";
+const MEDIA_THANKS_RE = new RegExp(
+  `\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b.{0,80}\\b(?:${MEDIA_ACTION_WORDS}|sharing|posting|uploading|adding|sending)\\b.{0,80}\\b(?:${MEDIA_WORDS})\\b|` +
+  `\\b(?:${MEDIA_WORDS})\\b.{0,80}\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b`,
+  "i",
+);
+
+function isUnsafeMediaDigest(s: string): boolean {
+  const t = stripSpeakerPrefix(s)
+    .replace(/^\[[^\]]{1,40}\]\s*/, "")
+    .replace(/^[•\-*]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (MEDIA_THANKS_RE.test(t)) return true;
+  return /\b(?:photo|photos|image|images|picture|pictures|video|videos)\b.{0,50}\b(?:shared|posted|uploaded|added|sent)\b/i.test(t)
+    && !/\b(?:caption|showing|of the trophy|of trophy|of awards|of presentation|of scoreboard|of fixture|of roster|of draw)\b/i.test(t);
 }
 
 const FILLER_PATTERNS = [
@@ -175,6 +196,7 @@ function synthesiseBucket(
   for (const e of entries) {
     const cleaned = stripSpeakerPrefix(e.summary).replace(/\s+/g, " ").trim();
     if (!cleaned) continue;
+    if (isUnsafeMediaDigest(cleaned)) continue;
     const key = normaliseTopic(e.topic) || `__solo_${groups.size}`;
     const g = groups.get(key);
     if (g) {
@@ -287,7 +309,7 @@ serve(async (req) => {
         .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
-    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(":recap-v10"));
+    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(`:${RECAP_VERSION}`));
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -302,7 +324,7 @@ serve(async (req) => {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
-      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(":recap-v10"));
+      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(`:${RECAP_VERSION}`));
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
@@ -355,6 +377,7 @@ serve(async (req) => {
       const bucket = bucketDay(now, ts);
       const s = stripSpeakerPrefix((d.summary || "").trim());
       if (!s) continue;
+      if (isUnsafeMediaDigest(s)) continue;
       const entry = { ts, summary: s, topic: d.topic ?? null };
       switch (d.classification) {
         case "action":
