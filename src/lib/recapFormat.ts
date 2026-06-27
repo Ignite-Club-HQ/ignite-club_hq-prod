@@ -18,6 +18,11 @@ const MEDIA_THANKS_RE = new RegExp(
   `\\b(?:${MEDIA_WORDS})\\b.{0,80}\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b`,
   "i",
 );
+const DESCRIPTIVE_MEDIA_SHARE_RE = new RegExp(
+  `\\b(?:${MEDIA_WORDS})\\b\\s+of\\s+.{3,120}\\b(?:${MEDIA_ACTION_WORDS})\\b|` +
+  `\\b(?:${MEDIA_ACTION_WORDS})\\b\\s+(?:a|an|some|the)?\\s*(?:${MEDIA_WORDS})\\b\\s+of\\s+.{3,120}`,
+  "i",
+);
 const RECAP_LEADING_DECORATION = /^(?:\[[^\]]{1,40}\]\s*)?(?:[•\-*]\s*)?/;
 
 const MEDIA_STOPWORDS = new Set([
@@ -40,6 +45,10 @@ export function isVagueRecapBullet(text: string | null | undefined): boolean {
   // unless the original upload had an explicit caption, which the backend now
   // distinguishes by not exposing image-only placeholders to the model.
   if (MEDIA_THANKS_RE.test(t)) return true;
+  // Legacy cached summaries may already contain invented image descriptions.
+  // The UI cannot prove whether "photos of X were shared" came from a real
+  // caption or model inference, so fail closed and hide it.
+  if (DESCRIPTIVE_MEDIA_SHARE_RE.test(t)) return true;
 
   const hasProperNoun = (() => {
     const tokens = t.split(/\s+/);
