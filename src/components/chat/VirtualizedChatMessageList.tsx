@@ -2206,11 +2206,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // viewport on Android WebView). Once the hydration completes, the parent
       // bumps its scrollerKey and we remount with a valid `initialTargetIndex`.
       initialTopMostItemIndex={
-        initialTargetIndex >= 0
-          ? { index: initialTargetIndex, align: "end", behavior: "auto" }
-          : (initialBottomPinned || !!initialTargetMessageId)
-            ? { index: "LAST", align: "end", behavior: "auto" }
-            : undefined
+        // Guard: Virtuoso crashes with "Cannot read properties of undefined
+        // (reading 'index')" if we hand it an initial anchor while `data` is
+        // still empty — its internal sizer tries to read items[-1].index.
+        // This is exactly the cold-start path for a notification tap on
+        // team/club chats, where uniqueMessages is briefly [] before the
+        // first query resolves. Skip the prop until we actually have rows.
+        uniqueMessages.length === 0
+          ? undefined
+          : initialTargetIndex >= 0
+            ? { index: initialTargetIndex, align: "end", behavior: "auto" }
+            : (initialBottomPinned || !!initialTargetMessageId)
+              ? { index: "LAST", align: "end", behavior: "auto" }
+              : undefined
       }
       // NOTE: `alignToBottom` was removed. With anchored prepends
       // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
