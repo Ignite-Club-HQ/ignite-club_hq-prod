@@ -2210,6 +2210,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
       }}
     >
+    {uniqueMessages.length > 0 ? (
     <Virtuoso
       ref={virtuosoRef}
       className={className}
@@ -2298,6 +2299,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       context={virtuosoContext}
       components={components as any}
     />
+    ) : null}
     {renderJumpOverlay ? <JumpHydrationSkeleton visible={isJumpHydrating} /> : null}
     </div>
     </div>
