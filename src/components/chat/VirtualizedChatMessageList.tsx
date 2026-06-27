@@ -1206,6 +1206,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const latestInitialSettleSignatureRef = useRef("");
   latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
 
+  const safeScrollToIndex = useCallback(
+    (payload: any, reason: string) => {
+      if (messagesLengthRef.current <= 0) {
+        debugLogEvent("scroll-to-index-skipped-empty", { reason });
+        return false;
+      }
+      try {
+        virtuosoRef.current?.scrollToIndex(payload);
+        return true;
+      } catch (error) {
+        console.warn("[VirtualizedChatMessageList] scrollToIndex skipped", { reason, error });
+        return false;
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (messages.length === 0) {
       anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
@@ -1316,11 +1333,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return;
       }
       debugLogBottomPin(bottomPinRevision, phase);
-      virtuosoRef.current?.scrollToIndex({
+      safeScrollToIndex({
         index: "LAST",
         align: "end",
         behavior: "auto",
-      });
+      }, `bottom-pin-${phase}`);
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1358,7 +1375,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
       if (!isChatJumpActive()) {
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-reveal-final");
       }
       if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
@@ -1376,9 +1393,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle");
         requestAnimationFrame(() => {
-          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+          safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle-raf");
           setInitialRevealReady(true);
         });
       });
@@ -1387,7 +1404,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
       if (!isChatJumpActive()) {
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-stability-check");
       }
       const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
@@ -1841,7 +1858,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         markChatScrollWrite();
       }
     };
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+    safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "own-message-send-pin");
     pin();
     const r = requestAnimationFrame(() => requestAnimationFrame(pin));
     // Trailing passes absorb composer collapse (reply pill clears, textarea
@@ -1894,11 +1911,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // Passing offset would apply the composer padding twice and push
           // the last message (and the composer's visual baseline) high up
           // the screen.
-          virtuosoRef.current?.scrollToIndex({
+          safeScrollToIndex({
             index: "LAST",
             align: "end",
             behavior,
-          });
+          }, "imperative-scroll-to-bottom");
           requestAnimationFrame(() => {
             const el = scrollerElRef.current;
             if (!el || isChatJumpActive()) return;
@@ -1920,6 +1937,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       },
 
       scrollToIndex: (index, align = "center") => {
+        if (messagesLengthRef.current <= 0) return;
         const last = Math.max(0, messagesLengthRef.current - 1);
         const dataIndex = Math.max(0, Math.min(index, last));
         const offset = align === "end" && dataIndex !== last ? getChatBottomPaddingOffset(bottomPadding) : 0;
@@ -1928,12 +1946,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         // shifted absolute index gets clamped by Virtuoso to LAST, which is why
         // notification jumps highlighted the right row but kept the viewport at
         // the bottom of the committee chat.
-        virtuosoRef.current?.scrollToIndex({
+        safeScrollToIndex({
           index: dataIndex,
           align,
           offset,
           behavior: "auto",
-        });
+        }, "imperative-scroll-to-index");
       },
       scrollToMessageId: (messageId, align = "center") => {
         const el = scrollerElRef.current;
@@ -1973,7 +1991,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [bottomPadding],
+    [bottomPadding, safeScrollToIndex],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
@@ -2192,7 +2210,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
       }}
     >
-    <Virtuoso
+    {uniqueMessages.length > 0 ? (
+      <Virtuoso
       ref={virtuosoRef}
       className={className}
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
@@ -2279,7 +2298,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollerRef={wrappedScrollerRef}
       context={virtuosoContext}
       components={components as any}
-    />
+      />
+    ) : null}
     {renderJumpOverlay ? <JumpHydrationSkeleton visible={isJumpHydrating} /> : null}
     </div>
     </div>
