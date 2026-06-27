@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
-import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -171,7 +171,7 @@ export function CatchMeUpSheet({
   const view = useMemo(() => {
     if (!result) return null;
     const s = result.summary;
-    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix);
+    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     const since = {
       today: clean(s.since_last_visit?.today),
       yesterday: clean(s.since_last_visit?.yesterday),
@@ -184,6 +184,7 @@ export function CatchMeUpSheet({
         const parsed = parseRecapTimeTag(raw);
         const text = parsed.text || stripRecapDatePrefix(raw);
         if (!text || seenSince.has(text)) continue;
+        if (isVagueRecapBullet(text)) continue;
         seenSince.add(text);
         sinceTimeline.push({ time: parsed.time, text });
       }
@@ -192,11 +193,12 @@ export function CatchMeUpSheet({
     pushSince(s.since_last_visit?.yesterday);
     pushSince(s.since_last_visit?.earlier);
     if (!s.since_last_visit) {
-      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
+      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     }
     const actions: OutstandingAction[] = (s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
-      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }));
+      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }))
+      .filter((a) => !isVagueRecapBullet(a.text));
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailedRaw = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
