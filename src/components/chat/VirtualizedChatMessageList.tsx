@@ -1206,6 +1206,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const latestInitialSettleSignatureRef = useRef("");
   latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
 
+  const safeScrollToIndex = useCallback(
+    (payload: any, reason: string) => {
+      if (messagesLengthRef.current <= 0) {
+        debugLogEvent("scroll-to-index-skipped-empty", { reason });
+        return false;
+      }
+      try {
+        virtuosoRef.current?.scrollToIndex(payload);
+        return true;
+      } catch (error) {
+        console.warn("[VirtualizedChatMessageList] scrollToIndex skipped", { reason, error });
+        return false;
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (messages.length === 0) {
       anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
@@ -1316,11 +1333,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return;
       }
       debugLogBottomPin(bottomPinRevision, phase);
-      virtuosoRef.current?.scrollToIndex({
+      safeScrollToIndex({
         index: "LAST",
         align: "end",
         behavior: "auto",
-      });
+      }, `bottom-pin-${phase}`);
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1358,7 +1375,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
       if (!isChatJumpActive()) {
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-reveal-final");
       }
       if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
@@ -1376,9 +1393,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle");
         requestAnimationFrame(() => {
-          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+          safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle-raf");
           setInitialRevealReady(true);
         });
       });
@@ -1387,7 +1404,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
       if (!isChatJumpActive()) {
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-stability-check");
       }
       const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
