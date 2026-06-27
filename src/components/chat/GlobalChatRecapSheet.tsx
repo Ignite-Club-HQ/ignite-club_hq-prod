@@ -23,6 +23,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getCatchUpLastOpened,
+  DEFAULT_LOOKBACK_HOURS,
   type ChatScopeType,
   type ChatSummaryPayload,
   type ChatSummaryResult,
@@ -31,6 +32,12 @@ import {
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
 import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+
+const GLOBAL_LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
