@@ -176,6 +176,7 @@ export default function ClubChatPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
   const chatReady = useChatPageReady();
@@ -250,6 +251,9 @@ export default function ClubChatPage() {
     fallbackJumpTs,
   });
   const targetParentId = searchParams.get("parent");
+  const scrollerKey = targetMessageId
+    ? `club-jump:${clubId}:${targetMessageId}:${jumpRenderNonce ?? targetJumpNonce ?? "initial"}`
+    : `club:${clubId}`;
 
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
@@ -905,6 +909,58 @@ export default function ClubChatPage() {
   useEffect(() => {
     loadOlderMessagesRef.current = loadOlderMessages;
   }, [loadOlderMessages]);
+
+  // Notification deep-links must mount with the target row present. Club chat
+  // pushes can arrive before the latest query contains the new row, especially
+  // on Android cold-starts, so replace first paint with a small target window.
+  useEffect(() => {
+    if (!targetMessageId || !clubId || !authReady) return;
+    let cancelled = false;
+
+    const hydrateTargetWindow = async () => {
+      const { data: target, error } = await supabase
+        .from("club_messages")
+        .select("id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .eq("id", targetMessageId)
+        .eq("club_id", clubId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (cancelled || error || !target?.created_at) return;
+
+      const windowRows = await fetchMessagesAround({
+        table: "club_messages",
+        scope: { club_id: clubId },
+        createdAt: target.created_at,
+        selectColumns:
+          "id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+        before: 12,
+        after: 24,
+      });
+
+      if (cancelled || windowRows.length === 0) return;
+
+      const targetTime = new Date(target.created_at).getTime();
+      const existingNewer = (localMessagesRef.current || []).filter(
+        (message) => new Date(message.created_at).getTime() > targetTime,
+      );
+      const byId = new Map<string, Message>();
+      [...windowRows, ...existingNewer].forEach((message: any) => byId.set(message.id, message as Message));
+      const anchoredWindow = [...byId.values()].sort(
+        (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+      );
+
+      setLocalMessages(anchoredWindow);
+      setHasOlderMessages(windowRows.length >= 13);
+      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
+    };
+
+    void hydrateTargetWindow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetMessageId, targetJumpNonce, clubId, authReady]);
 
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
@@ -1614,6 +1670,7 @@ export default function ClubChatPage() {
           />
         ) : (
           <ChatMessagesScroller
+            key={scrollerKey}
             messages={filteredMessages || []}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
@@ -1625,6 +1682,7 @@ export default function ClubChatPage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             initialBottomPinned={!targetMessageId}
+            initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
