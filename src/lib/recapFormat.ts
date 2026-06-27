@@ -13,6 +13,7 @@ export function stripRecapDatePrefix(text: string): string {
   out = rewriteRawChatEcho(out);
   out = stripRelativeDateWords(out);
   return out;
+}
 
 /**
  * Remove accidental speaker labels from recap bullets. This is a UI-level guard
@@ -25,7 +26,6 @@ export function stripRecapSpeakerPrefix(text: string): string {
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
     .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
     .trim();
-}
 
 /**
  * Last-resort display guard for old cached recap rows where the model/digest
