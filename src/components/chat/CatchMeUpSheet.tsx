@@ -263,8 +263,11 @@ export function CatchMeUpSheet({
   const CHAR_MS = staticMode ? 0 : 16;
   const GAP_MS = staticMode ? 0 : 120;
   const HEADER_REVEAL_MS = staticMode ? 0 : 220;
+  // Sheet slide-in is ~300ms; buffer the first character so typing is visible
+  // even when results were cached and the sheet opens with content ready.
+  const OPEN_BUFFER_MS = staticMode ? 0 : 320;
   const delayRef = useRef(0);
-  delayRef.current = 0;
+  delayRef.current = OPEN_BUFFER_MS;
   const scheduleType = (text: string) => {
     if (staticMode) return 0;
     const start = delayRef.current;
