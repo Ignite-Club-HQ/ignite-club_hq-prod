@@ -621,9 +621,9 @@ serve(async (req) => {
       );
     }
 
-    // Don't pollute the cache with lookback-window summaries — they're
-    // bespoke time windows the user explicitly requested.
-    if (!validLookback) {
+    // Don't pollute the cache with bespoke non-default lookback windows.
+    // The client-default 24h window IS cached.
+    if (!validLookback || isDefaultLookback) {
       await admin
         .from("chat_summaries")
         .upsert(
