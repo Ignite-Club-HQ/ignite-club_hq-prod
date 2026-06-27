@@ -576,6 +576,10 @@ serve(async (req) => {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
         out = out.replace(re, realByPseudo.get(p)!);
       }
+      // Safety net: any "Child N" / "Person N" pseudonym that escaped rehydration
+      // (e.g. model invented an unseen number) becomes a neutral descriptor.
+      out = out.replace(/\bChild\s+\d+\b/g, "a child");
+      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
