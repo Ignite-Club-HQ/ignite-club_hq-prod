@@ -14,6 +14,15 @@ function withQuery(ui: ReactNode) {
   return <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
 }
 
+const renderItem = (m: any) => <div key={m.id}>{m.id}</div>;
+
+const baseProps = {
+  hasOlder: false,
+  isLoadingOlder: false,
+  onLoadOlder: () => {},
+  renderItem,
+} as const;
+
 /**
  * Regression guard for the Android team/club chat notification crash:
  *
@@ -30,42 +39,22 @@ function withQuery(ui: ReactNode) {
  *  2. Imperative `scrollToIndex` / `scrollToBottom` calls early-return when
  *     the list is empty (`safeScrollToIndex`).
  *
- * These tests assert both invariants directly on the component, without
- * needing a Capacitor device. They will fail loudly if a future edit re-
- * introduces an unconditional Virtuoso mount or a raw `scrollToIndex`.
+ * These tests assert both invariants without needing a Capacitor device.
+ * They will fail if a future edit re-introduces an unconditional Virtuoso
+ * mount or a raw `scrollToIndex` against an empty list.
  */
 describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
   it("renders with messages=[] without throwing (Virtuoso mount is gated)", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
     expect(() =>
-      render(withQuery(
-        <VirtualizedChatMessageList
-          ref={ref}
-          messages={[]}
-          hasOlder={false}
-          isLoadingOlder={false}
-          onLoadOlder={() => {}}
-          renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-        />,
-      ),
+      render(withQuery(<VirtualizedChatMessageList ref={ref} messages={[]} {...baseProps} />)),
     ).not.toThrow();
   });
 
   it("imperative scroll commands no-op safely on an empty list", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    render(withQuery(
-      <VirtualizedChatMessageList
-        ref={ref}
-        messages={[]}
-        hasOlder={false}
-        isLoadingOlder={false}
-        onLoadOlder={() => {}}
-        renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-      />,
-    );
+    render(withQuery(<VirtualizedChatMessageList ref={ref} messages={[]} {...baseProps} />));
 
-    // The handle may or may not be wired before Virtuoso mounts (it is gated
-    // behind length > 0); calling these must not throw either way.
     expect(() => {
       act(() => {
         ref.current?.scrollToBottom?.("auto");
@@ -78,16 +67,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
 
   it("isAtBottom / isNearBottom are safe to query before any messages mount", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    render(withQuery(
-      <VirtualizedChatMessageList
-        ref={ref}
-        messages={[]}
-        hasOlder={false}
-        isLoadingOlder={false}
-        onLoadOlder={() => {}}
-        renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-      />,
-    );
+    render(withQuery(<VirtualizedChatMessageList ref={ref} messages={[]} {...baseProps} />));
 
     expect(() => {
       ref.current?.isAtBottom?.();
@@ -97,15 +77,8 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
 
   it("transitioning from empty → populated messages does not throw", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    const { rerender } = render(withQuery(
-      <VirtualizedChatMessageList
-        ref={ref}
-        messages={[]}
-        hasOlder={false}
-        isLoadingOlder={false}
-        onLoadOlder={() => {}}
-        renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-      />,
+    const { rerender } = render(
+      withQuery(<VirtualizedChatMessageList ref={ref} messages={[]} {...baseProps} />),
     );
 
     const messages = Array.from({ length: 20 }, (_, i) => ({
@@ -116,41 +89,32 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
     }));
 
     expect(() =>
-      rerender(withQuery(
-        <VirtualizedChatMessageList
-          ref={ref}
-          messages={messages}
-          hasOlder={false}
-          isLoadingOlder={false}
-          onLoadOlder={() => {}}
-          renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-        />,
+      rerender(
+        withQuery(<VirtualizedChatMessageList ref={ref} messages={messages} {...baseProps} />),
       ),
     ).not.toThrow();
   });
 
-  it("notification cold-start: targetMessageId pointing to a not-yet-loaded id is safe on empty list", () => {
-    // Simulates `initialTargetMessageId` arriving from a push payload before
-    // the fetch resolves — this was one of the exact paths that crashed.
+  it("notification cold-start: initialTargetMessageId on an empty list does not crash", () => {
+    // Simulates a push payload arriving before the fetch resolves — one of
+    // the exact paths that produced "Cannot read properties of undefined".
     const ref = createRef<VirtualizedChatMessageListHandle>();
     expect(() =>
-      render(withQuery(
-        <VirtualizedChatMessageList
-          ref={ref}
-          messages={[]}
-          hasOlder={false}
-          isLoadingOlder={false}
-          onLoadOlder={() => {}}
-          initialTargetMessageId="not-loaded-yet"
-          renderItem={(m) => <div key={(m as any).id}>{(m as any).id}</div>}
-        />,
+      render(
+        withQuery(
+          <VirtualizedChatMessageList
+            ref={ref}
+            messages={[]}
+            initialTargetMessageId="not-loaded-yet"
+            {...baseProps}
+          />,
+        ),
       ),
     ).not.toThrow();
   });
 });
 
-// Silence noisy Virtuoso ResizeObserver warnings that jsdom can't fulfil;
-// they're irrelevant to what these tests are asserting.
+// Silence noisy Virtuoso ResizeObserver warnings that jsdom can't fulfil.
 vi.spyOn(console, "error").mockImplementation((msg, ...rest) => {
   if (typeof msg === "string" && /ResizeObserver|act\(\)/.test(msg)) return;
   // eslint-disable-next-line no-console
