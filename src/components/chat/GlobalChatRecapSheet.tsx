@@ -110,10 +110,15 @@ async function getLLMFnName(): Promise<string> {
   return "summarize-chat";
 }
 
-async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
+async function fetchOne(ref: RecapScopeRef, lookbackHours: number): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-  const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
+  const body: Record<string, unknown> = {
+    scope_type: ref.scope_type,
+    scope_id: ref.scope_id,
+    last_opened_at,
+    lookback_hours: lookbackHours,
+  };
   try {
     // assemble-catchup supports team / club / group only. For DMs and admin
     // groups go straight to the LLM summariser so users get a real recap
