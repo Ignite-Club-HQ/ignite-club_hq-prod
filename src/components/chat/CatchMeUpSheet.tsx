@@ -308,24 +308,41 @@ export function CatchMeUpSheet({
                       {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
                     </p>
                   </Reveal>
-                  <ol className="space-y-3.5 border-l border-border/70 pl-3">
-                    {view.sinceTimeline.map((item) => {
-                      const delay = scheduleType(item.text);
-                      return (
-                        <li key={`${item.time ?? "item"}-${item.text}`} className="relative -ml-[13px] pl-5">
-                          <span className="absolute left-3 top-2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
-                          {item.time && (
-                            <Reveal delayMs={scheduleReveal(80)} as="span" className="mb-0.5 block text-[11px] font-medium uppercase text-muted-foreground">
-                              {item.time}
+                  <div className="space-y-4">
+                    {(() => {
+                      const stripTime = (t?: string | null) => {
+                        if (!t) return "";
+                        // Remove trailing time like " 8:43am", " 10:17pm", " 9am"
+                        return t.replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
+                      };
+                      const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
+                      for (const item of view.sinceTimeline) {
+                        const date = stripTime(item.time) || "";
+                        const last = groups[groups.length - 1];
+                        if (last && last.date === date) last.items.push(item);
+                        else groups.push({ date, items: [item] });
+                      }
+                      return groups.map((g, gi) => (
+                        <div key={`${g.date}-${gi}`}>
+                          {g.date && (
+                            <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {g.date}
                             </Reveal>
                           )}
-                          <div className="text-base leading-relaxed text-foreground">
-                            <Typed text={item.text} delayMs={delay} charMs={CHAR_MS} />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
+                          <ul className="space-y-3">
+                            {g.items.map((item) => {
+                              const delay = scheduleType(item.text);
+                              return (
+                                <li key={`${item.time ?? "item"}-${item.text}`} className="text-base leading-relaxed text-foreground">
+                                  <Typed text={item.text} delayMs={delay} charMs={CHAR_MS} />
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ));
+                    })()}
+                  </div>
                 </section>
               )}
 
