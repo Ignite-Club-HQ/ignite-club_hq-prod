@@ -554,7 +554,7 @@ export function AppHeader() {
       // share the active club — matches the popover's filtering logic.
       const { data } = await supabase
         .from("notifications")
-        .select("id, type, related_id")
+        .select("id, type, related_id, club_id")
         .eq("user_id", user.id)
         .or(`club_id.eq.${activeClubFilter},club_id.is.null`)
         .eq("is_read", false)
