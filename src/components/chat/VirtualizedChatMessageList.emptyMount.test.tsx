@@ -38,7 +38,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
   it("renders with messages=[] without throwing (Virtuoso mount is gated)", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
     expect(() =>
-      render(
+      render(withQuery(
         <VirtualizedChatMessageList
           ref={ref}
           messages={[]}
@@ -53,7 +53,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
 
   it("imperative scroll commands no-op safely on an empty list", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    render(
+    render(withQuery(
       <VirtualizedChatMessageList
         ref={ref}
         messages={[]}
@@ -78,7 +78,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
 
   it("isAtBottom / isNearBottom are safe to query before any messages mount", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    render(
+    render(withQuery(
       <VirtualizedChatMessageList
         ref={ref}
         messages={[]}
@@ -97,7 +97,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
 
   it("transitioning from empty → populated messages does not throw", () => {
     const ref = createRef<VirtualizedChatMessageListHandle>();
-    const { rerender } = render(
+    const { rerender } = render(withQuery(
       <VirtualizedChatMessageList
         ref={ref}
         messages={[]}
@@ -116,7 +116,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
     }));
 
     expect(() =>
-      rerender(
+      rerender(withQuery(
         <VirtualizedChatMessageList
           ref={ref}
           messages={messages}
@@ -134,7 +134,7 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
     // the fetch resolves — this was one of the exact paths that crashed.
     const ref = createRef<VirtualizedChatMessageListHandle>();
     expect(() =>
-      render(
+      render(withQuery(
         <VirtualizedChatMessageList
           ref={ref}
           messages={[]}
