@@ -29,7 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v8";
+const RECAP_VERSION = "recap-v9";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -66,8 +66,11 @@ function localBulletForMessage(message: any): string | null {
   const compact = raw.replace(/\s+/g, " ").trim();
   const lower = compact.toLowerCase();
   const tag = localTag(message?.created_at as string);
-  if (!compact && message?.image_url) return `${tag}A photo was shared in the team chat.`;
-  if (/^\[galleryprompt:/i.test(compact)) return `${tag}Photos were shared from recent team activity.`;
+  // Image-only/gallery-card messages have no visual context in the transcript.
+  // Do not invent a generic "photo was shared" recap bullet; it adds no value
+  // unless surrounding text describes what the media is of.
+  if (!compact && message?.image_url) return null;
+  if (/^\[gallery(?:prompt)?:/i.test(compact)) return null;
   if (/happy birthday|haha thanks|in the zone/i.test(compact)) return null;
 
   if (/\bevent cancelled\b|\bgame cancelled\b/i.test(compact)) {
@@ -169,7 +172,7 @@ const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat
 
 You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates into the legacy JSON buckets by send date: current-date bucket, previous-date bucket, and earlier bucket. The bucket names are schema keys only and must never appear in user-visible strings.
 
-Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Also include useful informational posts such as match reminders, duty rosters, arrival times, venues, photos/files shared, player availability and coach updates even when no action is required. Ignore only casual banter, jokes, emoji-only messages and greetings.
+Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Also include useful informational posts such as match reminders, duty rosters, arrival times, venues, player availability and coach updates even when no action is required. Only mention photos/files when the transcript describes what the media/file is of or why it matters; never output generic lines like "a photo was shared in the team chat". Ignore casual banter, jokes, emoji-only messages and greetings.
 
 An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
 
@@ -189,12 +192,12 @@ Return STRICT JSON only that matches this TypeScript type:
   "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
     "schedule_changes": string[], // max 8 bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 8 bullets — photos / docs shared, with sender if useful
+    "files_shared": string[],     // max 8 bullets — only photos/docs with meaningful described content; never generic media-share notices
     "discussion": string[]        // max 10 bullets — other notable discussion, decisions, questions raised, opinions, suggestions
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less useful activity. NEVER return an empty recap while the transcript contains fixture details, training/availability updates, rosters, photos/files or coach/club information. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response, or what information was shared) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less useful activity. NEVER return an empty recap while the transcript contains fixture details, training/availability updates, rosters or coach/club information. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response, or what information was shared) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Do not include photo/video/file bullets unless the transcript says what was shared (e.g. "photos of the trophy presentation" is useful; "a photo was shared in the team chat" is forbidden). Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
 
 BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 12-30 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
 
@@ -569,7 +572,25 @@ serve(async (req) => {
       .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
       .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
       .trim();
-    const cleanBullet = (s: string): string => stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim();
+    const isBareMediaShare = (s: string): boolean => {
+      const t = stripSpeakerPrefix(s)
+        .replace(/^\[[^\]]{1,40}\]\s*/, "")
+        .replace(/^[•\-*]\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!/\b(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b.{0,50}\b(?:shared|posted|uploaded|added|sent)\b/i.test(t)) return false;
+      const descriptive = t
+        .replace(/\b(?:a|an|some|the)?\s*(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b/gi, " ")
+        .replace(/\b(?:is|are|was|were|has|have|been|shared|posted|uploaded|added|sent|in|to|on|the|a|an|of|from|via|with|into|team|group|club|chat|thread|message|conversation|recent|activity)\b/gi, " ")
+        .replace(/[^A-Za-z\s]+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      return descriptive.split(/\s+/).filter((w) => w.length > 2).length === 0;
+    };
+    const cleanBullet = (s: string): string => {
+      const cleaned = stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim();
+      return isBareMediaShare(cleaned) ? "" : cleaned;
+    };
     const rehydrateArr = (arr: any): string[] =>
       Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? cleanBullet(x) : "")).filter(Boolean) : [];
     const rehydrateQuestions = (arr: any): Array<{ text: string; date?: string }> => {
