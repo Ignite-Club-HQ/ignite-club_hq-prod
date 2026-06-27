@@ -203,15 +203,17 @@ export default function BroadcastChatPage() {
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
+      const uid = user?.id;
+      if (!uid) return false;
       const { data } = await supabase
         .from("user_roles")
         .select("id")
-        .eq("user_id", user!.id)
+        .eq("user_id", uid)
         .eq("role", "app_admin")
         .maybeSingle();
       return !!data;
     },
-    enabled: authReady,
+    enabled: authReady && !!user?.id,
   });
 
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
