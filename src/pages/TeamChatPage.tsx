@@ -1551,6 +1551,7 @@ export default function TeamChatPage() {
     }
 
     if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;

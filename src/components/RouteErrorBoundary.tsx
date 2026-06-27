@@ -54,7 +54,8 @@ export class RouteErrorBoundary extends React.Component<
       // Clear any pending notification-driven jump so the inbox doesn't
       // immediately re-trigger the same broken path.
       sessionStorage.removeItem("pendingPushNavigationUrl");
-      sessionStorage.removeItem("ignite_pending_chat_jump");
+      sessionStorage.removeItem("ignite_pending_chat_jump_v1");
+      sessionStorage.removeItem("ignite_pending_web_push_nav");
     } catch { /* ignore */ }
     this.setState({ error: null });
     if (typeof window !== "undefined") {
