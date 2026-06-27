@@ -56,6 +56,26 @@ function redactPII(raw: string, nameMap: Map<string, string>): string {
   return t.replace(/\s{2,}/g, " ").trim();
 }
 
+function sanitizeDigestSummary(raw: string): string {
+  let s = raw;
+  s = s.replace(/https?:\/\/\S+/gi, "");
+  s = s.replace(/\bwww\.[^\s)]+/gi, "");
+  s = s.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+  s = s.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+  s = s.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+  s = s.replace(/[“”„‟«»]/g, "");
+  s = s.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+  s = s.replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "");
+  s = s.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/[\s,;:–-]+$/g, "").trim();
+  if (s.length > 140) {
+    const slice = s.slice(0, 140);
+    const lastSpace = slice.lastIndexOf(" ");
+    s = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+  }
+  return s;
+}
+
 const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a SYNTHESISED fact note for each.
 
 You receive a JSON array of messages including created_at ISO timestamps. For EACH message return one object with:
