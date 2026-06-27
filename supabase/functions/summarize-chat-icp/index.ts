@@ -299,7 +299,7 @@ serve(async (req) => {
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v9");
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes("recap-v10");
       if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
@@ -354,24 +354,34 @@ serve(async (req) => {
           .eq("club_id", clubIdForChildren);
         const parentIds = Array.from(new Set((clubParents || []).map((r: any) => r.user_id).filter(Boolean)));
         if (parentIds.length) {
+          const { data: parentProfiles } = await admin
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", parentIds);
+          const parentNameById = new Map<string, string>();
+          (parentProfiles || []).forEach((p: any) =>
+            parentNameById.set(p.id, (p.display_name || "").trim()),
+          );
           const { data: kids } = await admin
             .from("children")
-            .select("name")
+            .select("name, parent_id")
             .in("parent_id", parentIds);
           (kids || []).forEach((k: any) => {
             const n = (k?.name || "").trim();
-            if (n) {
-              const key = n;
-              if (!pseudoByRealName.has(key)) {
-                personCounter += 1;
-                const p = `Child ${personCounter}`;
-                pseudoByRealName.set(key, p);
-                realByPseudo.set(p, key);
-              }
-              const first = n.split(/\s+/)[0];
-              if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
-                pseudoByRealName.set(first, pseudoByRealName.get(key)!);
-              }
+            if (!n) return;
+            const parentFull = parentNameById.get(k.parent_id) || "";
+            const parentFirst = parentFull.split(/\s+/)[0] || "";
+            const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
+            const key = n;
+            if (!pseudoByRealName.has(key)) {
+              personCounter += 1;
+              const p = `Child ${personCounter}`;
+              pseudoByRealName.set(key, p);
+              realByPseudo.set(p, descriptor);
+            }
+            const first = n.split(/\s+/)[0];
+            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+              pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
         }
@@ -445,6 +455,8 @@ serve(async (req) => {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
         out = out.replace(re, realByPseudo.get(p)!);
       }
+      out = out.replace(/\bChild\s+\d+\b/g, "a child");
+      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
@@ -588,7 +600,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: `icp:${modelUsed}:recap-v9`,
+            model: `icp:${modelUsed}:recap-v10`,
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },
