@@ -219,10 +219,12 @@ export default function ClubAdminChatPage() {
   const { data: memberProfile } = useQuery({
     queryKey: ["club-admin-member-profile", conversation?.member_user_id],
     queryFn: async () => {
+      const memberId = conversation?.member_user_id;
+      if (!memberId) return null;
       const { data, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .eq("id", conversation!.member_user_id)
+        .eq("id", memberId)
         .single();
       if (error) throw error;
       return data;
