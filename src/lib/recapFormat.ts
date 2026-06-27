@@ -11,7 +11,7 @@ const MONTH_OR_DAY = /^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Januar
 // Bullets that just announce a media drop with no subject/context. Filtered
 // unless extra descriptive context is present.
 const BARE_MEDIA_SHARE = /^(?:a |an |some |the |)?(?:photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents)\s+(?:was|were|has been|have been|got|were just)?\s*(?:shared|posted|uploaded|added|sent)\b/i;
-const MEDIA_CONTEXT_WORDS = /\b(?:in|to|on|the|a|an|of|from|via|with|into|just|now|recent|recently|today|yesterday|match|game|training|chat|team|group|club|thread|messages?|conversation)\b/gi;
+
 const MEDIA_STOPWORDS = new Set([
   "in","to","on","the","a","an","of","from","via","with","into","just","now",
   "recent","recently","today","yesterday","match","game","training","chat",
