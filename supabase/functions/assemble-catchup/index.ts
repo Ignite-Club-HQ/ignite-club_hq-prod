@@ -214,7 +214,8 @@ function synthesiseBucket(
     const facts = combineFacts(g.topic, g.facts);
     if (!facts) continue;
     let line = title ? `${title}: ${facts}` : facts;
-    if (line.length > 200) line = line.slice(0, 197) + "…";
+    line = sanitizeAssembledLine(line);
+    if (!line) continue;
     out.push(tagBullet(now, g.ts, line));
     if (out.length >= maxBullets) break;
   }
