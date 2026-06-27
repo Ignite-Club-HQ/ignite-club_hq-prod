@@ -84,6 +84,11 @@ const PREV_OPENED_KEY = "chat-catchup:prev-opened";
 const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
+/**
+ * Default lookback window for every Chat Recap (single-thread and global).
+ * Users can pick deeper windows (7d / 30d) from the sheet on demand.
+ */
+export const DEFAULT_LOOKBACK_HOURS = 24;
 // Re-opens within this window are treated as the same "visit" — we keep the
 // previous-visit timestamp so Chat Recap still has a meaningful cutoff.
 const SAME_VISIT_MS = 30 * 60 * 1000;
