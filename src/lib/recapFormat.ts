@@ -13,7 +13,6 @@ export function stripRecapDatePrefix(text: string): string {
   out = rewriteRawChatEcho(out);
   out = stripRelativeDateWords(out);
   return out;
-}
 
 /**
  * Remove accidental speaker labels from recap bullets. This is a UI-level guard
