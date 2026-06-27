@@ -441,10 +441,13 @@ export function CatchMeUpSheet({
                   {showDetailed && (
                     <div className="mt-1 divide-y divide-border/60 rounded-xl border border-border bg-card">
                       {view.detailed.schedule_changes.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<CalendarClock className="h-4 w-4 text-amber-500" />}
                           label="Schedule changes"
                           items={view.detailed.schedule_changes}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
@@ -452,6 +455,9 @@ export function CatchMeUpSheet({
                           icon={<Paperclip className="h-4 w-4 text-violet-500" />}
                           label="Files & photos shared"
                           items={view.detailed.files_shared}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
@@ -459,6 +465,9 @@ export function CatchMeUpSheet({
                           icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
                           label="Other discussion"
                           items={view.detailed.discussion}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                     </div>
@@ -537,23 +546,39 @@ export function CatchMeUpSheet({
   );
 }
 
-function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
+function DetailBlock({
+  icon,
+  label,
+  items,
+  scheduleType,
+  scheduleReveal,
+  charMs,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: string[];
+  scheduleType: (text: string) => number;
+  scheduleReveal: (ms?: number) => number;
+  charMs: number;
+}) {
   return (
     <div className="px-3 py-3">
-      <div className="mb-2 flex items-center gap-2">
+      <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-base font-semibold text-muted-foreground">{label}</p>
-      </div>
+      </Reveal>
       {items.length === 1 ? (
-        <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        <p className="text-base leading-relaxed text-foreground">
+          <Typed text={items[0]} delayMs={scheduleType(items[0])} charMs={charMs} />
+        </p>
       ) : (
-      <div className="space-y-3">
-        {items.map((item, i) => (
-          <div key={i} className="text-base leading-relaxed text-foreground">
-            {item}
-          </div>
-        ))}
-      </div>
+        <div className="space-y-3">
+          {items.map((item, i) => (
+            <div key={i} className="text-base leading-relaxed text-foreground">
+              <Typed text={item} delayMs={scheduleType(item)} charMs={charMs} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
