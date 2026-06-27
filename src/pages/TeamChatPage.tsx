@@ -1181,7 +1181,7 @@ export default function TeamChatPage() {
 
       setLocalMessages(anchoredWindow);
       setHasOlderMessages(windowRows.length >= 13);
-      setJumpRenderNonce(targetJumpNonce ?? Date.now());
+      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
 
     void hydrateTargetWindow();
