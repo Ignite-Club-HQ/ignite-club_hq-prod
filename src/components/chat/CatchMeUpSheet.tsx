@@ -184,6 +184,7 @@ export function CatchMeUpSheet({
         const parsed = parseRecapTimeTag(raw);
         const text = parsed.text || stripRecapDatePrefix(raw);
         if (!text || seenSince.has(text)) continue;
+        if (isVagueRecapBullet(text)) continue;
         seenSince.add(text);
         sinceTimeline.push({ time: parsed.time, text });
       }
