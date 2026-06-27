@@ -54,7 +54,7 @@ function redactPII(raw: string, nameMap: Map<string, string>): string {
   return t.replace(/\s{2,}/g, " ").trim();
 }
 
-const SYSTEM_PROMPT = `You classify individual sports-club chat messages.
+const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a PARAPHRASED fact summary for each.
 
 You receive a JSON array of messages. For EACH message return one object with:
 - "message_id": echo back exactly
@@ -64,8 +64,14 @@ You receive a JSON array of messages. For EACH message return one object with:
   - "decision": a concrete decision is announced (time changed, venue moved, role assigned)
   - "social": banter, thanks, emoji, greetings
   - "info": anything else useful (status updates, sharing files, FYI)
-- "summary": one short sentence (<=120 chars), neutral tone, no names unless the speaker owns an action/decision
-- "topic": 1-3 word tag (e.g. "training time", "uniforms", "fixture")
+- "summary": ONE short third-person fact (<=110 chars) that paraphrases what happened. STRICT RULES:
+  * NEVER start with a speaker name or "Name:" prefix.
+  * NEVER quote or copy the message text verbatim — rewrite it as a neutral fact.
+  * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
+  * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
+  * Prefer concrete nouns (venue, time, role, count) over pronouns.
+  * If the message has no informational value, classify as "social" and set summary to "".
+- "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
 
 Return STRICT JSON: { "items": [ {...}, ... ] }. No prose, no markdown, no code fences.`;
 
