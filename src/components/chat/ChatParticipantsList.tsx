@@ -341,27 +341,6 @@ export function ChatParticipantsList({
         const roleByUser = new Map<string, string | undefined>();
         for (const id of memberIdSet) roleByUser.set(id, undefined);
 
-        // Manual club-scoped groups also grant access to club_admins (and app_admins)
-        // for moderation — surface them in the member list so read receipts reconcile.
-        if (clubId) {
-          const [{ data: clubAdmins }, { data: appAdmins }] = await Promise.all([
-            supabase
-              .from("user_roles")
-              .select("user_id, role")
-              .eq("club_id", clubId)
-              .eq("role", "club_admin"),
-            supabase
-              .from("user_roles")
-              .select("user_id, role")
-              .eq("role", "app_admin"),
-          ]);
-          for (const r of [...(clubAdmins || []), ...(appAdmins || [])]) {
-            if (!memberIdSet.has(r.user_id)) {
-              memberIdSet.add(r.user_id);
-              roleByUser.set(r.user_id, r.role);
-            }
-          }
-        }
 
         const userIds = Array.from(memberIdSet);
         if (userIds.length === 0) return [];
