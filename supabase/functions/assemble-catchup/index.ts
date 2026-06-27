@@ -95,6 +95,25 @@ function isUnsafeMediaDigest(s: string): boolean {
     && !/\b(?:caption|showing|of the trophy|of trophy|of awards|of presentation|of scoreboard|of fixture|of roster|of draw)\b/i.test(t);
 }
 
+function sanitizeAssembledLine(raw: string): string {
+  let s = raw;
+  s = s.replace(/https?:\/\/\S+/gi, "");
+  s = s.replace(/\bwww\.[^\s)]+/gi, "");
+  s = s.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+  s = s.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+  s = s.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+  s = s.replace(/[“”„‟«»]/g, "");
+  s = s.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+  s = s.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/[\s,;:–-]+$/g, "").trim();
+  if (s.length > 140) {
+    const slice = s.slice(0, 140);
+    const lastSpace = slice.lastIndexOf(" ");
+    s = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+  }
+  return s;
+}
+
 const FILLER_PATTERNS = [
   /^also\s+(?:interested|available|keen)\b/i,
   /^yep\b|^yeah\b|^yes\b|^nope\b|^no\b|^sorry\b|^thanks?\b|^ok(?:ay)?\b/i,
