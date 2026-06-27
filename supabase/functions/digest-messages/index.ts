@@ -66,9 +66,13 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   - "decision": a concrete decision is announced (time changed, venue moved, role assigned)
   - "social": banter, thanks, emoji, greetings
   - "info": anything else useful (status updates, sharing files, FYI)
-- "summary": ONE short third-person fact (<=110 chars) that says what the message MEANS. STRICT RULES:
+- "summary": ONE short third-person fact (<=140 chars) that says what the message MEANS. STRICT RULES:
   * NEVER start with a speaker name or "Name:" prefix.
-  * NEVER copy the sentence structure of the original message.
+  * NEVER copy the sentence structure or wording of the original message — paraphrase only.
+  * NEVER wrap message text in quotes, and NEVER include URLs, www links, raw UUIDs, or internal route paths like "/events/abc-123" or "/messages/...".
+  * NEVER use system-style CTAs ("View event", "Open link", "Tap here", "Notification sent"). Use parent-friendly wording.
+  * If a message is a long copy/paste, rewrite it as one concise sentence (e.g. "Training was cancelled due to rain"; "Event details were shared").
+  * For event messages, extract only the useful facts: date, cancellation, kick-off time, opponent, location, arrival time.
   * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
   * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
