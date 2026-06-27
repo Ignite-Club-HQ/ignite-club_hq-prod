@@ -217,6 +217,14 @@ export function CatchMeUpSheet({
     return { headline: cleanHeadline(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
 
+  // Auto-expand the detailed summary when there is no top-level activity feed
+  // to show, otherwise users only see Outstanding actions with no narrative.
+  useEffect(() => {
+    if (view && view.detailedHasAny && !view.sinceHasAny) {
+      setShowDetailed(true);
+    }
+  }, [view?.detailedHasAny, view?.sinceHasAny]);
+
   // Sequential top-to-bottom typing: each line waits for all previous lines to
   // finish typing before it starts. We compute the cumulative delay per line
   // from the running character total + a small gap between lines.
