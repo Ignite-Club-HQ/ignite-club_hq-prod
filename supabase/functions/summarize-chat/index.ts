@@ -440,6 +440,8 @@ serve(async (req) => {
 
     // Additionally pseudonymise CHILD names belonging to parents in this club.
     // Children are minors — never allow their real names to leave our infra.
+    // Rehydrate to "<ParentFirst>'s child" so users see meaningful context
+    // instead of a leaked "Child N" pseudonym.
     try {
       const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubIdForChildren) {
@@ -449,26 +451,34 @@ serve(async (req) => {
           .eq("club_id", clubIdForChildren);
         const parentIds = Array.from(new Set((clubParents || []).map((r: any) => r.user_id).filter(Boolean)));
         if (parentIds.length) {
+          const { data: parentProfiles } = await admin
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", parentIds);
+          const parentNameById = new Map<string, string>();
+          (parentProfiles || []).forEach((p: any) =>
+            parentNameById.set(p.id, (p.display_name || "").trim()),
+          );
           const { data: kids } = await admin
             .from("children")
-            .select("name")
+            .select("name, parent_id")
             .in("parent_id", parentIds);
           (kids || []).forEach((k: any) => {
             const n = (k?.name || "").trim();
-            if (n) {
-              // Use a distinct "Child N" label so the model knows it's a minor.
-              const key = n;
-              if (!pseudoByRealName.has(key)) {
-                personCounter += 1;
-                const p = `Child ${personCounter}`;
-                pseudoByRealName.set(key, p);
-                realByPseudo.set(p, key);
-              }
-              // Also pseudonymise first-name-only mentions
-              const first = n.split(/\s+/)[0];
-              if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
-                pseudoByRealName.set(first, pseudoByRealName.get(key)!);
-              }
+            if (!n) return;
+            const parentFull = parentNameById.get(k.parent_id) || "";
+            const parentFirst = parentFull.split(/\s+/)[0] || "";
+            const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
+            const key = n;
+            if (!pseudoByRealName.has(key)) {
+              personCounter += 1;
+              const p = `Child ${personCounter}`;
+              pseudoByRealName.set(key, p);
+              realByPseudo.set(p, descriptor);
+            }
+            const first = n.split(/\s+/)[0];
+            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+              pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
         }
