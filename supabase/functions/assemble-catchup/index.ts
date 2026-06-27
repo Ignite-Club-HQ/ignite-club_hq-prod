@@ -71,6 +71,53 @@ function tagBullet(now: Date, ts: Date, text: string): string {
   return `[${shortTimeTag(now, ts)}] ${text}`;
 }
 
+/** Strip accidental "Name: " speaker prefix the digest LLM sometimes still emits. */
+function stripSpeakerPrefix(s: string): string {
+  return s.replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "").trim();
+}
+
+/** Title-case a short topic tag for display ("venue change" → "Venue change"). */
+function titleTopic(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const trimmed = t.trim();
+  if (!trimmed) return null;
+  return trimmed[0].toUpperCase() + trimmed.slice(1);
+}
+
+/** Group digest entries by topic within a bucket and emit one synthesised bullet per topic. */
+function synthesiseBucket(
+  now: Date,
+  entries: { ts: Date; summary: string; topic: string | null }[],
+  maxBullets: number,
+): string[] {
+  if (!entries.length) return [];
+  const groups = new Map<string, { ts: Date; topic: string | null; facts: string[] }>();
+  for (const e of entries) {
+    const cleaned = stripSpeakerPrefix(e.summary).replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    const key = (e.topic || "").toLowerCase().trim() || `__solo_${groups.size}`;
+    const g = groups.get(key);
+    if (g) {
+      // Dedupe near-identical facts
+      if (!g.facts.some((f) => f.toLowerCase() === cleaned.toLowerCase())) g.facts.push(cleaned);
+      if (e.ts > g.ts) g.ts = e.ts;
+    } else {
+      groups.set(key, { ts: e.ts, topic: e.topic ?? null, facts: [cleaned] });
+    }
+  }
+  const ordered = Array.from(groups.values()).sort((a, b) => b.ts.getTime() - a.ts.getTime());
+  const out: string[] = [];
+  for (const g of ordered) {
+    const title = titleTopic(g.topic);
+    const facts = g.facts.slice(0, 3).join("; ");
+    let line = title ? `${title}: ${facts}` : facts;
+    if (line.length > 200) line = line.slice(0, 197) + "…";
+    out.push(tagBullet(now, g.ts, line));
+    if (out.length >= maxBullets) break;
+  }
+  return out;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
