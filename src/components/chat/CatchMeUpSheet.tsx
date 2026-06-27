@@ -205,10 +205,32 @@ export function CatchMeUpSheet({
     if (!s.since_last_visit) {
       since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     }
+    // Build the set of dates that appear in the recent activity timeline so
+    // we can drop any "outstanding action" that is anchored to an older date
+    // (the LLM sometimes carries forward asks from the past week).
+    const stripTimeForDate = (t?: string | null) =>
+      (t ?? "").replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
+    const recentDates = new Set<string>();
+    for (const item of sinceTimeline) {
+      const d = stripTimeForDate(item.time);
+      if (d) recentDates.add(d.toLowerCase());
+    }
     const actions: OutstandingAction[] = (s.outstanding_actions
       ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
-      .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }))
-      .filter((a) => !isVagueRecapBullet(a.text));
+      .map((a) => {
+        const parsed = parseRecapTimeTag(a.text);
+        return { ...a, text: stripRecapDatePrefix(parsed.text || a.text), _time: parsed.time };
+      })
+      .filter((a) => !isVagueRecapBullet(a.text))
+      .filter((a) => {
+        // Keep actions with no time anchor (assumed current) OR whose date is
+        // part of the recent activity window. Drop anything older.
+        const d = stripTimeForDate((a as { _time?: string | null })._time).toLowerCase();
+        if (!d) return true;
+        if (recentDates.size === 0) return true;
+        return recentDates.has(d);
+      })
+      .map(({ _time, ...rest }: OutstandingAction & { _time?: string | null }) => rest);
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
     const detailedRaw = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
