@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const RECAP_VERSION = "recap-v11";
+const RECAP_VERSION = "recap-v12";
 const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:${RECAP_VERSION}`;
 
 interface DigestRow {
