@@ -537,23 +537,39 @@ export function CatchMeUpSheet({
   );
 }
 
-function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
+function DetailBlock({
+  icon,
+  label,
+  items,
+  scheduleType,
+  scheduleReveal,
+  charMs,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: string[];
+  scheduleType: (text: string) => number;
+  scheduleReveal: (ms?: number) => number;
+  charMs: number;
+}) {
   return (
     <div className="px-3 py-3">
-      <div className="mb-2 flex items-center gap-2">
+      <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-base font-semibold text-muted-foreground">{label}</p>
-      </div>
+      </Reveal>
       {items.length === 1 ? (
-        <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        <p className="text-base leading-relaxed text-foreground">
+          <Typed text={items[0]} delayMs={scheduleType(items[0])} charMs={charMs} />
+        </p>
       ) : (
-      <div className="space-y-3">
-        {items.map((item, i) => (
-          <div key={i} className="text-base leading-relaxed text-foreground">
-            {item}
-          </div>
-        ))}
-      </div>
+        <div className="space-y-3">
+          {items.map((item, i) => (
+            <div key={i} className="text-base leading-relaxed text-foreground">
+              <Typed text={item} delayMs={scheduleType(item)} charMs={charMs} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
