@@ -441,10 +441,13 @@ export function CatchMeUpSheet({
                   {showDetailed && (
                     <div className="mt-1 divide-y divide-border/60 rounded-xl border border-border bg-card">
                       {view.detailed.schedule_changes.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<CalendarClock className="h-4 w-4 text-amber-500" />}
                           label="Schedule changes"
                           items={view.detailed.schedule_changes}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
@@ -452,6 +455,9 @@ export function CatchMeUpSheet({
                           icon={<Paperclip className="h-4 w-4 text-violet-500" />}
                           label="Files & photos shared"
                           items={view.detailed.files_shared}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
@@ -459,6 +465,9 @@ export function CatchMeUpSheet({
                           icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
                           label="Other discussion"
                           items={view.detailed.discussion}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
                         />
                       )}
                     </div>
