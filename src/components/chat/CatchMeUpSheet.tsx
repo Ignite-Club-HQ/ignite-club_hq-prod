@@ -375,23 +375,42 @@ export function CatchMeUpSheet({
                   </Reveal>
                   <div className="space-y-4">
                     {(() => {
-                      const stripTime = (t?: string | null) => {
-                        if (!t) return "";
-                        // Remove trailing time like " 8:43am", " 10:17pm", " 9am"
-                        return t.replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
-                      };
-                      const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
-                      const indexByDate = new Map<string, number>();
-                      for (const item of view.sinceTimeline) {
-                        const date = stripTime(item.time) || "Earlier";
-                        const existing = indexByDate.get(date);
-                        if (existing != null) {
-                          groups[existing].items.push(item);
-                        } else {
-                          indexByDate.set(date, groups.length);
-                          groups.push({ date, items: [item] });
-                        }
-                      }
+                       const stripTime = (t?: string | null) => {
+                         if (!t) return "";
+                         return t.replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
+                       };
+                       const WEEKDAYS = "(?:Mon|Tue|Tues|Wed|Wednes|Thu|Thur|Thurs|Fri|Sat|Satur|Sun)(?:day)?";
+                       const MONTHS = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*";
+                       const extractDateFromText = (text: string): string => {
+                         // Pattern: "Monday 8 June" or "Thursday 4 June"
+                         const wkdayDate = new RegExp(`\\b(${WEEKDAYS})\\s+(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(text);
+                         if (wkdayDate) {
+                           const wd = wkdayDate[1][0].toUpperCase() + wkdayDate[1].slice(1).toLowerCase();
+                           const mo = wkdayDate[3][0].toUpperCase() + wkdayDate[3].slice(1).toLowerCase();
+                           return `${wd} ${wkdayDate[2]} ${mo}`;
+                         }
+                         // Pattern: "8 June" / "June 8"
+                         const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(text);
+                         if (dm) return `${dm[1]} ${dm[2][0].toUpperCase() + dm[2].slice(1).toLowerCase()}`;
+                         const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(text);
+                         if (md) return `${md[1][0].toUpperCase() + md[1].slice(1).toLowerCase()} ${md[2]}`;
+                         // Pattern: bare weekday e.g. "Saturday's game"
+                         const wd = new RegExp(`\\b(${WEEKDAYS})(?:'s)?\\b`, "i").exec(text);
+                         if (wd) return wd[1][0].toUpperCase() + wd[1].slice(1).toLowerCase();
+                         return "";
+                       };
+                       const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
+                       const indexByDate = new Map<string, number>();
+                       for (const item of view.sinceTimeline) {
+                         const date = stripTime(item.time) || extractDateFromText(item.text) || "Earlier";
+                         const existing = indexByDate.get(date);
+                         if (existing != null) {
+                           groups[existing].items.push(item);
+                         } else {
+                           indexByDate.set(date, groups.length);
+                           groups.push({ date, items: [item] });
+                         }
+                       }
                       return groups.map((g, gi) => (
                         <div key={`${g.date}-${gi}`}>
                           <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
