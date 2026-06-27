@@ -107,6 +107,9 @@ function formatSinceLabel(iso: string | null | undefined): string | null {
 
 interface RecapTimelineItem { time: string | null; text: string }
 
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WD_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
     case "pro_required":
