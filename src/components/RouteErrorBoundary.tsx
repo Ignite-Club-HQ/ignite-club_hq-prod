@@ -17,6 +17,46 @@ interface State {
 }
 
 const LAST_ERROR_KEY = "ignite_last_route_error";
+const CHUNK_RELOAD_KEY = "ignite_chunk_reload_at";
+
+/**
+ * Detects the "stale chunk" failure that happens after a redeploy: the
+ * currently-loaded HTML references a hashed JS file (e.g.
+ * `/assets/GroupChatPage-CqEE3-CX.js`) that no longer exists on the CDN
+ * because a newer build replaced it. Triggered by lazy `import()`.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  if (!error) return false;
+  const msg =
+    (error as { message?: string })?.message ??
+    (typeof error === "string" ? error : "");
+  if (!msg) return false;
+  return (
+    /Failed to fetch dynamically imported module/i.test(msg) ||
+    /Importing a module script failed/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg) ||
+    /ChunkLoadError/i.test(msg) ||
+    /Loading chunk \d+ failed/i.test(msg) ||
+    /Loading CSS chunk/i.test(msg)
+  );
+}
+
+/**
+ * Hard-reload once to pick up the new asset manifest, but never loop:
+ * if we already reloaded in the last 60s, surface the error instead.
+ */
+export function tryRecoverFromChunkError(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+  window.location.reload();
+  return true;
+}
 
 export class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },
