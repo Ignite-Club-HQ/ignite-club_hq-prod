@@ -71,7 +71,7 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
   * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
-  * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered to be linesperson this week", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
+  * Include a name ONLY when it's essential to the fact (e.g. "Andrew volunteered for the match official role", "Coach moved Saturday game to Summit 10am"). Otherwise omit names entirely.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
   * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
   * If the message has no informational value, classify as "social" and set summary to "".
