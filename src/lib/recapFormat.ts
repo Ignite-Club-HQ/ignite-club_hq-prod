@@ -26,6 +26,7 @@ export function stripRecapSpeakerPrefix(text: string): string {
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
     .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
     .trim();
+}
 
 /**
  * Last-resort display guard for old cached recap rows where the model/digest
@@ -75,7 +76,6 @@ export function rewriteRawChatEcho(text: string): string {
   }
 
   return stripRelativeDateWords(t);
-}
 
 /**
  * Final UI guard for stale cached recaps or model slips. If the backend cannot
