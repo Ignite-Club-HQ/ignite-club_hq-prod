@@ -171,7 +171,7 @@ export function CatchMeUpSheet({
   const view = useMemo(() => {
     if (!result) return null;
     const s = result.summary;
-    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix);
+    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     const since = {
       today: clean(s.since_last_visit?.today),
       yesterday: clean(s.since_last_visit?.yesterday),
