@@ -425,10 +425,12 @@ export default function GroupChatPage() {
   const { data: miniLeagueInfo } = useQuery({
     queryKey: ["chat-group-mini-league", group?.mini_league_id],
     queryFn: async () => {
+      const mlId = group?.mini_league_id;
+      if (!mlId) return null;
       const { data } = await supabase
         .from("mini_leagues")
         .select("id, name, club_id")
-        .eq("id", group!.mini_league_id!)
+        .eq("id", mlId)
         .maybeSingle();
       return data;
     },
