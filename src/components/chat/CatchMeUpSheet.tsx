@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
-import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -106,6 +106,9 @@ function formatSinceLabel(iso: string | null | undefined): string | null {
 }
 
 interface RecapTimelineItem { time: string | null; text: string }
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WD_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
@@ -263,6 +266,41 @@ export function CatchMeUpSheet({
       pushDetailed(detailed.discussion);
       pushDetailed(detailed.files_shared);
     }
+
+    // Sort timeline items chronologically (most-recent first) before grouping.
+    sinceTimeline.sort((a, b) => {
+      const ts = (item: RecapTimelineItem): number => {
+        if (item.time) {
+          const d = parseRecapTagDate(item.time);
+          if (d) return d.getTime();
+        }
+        const dm = item.text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
+        if (dm) {
+          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === dm[2].toLowerCase());
+          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
+        }
+        const md = item.text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\b/i);
+        if (md) {
+          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === md[1].toLowerCase());
+          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
+        }
+        const wd = item.text.match(/\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*\b/i);
+        if (wd) {
+          const target = WD_NAMES.findIndex((n) => n.toLowerCase() === wd[1].toLowerCase());
+          if (target >= 0) {
+            const now = new Date();
+            const diff = (now.getDay() - target + 7) % 7;
+            const daysAgo = diff === 0 ? 7 : diff;
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - daysAgo);
+            return d.getTime();
+          }
+        }
+        return 0;
+      };
+      return ts(b) - ts(a);
+    });
 
     const sinceHasAny = sinceTimeline.length > 0 || since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;

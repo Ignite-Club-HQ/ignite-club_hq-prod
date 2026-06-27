@@ -106,7 +106,7 @@ const FULL_MONTHS = ["January", "February", "March", "April", "May", "June", "Ju
 
 type RecapTagDate = { weekday: string; label: string; possessive: string };
 
-function parseRecapTagDate(rawTag: string | null | undefined): Date | null {
+export function parseRecapTagDate(rawTag: string | null | undefined): Date | null {
   if (!rawTag) return null;
   const trimmed = rawTag.trim();
 
