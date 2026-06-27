@@ -374,12 +374,39 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             Recap all chats
           </SheetTitle>
           <p className="text-sm text-muted-foreground">
-            {scopes.length === 0
-              ? "You're all caught up."
-              : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
-                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
+            {(() => {
+              const windowLabel =
+                lookbackHours === 24
+                  ? "the last 24 hours"
+                  : lookbackHours % 24 === 0
+                    ? `the last ${lookbackHours / 24} days`
+                    : `the last ${lookbackHours} hours`;
+              if (scopes.length === 0) return "You're all caught up.";
+              if (totalLoading > 0) {
+                return `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}…`;
+              }
+              return `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}.`;
+            })()}
           </p>
+          {scopes.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {GLOBAL_LOOKBACK_OPTIONS.map((opt) => {
+                const active = lookbackHours === opt.hours;
+                return (
+                  <Button
+                    key={opt.hours}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={totalLoading > 0 || active}
+                    onClick={() => setLookbackHours(opt.hours)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </SheetHeader>
 
         <div className="px-4 pt-3 pb-6 overflow-y-auto flex-1 min-h-0">
