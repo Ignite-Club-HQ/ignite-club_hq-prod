@@ -29,6 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
+const RECAP_VERSION = "recap-v7";
 
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
@@ -80,11 +81,11 @@ async function getClubIdForScope(
   return null; // direct
 }
 
-const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
+const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand the useful recent activity in under 15 seconds — not only what is actionable.
 
 You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates into the legacy JSON buckets by send date: current-date bucket, previous-date bucket, and earlier bucket. The bucket names are schema keys only and must never appear in user-visible strings.
 
-Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
+Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Also include useful informational posts such as match reminders, duty rosters, arrival times, venues, photos/files shared, player availability and coach updates even when no action is required. Ignore only casual banter, jokes, emoji-only messages and greetings.
 
 An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
 
@@ -109,7 +110,7 @@ Return STRICT JSON only that matches this TypeScript type:
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less activity. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less useful activity. NEVER return an empty recap while the transcript contains fixture details, training/availability updates, rosters, photos/files or coach/club information. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response, or what information was shared) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
 
 BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 12-30 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
 
