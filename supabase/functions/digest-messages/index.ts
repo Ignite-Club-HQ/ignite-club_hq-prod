@@ -25,7 +25,8 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:recap-v10`;
+const RECAP_VERSION = "recap-v11";
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:${RECAP_VERSION}`;
 
 interface DigestRow {
   message_id: string;
@@ -74,7 +75,8 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing.
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
   * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
-  * If the message only says a photo/video/file was shared and gives no description of what it shows or contains, classify it as "social" and set summary to "". Never write generic summaries like "A photo was shared in the team chat".
+  * You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters. Never infer image content from surrounding replies or thanks.
+  * If the message only says a photo/video/file was shared and gives no description of what it shows or contains, classify it as "social" and set summary to "". Never write generic summaries like "A photo was shared in the team chat" or inferred captions like "photos of kids celebrating".
   * If the message has no informational value, classify as "social" and set summary to "".
 
 - "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
@@ -183,7 +185,7 @@ serve(async (req) => {
         .gte("message_created_at", sinceIso);
       const seen = new Set(
         (existing || [])
-          .filter((r: any) => String(r.provider || "").endsWith(":recap-v10"))
+          .filter((r: any) => String(r.provider || "").endsWith(`:${RECAP_VERSION}`))
           .map((r: any) => r.message_id),
       );
 
