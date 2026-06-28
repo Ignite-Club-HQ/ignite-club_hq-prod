@@ -1,2 +1,2 @@
 Android WebView compositor pauses on background; setupAndroidWebViewWake() forces repaint on resume (see mem://technical/android-webview-resume-repaint).
-Chat Recap sheets run in static-reveal mode on native (no per-char typewriter setIntervals) and halve fetch concurrency (4→2) — see mem://technical/chat-recap-native-static-reveal.
+Chat Recap typewriter runs on native with slower cadence (CHAR_MS=22); GlobalChatRecapSheet keeps fetch concurrency at 2 on native. Static-reveal only triggers on prefers-reduced-motion — see mem://technical/chat-recap-native-static-reveal.
