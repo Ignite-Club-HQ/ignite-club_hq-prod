@@ -663,6 +663,7 @@ function DetailBlock({
   scheduleType,
   scheduleReveal,
   charMs,
+  disableAnimation = false,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -670,7 +671,29 @@ function DetailBlock({
   scheduleType: (text: string) => number;
   scheduleReveal: (ms?: number) => number;
   charMs: number;
+  disableAnimation?: boolean;
 }) {
+  if (disableAnimation) {
+    return (
+      <div className="px-3 py-3">
+        <div className="mb-2 flex items-center gap-2">
+          {icon}
+          <p className="text-base font-semibold text-muted-foreground">{label}</p>
+        </div>
+        {items.length === 1 ? (
+          <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        ) : (
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="text-base leading-relaxed text-foreground">
+                {item}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="px-3 py-3">
       <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
