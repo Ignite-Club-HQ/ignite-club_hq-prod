@@ -326,12 +326,16 @@ export function CatchMeUpSheet({
   // from the running character total + a small gap between lines.
   // In staticMode (native / reduced motion) we collapse all delays to 0 so
   // every Typed/Reveal renders instantly — no per-character setInterval storm.
-  const CHAR_MS = staticMode ? 0 : 16;
+  // Native cadence is a touch slower to keep Android WebView main-thread
+  // work modest while still showing the typewriter; web stays snappy.
+  const isNative = Capacitor.isNativePlatform();
+  const CHAR_MS = staticMode ? 0 : (isNative ? 22 : 16);
   const GAP_MS = staticMode ? 0 : 120;
   const HEADER_REVEAL_MS = staticMode ? 0 : 220;
   // Sheet slide-in is ~300ms; buffer the first character so typing is visible
   // even when results were cached and the sheet opens with content ready.
   const OPEN_BUFFER_MS = staticMode ? 0 : 320;
+
   const delayRef = useRef(0);
   delayRef.current = OPEN_BUFFER_MS;
   const scheduleType = (text: string) => {
