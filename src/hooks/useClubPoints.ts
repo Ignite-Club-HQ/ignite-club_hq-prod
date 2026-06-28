@@ -97,6 +97,7 @@ export function useChildrenClubPoints(
     },
     enabled: !!clubId && ids.length > 0,
     staleTime: 1000 * 30,
+    placeholderData: (prev) => prev,
   });
 }
 
