@@ -533,19 +533,22 @@ export function CatchMeUpSheet({
                         for (const item of view.sinceTimeline) {
                           const extracted = extractDateFromText(item.text);
                           const fromTime = stripTime(item.time);
-                          const rawLabel = extracted || (isMeaningfulDate(fromTime) ? fromTime : "") || "Earlier";
+                          const rawLabel = extracted || (isMeaningfulDate(fromTime) ? fromTime : "");
                           const ts = labelToTs(rawLabel);
-                          const displayLabel = ts != null ? canonicalFromTs(ts) : rawLabel;
-                          const key = ts != null ? `ts:${Math.floor(ts / 86400000)}` : `lbl:${displayLabel.toLowerCase()}`;
+                          // Skip items we can't anchor to a real day —
+                          // a generic "Earlier" header is unhelpful.
+                          if (ts == null) continue;
+                          const displayLabel = canonicalFromTs(ts);
+                          const key = `ts:${Math.floor(ts / 86400000)}`;
                           const existing = indexByKey.get(key);
                           if (existing != null) {
                             groups[existing].items.push(item);
                           } else {
                             indexByKey.set(key, groups.length);
-                            groups.push({ date: displayLabel, ts: ts ?? -Infinity, items: [item] });
+                            groups.push({ date: displayLabel, ts, items: [item] });
                           }
                         }
-                        // Most recent first; "Earlier"/unknown sink to the bottom.
+                        // Most recent day first.
                         groups.sort((a, b) => b.ts - a.ts);
                       return groups.map((g, gi) => (
                         <div key={`${g.date}-${gi}`}>
