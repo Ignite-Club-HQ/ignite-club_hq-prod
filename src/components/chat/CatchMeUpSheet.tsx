@@ -561,13 +561,14 @@ export function CatchMeUpSheet({
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<Paperclip className="h-4 w-4 text-violet-500" />}
                           label="Files & photos shared"
                           items={view.detailed.files_shared}
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
