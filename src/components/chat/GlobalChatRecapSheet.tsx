@@ -170,8 +170,9 @@ function parseTimelineTimestamp(time: string | null | undefined, text?: string):
   const body = text ?? "";
   const explicit = body.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
   if (explicit) {
-    const tag = `Sun ${explicit[1]} ${explicit[2]}`;
-    return parseRecapTagDate(tag)?.getTime() ?? 0;
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months.findIndex((m) => m.toLowerCase() === explicit[2].slice(0, 3).toLowerCase());
+    if (month >= 0) return new Date(new Date().getFullYear(), month, Number(explicit[1])).getTime();
   }
   return 0;
 }
