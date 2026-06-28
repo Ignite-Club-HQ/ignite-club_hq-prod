@@ -367,7 +367,27 @@ export function CatchMeUpSheet({
               </span>
             )}
           </SheetTitle>
+          {onLookback && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {LOOKBACK_OPTIONS.map((opt) => {
+                const active = (result?.lookback_hours ?? 24) === opt.hours;
+                return (
+                  <Button
+                    key={opt.hours}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={loading || active}
+                    onClick={() => onLookback(opt.hours)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </SheetHeader>
+
 
         <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0" key={openKey}>
           {loading && !result && (
