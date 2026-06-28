@@ -10,8 +10,7 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// HARD RESTRICTION: Pilot to Riverside FC only for now.
-const RIVERSIDE_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10";
+// Any club may opt in via clubs.events_sponsor_strip_enabled.
 
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
 const dismissKey = (userId: string | undefined, clubId: string) =>
