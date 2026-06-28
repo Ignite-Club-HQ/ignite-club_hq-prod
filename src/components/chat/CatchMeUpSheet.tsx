@@ -13,23 +13,23 @@ import { normalizeQuestion } from "@/hooks/useChatCatchUp";
 import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 /**
- * On native Android WebView, running 20–40 concurrent setInterval-driven
- * typewriter animations (one per Typed/Reveal in the summary) while large
- * edge-function payloads land has crashed the WebView to a white screen.
- * We short-circuit the animation path on native and when the user prefers
- * reduced motion — content renders immediately, no per-character timers.
+ * Static-reveal mode skips per-character typewriter animation entirely.
+ * Previously we forced this on every native build because running many
+ * concurrent setInterval-driven typewriters crashed Android WebView. The
+ * crash was actually driven by interval count + payload size, not animation
+ * itself, so we now only opt-in to static mode when the user prefers
+ * reduced motion. Native cadence is tuned slower below (see CHAR_MS) to
+ * keep main-thread work modest while still showing the typewriter effect.
  */
 function useStaticReveal(): boolean {
   const [staticMode, setStaticMode] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
-    if (Capacitor.isNativePlatform()) return true;
     try {
       return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     } catch { return false; }
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (Capacitor.isNativePlatform()) { setStaticMode(true); return; }
     try {
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
       const onChange = () => setStaticMode(mq.matches);
@@ -39,6 +39,7 @@ function useStaticReveal(): boolean {
   }, []);
   return staticMode;
 }
+
 
 
 const LOADING_STAGES = [
@@ -325,12 +326,16 @@ export function CatchMeUpSheet({
   // from the running character total + a small gap between lines.
   // In staticMode (native / reduced motion) we collapse all delays to 0 so
   // every Typed/Reveal renders instantly — no per-character setInterval storm.
-  const CHAR_MS = staticMode ? 0 : 16;
+  // Native cadence is a touch slower to keep Android WebView main-thread
+  // work modest while still showing the typewriter; web stays snappy.
+  const isNative = Capacitor.isNativePlatform();
+  const CHAR_MS = staticMode ? 0 : (isNative ? 22 : 16);
   const GAP_MS = staticMode ? 0 : 120;
   const HEADER_REVEAL_MS = staticMode ? 0 : 220;
   // Sheet slide-in is ~300ms; buffer the first character so typing is visible
   // even when results were cached and the sheet opens with content ready.
   const OPEN_BUFFER_MS = staticMode ? 0 : 320;
+
   const delayRef = useRef(0);
   delayRef.current = OPEN_BUFFER_MS;
   const scheduleType = (text: string) => {
