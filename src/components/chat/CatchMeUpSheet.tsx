@@ -442,10 +442,37 @@ export function CatchMeUpSheet({
                          if (dm) return `${dm[1]} ${dm[2][0].toUpperCase() + dm[2].slice(1).toLowerCase()}`;
                          const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(text);
                          if (md) return `${md[1][0].toUpperCase() + md[1].slice(1).toLowerCase()} ${md[2]}`;
-                         // Pattern: bare weekday e.g. "Saturday's game"
-                         const wd = new RegExp(`\\b(${WEEKDAYS})(?:'s)?\\b`, "i").exec(text);
-                         if (wd) return wd[1][0].toUpperCase() + wd[1].slice(1).toLowerCase();
-                         return "";
+                          // Pattern: bare weekday e.g. "Saturday's game" → resolve to nearest date
+                          const wd = new RegExp(`\\b(${WEEKDAYS})(?:'s)?\\b`, "i").exec(text);
+                          if (wd) {
+                            const WD_MAP: Record<string, number> = {
+                              sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, wednes: 3,
+                              thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6, satur: 6,
+                            };
+                            const key = wd[1].toLowerCase().replace(/day$/, "");
+                            const target = WD_MAP[key];
+                            if (target != null) {
+                              const now = new Date();
+                              const today = now.getDay();
+                              // pick nearest occurrence within ±3 days, prefer upcoming on tie
+                              let bestDiff = 99;
+                              let best = 0;
+                              for (let off = -3; off <= 3; off++) {
+                                const d = (today + off + 7) % 7;
+                                if (d === target && Math.abs(off) < bestDiff) {
+                                  bestDiff = Math.abs(off);
+                                  best = off;
+                                }
+                              }
+                              const dt = new Date(now);
+                              dt.setDate(now.getDate() + best);
+                              const wdLabel = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+                              const moLabel = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getMonth()];
+                              return `${wdLabel} ${dt.getDate()} ${moLabel}`;
+                            }
+                            return wd[1][0].toUpperCase() + wd[1].slice(1).toLowerCase();
+                          }
+                          return "";
                        };
                        const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
                        const indexByDate = new Map<string, number>();
