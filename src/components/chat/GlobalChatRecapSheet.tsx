@@ -354,6 +354,22 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       return n.actions.length === 0 && n.questions.length === 0 && !n.headline;
     });
 
+  // Auto-escalate lookback when every scope is empty (and no blocking errors).
+  useEffect(() => {
+    if (totalLoading > 0) return;
+    if (perScope.length === 0) return;
+    const hasBlockingError = perScope.some(
+      (p) => p.error && p.error !== "no_messages" && p.error !== "digests_missing"
+    );
+    if (hasBlockingError) return;
+    if (!allEmpty) return;
+    const tierHours = GLOBAL_LOOKBACK_OPTIONS.map((o) => o.hours);
+    const idx = tierHours.indexOf(lookbackHours);
+    if (idx >= 0 && idx < tierHours.length - 1) {
+      setLookbackHours(tierHours[idx + 1]);
+    }
+  }, [totalLoading, perScope, allEmpty, lookbackHours]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" hideCloseButton className="max-h-[88vh] flex flex-col rounded-t-2xl px-0 pb-0">
