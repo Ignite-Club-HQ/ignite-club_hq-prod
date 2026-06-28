@@ -572,13 +572,14 @@ export function CatchMeUpSheet({
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
                           label="Other discussion"
                           items={view.detailed.discussion}
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                     </div>
