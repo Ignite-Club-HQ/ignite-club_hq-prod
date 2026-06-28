@@ -557,26 +557,29 @@ export function CatchMeUpSheet({
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<Paperclip className="h-4 w-4 text-violet-500" />}
                           label="Files & photos shared"
                           items={view.detailed.files_shared}
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
                           label="Other discussion"
                           items={view.detailed.discussion}
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                     </div>
@@ -662,6 +665,7 @@ function DetailBlock({
   scheduleType,
   scheduleReveal,
   charMs,
+  disableAnimation = false,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -669,7 +673,29 @@ function DetailBlock({
   scheduleType: (text: string) => number;
   scheduleReveal: (ms?: number) => number;
   charMs: number;
+  disableAnimation?: boolean;
 }) {
+  if (disableAnimation) {
+    return (
+      <div className="px-3 py-3">
+        <div className="mb-2 flex items-center gap-2">
+          {icon}
+          <p className="text-base font-semibold text-muted-foreground">{label}</p>
+        </div>
+        {items.length === 1 ? (
+          <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        ) : (
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="text-base leading-relaxed text-foreground">
+                {item}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="px-3 py-3">
       <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
