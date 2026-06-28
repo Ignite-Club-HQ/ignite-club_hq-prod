@@ -423,6 +423,47 @@ export default function HomePage() {
       const todayStr = getLocalDateKey(now);
       const leagueAdminArr = Array.from(leagueAdminClubIds);
 
+      // Scope the events fetch to clubs/teams the user is already known to
+      // belong to (from `roles`). Without this scope the query pulled the
+      // global next 50 events ordered by date, which on multi-club accounts
+      // (e.g. a user in a high-volume club + a quieter club) was being
+      // saturated by the busy club's training events — silently starving
+      // the quieter club's fixtures out of the Next Up window. RLS already
+      // restricts visibility, but it does NOT cap per-club volume, so the
+      // limit-50 cut-off would land before the quieter club's next event
+      // (manifesting as an empty Next Up after switching club themes).
+      const clubIdsFromRolesArr = Array.from(clubIds);
+      const eventScopeOr: string[] = [];
+      if (clubIdsFromRolesArr.length > 0) {
+        eventScopeOr.push(`club_id.in.(${clubIdsFromRolesArr.join(",")})`);
+      }
+      if (teamIds.length > 0) {
+        eventScopeOr.push(`team_id.in.(${teamIds.join(",")})`);
+      }
+
+      let eventsQuery = supabase
+        .from("events")
+        .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
+        // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
+        // today's local-morning fixtures are stored as YESTERDAY's UTC date
+        // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
+        // against today's local YYYY-MM-DD therefore excludes them at the
+        // server, so morning home-team games disappeared from Next Up
+        // while still appearing on the Schedule page (which uses a wider
+        // window). Widen the lower bound by one day; the client-side
+        // `isStillUpcomingForNextUp` strictly filters past events using
+        // local date + start_time, so this only admits candidates that may
+        // belong to today locally.
+        .gte(
+          "event_date",
+          getLocalDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))
+        )
+        .order("event_date", { ascending: true })
+        .limit(100);
+      if (eventScopeOr.length > 0) {
+        eventsQuery = eventsQuery.or(eventScopeOr.join(","));
+      }
+
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
         teamIds.length > 0
           ? supabase.from("teams").select("club_id").in("id", teamIds)
@@ -431,25 +472,7 @@ export default function HomePage() {
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
-        supabase
-          .from("events")
-          .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
-          // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
-          // today's local-morning fixtures are stored as YESTERDAY's UTC date
-          // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
-          // against today's local YYYY-MM-DD therefore excludes them at the
-          // server, so morning home-team games disappeared from Next Up
-          // while still appearing on the Schedule page (which uses a wider
-          // window). Widen the lower bound by one day; the client-side
-          // `isStillUpcomingForNextUp` strictly filters past events using
-          // local date + start_time, so this only admits candidates that may
-          // belong to today locally.
-          .gte(
-            "event_date",
-            getLocalDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))
-          )
-          .order("event_date", { ascending: true })
-          .limit(50),
+        eventsQuery,
       ]);
 
       // Same protection on the events fetch — if it failed (RLS race on
