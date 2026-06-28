@@ -557,6 +557,7 @@ export function CatchMeUpSheet({
                           scheduleType={scheduleType}
                           scheduleReveal={scheduleReveal}
                           charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
