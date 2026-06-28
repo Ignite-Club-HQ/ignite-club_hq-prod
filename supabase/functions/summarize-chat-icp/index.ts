@@ -32,7 +32,7 @@ function lookbackMessageCap(hours: number): number {
   return 400; // up to 90d
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v13";
+const RECAP_VERSION = "recap-v14";
 
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
