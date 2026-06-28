@@ -169,6 +169,11 @@ export function CatchMeUpSheet({
   const [showDetailed, setShowDetailed] = useState(false);
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
+  const [pendingLookback, setPendingLookback] = useState<number | null>(null);
+  useEffect(() => {
+    if (!loading) setPendingLookback(null);
+  }, [loading, result]);
+
 
   // Increment on each open so Typed/Reveal components remount and replay the
   // typewriter — critical when the result was cached/pre-fetched, where the
@@ -370,7 +375,8 @@ export function CatchMeUpSheet({
           {onLookback && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {LOOKBACK_OPTIONS.map((opt) => {
-                const active = (result?.lookback_hours ?? 24) === opt.hours;
+                const currentHours = pendingLookback ?? result?.lookback_hours ?? 24;
+                const active = currentHours === opt.hours;
                 return (
                   <Button
                     key={opt.hours}
@@ -378,7 +384,10 @@ export function CatchMeUpSheet({
                     variant={active ? "default" : "outline"}
                     className="h-7 text-xs"
                     disabled={loading || active}
-                    onClick={() => onLookback(opt.hours)}
+                    onClick={() => {
+                      setPendingLookback(opt.hours);
+                      onLookback(opt.hours);
+                    }}
                   >
                     {opt.label}
                   </Button>
