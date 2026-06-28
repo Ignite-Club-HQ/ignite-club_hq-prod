@@ -2663,7 +2663,7 @@ export default function MessagesPage() {
             title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
           >
             <Sparkles className="h-5 w-5" />
-            {!hasAICatchUpClub && (
+            {aiCatchUpResolved && !hasAICatchUpClub && (
               <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-primary text-primary-foreground rounded px-1 leading-tight">
                 PRO
               </span>
