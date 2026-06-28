@@ -11,6 +11,8 @@ import {
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
 import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+import { scheduleTypewriter } from "@/lib/typewriterScheduler";
+
 
 /**
  * Static-reveal mode skips per-character typewriter animation entirely.
