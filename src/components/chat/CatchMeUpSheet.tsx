@@ -248,18 +248,19 @@ export function CatchMeUpSheet({
       files_shared: s.files_shared ?? [],
       discussion: s.important_updates ?? [],
     };
-    const detailed = {
+    let detailed = {
       schedule_changes: clean(detailedRaw.schedule_changes),
       files_shared: clean(detailedRaw.files_shared),
       discussion: clean(detailedRaw.discussion),
     };
-    const detailedHasAny =
+    let detailedHasAny =
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
 
     // Fallback: when the model didn't return a since_last_visit timeline but
     // we DO have detailed bullets, synthesize the activity feed from those so
     // users always see a narrative timeline rather than just Outstanding actions.
-    if (sinceTimeline.length === 0 && detailedHasAny) {
+    const usedDetailedFallback = sinceTimeline.length === 0 && detailedHasAny;
+    if (usedDetailedFallback) {
       const pushDetailed = (arr: string[]) => {
         for (const raw of arr) {
           const parsed = parseRecapTimeTag(raw);
@@ -273,6 +274,32 @@ export function CatchMeUpSheet({
       pushDetailed(detailed.schedule_changes);
       pushDetailed(detailed.discussion);
       pushDetailed(detailed.files_shared);
+    }
+
+    // Dedupe detailed bullets against the timeline so the "View detailed
+    // summary" section adds depth, not a re-statement of what's above. Skip
+    // when timeline was synthesized FROM detailed (fallback) — there'd be
+    // nothing left to show.
+    if (!usedDetailedFallback && sinceTimeline.length > 0) {
+      const sigWords = (str: string) =>
+        str.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 3);
+      const timelineSigs = sinceTimeline.map((i) => new Set(sigWords(i.text)));
+      const isDupOfTimeline = (text: string) => {
+        const ws = sigWords(stripRecapDatePrefix(text));
+        if (ws.length === 0) return false;
+        return timelineSigs.some((ts) => {
+          const overlap = ws.filter((w) => ts.has(w)).length;
+          return overlap / ws.length >= 0.6;
+        });
+      };
+      const dedup = (arr: string[]) => arr.filter((t) => !isDupOfTimeline(t));
+      detailed = {
+        schedule_changes: dedup(detailed.schedule_changes),
+        files_shared: dedup(detailed.files_shared),
+        discussion: dedup(detailed.discussion),
+      };
+      detailedHasAny =
+        detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
     }
 
     // Sort timeline items chronologically (most-recent first) before grouping.
