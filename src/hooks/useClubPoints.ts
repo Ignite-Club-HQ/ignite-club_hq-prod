@@ -23,6 +23,10 @@ export function useUserClubPoints(userId: string | null | undefined, clubId: str
     },
     enabled: !!userId && !!clubId,
     staleTime: 1000 * 30,
+    // Keep previous value while a club switch / background refetch is in
+    // flight so the UI never flashes "0 Points" before the real balance
+    // resolves.
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -44,6 +48,7 @@ export function useChildClubPoints(childId: string | null | undefined, clubId: s
     },
     enabled: !!childId && !!clubId,
     staleTime: 1000 * 30,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -92,6 +97,7 @@ export function useChildrenClubPoints(
     },
     enabled: !!clubId && ids.length > 0,
     staleTime: 1000 * 30,
+    placeholderData: (prev) => prev,
   });
 }
 
