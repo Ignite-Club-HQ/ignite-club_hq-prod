@@ -462,7 +462,26 @@ export function CatchMeUpSheet({
                            indexByDate.set(date, groups.length);
                            groups.push({ date, items: [item] });
                          }
-                       }
+                        }
+                       // Sort groups by parsed date desc so the timeline always
+                       // reads most-recent first regardless of insertion order.
+                       const groupTs = (label: string): number => {
+                         if (!label || label === "Earlier") return -Infinity;
+                         const d = parseRecapTagDate(label);
+                         if (d) return d.getTime();
+                         const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(label);
+                         if (dm) {
+                           const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(dm[2].slice(0, 3).toLowerCase()));
+                           if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
+                         }
+                         const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(label);
+                         if (md) {
+                           const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(md[1].slice(0, 3).toLowerCase()));
+                           if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
+                         }
+                         return -Infinity;
+                       };
+                       groups.sort((a, b) => groupTs(b.date) - groupTs(a.date));
                       return groups.map((g, gi) => (
                         <div key={`${g.date}-${gi}`}>
                           <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
