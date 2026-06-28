@@ -572,13 +572,13 @@ export function CatchMeUpSheet({
                 </section>
               )}
 
-              {/* Outstanding actions */}
+              {/* Action items */}
               {view.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      {view.actions.length === 1 ? "Outstanding action" : "Outstanding actions"}
+                      {view.actions.length === 1 ? "Action item" : "Action items"}
                     </p>
                   </Reveal>
                   <ul className="space-y-4">
