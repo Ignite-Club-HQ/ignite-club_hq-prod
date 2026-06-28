@@ -169,6 +169,11 @@ export function CatchMeUpSheet({
   const [showDetailed, setShowDetailed] = useState(false);
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
+  const [pendingLookback, setPendingLookback] = useState<number | null>(null);
+  useEffect(() => {
+    if (!loading) setPendingLookback(null);
+  }, [loading, result]);
+
 
   // Increment on each open so Typed/Reveal components remount and replay the
   // typewriter — critical when the result was cached/pre-fetched, where the
