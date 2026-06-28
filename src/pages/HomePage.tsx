@@ -2498,7 +2498,11 @@ export default function HomePage() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                {isRewardsProLocked ? 'Earn points for RSVPs, volunteering & participation' : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
+                {isRewardsProLocked
+                  ? 'Earn points for RSVPs, volunteering & participation'
+                  : myPointsLoading
+                    ? (<span className="inline-block h-3 w-16 align-middle rounded bg-muted animate-pulse" aria-label="Loading points" />)
+                    : `${myPoints} Point${myPoints === 1 ? '' : 's'}${showProBadge ? ' · Pro' : ''}`}
               </p>
             </div>
             {latestPendingRedemption && !isRewardsProLocked ? (
