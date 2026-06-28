@@ -864,7 +864,7 @@ export default function HomePage() {
     () => userChildren.map((c: any) => c.id),
     [userChildren],
   );
-  const { data: userClubPoints = 0 } = useUserClubPoints(
+  const { data: userClubPoints, isLoading: userClubPointsLoading } = useUserClubPoints(
     user?.id ?? null,
     activeClubFilter,
   );
@@ -875,8 +875,11 @@ export default function HomePage() {
 
   // Resolved balances used for display + redemption gating.
   const myPoints = activeClubFilter
-    ? userClubPoints
+    ? (userClubPoints ?? 0)
     : (profile?.ignite_points || 0);
+  // Only treat as "loading" on first paint of a club switch — once the query
+  // has data (even stale via placeholderData) show the value immediately.
+  const myPointsLoading = !!activeClubFilter && userClubPointsLoading && userClubPoints === undefined;
   const childPointsFor = (child: any): number => {
     if (activeClubFilter) {
       return childrenClubPointsMap?.get(child.id) ?? 0;
