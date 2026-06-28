@@ -31,7 +31,7 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
-import { parseRecapTimeTag, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 const GLOBAL_LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
   { label: "Last 24h", hours: 24 },
@@ -149,6 +149,33 @@ async function fetchOne(ref: RecapScopeRef, lookbackHours: number): Promise<{ re
 
 export interface TimelineEntry { time: string | null; text: string }
 
+function parseTimelineTimestamp(time: string | null | undefined, text?: string): number {
+  const fromTag = (() => {
+    if (!time) return 0;
+    const d = parseRecapTagDate(time);
+    if (!d) return 0;
+    const clock = time.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+    if (clock) {
+      let hours = Number(clock[1]);
+      const minutes = Number(clock[2] ?? 0);
+      const meridiem = clock[3].toLowerCase();
+      if (meridiem === "pm" && hours !== 12) hours += 12;
+      if (meridiem === "am" && hours === 12) hours = 0;
+      d.setHours(hours, minutes, 0, 0);
+    }
+    return d.getTime();
+  })();
+  if (fromTag) return fromTag;
+
+  const body = text ?? "";
+  const explicit = body.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
+  if (explicit) {
+    const tag = `Sun ${explicit[1]} ${explicit[2]}`;
+    return parseRecapTagDate(tag)?.getTime() ?? 0;
+  }
+  return 0;
+}
+
 function normalise(summary: ChatSummaryPayload | undefined) {
   if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
   const actions: OutstandingAction[] = (summary.outstanding_actions ??
@@ -182,6 +209,7 @@ function normalise(summary: ChatSummaryPayload | undefined) {
   push(summary.detailed?.files_shared);
   push(summary.files_shared);
   push(summary.important_updates);
+  details.sort((a, b) => parseTimelineTimestamp(b.time, b.text) - parseTimelineTimestamp(a.time, a.text));
   return { actions, questions, headline: stripRecapDatePrefix(summary.headline ?? ""), details };
 }
 
@@ -343,6 +371,10 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
+    overviews.sort((a, b) => {
+      const latest = (items: TimelineEntry[]) => Math.max(0, ...items.map((item) => parseTimelineTimestamp(item.time, item.text)));
+      return latest(b.details) - latest(a.details);
+    });
     return { actions, questions, overviews };
   }, [perScope, myNames]);
 
