@@ -907,15 +907,16 @@ function TypewriterLine({ text, showCaret, staticMode = false }: { text: string;
   useEffect(() => {
     if (staticMode) { setShown(text.length); return; }
     setShown(0);
-    let i = 0;
-    const id = setInterval(() => {
-      i += 1;
-      setShown(i);
-      if (i >= text.length) clearInterval(id);
-    }, 28);
-    return () => clearInterval(id);
+    const handle = scheduleTypewriter({
+      delayMs: 0,
+      charMs: 28,
+      length: text.length,
+      onTick: setShown,
+    });
+    return () => handle.cancel();
   }, [text, staticMode]);
   const done = shown >= text.length;
+
   return (
     <p className="text-sm leading-snug text-foreground">
       {text.slice(0, shown)}
