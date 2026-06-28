@@ -60,6 +60,23 @@ import { initWebNotificationLaunchHandler } from "./lib/webNotificationLaunchHan
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
 import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
+import { isChunkLoadError, tryRecoverFromChunkError } from "./components/RouteErrorBoundary";
+
+// Stale-chunk auto-recovery for non-React contexts (e.g. lazy route imports
+// triggered from event handlers after a redeploy). One-shot reload guarded by
+// sessionStorage so we never loop.
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    if (isChunkLoadError(event.error ?? event.message)) {
+      tryRecoverFromChunkError();
+    }
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    if (isChunkLoadError(event.reason)) {
+      tryRecoverFromChunkError();
+    }
+  });
+}
 
 // Install BroadcastChannel + SW message listener immediately so notification
 // taps that fire before React/PushNotificationManager mount aren't lost.

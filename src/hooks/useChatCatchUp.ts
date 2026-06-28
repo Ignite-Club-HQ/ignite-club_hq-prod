@@ -61,11 +61,36 @@ export interface ChatSummaryResult {
 
 }
 
+function hasUsefulRecapContent(result: ChatSummaryResult | null | undefined): boolean {
+  const s = result?.summary;
+  if (!s) return false;
+  return (
+    (s.since_last_visit?.today?.length ?? 0) +
+    (s.since_last_visit?.yesterday?.length ?? 0) +
+    (s.since_last_visit?.earlier?.length ?? 0) +
+    (s.outstanding_actions?.length ?? 0) +
+    (s.detailed?.schedule_changes?.length ?? 0) +
+    (s.detailed?.files_shared?.length ?? 0) +
+    (s.detailed?.discussion?.length ?? 0) +
+    (s.important_updates?.length ?? 0) +
+    (s.actions_needed?.length ?? 0) +
+    (s.schedule_changes?.length ?? 0) +
+    (s.files_shared?.length ?? 0)
+  ) > 0;
+}
+
 const LAST_OPENED_KEY = "chat-catchup:last-opened";
 const PREV_OPENED_KEY = "chat-catchup:prev-opened";
 const DISMISSED_KEY = "chat-catchup:dismissed";
 const UNREAD_MIN = 10;
 const STALE_HOURS = 24;
+/**
+ * Default lookback window for every Chat Recap (single-thread and global).
+ * Users can pick deeper windows (7d / 30d) from the sheet on demand.
+ */
+export const DEFAULT_LOOKBACK_HOURS = 24;
+/** Progressive escalation tiers used when a lookback returns no useful content. */
+const AUTO_LOOKBACK_TIERS = [DEFAULT_LOOKBACK_HOURS, 24 * 7, 24 * 30];
 // Re-opens within this window are treated as the same "visit" — we keep the
 // previous-visit timestamp so Chat Recap still has a meaningful cutoff.
 const SAME_VISIT_MS = 30 * 60 * 1000;
@@ -185,12 +210,13 @@ export function useChatCatchUp({
   const summarize = useCallback(
     async (opts?: { force?: boolean; openSheet?: boolean; lookbackHours?: number }) => {
       if (!scope_id) return;
-      const lookbackHours = opts?.lookbackHours;
-      const forceFresh = !!opts?.force || lookbackHours != null;
+      const explicitLookback = opts?.lookbackHours;
+      const isExplicit = explicitLookback != null;
+      const tiers = isExplicit ? [explicitLookback] : AUTO_LOOKBACK_TIERS;
+      const forceFresh = !!opts?.force || (isExplicit && explicitLookback !== DEFAULT_LOOKBACK_HOURS);
+
       setLoading(true);
       setError(null);
-      // On forced regenerate or explicit lookback, clear the existing result so
-      // the sheet shows the loading typewriter instead of the stale summary.
       if (forceFresh) setResult(null);
       if (opts?.openSheet) setSheetOpen(true);
 
@@ -210,65 +236,82 @@ export function useChatCatchUp({
         return code;
       };
 
-      try {
+      const fetchTier = async (hours: number, force: boolean): Promise<{ result: ChatSummaryResult | null; error: string | null }> => {
         const lastOpenedMs = getLastOpened(scope_type, scope_id);
         const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
         const body: Record<string, unknown> = {
           scope_type,
           scope_id,
-          force: forceFresh,
+          force,
           last_opened_at,
+          lookback_hours: hours,
         };
-        if (lookbackHours != null) body.lookback_hours = lookbackHours;
 
-        // Hot path: assemble from precomputed digests (no LLM call).
-        // Only supports team/club/group scopes; falls through for DMs & club_admin.
-        // We use this path even for explicit lookbacks — it ignores cache by design.
-        if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
-          const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
-          const fastCode = (fast as any)?.error;
-          if (!fastErr && fast && !fastCode) {
-            setResult(fast as ChatSummaryResult);
-            return;
-          }
-          // 200 with { error: "digests_missing" } → fall through to LLM.
-          // Any other surfaced error → show it.
-          if (fastErr) {
-            const code = await parseErr(fastErr);
-            if (code !== "digests_missing" && code !== "unknown") {
-              setError(code);
-              return;
-            }
-          } else if (fastCode && fastCode !== "digests_missing") {
-            setError(String(fastCode));
-            return;
-          }
-        }
-
-
-        // Fallback: full LLM summary (Gemini or ICP per app setting).
-        let fnName = "summarize-chat";
         try {
-          const { data: prov } = await supabase
-            .from("app_settings")
-            .select("value")
-            .eq("key", "ai_summary_provider")
-            .maybeSingle();
-          const v = (prov as any)?.value;
-          const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
-          if (provider === "icp" || provider === '"icp"') fnName = "summarize-chat-icp";
-        } catch { /* default to gemini */ }
-        const { data, error } = await supabase.functions.invoke(fnName, { body });
-        if (error) {
-          setError(await parseErr(error));
-          return;
+          if (scope_type === "team" || scope_type === "club" || scope_type === "group") {
+            const { data: fast, error: fastErr } = await supabase.functions.invoke("assemble-catchup", { body });
+            const fastCode = (fast as any)?.error as string | undefined;
+            if (!fastErr && fast && !fastCode) {
+              const fastResult = { ...(fast as ChatSummaryResult), lookback_hours: hours };
+              if (hasUsefulRecapContent(fastResult)) {
+                return { result: fastResult, error: null };
+              }
+            }
+            if (fastErr) {
+              const code = await parseErr(fastErr);
+              if (code !== "digests_missing" && code !== "unknown") {
+                return { result: null, error: code };
+              }
+            } else if (fastCode && fastCode !== "digests_missing") {
+              return { result: null, error: fastCode };
+            }
+          }
+
+          let fnName = "summarize-chat";
+          try {
+            const { data: prov } = await supabase
+              .from("app_settings")
+              .select("value")
+              .eq("key", "ai_summary_provider")
+              .maybeSingle();
+            const v = (prov as any)?.value;
+            const provider = typeof v === "string" ? v : (v ? String(v) : "gemini");
+            if (provider === "icp" || provider === '"icp"') fnName = "summarize-chat-icp";
+          } catch { /* default to gemini */ }
+          const { data, error } = await supabase.functions.invoke(fnName, { body });
+          if (error) return { result: null, error: await parseErr(error) };
+          const llmCode = (data as any)?.error as string | undefined;
+          if (llmCode) return { result: null, error: llmCode };
+          return { result: { ...(data as ChatSummaryResult), lookback_hours: hours }, error: null };
+        } catch (e: any) {
+          return { result: null, error: e?.message ?? "unknown" };
         }
-        setResult(data as ChatSummaryResult);
-      } catch (e: any) {
-        setError(e?.message ?? "unknown");
-      } finally {
-        setLoading(false);
+      };
+
+      let finalResult: ChatSummaryResult | null = null;
+      let finalError: string | null = null;
+
+      for (let i = 0; i < tiers.length; i++) {
+        const hours = tiers[i];
+        const shouldForce = forceFresh || (!isExplicit && i > 0);
+        const { result: tierResult, error: tierError } = await fetchTier(hours, shouldForce);
+
+        if (tierError && tierError !== "no_messages" && tierError !== "digests_missing") {
+          finalError = tierError;
+          break;
+        }
+
+        finalResult = tierResult;
+        finalError = tierError;
+
+        if (tierResult && hasUsefulRecapContent(tierResult)) {
+          break;
+        }
       }
+
+      setResult(finalResult);
+      if (finalError) setError(finalError);
+      setLoading(false);
     },
     [scope_type, scope_id],
   );

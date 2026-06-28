@@ -25,6 +25,8 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const RECAP_VERSION = "recap-v13";
+const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:${RECAP_VERSION}`;
 
 interface DigestRow {
   message_id: string;
@@ -54,9 +56,29 @@ function redactPII(raw: string, nameMap: Map<string, string>): string {
   return t.replace(/\s{2,}/g, " ").trim();
 }
 
-const SYSTEM_PROMPT = `You classify individual sports-club chat messages.
+function sanitizeDigestSummary(raw: string): string {
+  let s = raw;
+  s = s.replace(/https?:\/\/\S+/gi, "");
+  s = s.replace(/\bwww\.[^\s)]+/gi, "");
+  s = s.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+  s = s.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+  s = s.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+  s = s.replace(/[“”„‟«»]/g, "");
+  s = s.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+  s = s.replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "");
+  s = s.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/[\s,;:–-]+$/g, "").trim();
+  if (s.length > 140) {
+    const slice = s.slice(0, 140);
+    const lastSpace = slice.lastIndexOf(" ");
+    s = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+  }
+  return s;
+}
 
-You receive a JSON array of messages. For EACH message return one object with:
+const SYSTEM_PROMPT = `You classify individual sports-club chat messages and produce a SYNTHESISED fact note for each.
+
+You receive a JSON array of messages including created_at ISO timestamps. For EACH message return one object with:
 - "message_id": echo back exactly
 - "classification": one of "action"|"question"|"decision"|"social"|"info"
   - "action": someone is asked to do something, or commits to do something
@@ -64,14 +86,36 @@ You receive a JSON array of messages. For EACH message return one object with:
   - "decision": a concrete decision is announced (time changed, venue moved, role assigned)
   - "social": banter, thanks, emoji, greetings
   - "info": anything else useful (status updates, sharing files, FYI)
-- "summary": one short sentence (<=120 chars), neutral tone, no names unless the speaker owns an action/decision
-- "topic": 1-3 word tag (e.g. "training time", "uniforms", "fixture")
+- "summary": ONE short third-person fact (<=140 chars) that says what the message MEANS. STRICT RULES:
+  * NEVER start with a speaker name or "Name:" prefix.
+  * NEVER copy the sentence structure or wording of the original message — paraphrase only.
+  * NEVER wrap message text in quotes, and NEVER include URLs, www links, raw UUIDs, or internal route paths like "/events/abc-123" or "/messages/...".
+  * NEVER use system-style CTAs ("View event", "Open link", "Tap here", "Notification sent"). Use parent-friendly wording.
+  * If a message is a long copy/paste, rewrite it as one concise sentence (e.g. "Training was cancelled due to rain"; "Event details were shared").
+  * For event messages, extract only the useful facts: date, cancellation, kick-off time, opponent, location, arrival time.
+  * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
+  * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
+  * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
+  * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing.
+  * Prefer concrete nouns (venue, time, role, count) over pronouns.
+  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
+  * You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters. Never infer image content from surrounding replies or thanks.
+  * If the message only says a photo/video/file was shared and gives no description of what it shows or contains, classify it as "social" and set summary to "". Never write generic summaries like "A photo was shared in the team chat" or inferred captions like "photos of kids celebrating".
+  * If the message has no informational value, classify as "social" and set summary to "".
+
+- "topic": 1-3 word tag describing the subject (e.g. "linesperson", "venue change", "tournament interest"). Messages on the same subject MUST share the same topic string.
+
+Examples:
+- "Dan: Could someone please be linesperson today?" → summary "Dan asked for a linesperson for the match", topic "match official".
+- "Andrew: Yep I can do it this week" → summary "Andrew volunteered to be linesperson this week", topic "match official".
+- "Bec: Also interested depending on days" → summary "Bec is interested in the tournament if the dates work", topic "tournament interest".
+- "Jas: Sorry Dan, I would have loved to" → summary "Jas declined the linesperson request, unavailable", topic "match official".
 
 Return STRICT JSON: { "items": [ {...}, ... ] }. No prose, no markdown, no code fences.`;
 
 async function callGemini(messages: any[], apiKey: string): Promise<DigestRow[] | null> {
   const userPrompt = `Classify these ${messages.length} messages:\n${JSON.stringify(
-    messages.map((m) => ({ message_id: m.id, speaker: m.speaker, text: m.text })),
+    messages.map((m) => ({ message_id: m.id, created_at: m.created_at, speaker: m.speaker, text: m.text })),
   )}`;
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -160,10 +204,14 @@ serve(async (req) => {
       // Existing digested ids (just message_ids) for this source within the window.
       const { data: existing } = await admin
         .from("message_digests")
-        .select("message_id")
+        .select("message_id, provider")
         .eq("message_type", src.type)
         .gte("message_created_at", sinceIso);
-      const seen = new Set((existing || []).map((r: any) => r.message_id));
+      const seen = new Set(
+        (existing || [])
+          .filter((r: any) => String(r.provider || "").endsWith(`:${RECAP_VERSION}`))
+          .map((r: any) => r.message_id),
+      );
 
       const { data: rows, error } = await admin
         .from(src.table)
@@ -221,6 +269,7 @@ serve(async (req) => {
           callGemini(
             batch.map((x) => ({
               id: x.row.id,
+              created_at: x.row.created_at,
               speaker: profileName.get(x.row.author_id) || "Someone",
               text: redactPII((x.row.text || "").slice(0, 600), nameMap),
             })),
@@ -244,10 +293,10 @@ serve(async (req) => {
             chat_scope_id: x.row[x.src.scopeCol],
             message_created_at: x.row.created_at,
             classification,
-            summary: typeof cls.summary === "string" ? cls.summary.slice(0, 280) : "",
+            summary: typeof cls.summary === "string" ? sanitizeDigestSummary(cls.summary) : "",
             topic: typeof cls.topic === "string" ? cls.topic.slice(0, 60) : null,
             mentions_user_ids: [],
-            provider: `gemini:${GEMINI_MODEL}`,
+            provider: DIGEST_PROVIDER,
           });
         }
       });
@@ -256,7 +305,7 @@ serve(async (req) => {
     if (inserts.length) {
       const { error: insErr, count } = await admin
         .from("message_digests")
-        .upsert(inserts, { onConflict: "message_type,message_id", count: "exact", ignoreDuplicates: true });
+        .upsert(inserts, { onConflict: "message_type,message_id", count: "exact" });
       if (insErr) console.error("[digest-messages] insert error", insErr.message);
       totalWritten = count ?? inserts.length;
     }

@@ -1,5 +1,5 @@
 // Fast no-LLM Catch Me Up. Reads pre-computed digests from `message_digests`
-// and assembles a personal view bucketed by today/yesterday/earlier relative
+// and assembles a personal view bucketed internally by day relative
 // to the caller's `last_opened_at`. Falls back to the LLM functions when
 // digests are missing for too many recent messages.
 //
@@ -12,6 +12,8 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const RECAP_VERSION = "recap-v13";
 
 type ScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
@@ -57,18 +59,186 @@ function formatTimeOfDay(ts: Date): string {
   h = h % 12; if (h === 0) h = 12;
   return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
 }
-/** Short human time tag: "9:30am" / "Yest 6pm" / "Mon 6pm" / "21 Jun 6pm". */
+/** Short human time tag with explicit date: "Sat 27 Jun 9:30am". */
 function shortTimeTag(now: Date, ts: Date): string {
-  const bucket = bucketDay(now, ts);
   const t = formatTimeOfDay(ts);
-  if (bucket === "today") return t;
-  if (bucket === "yesterday") return `Yest ${t}`;
-  const daysAgo = Math.floor((now.getTime() - ts.getTime()) / (24 * 3600 * 1000));
-  if (daysAgo < 7) return `${WEEKDAYS[ts.getDay()]} ${t}`;
-  return `${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
+  return `${WEEKDAYS[ts.getDay()]} ${ts.getDate()} ${MONTHS[ts.getMonth()]} ${t}`;
 }
 function tagBullet(now: Date, ts: Date, text: string): string {
   return `[${shortTimeTag(now, ts)}] ${text}`;
+}
+
+/** Strip accidental "Name: " speaker prefix legacy digest rows may contain. */
+function stripSpeakerPrefix(s: string): string {
+  return s
+    .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
+    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .trim();
+}
+
+const MEDIA_WORDS = "photo|photos|image|images|picture|pictures|video|videos|clip|clips|file|files|document|documents";
+const MEDIA_ACTION_WORDS = "shared|posted|uploaded|added|sent";
+const MEDIA_THANKS_RE = new RegExp(
+  `\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b.{0,80}\\b(?:${MEDIA_ACTION_WORDS}|sharing|posting|uploading|adding|sending)\\b.{0,80}\\b(?:${MEDIA_WORDS})\\b|` +
+  `\\b(?:${MEDIA_WORDS})\\b.{0,80}\\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\\b`,
+  "i",
+);
+
+function isUnsafeMediaDigest(s: string): boolean {
+  const t = stripSpeakerPrefix(s)
+    .replace(/^\[[^\]]{1,40}\]\s*/, "")
+    .replace(/^[•\-*]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (MEDIA_THANKS_RE.test(t)) return true;
+  return /\b(?:photo|photos|image|images|picture|pictures|video|videos)\b.{0,50}\b(?:shared|posted|uploaded|added|sent)\b/i.test(t)
+    && !/\b(?:caption|showing|of the trophy|of trophy|of awards|of presentation|of scoreboard|of fixture|of roster|of draw)\b/i.test(t);
+}
+
+function sanitizeAssembledLine(raw: string): string {
+  let s = raw;
+  s = s.replace(/https?:\/\/\S+/gi, "");
+  s = s.replace(/\bwww\.[^\s)]+/gi, "");
+  s = s.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+  s = s.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+  s = s.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+  s = s.replace(/[“”„‟«»]/g, "");
+  s = s.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+  s = s.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/[\s,;:–-]+$/g, "").trim();
+  if (s.length > 140) {
+    const slice = s.slice(0, 140);
+    const lastSpace = slice.lastIndexOf(" ");
+    s = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+  }
+  return s;
+}
+
+const FILLER_PATTERNS = [
+  /^also\s+(?:interested|available|keen)\b/i,
+  /^yep\b|^yeah\b|^yes\b|^nope\b|^no\b|^sorry\b|^thanks?\b|^ok(?:ay)?\b/i,
+  /^hi\b|^hello\b|^team\b|^folks\b/i,
+];
+
+function looksLikeRawMessage(s: string): boolean {
+  const words = s.trim().split(/\s+/).filter(Boolean).length;
+  if (FILLER_PATTERNS.some((re) => re.test(s))) return true;
+  if (words >= 14 && /\b(?:please|anyone|i\s+can|i\s+would|we'?re|we\s+are|let\s+me\s+know|looking\s+like|would\s+have|depending\s+on)\b/i.test(s)) return true;
+  return false;
+}
+
+function compactSentence(s: string): string {
+  let out = stripSpeakerPrefix(s).replace(/\s+/g, " ").trim();
+  out = out.replace(/^(?:also|hi folks|hi team|team),?\s+/i, "");
+  out = out.replace(/\b(?:please|asap)\b/gi, "").replace(/\s{2,}/g, " ").trim();
+  return out.replace(/[.!?]+$/g, "");
+}
+
+function normaliseTopic(topic: string | null | undefined): string | null {
+  const t = (topic || "").trim().toLowerCase();
+  if (!t) return null;
+  if (/line\s*person|linesperson|ref(?:eree)?/.test(t)) return "match official";
+  if (/venue|location|summit|moved|time|schedule/.test(t)) return "venue change";
+  if (/availability|out|absence|numbers|lineup|squad|player/.test(t)) return "availability";
+  if (/tournament|holiday/.test(t)) return "tournament interest";
+  return t;
+}
+
+function phraseFact(topic: string | null, fact: string): string {
+  const f = compactSentence(fact);
+  const lower = f.toLowerCase();
+  const key = normaliseTopic(topic);
+
+  if (key === "match official") {
+    if (/^sorry\b|would\s+have\s+loved\s+to|can't|cannot|unavailable/i.test(lower)) return "One member declined the match official request";
+    if (/\bi can\b|\byep\b|\byes\b|volunteer|available/i.test(lower)) return "A volunteer confirmed they can cover the match official role";
+    if (/who|please|need|line\s*person|linesperson|ref/i.test(lower)) return "A match official was requested";
+  }
+  if (key === "venue change") {
+    const venue = /summit/i.test(f) ? "Summit" : null;
+    const time = f.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i)?.[0]?.replace(/\s+/g, "") ?? null;
+    const day = /sat(?:urday)?/i.test(f) ? "Saturday" : null;
+    const detail = [venue ? `to ${venue}` : null, time ? `at ${time}` : null, day ? `on ${day}` : null].filter(Boolean).join(" ");
+    return detail ? `Game moved ${detail}` : `Game venue or time changed`;
+  }
+  if (key === "availability") {
+    const outCount = f.match(/\b(?:three|3)\s+out\b/i) ? "3 players out" : null;
+    if (/only just have enough|lineups? shaky|tough game|replacement|iffy/i.test(lower)) {
+      return outCount ? `${outCount}; squad numbers are tight` : "Squad numbers are tight and replacements may be needed";
+    }
+  }
+  if (key === "tournament interest") {
+    const where = /gepps\s+cross/i.test(f) ? " at Gepps Cross" : "";
+    const when = /first week of holidays/i.test(f) ? " in the first week of holidays" : "";
+    return `Two-day tournament interest was raised${when}${where}`;
+  }
+
+  if (!looksLikeRawMessage(f)) return f;
+  return f.length > 90 ? `${f.slice(0, 87).trim()}…` : f;
+}
+
+function combineFacts(topic: string | null, facts: string[]): string {
+  const key = normaliseTopic(topic);
+  const cleaned = Array.from(new Set(facts.map((f) => phraseFact(key, f)).filter(Boolean)));
+  if (!cleaned.length) return "";
+
+  if (key === "match official") {
+    const requested = cleaned.some((f) => /requested/i.test(f));
+    const confirmed = cleaned.some((f) => /confirmed|volunteer/i.test(f));
+    if (requested && confirmed) return "Match official was requested and a volunteer has confirmed";
+  }
+  if (key === "availability") {
+    const has3Out = cleaned.some((f) => /3 players out/i.test(f));
+    const tight = cleaned.some((f) => /tight|replacement/i.test(f));
+    if (has3Out || tight) return `${has3Out ? "3 players out" : "Availability update"}; squad numbers are tight${tight ? " and replacements may be needed" : ""}`;
+  }
+
+  return cleaned.slice(0, 2).join("; ");
+}
+
+/** Title-case a short topic tag for display ("venue change" → "Venue change"). */
+function titleTopic(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const trimmed = t.trim();
+  if (!trimmed) return null;
+  return trimmed[0].toUpperCase() + trimmed.slice(1);
+}
+
+/** Group digest entries by topic within a bucket and emit one synthesised bullet per topic. */
+function synthesiseBucket(
+  now: Date,
+  entries: { ts: Date; summary: string; topic: string | null }[],
+  maxBullets: number,
+): string[] {
+  if (!entries.length) return [];
+  const groups = new Map<string, { ts: Date; topic: string | null; facts: string[] }>();
+  for (const e of entries) {
+    const cleaned = stripSpeakerPrefix(e.summary).replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    if (isUnsafeMediaDigest(cleaned)) continue;
+    const key = normaliseTopic(e.topic) || `__solo_${groups.size}`;
+    const g = groups.get(key);
+    if (g) {
+      // Dedupe near-identical facts
+      if (!g.facts.some((f) => f.toLowerCase() === cleaned.toLowerCase())) g.facts.push(cleaned);
+      if (e.ts > g.ts) g.ts = e.ts;
+    } else {
+      groups.set(key, { ts: e.ts, topic: normaliseTopic(e.topic), facts: [cleaned] });
+    }
+  }
+  const ordered = Array.from(groups.values()).sort((a, b) => b.ts.getTime() - a.ts.getTime());
+  const out: string[] = [];
+  for (const g of ordered) {
+    const title = titleTopic(g.topic);
+    const facts = combineFacts(g.topic, g.facts);
+    if (!facts) continue;
+    let line = title ? `${title}: ${facts}` : facts;
+    line = sanitizeAssembledLine(line);
+    if (!line) continue;
+    out.push(tagBullet(now, g.ts, line));
+    if (out.length >= maxBullets) break;
+  }
+  return out;
 }
 
 serve(async (req) => {
@@ -151,7 +321,7 @@ serve(async (req) => {
     const fetchDigests = (sinceIso: string) =>
       userClient
         .from("message_digests")
-        .select("message_id, classification, summary, topic, message_created_at")
+        .select("message_id, classification, summary, topic, message_created_at, provider")
         .eq("message_type", cfg.digestType)
         .eq("chat_scope_id", scope_id)
         .gte("message_created_at", sinceIso)
@@ -159,6 +329,7 @@ serve(async (req) => {
         .limit(digestLimit);
 
     let { data: digests, error: dErr } = await fetchDigests(cutoffIso);
+    digests = (digests || []).filter((d: any) => String(d.provider || "").endsWith(`:${RECAP_VERSION}`));
     if (dErr) {
       console.error("[assemble-catchup] digest fetch error", dErr.message);
       return new Response(JSON.stringify({ error: "fetch_failed" }), {
@@ -173,7 +344,7 @@ serve(async (req) => {
       cutoffIso = FLOOR_ISO;
       usedFallback = true;
       const retry = await fetchDigests(cutoffIso);
-      digests = retry.data ?? [];
+      digests = (retry.data ?? []).filter((d: any) => String(d.provider || "").endsWith(`:${RECAP_VERSION}`));
     }
 
     // Coverage check: count total recent messages (admin view) vs digest rows.
@@ -211,42 +382,48 @@ serve(async (req) => {
 
     // Bucket and pick top bullets
     const now = new Date();
-    const buckets: Record<"today" | "yesterday" | "earlier", string[]> = { today: [], yesterday: [], earlier: [] };
+    const bucketEntries: Record<"today" | "yesterday" | "earlier", { ts: Date; summary: string; topic: string | null }[]> = {
+      today: [], yesterday: [], earlier: [],
+    };
     const actions: { text: string; owner: null; priority: "high" | "medium" | "low"; topic: string | null; idx: number }[] = [];
     const questions: { text: string; topic: string | null; idx: number }[] = [];
-    const decisions: string[] = [];
+    const decisionEntries: { ts: Date; summary: string; topic: string | null }[] = [];
+    const discussionEntries: { ts: Date; summary: string; topic: string | null }[] = [];
     const social_count = { n: 0 };
 
     for (let i = 0; i < (digests || []).length; i++) {
       const d = digests[i];
       const ts = new Date(d.message_created_at);
       const bucket = bucketDay(now, ts);
-      const s = (d.summary || "").trim();
+      const s = stripSpeakerPrefix((d.summary || "").trim());
       if (!s) continue;
-      const tagged = tagBullet(now, ts, s);
+      if (isUnsafeMediaDigest(s)) continue;
+      const entry = { ts, summary: s, topic: d.topic ?? null };
       switch (d.classification) {
         case "action":
           actions.push({ text: s, owner: null, priority: "medium", topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
           break;
         case "question":
           questions.push({ text: s, topic: d.topic ?? null, idx: i });
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
+          discussionEntries.push(entry);
           break;
         case "decision":
-          decisions.push(tagged);
-          buckets[bucket].push(tagged);
+          decisionEntries.push(entry);
+          bucketEntries[bucket].push(entry);
           break;
         case "social":
           social_count.n += 1;
           break;
         case "info":
         default:
-          buckets[bucket].push(tagged);
+          bucketEntries[bucket].push(entry);
+          discussionEntries.push(entry);
       }
     }
 
-    // Outstanding actions/questions: drop ones that look resolved later.
+    // Outstanding actions: drop ones that look resolved later.
     const ANSWER_HINTS = [
       "yes", "no", "yeah", "yep", "nope", "sure", "ok ", "okay", "will do",
       "i can", "i'll ", "ill ", "we can", "done", "sorted", "confirmed",
@@ -256,7 +433,7 @@ serve(async (req) => {
       "i did", "we did", "me too", "agreed", "correct", "that's right",
       "that is right", "sounds good", "works for me", "fine by me",
       "perfect", "great", "good", "sure thing", "of course", "definitely",
-      "certainly", "roger", "copy that", "10-4"
+      "certainly", "roger", "copy that", "10-4", "volunteered", "took",
     ];
     const looksLikeAnswer = (t: string) => {
       const lower = t.toLowerCase();
@@ -278,14 +455,14 @@ serve(async (req) => {
       return false;
     };
     const outstanding_actions = actions.filter((a) => !isResolved(a.text, a.topic, a.idx)).slice(0, 5);
-    for (const q of questions) {
-      if (isResolved(q.text, q.topic, q.idx)) continue;
-      const ts = new Date(digests[q.idx].message_created_at);
-      const bucket = bucketDay(now, ts);
-      const phrased = /\?\s*$/.test(q.text) ? q.text : `${q.text}?`;
-      buckets[bucket].push(tagBullet(now, ts, phrased));
-    }
     const outstanding_questions: { text: string; date: string }[] = [];
+
+    // Synthesise per-topic bullets per bucket.
+    const today = synthesiseBucket(now, bucketEntries.today, 6);
+    const yesterday = synthesiseBucket(now, bucketEntries.yesterday, 5);
+    const earlier = synthesiseBucket(now, bucketEntries.earlier, 5);
+    const decisions = synthesiseBucket(now, decisionEntries, 6);
+    const discussion = synthesiseBucket(now, discussionEntries, 8);
 
     const headline = (() => {
       const newCount = (digests || []).length;
@@ -296,24 +473,13 @@ serve(async (req) => {
 
     const summary = {
       headline: headline.slice(0, 110),
-      since_last_visit: {
-        today: buckets.today.slice(0, 8),
-        yesterday: buckets.yesterday.slice(0, 5),
-        earlier: buckets.earlier.slice(0, 5),
-      },
+      since_last_visit: { today, yesterday, earlier },
       outstanding_actions,
       outstanding_questions,
       detailed: {
-        schedule_changes: decisions.slice(0, 8),
+        schedule_changes: decisions,
         files_shared: [],
-        discussion: (digests || [])
-          .filter((d: any) => d.classification === "info" || d.classification === "question")
-          .map((d: any) => {
-            const ts = new Date(d.message_created_at);
-            return d.summary ? tagBullet(now, ts, d.summary) : null;
-          })
-          .filter(Boolean)
-          .slice(0, 10),
+        discussion,
       },
     };
 

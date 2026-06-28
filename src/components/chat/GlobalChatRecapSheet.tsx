@@ -23,6 +23,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getCatchUpLastOpened,
+  DEFAULT_LOOKBACK_HOURS,
   type ChatScopeType,
   type ChatSummaryPayload,
   type ChatSummaryResult,
@@ -30,7 +31,13 @@ import {
   type OutstandingQuestion,
   normalizeQuestion,
 } from "@/hooks/useChatCatchUp";
-import { parseRecapTimeTag, stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+
+const GLOBAL_LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
+  { label: "Last 24h", hours: 24 },
+  { label: "Last 7 days", hours: 24 * 7 },
+  { label: "Last 30 days", hours: 24 * 30 },
+];
 
 export interface RecapScopeRef {
   scope_type: ChatScopeType;
@@ -103,10 +110,15 @@ async function getLLMFnName(): Promise<string> {
   return "summarize-chat";
 }
 
-async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
+async function fetchOne(ref: RecapScopeRef, lookbackHours: number): Promise<{ result: ChatSummaryResult | null; error: string | null }> {
   const lastOpenedMs = getCatchUpLastOpened(ref.scope_type, ref.scope_id);
   const last_opened_at = lastOpenedMs ? new Date(lastOpenedMs).toISOString() : null;
-  const body = { scope_type: ref.scope_type, scope_id: ref.scope_id, last_opened_at };
+  const body: Record<string, unknown> = {
+    scope_type: ref.scope_type,
+    scope_id: ref.scope_id,
+    last_opened_at,
+    lookback_hours: lookbackHours,
+  };
   try {
     // assemble-catchup supports team / club / group only. For DMs and admin
     // groups go straight to the LLM summariser so users get a real recap
@@ -137,11 +149,40 @@ async function fetchOne(ref: RecapScopeRef): Promise<{ result: ChatSummaryResult
 
 export interface TimelineEntry { time: string | null; text: string }
 
+function parseTimelineTimestamp(time: string | null | undefined, text?: string): number {
+  const fromTag = (() => {
+    if (!time) return 0;
+    const d = parseRecapTagDate(time);
+    if (!d) return 0;
+    const clock = time.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+    if (clock) {
+      let hours = Number(clock[1]);
+      const minutes = Number(clock[2] ?? 0);
+      const meridiem = clock[3].toLowerCase();
+      if (meridiem === "pm" && hours !== 12) hours += 12;
+      if (meridiem === "am" && hours === 12) hours = 0;
+      d.setHours(hours, minutes, 0, 0);
+    }
+    return d.getTime();
+  })();
+  if (fromTag) return fromTag;
+
+  const body = text ?? "";
+  const explicit = body.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
+  if (explicit) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months.findIndex((m) => m.toLowerCase() === explicit[2].slice(0, 3).toLowerCase());
+    if (month >= 0) return new Date(new Date().getFullYear(), month, Number(explicit[1])).getTime();
+  }
+  return 0;
+}
+
 function normalise(summary: ChatSummaryPayload | undefined) {
   if (!summary) return { actions: [] as OutstandingAction[], questions: [] as OutstandingQuestion[], headline: "", details: [] as TimelineEntry[] };
-  const actions: OutstandingAction[] =
-    summary.outstanding_actions ??
-    (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
+  const actions: OutstandingAction[] = (summary.outstanding_actions ??
+    (summary.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
+    .map((a) => ({ ...a, text: stripRecapDatePrefix(a.text) }))
+    .filter((a) => !isVagueRecapBullet(a.text));
   const questions: OutstandingQuestion[] = (summary.outstanding_questions ?? summary.unanswered_questions ?? []).map(normalizeQuestion);
   // Build a chronological-ish timeline. Each bullet's leading [time] tag is
   // parsed out so the UI can render it as a chip next to the bullet.
@@ -155,6 +196,7 @@ function normalise(summary: ChatSummaryPayload | undefined) {
       const parsed = parseRecapTimeTag(s);
       const clean = parsed.text || stripRecapDatePrefix(s);
       if (!clean || seen.has(clean)) continue;
+      if (isVagueRecapBullet(clean)) continue;
       seen.add(clean);
       details.push({ time: parsed.time, text: clean });
     }
@@ -168,13 +210,21 @@ function normalise(summary: ChatSummaryPayload | undefined) {
   push(summary.detailed?.files_shared);
   push(summary.files_shared);
   push(summary.important_updates);
-  return { actions, questions, headline: summary.headline ?? "", details };
+  details.sort((a, b) => parseTimelineTimestamp(b.time, b.text) - parseTimelineTimestamp(a.time, a.text));
+  return { actions, questions, headline: stripRecapDatePrefix(summary.headline ?? ""), details };
 }
 
 export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatRecapSheetProps) {
   const [perScope, setPerScope] = useState<PerScope[]>([]);
   const [runId, setRunId] = useState(0);
   const [myNames, setMyNames] = useState<string[]>([]);
+  const [lookbackHours, setLookbackHours] = useState<number>(DEFAULT_LOOKBACK_HOURS);
+
+  // Reset to the default window whenever the sheet is closed so the next open
+  // starts fresh on the last 24 hours.
+  useEffect(() => {
+    if (!open) setLookbackHours(DEFAULT_LOOKBACK_HOURS);
+  }, [open]);
 
   // Resolve the current user's name tokens so "Needs your attention" can be
   // filtered to actions actually assigned to *you* (or unassigned), not to
@@ -223,7 +273,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
           const idx = cursor++;
           if (idx >= scopes.length) return;
           const ref = scopes[idx];
-          const { result, error } = await fetchOne(ref);
+          const { result, error } = await fetchOne(ref, lookbackHours);
           if (cancelled) return;
           setPerScope((prev) => {
             const next = prev.slice();
@@ -237,7 +287,7 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, runId]);
+  }, [open, runId, lookbackHours]);
 
   const totalLoading = perScope.filter((p) => p.loading).length;
   const completed = perScope.length - totalLoading;
@@ -322,6 +372,10 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
     }
     const rank = (p: OutstandingAction["priority"]) => (p === "high" ? 0 : p === "low" ? 2 : 1);
     actions.sort((a, b) => rank(a.action.priority) - rank(b.action.priority));
+    overviews.sort((a, b) => {
+      const latest = (items: TimelineEntry[]) => Math.max(0, ...items.map((item) => parseTimelineTimestamp(item.time, item.text)));
+      return latest(b.details) - latest(a.details);
+    });
     return { actions, questions, overviews };
   }, [perScope, myNames]);
 
@@ -332,6 +386,22 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
       const n = normalise(p.result?.summary);
       return n.actions.length === 0 && n.questions.length === 0 && !n.headline;
     });
+
+  // Auto-escalate lookback when every scope is empty (and no blocking errors).
+  useEffect(() => {
+    if (totalLoading > 0) return;
+    if (perScope.length === 0) return;
+    const hasBlockingError = perScope.some(
+      (p) => p.error && p.error !== "no_messages" && p.error !== "digests_missing"
+    );
+    if (hasBlockingError) return;
+    if (!allEmpty) return;
+    const tierHours = GLOBAL_LOOKBACK_OPTIONS.map((o) => o.hours);
+    const idx = tierHours.indexOf(lookbackHours);
+    if (idx >= 0 && idx < tierHours.length - 1) {
+      setLookbackHours(tierHours[idx + 1]);
+    }
+  }, [totalLoading, perScope, allEmpty, lookbackHours]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -353,12 +423,39 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
             Recap all chats
           </SheetTitle>
           <p className="text-sm text-muted-foreground">
-            {scopes.length === 0
-              ? "You're all caught up."
-              : totalLoading > 0
-                ? `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit…`
-                : `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} since your last visit.`}
+            {(() => {
+              const windowLabel =
+                lookbackHours === 24
+                  ? "the last 24 hours"
+                  : lookbackHours % 24 === 0
+                    ? `the last ${lookbackHours / 24} days`
+                    : `the last ${lookbackHours} hours`;
+              if (scopes.length === 0) return "You're all caught up.";
+              if (totalLoading > 0) {
+                return `Summarising ${completed} of ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}…`;
+              }
+              return `Summarised ${scopes.length} thread${scopes.length === 1 ? "" : "s"} from ${windowLabel}.`;
+            })()}
           </p>
+          {scopes.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {GLOBAL_LOOKBACK_OPTIONS.map((opt) => {
+                const active = lookbackHours === opt.hours;
+                return (
+                  <Button
+                    key={opt.hours}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={totalLoading > 0 || active}
+                    onClick={() => setLookbackHours(opt.hours)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </SheetHeader>
 
         <div className="px-4 pt-3 pb-6 overflow-y-auto flex-1 min-h-0">
@@ -428,28 +525,52 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                   <ul className="space-y-3.5">
                     {aggregated.overviews.map(({ scope, headline, details }, i) => (
                       <li key={`${scope.scope_id}-h-${i}`} className="border-l-2 border-border pl-3">
-                        <p className="text-sm font-semibold text-foreground">{scope.name}</p>
+                        <p className="text-base font-semibold text-foreground">{scope.name}</p>
                         {headline && (
-                          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{headline}</p>
+                          <p className="mt-0.5 text-base leading-snug text-muted-foreground">{headline}</p>
                         )}
-                        {details.length > 0 && (
-                          <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
-                            {details.map((d, j) => (
-                              <li
-                                key={`${scope.scope_id}-d-${i}-${j}`}
-                                className="relative -ml-[15px] pl-5"
-                              >
-                                <span className="absolute left-3 top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
-                                {d.time && (
-                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                    {d.time}
-                                  </span>
-                                )}
-                                <span className="block text-sm leading-snug text-foreground">{d.text}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
+                        {details.length > 0 && (() => {
+                          const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                          const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                          const dayGroups: { label: string; ts: number; items: TimelineEntry[] }[] = [];
+                          const idx = new Map<string, number>();
+                          for (const d of details) {
+                            const ts = parseTimelineTimestamp(d.time, d.text);
+                            if (!ts) continue; // drop undated items
+                            const dayKey = Math.floor(ts / 86400000);
+                            const key = `d:${dayKey}`;
+                            const dt = new Date(dayKey * 86400000);
+                            const label = `${WD[dt.getDay()]} ${dt.getDate()} ${MO[dt.getMonth()]}`;
+                            const existing = idx.get(key);
+                            if (existing != null) {
+                              dayGroups[existing].items.push(d);
+                            } else {
+                              idx.set(key, dayGroups.length);
+                              dayGroups.push({ label, ts: dayKey * 86400000, items: [d] });
+                            }
+                          }
+                          dayGroups.sort((a, b) => b.ts - a.ts);
+                          if (dayGroups.length === 0) return null;
+                          return (
+                            <div className="mt-2 space-y-3">
+                              {dayGroups.map((g, gi) => (
+                                <div key={`${scope.scope_id}-g-${i}-${gi}`}>
+                                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</p>
+                                  <ul className="space-y-2 border-l border-border/70 pl-3">
+                                    {g.items.map((d, j) => (
+                                      <li
+                                        key={`${scope.scope_id}-d-${i}-${gi}-${j}`}
+                                        className="text-base leading-snug text-foreground"
+                                      >
+                                        {d.text}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                         <Link
                           to={scope.link}
                           onClick={() => onOpenChange(false)}

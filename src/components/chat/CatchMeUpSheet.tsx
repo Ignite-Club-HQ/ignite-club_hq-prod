@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
-import { stripRecapDatePrefix } from "@/lib/recapFormat";
+import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
 
 /**
  * On native Android WebView, running 20–40 concurrent setInterval-driven
@@ -76,6 +76,11 @@ const LOOKBACK_OPTIONS: { label: string; hours: number }[] = [
   { label: "Last 30 days", hours: 24 * 30 },
 ];
 
+function cleanHeadline(text: string | null | undefined): string {
+  const cleaned = stripRecapDatePrefix(text ?? "").trim();
+  return /nothing actionable|casual chat/i.test(cleaned) ? "" : cleaned;
+}
+
 function formatLookbackLabel(hours: number): string {
   if (hours >= 24 && hours % 24 === 0) {
     const days = hours / 24;
@@ -99,6 +104,11 @@ function formatSinceLabel(iso: string | null | undefined): string | null {
   const weeks = Math.round(days / 7);
   return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
 }
+
+interface RecapTimelineItem { time: string | null; text: string }
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WD_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
@@ -159,34 +169,156 @@ export function CatchMeUpSheet({
   const [showDetailed, setShowDetailed] = useState(false);
   const staticMode = useStaticReveal();
   const loadingStage = useLoadingStage(loading && !result);
+  const [pendingLookback, setPendingLookback] = useState<number | null>(null);
+  useEffect(() => {
+    if (!loading) setPendingLookback(null);
+  }, [loading, result]);
+
+
+  // Increment on each open so Typed/Reveal components remount and replay the
+  // typewriter — critical when the result was cached/pre-fetched, where the
+  // sheet pops open with `result` already populated and would otherwise reuse
+  // the previous mount's "fully typed" state. Also offsets the start of typing
+  // so it doesn't run while the sheet is still sliding in.
+  const [openKey, setOpenKey] = useState(0);
+  useEffect(() => {
+    if (open) setOpenKey((k) => k + 1);
+  }, [open]);
 
   // Normalise to new schema (handle legacy cached summaries from previous version).
   const view = useMemo(() => {
     if (!result) return null;
     const s = result.summary;
-    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix);
+    const clean = (arr?: string[] | null) => (arr ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     const since = {
       today: clean(s.since_last_visit?.today),
       yesterday: clean(s.since_last_visit?.yesterday),
       earlier: clean(s.since_last_visit?.earlier),
     };
+    const sinceTimeline: RecapTimelineItem[] = [];
+    const seenSince = new Set<string>();
+    const pushSince = (arr?: string[] | null) => {
+      for (const raw of arr ?? []) {
+        const parsed = parseRecapTimeTag(raw);
+        const text = parsed.text || stripRecapDatePrefix(raw);
+        if (!text || seenSince.has(text)) continue;
+        if (isVagueRecapBullet(text)) continue;
+        seenSince.add(text);
+        sinceTimeline.push({ time: parsed.time, text });
+      }
+    };
+    pushSince(s.since_last_visit?.today);
+    pushSince(s.since_last_visit?.yesterday);
+    pushSince(s.since_last_visit?.earlier);
     if (!s.since_last_visit) {
-      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix);
+      since.today = (s.important_updates?.slice(0, 3) ?? []).map(stripRecapDatePrefix).filter((t) => !isVagueRecapBullet(t));
     }
-    const actions: OutstandingAction[] = s.outstanding_actions
-      ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const }));
+    // Build the set of dates that appear in the recent activity timeline so
+    // we can drop any "outstanding action" that is anchored to an older date
+    // (the LLM sometimes carries forward asks from the past week).
+    const stripTimeForDate = (t?: string | null) =>
+      (t ?? "").replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
+    const recentDates = new Set<string>();
+    for (const item of sinceTimeline) {
+      const d = stripTimeForDate(item.time);
+      if (d) recentDates.add(d.toLowerCase());
+    }
+    const actions: OutstandingAction[] = (s.outstanding_actions
+      ?? (s.actions_needed ?? []).map((t) => ({ text: t, owner: null, priority: "medium" as const })))
+      .map((a) => {
+        const parsed = parseRecapTimeTag(a.text);
+        return { ...a, text: stripRecapDatePrefix(parsed.text || a.text), _time: parsed.time };
+      })
+      .filter((a) => !isVagueRecapBullet(a.text))
+      .filter((a) => {
+        // Keep actions with no time anchor (assumed current) OR whose date is
+        // part of the recent activity window. Drop anything older.
+        const d = stripTimeForDate((a as { _time?: string | null })._time).toLowerCase();
+        if (!d) return true;
+        if (recentDates.size === 0) return true;
+        return recentDates.has(d);
+      })
+      .map(({ _time, ...rest }: OutstandingAction & { _time?: string | null }) => rest);
     const questions: OutstandingQuestion[] = (s.outstanding_questions ?? s.unanswered_questions ?? []).map(normalizeQuestion);
-    const detailed = s.detailed ?? {
+    const detailedRaw = s.detailed ?? {
       schedule_changes: s.schedule_changes ?? [],
       files_shared: s.files_shared ?? [],
       discussion: s.important_updates ?? [],
     };
+    const detailed = {
+      schedule_changes: clean(detailedRaw.schedule_changes),
+      files_shared: clean(detailedRaw.files_shared),
+      discussion: clean(detailedRaw.discussion),
+    };
     const detailedHasAny =
       detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
-    const sinceHasAny = since.today.length + since.yesterday.length + since.earlier.length > 0;
+
+    // Fallback: when the model didn't return a since_last_visit timeline but
+    // we DO have detailed bullets, synthesize the activity feed from those so
+    // users always see a narrative timeline rather than just Outstanding actions.
+    if (sinceTimeline.length === 0 && detailedHasAny) {
+      const pushDetailed = (arr: string[]) => {
+        for (const raw of arr) {
+          const parsed = parseRecapTimeTag(raw);
+          const text = parsed.text || stripRecapDatePrefix(raw);
+          if (!text || seenSince.has(text)) continue;
+          if (isVagueRecapBullet(text)) continue;
+          seenSince.add(text);
+          sinceTimeline.push({ time: parsed.time, text });
+        }
+      };
+      pushDetailed(detailed.schedule_changes);
+      pushDetailed(detailed.discussion);
+      pushDetailed(detailed.files_shared);
+    }
+
+    // Sort timeline items chronologically (most-recent first) before grouping.
+    sinceTimeline.sort((a, b) => {
+      const ts = (item: RecapTimelineItem): number => {
+        if (item.time) {
+          const d = parseRecapTagDate(item.time);
+          if (d) return d.getTime();
+        }
+        const dm = item.text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
+        if (dm) {
+          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === dm[2].toLowerCase());
+          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
+        }
+        const md = item.text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\b/i);
+        if (md) {
+          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === md[1].toLowerCase());
+          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
+        }
+        const wd = item.text.match(/\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*\b/i);
+        if (wd) {
+          const target = WD_NAMES.findIndex((n) => n.toLowerCase() === wd[1].toLowerCase());
+          if (target >= 0) {
+            const now = new Date();
+            const diff = (now.getDay() - target + 7) % 7;
+            const daysAgo = diff === 0 ? 7 : diff;
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - daysAgo);
+            return d.getTime();
+          }
+        }
+        return 0;
+      };
+      return ts(b) - ts(a);
+    });
+
+    const sinceHasAny = sinceTimeline.length > 0 || since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
-    return { headline: s.headline, since, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
+    return { headline: cleanHeadline(s.headline), since, sinceTimeline, actions, questions, detailed, detailedHasAny, sinceHasAny, anythingAtAll };
   }, [result]);
+
+  // Auto-expand the detailed summary when there is no top-level activity feed
+  // to show, otherwise users only see Outstanding actions with no narrative.
+  useEffect(() => {
+    if (view && view.detailedHasAny && !view.sinceHasAny) {
+      setShowDetailed(true);
+    }
+  }, [view?.detailedHasAny, view?.sinceHasAny]);
 
   // Sequential top-to-bottom typing: each line waits for all previous lines to
   // finish typing before it starts. We compute the cumulative delay per line
@@ -196,8 +328,11 @@ export function CatchMeUpSheet({
   const CHAR_MS = staticMode ? 0 : 16;
   const GAP_MS = staticMode ? 0 : 120;
   const HEADER_REVEAL_MS = staticMode ? 0 : 220;
+  // Sheet slide-in is ~300ms; buffer the first character so typing is visible
+  // even when results were cached and the sheet opens with content ready.
+  const OPEN_BUFFER_MS = staticMode ? 0 : 320;
   const delayRef = useRef(0);
-  delayRef.current = 0;
+  delayRef.current = OPEN_BUFFER_MS;
   const scheduleType = (text: string) => {
     if (staticMode) return 0;
     const start = delayRef.current;
@@ -237,9 +372,33 @@ export function CatchMeUpSheet({
               </span>
             )}
           </SheetTitle>
+          {onLookback && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {LOOKBACK_OPTIONS.map((opt) => {
+                const currentHours = pendingLookback ?? result?.lookback_hours ?? 24;
+                const active = currentHours === opt.hours;
+                return (
+                  <Button
+                    key={opt.hours}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    disabled={loading || active}
+                    onClick={() => {
+                      setPendingLookback(opt.hours);
+                      onLookback(opt.hours);
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </SheetHeader>
 
-        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0">
+
+        <div className="px-4 pt-2 pb-6 overflow-y-auto flex-1 min-h-0" key={openKey}>
           {loading && !result && (
             <LoadingTypewriter stage={loadingStage} staticMode={staticMode} />
           )}
@@ -278,43 +437,148 @@ export function CatchMeUpSheet({
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <Pin className="h-4 w-4 text-primary" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      {(result?.used_fallback || unreadCount === 0) && !result?.lookback_hours ? "Recent activity" : "Since your last visit"}
+                      {result?.lookback_hours
+                        ? `Last ${formatLookbackLabel(result.lookback_hours).replace(/^last\s+/i, "")}`
+                        : (result?.used_fallback || unreadCount === 0)
+                          ? "Recent activity"
+                          : "Since your last visit"}
                     </p>
                   </Reveal>
                   <div className="space-y-4">
-                    {(["today", "yesterday", "earlier"] as const).map((bucket) => {
-                      const items = view.since[bucket];
-                      if (!items || items.length === 0) return null;
-                      const label = bucket === "today" ? "Today" : bucket === "yesterday" ? "Yesterday" : "Earlier this week";
-                      return (
-                        <div key={bucket}>
-                          <Reveal delayMs={scheduleReveal(140)} as="p" className="mb-2 text-sm font-medium text-muted-foreground">
-                            {label}
+                    {(() => {
+                       const stripTime = (t?: string | null) => {
+                         if (!t) return "";
+                         return t.replace(/\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*$/i, "").trim();
+                       };
+                       const WEEKDAYS = "(?:Mon|Tue|Tues|Wed|Wednes|Thu|Thur|Thurs|Fri|Sat|Satur|Sun)(?:day)?";
+                       const MONTHS = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*";
+                       const RELATIVE_WORDS = /^(?:earlier|recent|recently|previously|past|older|today|tonight|this\s+week|this\s+weekend|last\s+week)$/i;
+                       const isMeaningfulDate = (s: string) => {
+                         if (!s) return false;
+                         if (RELATIVE_WORDS.test(s.trim())) return false;
+                         return new RegExp(`${WEEKDAYS}|${MONTHS}|\\d`, "i").test(s);
+                       };
+                       const extractDateFromText = (text: string): string => {
+                         // Pattern: "Monday 8 June" or "Thursday 4 June"
+                         const wkdayDate = new RegExp(`\\b(${WEEKDAYS})\\s+(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(text);
+                         if (wkdayDate) {
+                           const wd = wkdayDate[1][0].toUpperCase() + wkdayDate[1].slice(1).toLowerCase();
+                           const mo = wkdayDate[3][0].toUpperCase() + wkdayDate[3].slice(1).toLowerCase();
+                           return `${wd} ${wkdayDate[2]} ${mo}`;
+                         }
+                         // Pattern: "8 June" / "June 8"
+                         const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(text);
+                         if (dm) return `${dm[1]} ${dm[2][0].toUpperCase() + dm[2].slice(1).toLowerCase()}`;
+                         const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(text);
+                         if (md) return `${md[1][0].toUpperCase() + md[1].slice(1).toLowerCase()} ${md[2]}`;
+                          // Pattern: bare weekday e.g. "Saturday's game" → resolve to nearest date
+                          const wd = new RegExp(`\\b(${WEEKDAYS})(?:'s)?\\b`, "i").exec(text);
+                          if (wd) {
+                            const WD_MAP: Record<string, number> = {
+                              sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, wednes: 3,
+                              thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6, satur: 6,
+                            };
+                            const key = wd[1].toLowerCase().replace(/day$/, "");
+                            const target = WD_MAP[key];
+                            if (target != null) {
+                              const now = new Date();
+                              const today = now.getDay();
+                              // pick nearest occurrence within ±3 days, prefer upcoming on tie
+                              let bestDiff = 99;
+                              let best = 0;
+                              for (let off = -3; off <= 3; off++) {
+                                const d = (today + off + 7) % 7;
+                                if (d === target && Math.abs(off) < bestDiff) {
+                                  bestDiff = Math.abs(off);
+                                  best = off;
+                                }
+                              }
+                              const dt = new Date(now);
+                              dt.setDate(now.getDate() + best);
+                              const wdLabel = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+                              const moLabel = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getMonth()];
+                              return `${wdLabel} ${dt.getDate()} ${moLabel}`;
+                            }
+                            return wd[1][0].toUpperCase() + wd[1].slice(1).toLowerCase();
+                          }
+                          return "";
+                       };
+                        // Resolve a label to a timestamp so we can canonicalise
+                        // variants like "SAT 27 JUN" / "Sat 27 June" / "Saturday 27 June".
+                        const labelToTs = (label: string): number | null => {
+                          if (!label || label === "Earlier") return null;
+                          const d = parseRecapTagDate(label);
+                          if (d) return d.getTime();
+                          const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(label);
+                          if (dm) {
+                            const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(dm[2].slice(0, 3).toLowerCase()));
+                            if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
+                          }
+                          const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(label);
+                          if (md) {
+                            const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(md[1].slice(0, 3).toLowerCase()));
+                            if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
+                          }
+                          return null;
+                        };
+                        const WD_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                        const MO_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                        const canonicalFromTs = (ts: number) => {
+                          const dt = new Date(ts);
+                          return `${WD_SHORT[dt.getDay()]} ${dt.getDate()} ${MO_SHORT[dt.getMonth()]}`;
+                        };
+
+                        const groups: { date: string; ts: number; items: typeof view.sinceTimeline }[] = [];
+                        const indexByKey = new Map<string, number>();
+                        for (const item of view.sinceTimeline) {
+                          const extracted = extractDateFromText(item.text);
+                          const fromTime = stripTime(item.time);
+                          const rawLabel = extracted || (isMeaningfulDate(fromTime) ? fromTime : "");
+                          const ts = labelToTs(rawLabel);
+                          // Skip items we can't anchor to a real day —
+                          // a generic "Earlier" header is unhelpful.
+                          if (ts == null) continue;
+                          const displayLabel = canonicalFromTs(ts);
+                          const key = `ts:${Math.floor(ts / 86400000)}`;
+                          const existing = indexByKey.get(key);
+                          if (existing != null) {
+                            groups[existing].items.push(item);
+                          } else {
+                            indexByKey.set(key, groups.length);
+                            groups.push({ date: displayLabel, ts, items: [item] });
+                          }
+                        }
+                        // Most recent day first.
+                        groups.sort((a, b) => b.ts - a.ts);
+                      return groups.map((g, gi) => (
+                        <div key={`${g.date}-${gi}`}>
+                          <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {g.date}
                           </Reveal>
-                          <div className="space-y-3">
-                            {items.map((item) => {
-                              const delay = scheduleType(item);
+                          <ul className="space-y-3">
+                            {g.items.map((item) => {
+                              const delay = scheduleType(item.text);
                               return (
-                                <div key={item} className="text-base leading-relaxed text-foreground">
-                                  <Typed text={item} delayMs={delay} charMs={CHAR_MS} />
-                                </div>
+                                <li key={`${item.time ?? "item"}-${item.text}`} className="text-base leading-relaxed text-foreground">
+                                  <Typed text={item.text} delayMs={delay} charMs={CHAR_MS} />
+                                </li>
                               );
                             })}
-                          </div>
+                          </ul>
                         </div>
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
                 </section>
               )}
 
-              {/* Outstanding actions */}
+              {/* Action items */}
               {view.actions.length > 0 && (
                 <section className="mb-3 rounded-xl border border-border bg-card p-3">
                   <Reveal delayMs={scheduleReveal()} className="mb-3 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <p className="text-base font-semibold text-muted-foreground">
-                      {view.actions.length === 1 ? "Outstanding action" : "Outstanding actions"}
+                      {view.actions.length === 1 ? "Action item" : "Action items"}
                     </p>
                   </Reveal>
                   <ul className="space-y-4">
@@ -348,7 +612,7 @@ export function CatchMeUpSheet({
 
               {!view.anythingAtAll && (
                 <div className="rounded-xl border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
-                  <Typed text="Nothing actionable in the recent messages — looks like casual chat." delayMs={scheduleType("Nothing actionable in the recent messages — looks like casual chat.")} charMs={CHAR_MS} />
+                  <Typed text="No useful team updates were found in the recent messages." delayMs={scheduleType("No useful team updates were found in the recent messages.")} charMs={CHAR_MS} />
                 </div>
               )}
             </>
@@ -373,24 +637,36 @@ export function CatchMeUpSheet({
                   {showDetailed && (
                     <div className="mt-1 divide-y divide-border/60 rounded-xl border border-border bg-card">
                       {view.detailed.schedule_changes.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<CalendarClock className="h-4 w-4 text-amber-500" />}
                           label="Schedule changes"
                           items={view.detailed.schedule_changes}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.files_shared.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<Paperclip className="h-4 w-4 text-violet-500" />}
                           label="Files & photos shared"
                           items={view.detailed.files_shared}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                       {view.detailed.discussion.length > 0 && (
-                        <DetailBlock
+                      <DetailBlock
                           icon={<MessageSquare className="h-4 w-4 text-blue-500" />}
                           label="Other discussion"
                           items={view.detailed.discussion}
+                          scheduleType={scheduleType}
+                          scheduleReveal={scheduleReveal}
+                          charMs={CHAR_MS}
+                          disableAnimation
                         />
                       )}
                     </div>
@@ -432,33 +708,9 @@ export function CatchMeUpSheet({
                 </Button>
               </div>
 
-              {onLookback && (
-                <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
-                  <p className="text-xs font-medium text-foreground">Look further back</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Summarise a longer time window of this chat.
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {LOOKBACK_OPTIONS.map((opt) => {
-                      const active = result!.lookback_hours === opt.hours;
-                      return (
-                        <Button
-                          key={opt.hours}
-                          size="sm"
-                          variant={active ? "default" : "outline"}
-                          className="h-7 text-xs"
-                          disabled={loading || active}
-                          onClick={() => onLookback(opt.hours)}
-                        >
-                          {opt.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </>
           )}
+
 
           <p className="mt-4 text-xs text-muted-foreground/70">
             AI summaries can make mistakes. Check key details before acting.
@@ -469,23 +721,62 @@ export function CatchMeUpSheet({
   );
 }
 
-function DetailBlock({ icon, label, items }: { icon: React.ReactNode; label: string; items: string[] }) {
+function DetailBlock({
+  icon,
+  label,
+  items,
+  scheduleType,
+  scheduleReveal,
+  charMs,
+  disableAnimation = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: string[];
+  scheduleType: (text: string) => number;
+  scheduleReveal: (ms?: number) => number;
+  charMs: number;
+  disableAnimation?: boolean;
+}) {
+  if (disableAnimation) {
+    return (
+      <div className="px-3 py-3">
+        <div className="mb-2 flex items-center gap-2">
+          {icon}
+          <p className="text-base font-semibold text-muted-foreground">{label}</p>
+        </div>
+        {items.length === 1 ? (
+          <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        ) : (
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="text-base leading-relaxed text-foreground">
+                {item}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="px-3 py-3">
-      <div className="mb-2 flex items-center gap-2">
+      <Reveal delayMs={scheduleReveal()} className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-base font-semibold text-muted-foreground">{label}</p>
-      </div>
+      </Reveal>
       {items.length === 1 ? (
-        <p className="text-base leading-relaxed text-foreground">{items[0]}</p>
+        <p className="text-base leading-relaxed text-foreground">
+          <Typed text={items[0]} delayMs={scheduleType(items[0])} charMs={charMs} />
+        </p>
       ) : (
-      <div className="space-y-3">
-        {items.map((item, i) => (
-          <div key={i} className="text-base leading-relaxed text-foreground">
-            {item}
-          </div>
-        ))}
-      </div>
+        <div className="space-y-3">
+          {items.map((item, i) => (
+            <div key={i} className="text-base leading-relaxed text-foreground">
+              <Typed text={item} delayMs={scheduleType(item)} charMs={charMs} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

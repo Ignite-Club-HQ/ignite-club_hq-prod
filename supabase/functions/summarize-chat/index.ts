@@ -29,6 +29,94 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
+const RECAP_VERSION = "recap-v13";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatTimeOfDay(ts: Date): string {
+  let h = ts.getHours();
+  const m = ts.getMinutes();
+  const suffix = h >= 12 ? "pm" : "am";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2, "0")}${suffix}`;
+}
+
+function localTag(createdAt: string): string {
+  const ts = new Date(createdAt);
+  if (Number.isNaN(ts.getTime())) return "";
+  return `[${WEEKDAYS[ts.getDay()]} ${ts.getDate()} ${MONTHS[ts.getMonth()]} ${formatTimeOfDay(ts)}] `;
+}
+
+function localDayLabel(createdAt: string): string {
+  const ts = new Date(createdAt);
+  if (Number.isNaN(ts.getTime())) return "training";
+  return `${WEEKDAYS[ts.getDay()]} ${ts.getDate()} ${MONTHS[ts.getMonth()]}`;
+}
+
+function extractLine(text: string, label: RegExp): string | null {
+  const line = text.split(/\n+/).find((part) => label.test(part));
+  if (!line) return null;
+  return line.replace(label, "").replace(/^\s*[:\-–]\s*/, "").trim() || null;
+}
+
+function localBulletForMessage(message: any): string | null {
+  const raw = String(message?.text || "").replace(/\r/g, "").trim();
+  const compact = raw.replace(/\s+/g, " ").trim();
+  const lower = compact.toLowerCase();
+  const tag = localTag(message?.created_at as string);
+  // Image-only/gallery-card messages have no visual context in the transcript.
+  // Do not invent a generic "photo was shared" recap bullet; it adds no value
+  // unless surrounding text describes what the media is of.
+  if (!compact && message?.image_url) return null;
+  if (/^\[gallery(?:prompt)?:/i.test(compact)) return null;
+  if (/happy birthday|haha thanks|in the zone/i.test(compact)) return null;
+
+  if (/\bevent cancelled\b|\bgame cancelled\b/i.test(compact)) {
+    const reason = compact.match(/cancelled(?:\s+due\s+to|:)?\s*([^\n.]+)/i)?.[1]?.trim();
+    return `${tag}A game or event was cancelled${reason ? ` because of ${reason}` : ""}.`;
+  }
+
+  if (/\b(?:game|match|kick[- ]?off|opponent|rostered role|subs manager|game steward|snacks)\b/i.test(compact)) {
+    const opponent = compact.match(/([A-Z][\w'’ -]+\s+v(?:s|ersus)?\.?\s+[A-Z][\w'’ -]+)/i)?.[1]?.trim() ?? null;
+    const kickoff = extractLine(raw, /^\s*Kick[- ]?off\s*/i) ?? compact.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i)?.[0] ?? null;
+    const location = extractLine(raw, /^\s*Location\s*/i);
+    const date = compact.match(/\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day)?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i)?.[0]
+      ?? compact.match(/\bSaturday\s+\d{1,2}\s+June\b/i)?.[0]
+      ?? null;
+    const parts = [opponent ? `opponent ${opponent}` : null, date, kickoff ? `kick-off ${kickoff.replace(/\s+/g, "")}` : null, location ? `location ${location}` : null].filter(Boolean);
+    if (parts.length) return `${tag}Game details were shared, including ${parts.join(", ")}.`;
+    return `${tag}A fixture update was shared with game details and roster information.`;
+  }
+
+  if (/\b(?:won'?t|wont|can't|cannot|unavailable|out)\b.*\btraining\b/i.test(compact) || /\btraining\b.*\b(?:won'?t|wont|can't|cannot|unavailable|out)\b/i.test(compact)) {
+    const name = compact.match(/\b([A-Z][a-z'’.-]{2,})\s+(?:won'?t|wont|can't|cannot|is unavailable|out)\b/)?.[1] ?? "A player";
+    return `${tag}${name} is unavailable for ${localDayLabel(message?.created_at as string)} training.`;
+  }
+
+  if (/\bvolunteer\b|\bhappy to help\b|\bhelp out\b/i.test(compact)) {
+    if (/keeper|goalkeeper/i.test(compact)) return `${tag}A volunteer was requested to help with goalkeeper practice at training.`;
+    return `${tag}A parent or member offered to help with a team task.`;
+  }
+
+  return null;
+}
+
+function localFallbackBullets(messages: any[]): string[] {
+  const bullets: string[] = [];
+  const seen = new Set<string>();
+  for (const message of messages.slice().reverse()) {
+    const bullet = localBulletForMessage(message);
+    if (!bullet) continue;
+    const key = bullet.replace(/^\[[^\]]+\]\s*/, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    bullets.unshift(bullet);
+    if (bullets.length >= 6) break;
+  }
+  return bullets;
+}
 
 
 // Sensitive-topic blocklist — if the recent transcript hits any of these we
@@ -80,40 +168,52 @@ async function getClubIdForScope(
   return null; // direct
 }
 
-const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand what changed, what needs attention and what remains unresolved in under 15 seconds.
+const SYSTEM_PROMPT = `You are an AI Club Secretary summarising sports-club chat threads for a busy parent, player, coach or committee member. Your goal is to let them understand the useful recent activity in under 15 seconds — not only what is actionable.
 
-You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates by when they happened RELATIVE TO NOW: "today" (since 00:00 local today), "yesterday", "earlier" (older than yesterday but still within the window).
+You are given a transcript with timestamps. The user message will tell you the cutoff time for "their last visit". Group new updates into the legacy JSON buckets by send date: current-date bucket, previous-date bucket, and earlier bucket. The bucket names are schema keys only and must never appear in user-visible strings.
 
-Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Ignore casual banter, jokes, emoji-only messages and greetings.
+Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Also include useful informational posts such as match reminders, duty rosters, arrival times, venues, player availability and coach updates even when no action is required. You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters; never infer image content from surrounding replies or thanks. Never output generic lines like "a photo was shared in the team chat". Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
+ACTION RESOLUTION (critical): For every candidate action, scan ALL later messages in the transcript for resolution. Mark status "done" if any later message confirms the action is completed, cancelled, no longer needed, the volunteer/owner has stepped up ("I can do it", "I'll bring them", "Sorted", "Done", "Covered", "Got it", "Booked", "Confirmed", "Cancelled", "No longer needed", "All good"), or the event/deadline it relates to has already passed before NOW. Only mark status "open" if NOBODY later resolved it AND the deadline has not passed. You MUST set the status field on every action. Be conservative: when in doubt that something is still open, mark it "done" so the user is not nagged with stale items.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
   "headline": string, // <=110 chars, one plain-text sentence describing the single most important thing the user needs to know
   "since_last_visit": {
-    "today": string[],     // max 8 bullets, most important first
-    "yesterday": string[], // max 5 bullets
-    "earlier": string[]    // max 5 bullets ("Earlier this week")
+    "today": string[],     // legacy schema key for messages sent on the current date; max 8 bullets
+    "yesterday": string[], // legacy schema key for messages sent on the previous date; max 5 bullets
+    "earlier": string[]    // legacy schema key for older messages; max 5 bullets
   },
   "outstanding_actions": Array<{
     "text": string,                        // <=200 chars, the action itself
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
-    "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
-  }>, // max 5, sorted high -> low priority
+    "priority": "high" | "medium" | "low", // high = time-sensitive / affects upcoming event; low = nice to do
+    "status": "open" | "done"              // REQUIRED. "done" if resolved/cancelled/expired in transcript; "open" otherwise
+  }>, // max 5 OPEN actions, sorted high -> low priority. You may include done items — server will filter them out.
   "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
     "schedule_changes": string[], // max 8 bullets — training/match time, date, location changes
-    "files_shared": string[],     // max 8 bullets — photos / docs shared, with sender if useful
+    "files_shared": string[],     // max 8 bullets — only photos/docs with meaningful described content; never generic media-share notices
     "discussion": string[]        // max 10 bullets — other notable discussion, decisions, questions raised, opinions, suggestions
   }
 }
 
-Across "since_last_visit.today/yesterday/earlier" combined, return 6-12 bullets total — fewer only if the chat genuinely had less activity. Be DETAILED: each bullet should carry the specific fact (who, what, when, where, why) — not a vague headline. If something was asked but not answered, state it as a bullet ("Coach asked who can ref the U10 game Sat — no reply yet") rather than dropping it. Every array and object MUST exist (use [] or null). Keep bullets <=220 chars. Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
+Across "since_last_visit.today/yesterday/earlier" combined, return 4-9 bullets total — fewer only if the chat genuinely had less useful activity. NEVER return an empty recap while the transcript contains fixture details, training/availability updates, rosters or coach/club information. SYNTHESISE, DO NOT TRANSCRIBE: combine related messages into one fact and never output speaker-prefixed lines like "Dan: ..." or message-like replies such as "Yep I can", "Also interested", "Sorry I can't", or "Could someone please...". Each bullet should explain the outcome or state of play (who volunteered, what changed, who is unavailable, what still needs a response, or what information was shared) rather than repeating what was typed. If something was asked but not answered, state it as a fact ("A ref is still needed for the U10 game Sat") rather than quoting the question. Do not include photo/video/file bullets unless the uploader's own message text explicitly says what was shared (e.g. "photos of the trophy presentation" is useful; "a photo was shared in the team chat" and "photos of kids celebrating" inferred from thanks/replies are forbidden). Every array and object MUST exist (use [] or null). Preserve concrete facts when stated in the transcript: who is doing what (referee, coach, volunteer, driver), opponent, kick-off time, venue/pitch, date, score, deadline. Names ARE allowed when the person owns a role, decision, action or assignment (e.g. "Sam is reffing the U10 game Sat 27 at 10am"). Only omit names for generic chat. Do not invent details.
 
-TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a short bracketed time tag derived from when the underlying message was sent (using NOW given in the user message as the anchor). Format rules: today => "[9:30am]" or "[9am]"; yesterday => "[Yest 6pm]"; within the last 7 days => "[Mon 6pm]"; older => "[21 Jun 6pm]". Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+PARAPHRASE ONLY (critical): Never copy chat sentences verbatim, never use quotation marks around message text, and never paste internal route paths like "/events/abc-123", "/messages/...", "/clubs/...", URLs, www links, or raw UUIDs into a bullet. If a message is a long copy/paste, rewrite it into one concise parent-friendly sentence ("Training was cancelled due to rain"; "Event details were shared"). Use neutral parent-facing language, not system wording like "View event", "Open link", "Tap here", or "Notification sent".
 
-RELATIVE TIME RESOLUTION (critical): Words like "today", "tonight", "tomorrow", "yesterday", "this morning", "next week" inside the transcript were written from the SENDER's point in time, not NOW. You MUST re-anchor them against NOW (the timestamp given in the user message). Example: a message sent yesterday saying "training tomorrow at 6pm" — if "tomorrow" relative to that sender is actually TODAY relative to NOW, write the bullet as "training today at 6pm" (or with the weekday/date). Never copy a relative time word verbatim if it would mislead the reader at NOW. When in doubt, use the weekday + date (e.g. "Sat 27 Jun") instead of a relative word. Output JSON only — no prose, no markdown.`;
+EVENT FACT EXTRACTION: When a message announces an event, distil it into the useful facts only — date/weekday, cancellation status, kick-off time, opponent, location, arrival time. Drop everything else from that message.
+
+BULLET LENGTH (hard cap): EVERY bullet, headline, action and detail string MUST be <=140 characters (after the bracketed timeline tag). Aim for ONE short sentence per day in since_last_visit.today/yesterday/earlier — if multiple things happened on the same day, combine them into one tight sentence or pick the single most useful fact.
+
+BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 10-22 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
+
+USE REAL NAMES (critical): When the transcript identifies WHO said or did something, you MUST use that person's actual name from the speaker label or @mention. NEVER substitute vague placeholders like "someone", "a player", "a parent", "one member", "another member", "a coach", "a volunteer", or "a club member" when a name is available in the transcript. Examples: write "Jas volunteered to be linesperson for Friday's match" (not "Someone has volunteered..."), "Dan asked for a linesperson for Friday's match" (not "A linesperson was requested"), "Bec is interested in the holiday tournament pending dates" (not "A player has expressed interest"). Only fall back to a generic descriptor if the transcript truly does not identify the speaker.
+
+
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag derived from when the underlying message was sent. Format: "[Sat 27 Jun 9:30am]" or "[Wed 2 Jul 6pm]". Always include weekday, day number, month, and time. Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. NEVER use relative tags such as "[Today]", "[Yest]", "[Yesterday]", "[Tomorrow]", or a bare "[9:30am]". Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+
+EVENT DATE ACCURACY (critical): Inside every user-visible string (headline, bullets, actions, details), NEVER use "today", "tonight", "tomorrow", "yesterday", "this morning", "this afternoon", "this evening", "this week", or "next week". Always use an explicit weekday/date when an event/training/match date is clear (e.g. "Wednesday's training", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's message timestamp — resolve "today/tomorrow/yesterday" against the timestamp on that specific transcript line, then write the resulting concrete weekday/date. NOW is only for knowing the generation time; do not use NOW to interpret a sender's relative word. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -161,6 +261,9 @@ serve(async (req) => {
     const body = (await req.json()) as Body;
     const { scope_type, scope_id, force, last_opened_at, lookback_hours } = body || ({} as Body);
     const validLookback = typeof lookback_hours === "number" && lookback_hours > 0 && lookback_hours <= 24 * 90;
+    // The client sends lookback_hours=24 by default — treat that as the
+    // standard "default" window so it still benefits from cache and TTL.
+    const isDefaultLookback = validLookback && (lookback_hours as number) === 24;
     const lookbackCutoffIso = validLookback
       ? new Date(Date.now() - (lookback_hours as number) * 3600 * 1000).toISOString()
       : null;
@@ -279,19 +382,21 @@ serve(async (req) => {
 
     const lastMessageId = messages[messages.length - 1].id as string;
 
-    // Cache hit? (respect TTL) — skip cache entirely when user asked for a
-    // bespoke time window so we don't return a narrower cached recap.
-    if (!force && !validLookback) {
+    // Cache hit? (respect TTL) — skip cache only when the user asked for a
+    // bespoke (non-default) time window so we don't return a narrower cached
+    // recap. The default 24h call still uses the cache.
+    if (!force && (!validLookback || isDefaultLookback)) {
       const { data: cached } = await admin
         .from("chat_summaries")
-        .select("summary, message_count, last_message_id, created_at, expires_at")
+        .select("summary, message_count, last_message_id, created_at, expires_at, model")
         .eq("user_id", user.id)
         .eq("scope_type", scope_type)
         .eq("scope_id", scope_id)
         .eq("last_message_id", lastMessageId)
         .maybeSingle();
       const stillFresh = cached?.expires_at ? new Date(cached.expires_at as string).getTime() > Date.now() : false;
-      if (cached?.summary && stillFresh) {
+      const cacheVersionOk = typeof cached?.model === "string" && cached.model.includes(RECAP_VERSION);
+      if (cached?.summary && stillFresh && cacheVersionOk) {
         return new Response(
           JSON.stringify({
             summary: cached.summary,
@@ -346,6 +451,8 @@ serve(async (req) => {
 
     // Additionally pseudonymise CHILD names belonging to parents in this club.
     // Children are minors — never allow their real names to leave our infra.
+    // Rehydrate to "<ParentFirst>'s child" so users see meaningful context
+    // instead of a leaked "Child N" pseudonym.
     try {
       const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
       if (clubIdForChildren) {
@@ -355,26 +462,34 @@ serve(async (req) => {
           .eq("club_id", clubIdForChildren);
         const parentIds = Array.from(new Set((clubParents || []).map((r: any) => r.user_id).filter(Boolean)));
         if (parentIds.length) {
+          const { data: parentProfiles } = await admin
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", parentIds);
+          const parentNameById = new Map<string, string>();
+          (parentProfiles || []).forEach((p: any) =>
+            parentNameById.set(p.id, (p.display_name || "").trim()),
+          );
           const { data: kids } = await admin
             .from("children")
-            .select("name")
+            .select("name, parent_id")
             .in("parent_id", parentIds);
           (kids || []).forEach((k: any) => {
             const n = (k?.name || "").trim();
-            if (n) {
-              // Use a distinct "Child N" label so the model knows it's a minor.
-              const key = n;
-              if (!pseudoByRealName.has(key)) {
-                personCounter += 1;
-                const p = `Child ${personCounter}`;
-                pseudoByRealName.set(key, p);
-                realByPseudo.set(p, key);
-              }
-              // Also pseudonymise first-name-only mentions
-              const first = n.split(/\s+/)[0];
-              if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
-                pseudoByRealName.set(first, pseudoByRealName.get(key)!);
-              }
+            if (!n) return;
+            const parentFull = parentNameById.get(k.parent_id) || "";
+            const parentFirst = parentFull.split(/\s+/)[0] || "";
+            const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
+            const key = n;
+            if (!pseudoByRealName.has(key)) {
+              personCounter += 1;
+              const p = `Child ${personCounter}`;
+              pseudoByRealName.set(key, p);
+              realByPseudo.set(p, descriptor);
+            }
+            const first = n.split(/\s+/)[0];
+            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+              pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
         }
@@ -455,8 +570,7 @@ serve(async (req) => {
         const speaker = getPseudo(real);
         const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
-        const imgNote = m.image_url ? " [shared a photo]" : "";
-        return { line: `[${ts}] ${speaker}: ${t}${imgNote}`, keep: !!(t || m.image_url) };
+        return { line: `[${ts}] ${speaker}: ${t}`, keep: !!t };
       })
       .filter((x) => x.keep)
       .map((x) => x.line)
@@ -472,10 +586,69 @@ serve(async (req) => {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
         out = out.replace(re, realByPseudo.get(p)!);
       }
+      // Safety net: any "Child N" / "Person N" pseudonym that escaped rehydration
+      // (e.g. model invented an unseen number) becomes a neutral descriptor.
+      out = out.replace(/\bChild\s+\d+\b/g, "a child");
+      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
       return out;
     };
+    const stripSpeakerPrefix = (s: string): string => s
+      .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
+      .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+      .trim();
+    const isBareMediaShare = (s: string): boolean => {
+      const t = stripSpeakerPrefix(s)
+        .replace(/^\[[^\]]{1,40}\]\s*/, "")
+        .replace(/^[•\-*]\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!/\b(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b.{0,50}\b(?:shared|posted|uploaded|added|sent)\b/i.test(t)) return false;
+      const descriptive = t
+        .replace(/\b(?:a|an|some|the)?\s*(?:photo|photos|image|images|picture|pictures|video|videos|file|files|document|documents)\b/gi, " ")
+        .replace(/\b(?:is|are|was|were|has|have|been|shared|posted|uploaded|added|sent|in|to|on|the|a|an|of|from|via|with|into|team|group|club|chat|thread|message|conversation|recent|activity)\b/gi, " ")
+        .replace(/[^A-Za-z\s]+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      return descriptive.split(/\s+/).filter((w) => w.length > 2).length === 0;
+    };
+    const isInferredMediaDescription = (s: string): boolean => {
+      const t = stripSpeakerPrefix(s)
+        .replace(/^\[[^\]]{1,40}\]\s*/, "")
+        .replace(/^[•\-*]\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return /\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\b.{0,80}\b(?:shared|posted|uploaded|added|sent|sharing|posting|uploading|adding|sending)\b.{0,80}\b(?:photo|photos|image|images|picture|pictures|video|videos)\b/i.test(t)
+        || /\b(?:photo|photos|image|images|picture|pictures|video|videos)\b.{0,80}\b(?:thanks?|thank you|thanked|cheers|appreciate(?:d)?)\b/i.test(t);
+    };
+    const sanitizeOutputBullet = (s: string): string => {
+      let out = s;
+      out = out.replace(/https?:\/\/\S+/gi, "");
+      out = out.replace(/\bwww\.[^\s)]+/gi, "");
+      out = out.replace(/\/(?:events?|messages?|chats?|clubs?|teams?|groups?|threads?|broadcasts?|polls?|files?|vault|photos?)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?/gi, "");
+      out = out.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "");
+      out = out.replace(/\b(?:view|open|see|tap|click)\s+(?:event|details|link|here|message|thread)\b[^.!?]*/gi, "");
+      out = out.replace(/[“”„‟«»]/g, "");
+      out = out.replace(/(^|\s)"([^"]{0,400})"(?=\s|[.,;!?]|$)/g, (_m, lead, inner) => `${lead}${inner}`);
+      out = out.replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+      out = out.replace(/[\s,;:–-]+$/g, "").trim();
+      // Hard cap visible bullet at 140 chars (keep any leading [tag] outside the cap).
+      const tagMatch = out.match(/^(\[[^\]]{1,40}\]\s*)/);
+      const tag = tagMatch?.[1] ?? "";
+      const body = tag ? out.slice(tag.length) : out;
+      if (body.length > 140) {
+        const slice = body.slice(0, 140);
+        const lastSpace = slice.lastIndexOf(" ");
+        const truncated = (lastSpace > 80 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:–-]+$/g, "") + "…";
+        out = `${tag}${truncated}`;
+      }
+      return out;
+    };
+    const cleanBullet = (s: string): string => {
+      const cleaned = sanitizeOutputBullet(stripSpeakerPrefix(rehydrate(s)).replace(/\s+/g, " ").trim());
+      return isBareMediaShare(cleaned) || isInferredMediaDescription(cleaned) ? "" : cleaned;
+    };
     const rehydrateArr = (arr: any): string[] =>
-      Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? rehydrate(x) : "")) : [];
+      Array.isArray(arr) ? arr.map((x) => (typeof x === "string" ? cleanBullet(x) : "")).filter(Boolean) : [];
     const rehydrateQuestions = (arr: any): Array<{ text: string; date?: string }> => {
       if (!Array.isArray(arr)) return [];
       return arr.map((x: any) => {
@@ -488,7 +661,7 @@ serve(async (req) => {
 
     const nowIso = new Date().toISOString();
     const lastVisitLine = validLookback
-      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window — group by today / yesterday / earlier relative to now.`
+      ? `The user explicitly asked for a recap of the last ${lookback_hours} hours (since ${lookbackCutoffIso}). Treat the whole transcript as the relevant window. Use the legacy today/yesterday/earlier JSON keys only as internal buckets; do not write those words in any user-visible text.`
       : last_opened_at
         ? `The user last opened this thread at ${new Date(last_opened_at).toISOString()}. Treat anything newer than that as "since their last visit".`
         : `The user has not opened this thread recently. Treat the whole transcript as "since their last visit".`;
@@ -504,7 +677,7 @@ serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.3, maxOutputTokens: 700 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0.25, maxOutputTokens: 1600 },
         }),
       },
     );
@@ -531,18 +704,21 @@ serve(async (req) => {
     const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
       (Array.isArray(parsed.outstanding_actions) ? parsed.outstanding_actions : [])
         .map((a: any) => {
-          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const };
+          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const, status: "open" as const };
           const text = typeof a?.text === "string" ? rehydrate(a.text) : "";
           const owner = typeof a?.owner === "string" && a.owner.trim() ? rehydrate(a.owner.trim()) : null;
           const p = (a?.priority === "high" || a?.priority === "low") ? a.priority : "medium";
-          return { text, owner, priority: p as "high" | "medium" | "low" };
+          const status = a?.status === "done" ? "done" : "open";
+          return { text, owner, priority: p as "high" | "medium" | "low", status };
         })
-        .filter((a: any) => a.text)
+        .filter((a: any) => a.text && a.status !== "done")
+        .map(({ status: _s, ...rest }: any) => rest)
         .sort((a: any, b: any) => priorityRank[a.priority] - priorityRank[b.priority])
         .slice(0, 5);
 
     const detailedRaw = (parsed.detailed && typeof parsed.detailed === "object") ? parsed.detailed : {};
 
+    const localBullets = localFallbackBullets(messages);
     const summary = {
       headline: typeof parsed.headline === "string" ? rehydrate(parsed.headline) : "",
       since_last_visit: {
@@ -560,9 +736,23 @@ serve(async (req) => {
       },
     };
 
-    // Upsert cache — skip for explicit lookback windows so they don't pollute
-    // the default "since last visit" cache entry.
-    if (!validLookback) {
+    const hasUsefulSummary =
+      summary.since_last_visit.today.length +
+      summary.since_last_visit.yesterday.length +
+      summary.since_last_visit.earlier.length +
+      summary.outstanding_actions.length +
+      summary.detailed.schedule_changes.length +
+      summary.detailed.files_shared.length +
+      summary.detailed.discussion.length > 0;
+    if (!hasUsefulSummary && localBullets.length) {
+      summary.headline = "Useful recent team updates were shared in the chat.";
+      summary.since_last_visit.earlier = localBullets.slice(0, 6);
+      summary.detailed.discussion = localBullets.slice(0, 8);
+    }
+
+    // Upsert cache — skip for explicit non-default lookback windows so they
+    // don't pollute the default cache entry. Default 24h windows are cached.
+    if (!validLookback || isDefaultLookback) {
       await admin
         .from("chat_summaries")
         .upsert(
@@ -573,7 +763,7 @@ serve(async (req) => {
             last_message_id: lastMessageId,
             message_count: messages.length,
             summary,
-            model: "gemini-2.5-flash-lite",
+            model: `gemini-2.5-flash-lite:${RECAP_VERSION}`,
             expires_at: new Date(Date.now() + SUMMARY_TTL_HOURS * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: "user_id,scope_type,scope_id,last_message_id" },
