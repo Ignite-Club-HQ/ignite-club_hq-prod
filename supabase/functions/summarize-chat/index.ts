@@ -449,12 +449,44 @@ serve(async (req) => {
     // Pre-seed with author display names so mentions in body match the speaker label.
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
+    // Build a set of "protected" tokens that must NEVER be pseudonymised —
+    // sponsor / business names belonging to this club. Without this guard, a
+    // child or adult first name that happens to overlap (or that the model
+    // later mis-attributes as "<Person>'s child") leaks into payment lines
+    // like "Renee's child paid $500" when the real payer is "Pimento Pizza".
+    const protectedTokens = new Set<string>(); // lowercased single words
+    const protectedPhrases: string[] = [];     // full sponsor display names
+    const clubIdForScope = await getClubIdForScope(admin, scope_type, scope_id);
+    try {
+      if (clubIdForScope) {
+        const { data: sponsorRows } = await admin
+          .from("sponsors")
+          .select("name")
+          .eq("club_id", clubIdForScope);
+        (sponsorRows || []).forEach((s: any) => {
+          const n = (s?.name || "").trim();
+          if (!n) return;
+          protectedPhrases.push(n);
+          n.split(/\s+/).forEach((w: string) => {
+            const t = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (t.length >= 2) protectedTokens.add(t);
+          });
+        });
+      }
+    } catch (e) {
+      console.error("[summarize-chat] sponsor protection seeding failed", e);
+    }
+    const isProtected = (name: string): boolean => {
+      const t = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return !!t && protectedTokens.has(t);
+    };
+
     // Additionally pseudonymise CHILD names belonging to parents in this club.
     // Children are minors — never allow their real names to leave our infra.
     // Rehydrate to "<ParentFirst>'s child" so users see meaningful context
     // instead of a leaked "Child N" pseudonym.
     try {
-      const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
+      const clubIdForChildren = clubIdForScope;
       if (clubIdForChildren) {
         const { data: clubParents } = await admin
           .from("user_roles")
@@ -481,14 +513,16 @@ serve(async (req) => {
             const parentFirst = parentFull.split(/\s+/)[0] || "";
             const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
             const key = n;
-            if (!pseudoByRealName.has(key)) {
+            if (!pseudoByRealName.has(key) && !isProtected(key)) {
               personCounter += 1;
               const p = `Child ${personCounter}`;
               pseudoByRealName.set(key, p);
               realByPseudo.set(p, descriptor);
             }
             const first = n.split(/\s+/)[0];
-            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+            // Require >= 4 chars and not a sponsor token to avoid swapping
+            // short common first names ("Pip", "Bea") inside unrelated text.
+            if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(key)) {
               pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
@@ -499,13 +533,15 @@ serve(async (req) => {
     }
 
     // Also pseudonymise FIRST names of every known adult so "Hi Sarah" gets caught
-    // even when the message uses only the first name.
+    // even when the message uses only the first name. Skip 1-3 letter names and
+    // sponsor tokens to avoid collisions with everyday words / business names.
     Array.from(nameMap.values()).forEach((full) => {
       const first = (full || "").trim().split(/\s+/)[0];
-      if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+      if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(full)) {
         pseudoByRealName.set(first, pseudoByRealName.get(full)!);
       }
     });
+
 
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Strip identifying PII outright before sending to Gemini.
