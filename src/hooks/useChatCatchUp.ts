@@ -89,6 +89,8 @@ const STALE_HOURS = 24;
  * Users can pick deeper windows (7d / 30d) from the sheet on demand.
  */
 export const DEFAULT_LOOKBACK_HOURS = 24;
+/** Progressive escalation tiers used when a lookback returns no useful content. */
+const AUTO_LOOKBACK_TIERS = [DEFAULT_LOOKBACK_HOURS, 24 * 7, 24 * 30];
 // Re-opens within this window are treated as the same "visit" — we keep the
 // previous-visit timestamp so Chat Recap still has a meaningful cutoff.
 const SAME_VISIT_MS = 30 * 60 * 1000;
