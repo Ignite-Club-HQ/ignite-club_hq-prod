@@ -29,7 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v13";
+const RECAP_VERSION = "recap-v14";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -209,6 +209,9 @@ BULLET LENGTH (hard cap): EVERY bullet, headline, action and detail string MUST 
 BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 10-22 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
 
 USE REAL NAMES (critical): When the transcript identifies WHO said or did something, you MUST use that person's actual name from the speaker label or @mention. NEVER substitute vague placeholders like "someone", "a player", "a parent", "one member", "another member", "a coach", "a volunteer", or "a club member" when a name is available in the transcript. Examples: write "Jas volunteered to be linesperson for Friday's match" (not "Someone has volunteered..."), "Dan asked for a linesperson for Friday's match" (not "A linesperson was requested"), "Bec is interested in the holiday tournament pending dates" (not "A player has expressed interest"). Only fall back to a generic descriptor if the transcript truly does not identify the speaker.
+
+PAYER ATTRIBUTION (critical): For any mention of money, payments, donations, sponsorship, fees, fundraising or invoices, the payer/donor MUST be the literal name written in the message (e.g. a business, sponsor or person name like "Pimento Pizza"). NEVER attribute a payment, donation or sponsorship to "<Person>'s child", "a child", a parent, or the message author unless the transcript explicitly says so. If the payer name is not present in the transcript, write "A sponsor" rather than guessing a person.
+
 
 
 TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag derived from when the underlying message was sent. Format: "[Sat 27 Jun 9:30am]" or "[Wed 2 Jul 6pm]". Always include weekday, day number, month, and time. Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. NEVER use relative tags such as "[Today]", "[Yest]", "[Yesterday]", "[Tomorrow]", or a bare "[9:30am]". Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
@@ -449,12 +452,44 @@ serve(async (req) => {
     // Pre-seed with author display names so mentions in body match the speaker label.
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
+    // Build a set of "protected" tokens that must NEVER be pseudonymised —
+    // sponsor / business names belonging to this club. Without this guard, a
+    // child or adult first name that happens to overlap (or that the model
+    // later mis-attributes as "<Person>'s child") leaks into payment lines
+    // like "Renee's child paid $500" when the real payer is "Pimento Pizza".
+    const protectedTokens = new Set<string>(); // lowercased single words
+    const protectedPhrases: string[] = [];     // full sponsor display names
+    const clubIdForScope = await getClubIdForScope(admin, scope_type, scope_id);
+    try {
+      if (clubIdForScope) {
+        const { data: sponsorRows } = await admin
+          .from("sponsors")
+          .select("name")
+          .eq("club_id", clubIdForScope);
+        (sponsorRows || []).forEach((s: any) => {
+          const n = (s?.name || "").trim();
+          if (!n) return;
+          protectedPhrases.push(n);
+          n.split(/\s+/).forEach((w: string) => {
+            const t = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (t.length >= 2) protectedTokens.add(t);
+          });
+        });
+      }
+    } catch (e) {
+      console.error("[summarize-chat] sponsor protection seeding failed", e);
+    }
+    const isProtected = (name: string): boolean => {
+      const t = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return !!t && protectedTokens.has(t);
+    };
+
     // Additionally pseudonymise CHILD names belonging to parents in this club.
     // Children are minors — never allow their real names to leave our infra.
     // Rehydrate to "<ParentFirst>'s child" so users see meaningful context
     // instead of a leaked "Child N" pseudonym.
     try {
-      const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
+      const clubIdForChildren = clubIdForScope;
       if (clubIdForChildren) {
         const { data: clubParents } = await admin
           .from("user_roles")
@@ -481,14 +516,16 @@ serve(async (req) => {
             const parentFirst = parentFull.split(/\s+/)[0] || "";
             const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
             const key = n;
-            if (!pseudoByRealName.has(key)) {
+            if (!pseudoByRealName.has(key) && !isProtected(key)) {
               personCounter += 1;
               const p = `Child ${personCounter}`;
               pseudoByRealName.set(key, p);
               realByPseudo.set(p, descriptor);
             }
             const first = n.split(/\s+/)[0];
-            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+            // Require >= 4 chars and not a sponsor token to avoid swapping
+            // short common first names ("Pip", "Bea") inside unrelated text.
+            if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(key)) {
               pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
@@ -499,13 +536,15 @@ serve(async (req) => {
     }
 
     // Also pseudonymise FIRST names of every known adult so "Hi Sarah" gets caught
-    // even when the message uses only the first name.
+    // even when the message uses only the first name. Skip 1-3 letter names and
+    // sponsor tokens to avoid collisions with everyday words / business names.
     Array.from(nameMap.values()).forEach((full) => {
       const first = (full || "").trim().split(/\s+/)[0];
-      if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+      if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(full)) {
         pseudoByRealName.set(first, pseudoByRealName.get(full)!);
       }
     });
+
 
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Strip identifying PII outright before sending to Gemini.
