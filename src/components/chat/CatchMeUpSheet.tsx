@@ -474,41 +474,50 @@ export function CatchMeUpSheet({
                           }
                           return "";
                        };
-                       const groups: { date: string; items: typeof view.sinceTimeline }[] = [];
-                       const indexByDate = new Map<string, number>();
-                       for (const item of view.sinceTimeline) {
-                         // Prefer extracted date from text over generic time labels like "Earlier"
-                         const extracted = extractDateFromText(item.text);
-                         const fromTime = stripTime(item.time);
-                         const date = extracted || (isMeaningfulDate(fromTime) ? fromTime : "") || "Earlier";
-                         const existing = indexByDate.get(date);
+                        // Resolve a label to a timestamp so we can canonicalise
+                        // variants like "SAT 27 JUN" / "Sat 27 June" / "Saturday 27 June".
+                        const labelToTs = (label: string): number | null => {
+                          if (!label || label === "Earlier") return null;
+                          const d = parseRecapTagDate(label);
+                          if (d) return d.getTime();
+                          const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(label);
+                          if (dm) {
+                            const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(dm[2].slice(0, 3).toLowerCase()));
+                            if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
+                          }
+                          const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(label);
+                          if (md) {
+                            const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(md[1].slice(0, 3).toLowerCase()));
+                            if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
+                          }
+                          return null;
+                        };
+                        const WD_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                        const MO_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                        const canonicalFromTs = (ts: number) => {
+                          const dt = new Date(ts);
+                          return `${WD_SHORT[dt.getDay()]} ${dt.getDate()} ${MO_SHORT[dt.getMonth()]}`;
+                        };
 
-                         if (existing != null) {
-                           groups[existing].items.push(item);
-                         } else {
-                           indexByDate.set(date, groups.length);
-                           groups.push({ date, items: [item] });
-                         }
+                        const groups: { date: string; ts: number; items: typeof view.sinceTimeline }[] = [];
+                        const indexByKey = new Map<string, number>();
+                        for (const item of view.sinceTimeline) {
+                          const extracted = extractDateFromText(item.text);
+                          const fromTime = stripTime(item.time);
+                          const rawLabel = extracted || (isMeaningfulDate(fromTime) ? fromTime : "") || "Earlier";
+                          const ts = labelToTs(rawLabel);
+                          const displayLabel = ts != null ? canonicalFromTs(ts) : rawLabel;
+                          const key = ts != null ? `ts:${Math.floor(ts / 86400000)}` : `lbl:${displayLabel.toLowerCase()}`;
+                          const existing = indexByKey.get(key);
+                          if (existing != null) {
+                            groups[existing].items.push(item);
+                          } else {
+                            indexByKey.set(key, groups.length);
+                            groups.push({ date: displayLabel, ts: ts ?? -Infinity, items: [item] });
+                          }
                         }
-                       // Sort groups by parsed date desc so the timeline always
-                       // reads most-recent first regardless of insertion order.
-                       const groupTs = (label: string): number => {
-                         if (!label || label === "Earlier") return -Infinity;
-                         const d = parseRecapTagDate(label);
-                         if (d) return d.getTime();
-                         const dm = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS})\\b`, "i").exec(label);
-                         if (dm) {
-                           const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(dm[2].slice(0, 3).toLowerCase()));
-                           if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
-                         }
-                         const md = new RegExp(`\\b(${MONTHS})\\s+(\\d{1,2})\\b`, "i").exec(label);
-                         if (md) {
-                           const m = MONTH_NAMES.findIndex((n) => n.toLowerCase().startsWith(md[1].slice(0, 3).toLowerCase()));
-                           if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
-                         }
-                         return -Infinity;
-                       };
-                       groups.sort((a, b) => groupTs(b.date) - groupTs(a.date));
+                        // Most recent first; "Earlier"/unknown sink to the bottom.
+                        groups.sort((a, b) => b.ts - a.ts);
                       return groups.map((g, gi) => (
                         <div key={`${g.date}-${gi}`}>
                           <Reveal delayMs={scheduleReveal(80)} as="div" className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
