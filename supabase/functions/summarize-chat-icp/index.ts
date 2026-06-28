@@ -109,7 +109,7 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters; never infer image content from surrounding replies or thanks. Never output generic lines like "a photo was shared in the team chat". Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
+ACTION RESOLUTION (critical): For every candidate action, scan ALL later messages in the transcript for resolution. Mark status "done" if any later message confirms it is completed, cancelled, no longer needed, the volunteer/owner has stepped up ("I can do it", "I'll bring them", "Sorted", "Done", "Covered", "Got it", "Booked", "Confirmed", "Cancelled", "No longer needed", "All good"), or the event/deadline it relates to has already passed before NOW. Only mark status "open" if NOBODY later resolved it AND the deadline has not passed. You MUST set status on every action. Be conservative: when in doubt, mark "done" so the user is not nagged with stale items.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
@@ -122,8 +122,9 @@ Return STRICT JSON only that matches this TypeScript type:
   "outstanding_actions": Array<{
     "text": string,
     "owner": string | null,
-    "priority": "high" | "medium" | "low"
-  }>,
+    "priority": "high" | "medium" | "low",
+    "status": "open" | "done"
+  }>, // server filters out status:"done" — only open actions are shown to the user.
   "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
     "schedule_changes": string[],
@@ -584,13 +585,15 @@ serve(async (req) => {
     const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
       (Array.isArray(parsed.outstanding_actions) ? parsed.outstanding_actions : [])
         .map((a: any) => {
-          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const };
+          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const, status: "open" as const };
           const text = typeof a?.text === "string" ? rehydrate(a.text) : "";
           const owner = typeof a?.owner === "string" && a.owner.trim() ? rehydrate(a.owner.trim()) : null;
           const p = (a?.priority === "high" || a?.priority === "low") ? a.priority : "medium";
-          return { text, owner, priority: p as "high" | "medium" | "low" };
+          const status = a?.status === "done" ? "done" : "open";
+          return { text, owner, priority: p as "high" | "medium" | "low", status };
         })
-        .filter((a: any) => a.text)
+        .filter((a: any) => a.text && a.status !== "done")
+        .map(({ status: _s, ...rest }: any) => rest)
         .sort((a: any, b: any) => priorityRank[a.priority] - priorityRank[b.priority])
         .slice(0, 5);
 
