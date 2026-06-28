@@ -11,10 +11,14 @@ import { isAICatchUpAllowlisted } from "@/lib/aiCatchUpAllowlist";
 export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
   const { user } = useAuth();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, isSuccess } = useQuery({
     queryKey: ["user-has-any-ai-catchup-club", user?.id, scopedClubId ?? "all"],
     enabled: !!user?.id && isAICatchUpAllowlisted(user?.id),
     staleTime: 60_000,
+    // Retain previous result during refetch (e.g. after resume from inactivity)
+    // so the PRO badge next to the AI button doesn't flash for Pro clubs while
+    // the query revalidates.
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       if (!isAICatchUpAllowlisted(user?.id)) return false;
       const { data: roles } = await supabase
@@ -45,9 +49,6 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
       }
 
       let allClubIds = Array.from(new Set([...directClubIds, ...teamClubIds]));
-      // When a specific club is active (e.g. user filtered to one club), only
-      // evaluate that club so AI gating mirrors the user's current context —
-      // a free active club must not borrow Pro access from a different club.
       if (scopedClubId) {
         allClubIds = allClubIds.includes(scopedClubId) ? [scopedClubId] : [scopedClubId];
       }
@@ -64,12 +65,15 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
         const isPro = sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override;
         const active = !sub.expires_at || new Date(sub.expires_at) > new Date();
         if (!isPro || !active) return false;
-        // Club admins of this Pro club always see the toggle, even if disabled
         if (adminClubIds.has(c.id)) return true;
         return c.ai_catch_up_enabled === true;
       });
     },
   });
 
-  return { hasAICatchUpClub: !!data, isLoading };
+  // `resolved` is true only once the query has actually returned data at least
+  // once. Consumers should hide Pro/upgrade affordances until resolved so the
+  // badge doesn't flash for Pro users on resume/cold-render.
+  const resolved = isSuccess && data !== undefined;
+  return { hasAICatchUpClub: !!data, isLoading, isFetching, resolved };
 }
