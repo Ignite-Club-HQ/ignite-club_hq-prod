@@ -9,57 +9,50 @@ interface SponsorOrAdCarouselProps {
   activeClubFilter?: string | null;
 }
 
-// Phase 1: events sponsor strip is restricted to this club while we pilot it.
-// Other clubs see the legacy bottom-of-page placement / nothing on event detail.
-const EVENTS_STRIP_PILOT_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10"; // Riverside FC
+// Events sponsor strip is per-club opt-in via clubs.events_sponsor_strip_enabled.
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
   const isEventsPlacement = location === "events" || location === "event-detail";
 
-  // Events-placement gate: pilot club only. Works whether or not the user has
-  // explicitly filtered to that club, as long as they're a member of it.
+  // Events-placement gate: any club that has events_sponsor_strip_enabled = true.
+  // If no filter is set, pick the first such club the user is a member of.
   const { data: eventsStripResolved, isLoading: isStripGateLoading } = useQuery({
     queryKey: ["events-sponsor-strip-allowed", activeClubFilter],
     queryFn: async () => {
-      // If filtered to a non-pilot club, never show.
-      if (activeClubFilter && activeClubFilter !== EVENTS_STRIP_PILOT_CLUB_ID) {
-        return { allowed: false, effectiveClubId: null as string | null };
+      if (activeClubFilter) {
+        const { data } = await supabase
+          .from("clubs")
+          .select("events_sponsor_strip_enabled")
+          .eq("id", activeClubFilter)
+          .maybeSingle();
+        const allowed = !!(data as any)?.events_sponsor_strip_enabled;
+        return { allowed, effectiveClubId: allowed ? activeClubFilter : null };
       }
 
-      // If no filter, ensure the current user is actually a member of the pilot club.
-      if (!activeClubFilter) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { allowed: false, effectiveClubId: null };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { allowed: false, effectiveClubId: null as string | null };
 
-        const { data: directRoles } = await supabase
-          .from("user_roles")
-          .select("club_id, team_id")
-          .eq("user_id", user.id);
+      const { data: directRoles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user.id);
 
-        const clubIds = new Set<string>();
-        (directRoles ?? []).forEach((r: any) => {
-          if (r.club_id) clubIds.add(r.club_id);
-        });
-        const teamIds = (directRoles ?? []).map((r: any) => r.team_id).filter(Boolean);
-        if (teamIds.length) {
-          const { data: teams } = await supabase
-            .from("teams")
-            .select("club_id")
-            .in("id", teamIds);
-          (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
-        }
-        if (!clubIds.has(EVENTS_STRIP_PILOT_CLUB_ID)) {
-          return { allowed: false, effectiveClubId: null };
-        }
+      const clubIds = new Set<string>();
+      (directRoles ?? []).forEach((r: any) => { if (r.club_id) clubIds.add(r.club_id); });
+      const teamIds = (directRoles ?? []).map((r: any) => r.team_id).filter(Boolean);
+      if (teamIds.length) {
+        const { data: teams } = await supabase
+          .from("teams").select("club_id").in("id", teamIds);
+        (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
       }
+      if (clubIds.size === 0) return { allowed: false, effectiveClubId: null };
 
-      const { data } = await supabase
+      const { data: enabledClubs } = await supabase
         .from("clubs")
-        .select("events_sponsor_strip_enabled")
-        .eq("id", EVENTS_STRIP_PILOT_CLUB_ID)
-        .maybeSingle();
-      const allowed = !!(data as any)?.events_sponsor_strip_enabled;
-      return { allowed, effectiveClubId: allowed ? EVENTS_STRIP_PILOT_CLUB_ID : null };
+        .select("id, events_sponsor_strip_enabled")
+        .in("id", Array.from(clubIds));
+      const hit = (enabledClubs ?? []).find((c: any) => c.events_sponsor_strip_enabled);
+      return { allowed: !!hit, effectiveClubId: hit?.id ?? null };
     },
     enabled: isEventsPlacement,
   });

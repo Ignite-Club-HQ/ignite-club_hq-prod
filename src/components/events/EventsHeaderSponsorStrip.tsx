@@ -10,8 +10,7 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// HARD RESTRICTION: Pilot to Riverside FC only for now.
-const RIVERSIDE_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10";
+// Any club may opt in via clubs.events_sponsor_strip_enabled.
 
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
 const dismissKey = (userId: string | undefined, clubId: string) =>
@@ -66,37 +65,41 @@ export function EventsHeaderSponsorStrip({
   const [adIndex, setAdIndex] = useState(0);
   const [playlistPos, setPlaylistPos] = useState(0);
 
-  // Resolve the effective club: pilot only, and only if user is a member.
+  // Resolve the effective club: prefer explicit filter; otherwise pick the
+  // first club the user belongs to that has the strip toggle enabled.
   const { data: resolved } = useQuery({
     queryKey: ["events-header-strip-resolve", activeClubFilter, user?.id],
     enabled: !!user?.id,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      if (activeClubFilter && activeClubFilter !== RIVERSIDE_CLUB_ID) {
-        return { clubId: null as string | null };
+      if (activeClubFilter) {
+        const { data } = await supabase
+          .from("clubs")
+          .select("events_sponsor_strip_enabled")
+          .eq("id", activeClubFilter)
+          .maybeSingle();
+        if (!(data as any)?.events_sponsor_strip_enabled) return { clubId: null as string | null };
+        return { clubId: activeClubFilter };
       }
-      if (!activeClubFilter) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("club_id, team_id")
-          .eq("user_id", user!.id);
-        const clubIds = new Set<string>();
-        (roles ?? []).forEach((r: any) => r.club_id && clubIds.add(r.club_id));
-        const teamIds = (roles ?? []).map((r: any) => r.team_id).filter(Boolean);
-        if (teamIds.length) {
-          const { data: teams } = await supabase
-            .from("teams").select("club_id").in("id", teamIds);
-          (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
-        }
-        if (!clubIds.has(RIVERSIDE_CLUB_ID)) return { clubId: null };
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+      const clubIds = new Set<string>();
+      (roles ?? []).forEach((r: any) => r.club_id && clubIds.add(r.club_id));
+      const teamIds = (roles ?? []).map((r: any) => r.team_id).filter(Boolean);
+      if (teamIds.length) {
+        const { data: teams } = await supabase
+          .from("teams").select("club_id").in("id", teamIds);
+        (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
       }
-      const { data } = await supabase
+      if (clubIds.size === 0) return { clubId: null as string | null };
+      const { data: enabledClubs } = await supabase
         .from("clubs")
-        .select("events_sponsor_strip_enabled")
-        .eq("id", RIVERSIDE_CLUB_ID)
-        .maybeSingle();
-      if (!(data as any)?.events_sponsor_strip_enabled) return { clubId: null };
-      return { clubId: RIVERSIDE_CLUB_ID };
+        .select("id, events_sponsor_strip_enabled")
+        .in("id", Array.from(clubIds));
+      const hit = (enabledClubs ?? []).find((c: any) => c.events_sponsor_strip_enabled);
+      return { clubId: hit?.id ?? null };
     },
   });
   const clubId = resolved?.clubId ?? null;
