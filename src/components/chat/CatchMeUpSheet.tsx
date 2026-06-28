@@ -11,6 +11,8 @@ import {
 import type { ChatSummaryResult, OutstandingAction, OutstandingQuestion } from "@/hooks/useChatCatchUp";
 import { normalizeQuestion } from "@/hooks/useChatCatchUp";
 import { parseRecapTimeTag, parseRecapTagDate, stripRecapDatePrefix, isVagueRecapBullet } from "@/lib/recapFormat";
+import { scheduleTypewriter } from "@/lib/typewriterScheduler";
+
 
 /**
  * Static-reveal mode skips per-character typewriter animation entirely.
@@ -802,29 +804,20 @@ function Typed({
   charMs?: number;
 }) {
   // staticMode is signalled by charMs === 0 (set by useStaticReveal): render
-  // the full text immediately, no setInterval/setTimeout, no per-character
-  // re-render storm. This is the Android-WebView crash mitigation.
+  // the full text immediately, no scheduling, no per-character re-render.
   const isStatic = charMs <= 0;
   const [n, setN] = useState(isStatic ? text.length : 0);
-  const [started, setStarted] = useState(isStatic || delayMs === 0);
   useEffect(() => {
-    if (isStatic) { setN(text.length); setStarted(true); return; }
+    if (isStatic) { setN(text.length); return; }
     setN(0);
-    setStarted(delayMs === 0);
-    if (delayMs === 0) return;
-    const t = setTimeout(() => setStarted(true), delayMs);
-    return () => clearTimeout(t);
-  }, [text, delayMs, isStatic]);
-  useEffect(() => {
-    if (isStatic || !started) return;
-    let i = 0;
-    const id = setInterval(() => {
-      i += 1;
-      setN(i);
-      if (i >= text.length) clearInterval(id);
-    }, charMs);
-    return () => clearInterval(id);
-  }, [started, text, charMs, isStatic]);
+    const handle = scheduleTypewriter({
+      delayMs,
+      charMs,
+      length: text.length,
+      onTick: setN,
+    });
+    return () => handle.cancel();
+  }, [text, delayMs, charMs, isStatic]);
 
   // Grid stack: invisible full text reserves space; visible partial overlays it.
   return (
@@ -834,6 +827,7 @@ function Typed({
     </span>
   );
 }
+
 
 /**
  * Fades children in after `delayMs`. Reserves layout space upfront (renders
@@ -913,15 +907,16 @@ function TypewriterLine({ text, showCaret, staticMode = false }: { text: string;
   useEffect(() => {
     if (staticMode) { setShown(text.length); return; }
     setShown(0);
-    let i = 0;
-    const id = setInterval(() => {
-      i += 1;
-      setShown(i);
-      if (i >= text.length) clearInterval(id);
-    }, 28);
-    return () => clearInterval(id);
+    const handle = scheduleTypewriter({
+      delayMs: 0,
+      charMs: 28,
+      length: text.length,
+      onTick: setShown,
+    });
+    return () => handle.cancel();
   }, [text, staticMode]);
   const done = shown >= text.length;
+
   return (
     <p className="text-sm leading-snug text-foreground">
       {text.slice(0, shown)}
