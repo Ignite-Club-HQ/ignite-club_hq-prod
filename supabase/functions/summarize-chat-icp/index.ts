@@ -350,8 +350,34 @@ serve(async (req) => {
     };
     Array.from(nameMap.values()).forEach((n) => getPseudo(n));
 
+    // Protect sponsor / business names from pseudonymisation (see summarize-chat for rationale).
+    const protectedTokens = new Set<string>();
+    const clubIdForScope = await getClubIdForScope(admin, scope_type, scope_id);
     try {
-      const clubIdForChildren = await getClubIdForScope(admin, scope_type, scope_id);
+      if (clubIdForScope) {
+        const { data: sponsorRows } = await admin
+          .from("sponsors")
+          .select("name")
+          .eq("club_id", clubIdForScope);
+        (sponsorRows || []).forEach((s: any) => {
+          const n = (s?.name || "").trim();
+          if (!n) return;
+          n.split(/\s+/).forEach((w: string) => {
+            const t = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (t.length >= 2) protectedTokens.add(t);
+          });
+        });
+      }
+    } catch (e) {
+      console.error("[summarize-chat-icp] sponsor protection seeding failed", e);
+    }
+    const isProtected = (name: string): boolean => {
+      const t = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return !!t && protectedTokens.has(t);
+    };
+
+    try {
+      const clubIdForChildren = clubIdForScope;
       if (clubIdForChildren) {
         const { data: clubParents } = await admin
           .from("user_roles")
@@ -378,14 +404,14 @@ serve(async (req) => {
             const parentFirst = parentFull.split(/\s+/)[0] || "";
             const descriptor = parentFirst ? `${parentFirst}'s child` : "a child";
             const key = n;
-            if (!pseudoByRealName.has(key)) {
+            if (!pseudoByRealName.has(key) && !isProtected(key)) {
               personCounter += 1;
               const p = `Child ${personCounter}`;
               pseudoByRealName.set(key, p);
               realByPseudo.set(p, descriptor);
             }
             const first = n.split(/\s+/)[0];
-            if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+            if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(key)) {
               pseudoByRealName.set(first, pseudoByRealName.get(key)!);
             }
           });
@@ -397,10 +423,11 @@ serve(async (req) => {
 
     Array.from(nameMap.values()).forEach((full) => {
       const first = (full || "").trim().split(/\s+/)[0];
-      if (first && first.length >= 2 && !pseudoByRealName.has(first)) {
+      if (first && first.length >= 4 && !isProtected(first) && !pseudoByRealName.has(first) && pseudoByRealName.has(full)) {
         pseudoByRealName.set(first, pseudoByRealName.get(full)!);
       }
     });
+
 
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const STREET_WORDS =
