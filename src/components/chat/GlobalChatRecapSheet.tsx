@@ -529,24 +529,48 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                         {headline && (
                           <p className="mt-0.5 text-base leading-snug text-muted-foreground">{headline}</p>
                         )}
-                        {details.length > 0 && (
-                          <ol className="mt-2 space-y-2.5 border-l border-border/70 pl-3">
-                            {details.map((d, j) => (
-                              <li
-                                key={`${scope.scope_id}-d-${i}-${j}`}
-                                className="relative -ml-[15px] pl-5"
-                              >
-                                <span className="absolute left-3 top-1.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary/60 ring-2 ring-card" />
-                                {d.time && (
-                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                    {d.time}
-                                  </span>
-                                )}
-                                <span className="block text-base leading-snug text-foreground">{d.text}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
+                        {details.length > 0 && (() => {
+                          const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                          const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                          const dayGroups: { label: string; ts: number; items: TimelineEntry[] }[] = [];
+                          const idx = new Map<string, number>();
+                          for (const d of details) {
+                            const ts = parseTimelineTimestamp(d.time, d.text);
+                            if (!ts) continue; // drop undated items
+                            const dayKey = Math.floor(ts / 86400000);
+                            const key = `d:${dayKey}`;
+                            const dt = new Date(dayKey * 86400000);
+                            const label = `${WD[dt.getDay()]} ${dt.getDate()} ${MO[dt.getMonth()]}`;
+                            const existing = idx.get(key);
+                            if (existing != null) {
+                              dayGroups[existing].items.push(d);
+                            } else {
+                              idx.set(key, dayGroups.length);
+                              dayGroups.push({ label, ts: dayKey * 86400000, items: [d] });
+                            }
+                          }
+                          dayGroups.sort((a, b) => b.ts - a.ts);
+                          if (dayGroups.length === 0) return null;
+                          return (
+                            <div className="mt-2 space-y-3">
+                              {dayGroups.map((g, gi) => (
+                                <div key={`${scope.scope_id}-g-${i}-${gi}`}>
+                                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</p>
+                                  <ul className="space-y-2 border-l border-border/70 pl-3">
+                                    {g.items.map((d, j) => (
+                                      <li
+                                        key={`${scope.scope_id}-d-${i}-${gi}-${j}`}
+                                        className="text-base leading-snug text-foreground"
+                                      >
+                                        {d.text}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                         <Link
                           to={scope.link}
                           onClick={() => onOpenChange(false)}
