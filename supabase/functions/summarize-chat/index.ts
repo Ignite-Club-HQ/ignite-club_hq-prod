@@ -29,7 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v12";
+const RECAP_VERSION = "recap-v13";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -174,7 +174,7 @@ You are given a transcript with timestamps. The user message will tell you the c
 
 Prioritise updates that affect schedules, attendance, fixtures, training, availability, safety, compliance or club operations. Also include useful informational posts such as match reminders, duty rosters, arrival times, venues, player availability and coach updates even when no action is required. You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters; never infer image content from surrounding replies or thanks. Never output generic lines like "a photo was shared in the team chat". Ignore casual banter, jokes, emoji-only messages and greetings.
 
-An action is "outstanding" only if nobody in later messages confirms it is done, cancelled, or resolved. Drop anything that was already resolved in the transcript.
+ACTION RESOLUTION (critical): For every candidate action, scan ALL later messages in the transcript for resolution. Mark status "done" if any later message confirms the action is completed, cancelled, no longer needed, the volunteer/owner has stepped up ("I can do it", "I'll bring them", "Sorted", "Done", "Covered", "Got it", "Booked", "Confirmed", "Cancelled", "No longer needed", "All good"), or the event/deadline it relates to has already passed before NOW. Only mark status "open" if NOBODY later resolved it AND the deadline has not passed. You MUST set the status field on every action. Be conservative: when in doubt that something is still open, mark it "done" so the user is not nagged with stale items.
 
 Return STRICT JSON only that matches this TypeScript type:
 {
@@ -187,8 +187,9 @@ Return STRICT JSON only that matches this TypeScript type:
   "outstanding_actions": Array<{
     "text": string,                        // <=200 chars, the action itself
     "owner": string | null,                // who needs to act, if clearly identified, otherwise null
-    "priority": "high" | "medium" | "low" // high = time-sensitive / affects upcoming event; low = nice to do
-  }>, // max 5, sorted high -> low priority
+    "priority": "high" | "medium" | "low", // high = time-sensitive / affects upcoming event; low = nice to do
+    "status": "open" | "done"              // REQUIRED. "done" if resolved/cancelled/expired in transcript; "open" otherwise
+  }>, // max 5 OPEN actions, sorted high -> low priority. You may include done items — server will filter them out.
   "outstanding_questions": [], // ALWAYS return an empty array. Do not extract open questions. Instead, fold the substance of any unresolved question into the relevant since_last_visit bullet so context is preserved.
   "detailed": {
     "schedule_changes": string[], // max 8 bullets — training/match time, date, location changes
@@ -703,13 +704,15 @@ serve(async (req) => {
     const actionsArr: Array<{ text: string; owner: string | null; priority: "high" | "medium" | "low" }> =
       (Array.isArray(parsed.outstanding_actions) ? parsed.outstanding_actions : [])
         .map((a: any) => {
-          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const };
+          if (typeof a === "string") return { text: rehydrate(a), owner: null, priority: "medium" as const, status: "open" as const };
           const text = typeof a?.text === "string" ? rehydrate(a.text) : "";
           const owner = typeof a?.owner === "string" && a.owner.trim() ? rehydrate(a.owner.trim()) : null;
           const p = (a?.priority === "high" || a?.priority === "low") ? a.priority : "medium";
-          return { text, owner, priority: p as "high" | "medium" | "low" };
+          const status = a?.status === "done" ? "done" : "open";
+          return { text, owner, priority: p as "high" | "medium" | "low", status };
         })
-        .filter((a: any) => a.text)
+        .filter((a: any) => a.text && a.status !== "done")
+        .map(({ status: _s, ...rest }: any) => rest)
         .sort((a: any, b: any) => priorityRank[a.priority] - priorityRank[b.priority])
         .slice(0, 5);
 
