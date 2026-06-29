@@ -33,6 +33,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
 
   // Fetch user's admin scopes so we can route upgrade ads to a real upgrade URL
   const { data: adminScopes } = useQuery({
