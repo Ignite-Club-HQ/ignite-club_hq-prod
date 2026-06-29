@@ -6,6 +6,7 @@ import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { openAdLink } from "@/lib/adLinkNavigation";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 
 interface AppAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
