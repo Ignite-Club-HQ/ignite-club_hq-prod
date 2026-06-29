@@ -361,13 +361,7 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
-  if (clubSub) {
-    await supabase
-      .from('club_subscriptions')
-      .update({ expires_at: periodEnd.toISOString() })
-      .eq('stripe_subscription_id', subscriptionId);
-    console.log('Club subscription renewed:', clubSub.club_id);
-  } else if (!teamSub) {
+  if (!clubSub) {
     // Orphan: Stripe billed a subscription we no longer track. Surface so an
     // admin can refund and cancel in Stripe.
     console.error('Orphan invoice.paid — no DB row for subscription:', subscriptionId);
@@ -384,6 +378,13 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
     });
     return;
   }
+
+  if (clubSub) {
+    await supabase
+      .from('club_subscriptions')
+      .update({ expires_at: periodEnd.toISOString() })
+      .eq('stripe_subscription_id', subscriptionId);
+    console.log('Club subscription renewed:', clubSub.club_id);
 
     // Send email notification to club admins
     const tierName = clubSub.is_pro_football ? 'Pro Football' : 'Pro';
