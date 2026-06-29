@@ -196,6 +196,17 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Cancel any live Stripe subscriptions for this club (and its teams)
+      // BEFORE deleting — cascade would otherwise wipe the only reference and
+      // Stripe would keep billing forever.
+      try {
+        await cancelStripeSubscriptionsForEntity(adminClient, "club", entityId, entityId);
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Clean up storage: photos, vault files, club logos
       await cleanupClubStorage(adminClient, entityId);
 
