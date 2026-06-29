@@ -627,13 +627,13 @@ serve(async (req) => {
       }
       // Safety net: any "Child N" / "Person N" pseudonym that escaped rehydration
       // (e.g. model invented an unseen number) becomes a neutral descriptor.
-      out = out.replace(/\bChild\s+\d+\b/g, "a child");
-      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
+      out = out.replace(/\bChild\s+\d+\b/gi, "a child");
+      out = out.replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
       .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-      .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+      .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
       .trim();
     const isBareMediaShare = (s: string): boolean => {
       const t = stripSpeakerPrefix(s)
