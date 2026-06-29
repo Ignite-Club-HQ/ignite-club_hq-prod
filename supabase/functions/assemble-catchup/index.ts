@@ -13,7 +13,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const RECAP_VERSION = "recap-v14";
+const RECAP_VERSION = "recap-v15";
 
 type ScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
