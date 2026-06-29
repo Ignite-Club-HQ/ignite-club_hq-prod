@@ -10397,6 +10397,15 @@ export type Database = {
           text: string
         }[]
       }
+      get_manual_group_participants: {
+        Args: { p_group_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          is_creator: boolean
+          user_id: string
+        }[]
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
