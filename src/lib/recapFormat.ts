@@ -249,7 +249,7 @@ export function stripRecapSpeakerPrefix(text: string): string {
   if (!text) return text;
   return text
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
     .trim();
 }
 
@@ -264,7 +264,9 @@ export function rewriteRawChatEcho(text: string): string {
   let t = text.replace(/\s+/g, " ").trim();
   // Strip any leaked pseudonyms from the privacy scrubber so users never see
   // "Child 9" / "Person 4" in a recap. These are internal labels.
-  t = t.replace(/\bChild\s+\d+\b/g, "a child").replace(/\bPerson\s+\d+\b/g, "someone");
+  t = t
+    .replace(/\bChild\s+\d+\b/gi, "a child")
+    .replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone");
   const lower = t.toLowerCase();
 
   if (/\balso interested\b.*\bdepending on days\b/i.test(t)) {

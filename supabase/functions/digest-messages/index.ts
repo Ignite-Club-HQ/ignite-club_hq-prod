@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const RECAP_VERSION = "recap-v14";
+const RECAP_VERSION = "recap-v15";
 const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:${RECAP_VERSION}`;
 
 interface DigestRow {
@@ -96,7 +96,7 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   * NEVER output a chat reply such as "Yep I can", "Also interested", "Sorry I can't", "Could someone please...".
   * Convert chat wording into a neutral club-secretary fact: who/what changed, who volunteered, who declined, what decision was made.
   * NO greetings, sign-offs, filler ("hi folks", "thanks", "sorry").
-  * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing.
+  * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing. NEVER invent numbered placeholders like "Player 7", "Member 3", "Parent 2", "Coach 1" or "Speaker 5" — these are forbidden. If the label is "Person N" / "Child N" with no real name available, write "someone" / "a child" with no number.
   * PAYER ATTRIBUTION: for any mention of money, payments, donations, sponsorship, fees or invoices, the payer/donor MUST be the literal name written in the message (e.g. a business or sponsor name like "Pimento Pizza"). NEVER attribute a payment, donation or sponsorship to "<Person>'s child", "a child", a parent, or the message author unless the transcript explicitly says so. If the payer name isn't present, write "A sponsor".
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
   * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.

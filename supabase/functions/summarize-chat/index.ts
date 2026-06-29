@@ -29,7 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v14";
+const RECAP_VERSION = "recap-v15";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -208,7 +208,7 @@ BULLET LENGTH (hard cap): EVERY bullet, headline, action and detail string MUST 
 
 BULLET DESCRIPTIVENESS (required): Each bullet MUST be a complete, descriptive sentence (aim 10-22 words) that names WHO/WHAT/WHEN/WHY where the transcript provides it. NEVER emit terse fragments like "Archer out", "Training cancelled", "Ref needed" — instead write "Archer is unavailable for Wednesday's training" or "A referee is still needed for Saturday's U10 game at 10am". If you only have a name with no context, drop the bullet rather than shipping a vague one.
 
-USE REAL NAMES (critical): When the transcript identifies WHO said or did something, you MUST use that person's actual name from the speaker label or @mention. NEVER substitute vague placeholders like "someone", "a player", "a parent", "one member", "another member", "a coach", "a volunteer", or "a club member" when a name is available in the transcript. Examples: write "Jas volunteered to be linesperson for Friday's match" (not "Someone has volunteered..."), "Dan asked for a linesperson for Friday's match" (not "A linesperson was requested"), "Bec is interested in the holiday tournament pending dates" (not "A player has expressed interest"). Only fall back to a generic descriptor if the transcript truly does not identify the speaker.
+USE REAL NAMES (critical): When the transcript identifies WHO said or did something, you MUST use that person's actual name from the speaker label or @mention. NEVER substitute vague placeholders like "someone", "a player", "a parent", "one member", "another member", "a coach", "a volunteer", or "a club member" when a name is available in the transcript. Examples: write "Jas volunteered to be linesperson for Friday's match" (not "Someone has volunteered..."), "Dan asked for a linesperson for Friday's match" (not "A linesperson was requested"), "Bec is interested in the holiday tournament pending dates" (not "A player has expressed interest"). Only fall back to a generic descriptor if the transcript truly does not identify the speaker. NEVER invent numbered placeholders such as "Player 7", "Member 3", "Parent 2", "Coach 1", "Volunteer 4" or "Speaker 5" — these are forbidden in output. If the speaker label is "Person N" / "Child N", either use the matching real name from elsewhere in the transcript or write "someone" / "a child" (no number).
 
 PAYER ATTRIBUTION (critical): For any mention of money, payments, donations, sponsorship, fees, fundraising or invoices, the payer/donor MUST be the literal name written in the message (e.g. a business, sponsor or person name like "Pimento Pizza"). NEVER attribute a payment, donation or sponsorship to "<Person>'s child", "a child", a parent, or the message author unless the transcript explicitly says so. If the payer name is not present in the transcript, write "A sponsor" rather than guessing a person.
 
@@ -627,13 +627,13 @@ serve(async (req) => {
       }
       // Safety net: any "Child N" / "Person N" pseudonym that escaped rehydration
       // (e.g. model invented an unseen number) becomes a neutral descriptor.
-      out = out.replace(/\bChild\s+\d+\b/g, "a child");
-      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
+      out = out.replace(/\bChild\s+\d+\b/gi, "a child");
+      out = out.replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
       .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-      .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+      .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
       .trim();
     const isBareMediaShare = (s: string): boolean => {
       const t = stripSpeakerPrefix(s)
