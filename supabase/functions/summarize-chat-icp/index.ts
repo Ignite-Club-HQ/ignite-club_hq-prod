@@ -32,7 +32,7 @@ function lookbackMessageCap(hours: number): number {
   return 400; // up to 90d
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v15";
+const RECAP_VERSION = "recap-v16";
 
 
 const LLM_CANISTER_ID = "w36hm-eqaaa-aaaal-qr76a-cai";
@@ -142,7 +142,7 @@ USE REAL NAMES (critical): When the transcript identifies WHO said or did someth
 PAYER ATTRIBUTION (critical): For any mention of money, payments, donations, sponsorship, fees, fundraising or invoices, the payer/donor MUST be the literal name written in the message (e.g. a business, sponsor or person name like "Pimento Pizza"). NEVER attribute a payment, donation or sponsorship to "<Person>'s child", "a child", a parent, or the message author unless the transcript explicitly says so. If the payer name is not present in the transcript, write "A sponsor" rather than guessing a person.
 
 
-TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag derived from when the underlying message was sent. Format: "[Sat 27 Jun 9:30am]" or "[Wed 2 Jul 6pm]". Always include weekday, day number, month, and time. Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. NEVER use relative tags such as "[Today]", "[Yest]", "[Yesterday]", "[Tomorrow]", or a bare "[9:30am]". Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag. Every transcript line ALREADY starts with the correct send-date tag in the exact required format, e.g. "[Mon 29 Jun 10:30am] Person 1: ...". COPY THAT BRACKETED TAG VERBATIM into the bullet. DO NOT invent your own date, DO NOT shift the date to match a weekday mentioned in the message body (e.g. if a Monday message says "training Thursday night", the tag MUST still be the Monday send tag, NOT the upcoming Thursday). DO NOT use the date of an event referenced inside the message — only the send date of the source message. If multiple messages contributed to one bullet, copy the bracket tag from the most recent (latest) source line. NEVER use relative tags such as "[Today]", "[Yesterday]", "[Tomorrow]", or a bare time tag. NEVER emit "[YYYY-MM-DD HH:MM]" machine format.
 
 EVENT DATE ACCURACY (critical): Inside every user-visible string (headline, bullets, actions, details), NEVER use "today", "tonight", "tomorrow", "yesterday", "this morning", "this afternoon", "this evening", "this week", or "next week". Always use an explicit weekday/date when an event/training/match date is clear (e.g. "Wednesday's training", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's message timestamp — resolve "today/tomorrow/yesterday" against the timestamp on that specific transcript line, then write the resulting concrete weekday/date. NOW is only for knowing the generation time; do not use NOW to interpret a sender's relative word. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown, no code fences.`;
 
@@ -468,13 +468,30 @@ serve(async (req) => {
       return t.replace(/\s{2,}/g, " ").trim();
     };
 
+    // Pre-format the send-date tag in the human format the model is asked to
+    // copy into bullets verbatim (see "Thursday night" anchoring bug fix in
+    // summarize-chat/index.ts). Removes the conversion step that caused the
+    // model to tag bullets with the *referenced* date instead of the send
+    // date.
+    const WEEKDAYS_TAG = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const MONTHS_TAG = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const formatSendTag = (createdAt: string): string => {
+      const d = new Date(createdAt);
+      if (Number.isNaN(d.getTime())) return "";
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const suffix = h >= 12 ? "pm" : "am";
+      h = h % 12; if (h === 0) h = 12;
+      const time = m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2,"0")}${suffix}`;
+      return `[${WEEKDAYS_TAG[d.getDay()]} ${d.getDate()} ${MONTHS_TAG[d.getMonth()]} ${time}]`;
+    };
     const transcript = messages
       .map((m: any) => {
         const real = nameMap.get(m.author_id) || "Someone";
         const speaker = getPseudo(real);
-        const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
+        const sendTag = formatSendTag(m.created_at as string);
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
-        return { line: `[${ts}] ${speaker}: ${t}`, keep: !!t };
+        return { line: `${sendTag} ${speaker}: ${t}`, keep: !!t };
       })
       .filter((x) => x.keep)
       .map((x) => x.line)

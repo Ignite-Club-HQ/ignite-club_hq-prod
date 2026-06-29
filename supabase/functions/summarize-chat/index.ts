@@ -29,7 +29,7 @@ function lookbackMessageCap(hours: number): number {
   return 500; // up to 90d (Gemini 2.0 Flash has plenty of context headroom)
 }
 const SUMMARY_TTL_HOURS = 48;
-const RECAP_VERSION = "recap-v15";
+const RECAP_VERSION = "recap-v16";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -214,7 +214,7 @@ PAYER ATTRIBUTION (critical): For any mention of money, payments, donations, spo
 
 
 
-TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag derived from when the underlying message was sent. Format: "[Sat 27 Jun 9:30am]" or "[Wed 2 Jul 6pm]". Always include weekday, day number, month, and time. Always lowercase am/pm, no leading zero on the hour, omit ":00". One space after the closing bracket. NEVER use relative tags such as "[Today]", "[Yest]", "[Yesterday]", "[Tomorrow]", or a bare "[9:30am]". Do NOT use the old "[YYYY-MM-DD HH:MM]" machine format anywhere. If multiple messages contributed to one bullet, tag it with the time of the most relevant (usually latest) message.
+TIMELINE TAG (required): EVERY bullet inside since_last_visit.today / yesterday / earlier AND inside detailed.discussion / detailed.schedule_changes MUST begin with a bracketed explicit send-date tag. Every transcript line ALREADY starts with the correct send-date tag in the exact required format, e.g. "[Mon 29 Jun 10:30am] Person 1: ...". COPY THAT BRACKETED TAG VERBATIM into the bullet. DO NOT invent your own date, DO NOT shift the date to match a weekday mentioned in the message body (e.g. if a Monday message says "training Thursday night", the tag MUST still be the Monday send tag, NOT the upcoming Thursday). DO NOT use the date of an event referenced inside the message — only the send date of the source message. If multiple messages contributed to one bullet, copy the bracket tag from the most recent (latest) source line. NEVER use relative tags such as "[Today]", "[Yesterday]", "[Tomorrow]", or a bare time tag. NEVER emit "[YYYY-MM-DD HH:MM]" machine format.
 
 EVENT DATE ACCURACY (critical): Inside every user-visible string (headline, bullets, actions, details), NEVER use "today", "tonight", "tomorrow", "yesterday", "this morning", "this afternoon", "this evening", "this week", or "next week". Always use an explicit weekday/date when an event/training/match date is clear (e.g. "Wednesday's training", "Sat 27 Jun", "Sat 5 Jul at 10am"). The transcript's relative words were written from the SENDER's message timestamp — resolve "today/tomorrow/yesterday" against the timestamp on that specific transcript line, then write the resulting concrete weekday/date. NOW is only for knowing the generation time; do not use NOW to interpret a sender's relative word. Example: a Monday message saying "training tomorrow" must be written as "Tuesday's training", never as "training tomorrow" or "training today". If a date cannot be resolved with confidence, omit the time reference rather than guessing. Output JSON only — no prose, no markdown.`;
 
@@ -603,13 +603,18 @@ serve(async (req) => {
       return t.replace(/\s{2,}/g, " ").trim();
     };
 
+    // Pre-format the send-date tag in the human format the model is asked to
+    // copy into bullets. Feeding the machine ISO timestamp made the model
+    // derive its own tag and frequently anchor to a date mentioned *inside*
+    // the message (e.g. "Thursday night" -> next Thursday) instead of the
+    // send date. Copy-as-is removes that conversion step.
     const transcript = messages
       .map((m: any) => {
         const real = nameMap.get(m.author_id) || "Someone";
         const speaker = getPseudo(real);
-        const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
+        const sendTag = localTag(m.created_at as string).trim(); // "[Mon 29 Jun 10:30am]"
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
-        return { line: `[${ts}] ${speaker}: ${t}`, keep: !!t };
+        return { line: `${sendTag} ${speaker}: ${t}`, keep: !!t };
       })
       .filter((x) => x.keep)
       .map((x) => x.line)
