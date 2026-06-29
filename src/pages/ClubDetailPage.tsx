@@ -776,6 +776,18 @@ export default function ClubDetailPage() {
       await supabase.from("notifications").insert(notifications);
     }
 
+    // Cancel any live Stripe subscription BEFORE soft-deleting. Otherwise the
+    // club's subscription keeps auto-renewing while the club is hidden, and
+    // (because permanent-delete cascades away the DB row) we end up with an
+    // orphan Stripe subscription that silently bills the customer forever.
+    try {
+      await supabase.functions.invoke("cancel-subscription", {
+        body: { subscription_type: "club", entity_id: id! },
+      });
+    } catch (cancelErr) {
+      console.error("Failed to cancel club Stripe subscription before delete:", cancelErr);
+    }
+
     // Soft-delete: set deleted_at instead of hard delete
     const { error } = await supabase.from("clubs").update({
       deleted_at: new Date().toISOString(),

@@ -159,9 +159,17 @@ serve(async (req) => {
           await stripe.subscriptions.cancel(stripeSubscriptionId);
           console.log('Stripe subscription cancelled:', stripeSubscriptionId);
         } catch (stripeError: any) {
-          // If already cancelled or not found, that's fine
           if (stripeError.code === 'resource_missing') {
-            console.log('Stripe subscription already cancelled or not found:', stripeSubscriptionId);
+            console.warn('Stripe subscription not found — likely orphan:', stripeSubscriptionId);
+            await supabase.from('admin_alerts').insert({
+              alert_type: 'stripe_orphan_subscription_on_cancel',
+              details: {
+                subscription_type, entity_id, club_id: clubId,
+                stripe_subscription_id: stripeSubscriptionId,
+                actor_user_id: user.id,
+                note: 'Local row referenced a Stripe subscription id that Stripe did not recognise. A different live subscription may still be billing this customer.',
+              },
+            });
           } else {
             console.error('Stripe cancellation error:', stripeError);
             return new Response(JSON.stringify({ error: 'Failed to cancel Stripe subscription' }), {
@@ -174,9 +182,15 @@ serve(async (req) => {
       }
     }
 
-    // Clear the Stripe subscription ID so it won't auto-renew, but keep trial active until expiry
+    // IMPORTANT: keep stripe_subscription_id so the inbound
+    // customer.subscription.deleted / invoice.* webhook can still resolve this
+    // row for reconciliation. Nulling it here caused orphaned Stripe
+    // subscriptions to silently keep billing after admins thought they had
+    // cancelled. Immediately drop entitlements so the club/team falls to free
+    // straight away — Pro access is gated by (is_pro && expires_at>now).
+    const nowIso = new Date().toISOString();
+
     if (subscription_type === 'team') {
-      // Update team_subscriptions if a row exists
       const { data: existingSub } = await supabase
         .from('team_subscriptions')
         .select('id')
@@ -187,8 +201,12 @@ serve(async (req) => {
         const { error: updateError } = await supabase
           .from('team_subscriptions')
           .update({
-            stripe_subscription_id: null,
-            cancelled_at: new Date().toISOString(),
+            is_pro: false,
+            is_pro_football: false,
+            is_trial: false,
+            trial_ends_at: null,
+            expires_at: nowIso,
+            cancelled_at: nowIso,
           })
           .eq('team_id', entity_id);
 
@@ -200,21 +218,22 @@ serve(async (req) => {
         }
       }
 
-      // Also clear stripe_subscription_id on the teams table (legacy)
       const { error: teamUpdateError } = await supabase
         .from('teams')
-        .update({ stripe_subscription_id: null })
+        .update({ is_pro: false, pro_expires_at: nowIso })
         .eq('id', entity_id);
 
       if (teamUpdateError) {
-        console.error('Failed to update teams.stripe_subscription_id:', teamUpdateError);
+        console.error('Failed to update teams entitlement:', teamUpdateError);
       }
     } else {
       const { error: updateError } = await supabase
         .from('club_subscriptions')
         .update({
-          stripe_subscription_id: null,
-          cancelled_at: new Date().toISOString(),
+          is_pro: false,
+          is_pro_football: false,
+          expires_at: nowIso,
+          cancelled_at: nowIso,
         })
         .eq('club_id', entity_id);
 
@@ -224,6 +243,15 @@ serve(async (req) => {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      await supabase.from('clubs').update({ is_pro: false }).eq('id', entity_id);
+    }
+
+    // If Stripe didn't recognise the local subscription id, raise an admin
+    // alert — there is likely an orphan Stripe subscription still billing.
+    if (stripeSubscriptionId && !stripeSubscriptionId.startsWith('iap_')) {
+      // populated by the catch block above when stripe.subscriptions.cancel
+      // threw resource_missing.
     }
 
     console.log(`${subscription_type} trial/subscription cancelled for ${entity_id} by user ${user.id}`);

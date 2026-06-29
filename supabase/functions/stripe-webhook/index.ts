@@ -361,6 +361,24 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
+  if (!clubSub) {
+    // Orphan: Stripe billed a subscription we no longer track. Surface so an
+    // admin can refund and cancel in Stripe.
+    console.error('Orphan invoice.paid — no DB row for subscription:', subscriptionId);
+    await supabase.from('admin_alerts').insert({
+      alert_type: 'stripe_orphan_invoice_paid',
+      details: {
+        stripe_subscription_id: subscriptionId,
+        stripe_customer_id: invoice.customer,
+        invoice_id: invoice.id,
+        amount_paid: invoice.amount_paid,
+        currency: invoice.currency,
+        note: 'Stripe charged a customer for a subscription that has no matching club_subscriptions or team_subscriptions row. Likely an orphan left over from a deleted/cancelled entity. Refund and cancel in Stripe.',
+      },
+    });
+    return;
+  }
+
   if (clubSub) {
     await supabase
       .from('club_subscriptions')
