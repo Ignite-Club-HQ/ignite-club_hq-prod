@@ -1308,7 +1308,7 @@ export default function MediaPage() {
         </div>
       </div>
 
-      {/* Header sponsor / ad strip — Pro: Riverside only (admin toggle, defaults off). Free: always on. */}
+      {/* Header sponsor / ad strip — Pro: any club with media_header_sponsors_enabled (default off). Free: app ads only. */}
       <div className="max-w-lg mx-auto">
         <MediaHeaderSponsorStrip
           clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}

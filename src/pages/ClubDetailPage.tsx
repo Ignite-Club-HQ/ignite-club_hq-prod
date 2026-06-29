@@ -1942,7 +1942,7 @@ export default function ClubDetailPage() {
                         return;
                       }
                       await queryClient.invalidateQueries({ queryKey: ["club", id] });
-                      await queryClient.invalidateQueries({ queryKey: ["riverside-media-header-sponsors-enabled"] });
+                      await queryClient.invalidateQueries({ queryKey: ["media-header-sponsors-enabled", id] });
                       toast({ title: checked ? "Media header strip enabled" : "Media header strip disabled" });
                     }}
                   />
