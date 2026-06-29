@@ -331,28 +331,19 @@ export function ChatParticipantsList({
       }
 
       if (chatType === "group" && (!teamId && !clubId || effectiveGroupMembershipMode === "manual")) {
-        const { data: groupMembers, error } = await supabase
-          .from("group_members")
-          .select("user_id")
-          .eq("group_id", chatId);
+        // Use RPC so anyone with access to the group (including club admins
+        // with implicit access via can_access_chat_group) can see the invited
+        // participants. Club admins are only listed if they were explicitly
+        // added to group_members.
+        const { data: rows, error } = await supabase.rpc("get_manual_group_participants", {
+          p_group_id: chatId,
+        });
         if (error) return [];
-
-        const memberIdSet = new Set<string>((groupMembers || []).map((gm) => gm.user_id));
-        const roleByUser = new Map<string, string | undefined>();
-        for (const id of memberIdSet) roleByUser.set(id, undefined);
-
-
-        const userIds = Array.from(memberIdSet);
-        if (userIds.length === 0) return [];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
-        return (profiles || []).map((p) => ({
-          id: p.id,
-          display_name: p.display_name,
-          avatar_url: p.avatar_url,
-          role: roleByUser.get(p.id),
+        return (rows || []).map((r: any) => ({
+          id: r.user_id,
+          display_name: r.display_name,
+          avatar_url: r.avatar_url,
+          role: undefined,
         })) as Member[];
       }
 
