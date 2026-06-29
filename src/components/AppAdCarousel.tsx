@@ -6,6 +6,7 @@ import { useAdAnalytics } from "@/hooks/useAdAnalytics";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { openAdLink } from "@/lib/adLinkNavigation";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 
 interface AppAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
@@ -32,6 +33,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
 
   // Fetch user's admin scopes so we can route upgrade ads to a real upgrade URL
   const { data: adminScopes } = useQuery({
@@ -86,8 +88,23 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
     enabled: !!settings?.is_enabled,
   });
 
+  // Detect upgrade-style ads (used both for filtering and click routing).
+  const isUpgradeAdRow = (ad: AppAd) =>
+    !!ad.link_url?.includes("upgrade") ||
+    ad.name.toLowerCase().includes("upgrade") ||
+    ad.name.toLowerCase().includes("pro");
+
+  // Filter out upgrade ads for users who already have Pro on any club.
+  // While the Pro check is still loading we suppress upgrade ads to avoid the
+  // "flash then disappear" behaviour after resuming from inactivity.
+  const visibleAds = (ads ?? []).filter((ad) => {
+    if (!isUpgradeAdRow(ad)) return true;
+    if (proLoading) return false;
+    return !hasAnyClubPro;
+  });
+
   // Determine if we should show ads
-  const shouldShowAds = settings?.is_enabled && ads && ads.length > 0 && (
+  const shouldShowAds = settings?.is_enabled && visibleAds.length > 0 && (
     settings.override_sponsors || 
     (settings.show_only_when_no_sponsors && !hasSponsorAds) ||
     (!settings.override_sponsors && !settings.show_only_when_no_sponsors)
@@ -95,37 +112,37 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
 
   // Auto-rotate ads
   useEffect(() => {
-    if (!ads || ads.length <= 1) return;
+    if (visibleAds.length <= 1) return;
     
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % ads.length);
+      setCurrentIndex((prev) => (prev + 1) % visibleAds.length);
     }, 8000);
     
     return () => clearInterval(interval);
-  }, [ads]);
+  }, [visibleAds.length]);
 
   // Track view when ad is displayed
   useEffect(() => {
-    if (shouldShowAds && ads && ads[currentIndex]) {
+    if (shouldShowAds && visibleAds[currentIndex]) {
       const context = (
         location === "event-detail" ? "event_detail_page" : `${location}_page`
       ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
-      trackView(ads[currentIndex].id, context);
+      trackView(visibleAds[currentIndex].id, context);
     }
-  }, [shouldShowAds, ads, currentIndex, location, trackView]);
+  }, [shouldShowAds, visibleAds, currentIndex, location, trackView]);
 
   // Reset index if out of bounds
   useEffect(() => {
-    if (ads && currentIndex >= ads.length) {
+    if (currentIndex >= visibleAds.length) {
       setCurrentIndex(0);
     }
-  }, [ads, currentIndex]);
+  }, [visibleAds.length, currentIndex]);
 
-  if (!shouldShowAds || !ads || ads.length === 0) {
+  if (!shouldShowAds || visibleAds.length === 0) {
     return null;
   }
 
-  const currentAd = ads[currentIndex];
+  const currentAd = visibleAds[currentIndex];
   const context = (
     location === "event-detail" ? "event_detail_page" : `${location}_page`
   ) as "home_page" | "events_page" | "event_detail_page" | "messages_page" | "schedule_page";
@@ -219,9 +236,9 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
       </div>
       
       {/* Pagination dots */}
-      {ads.length > 1 && (
+      {visibleAds.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-2">
-          {ads.map((_, index) => (
+          {visibleAds.map((_, index) => (
             <button
               key={index}
               onClick={(e) => {
