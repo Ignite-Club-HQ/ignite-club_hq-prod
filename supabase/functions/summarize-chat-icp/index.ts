@@ -488,13 +488,13 @@ serve(async (req) => {
         const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
         out = out.replace(re, realByPseudo.get(p)!);
       }
-      out = out.replace(/\bChild\s+\d+\b/g, "a child");
-      out = out.replace(/\bPerson\s+\d+\b/g, "someone");
+      out = out.replace(/\bChild\s+\d+\b/gi, "a child");
+      out = out.replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone");
       return out;
     };
     const stripSpeakerPrefix = (s: string): string => s
       .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-      .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+      .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
       .trim();
     const isBareMediaShare = (s: string): boolean => {
       const t = stripSpeakerPrefix(s)
