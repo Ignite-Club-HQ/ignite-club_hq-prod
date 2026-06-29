@@ -147,7 +147,7 @@ export const rehydratePseudonyms = (
     const re = new RegExp(`\\b${escapeRe(p)}\\b`, "g");
     out = out.replace(re, realByPseudo.get(p)!);
   }
-  out = out.replace(/\bChild\s+\d+\b/g, "a child");
-  out = out.replace(/\bPerson\s+\d+\b/g, "someone");
+  out = out.replace(/\bChild\s+\d+\b/gi, "a child");
+  out = out.replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone");
   return out;
 };
