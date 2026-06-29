@@ -1,5 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+
+// Auto-cancel + refund a Stripe subscription that has no matching DB row.
+// This is the safety net that guarantees a club never gets charged again
+// after a downgrade/delete, even if the original cancel path failed.
+async function autoCancelOrphanSubscription(
+  supabase: any,
+  subscriptionId: string,
+  invoice: any,
+) {
+  try {
+    // Resolve a Stripe secret key. We don't know which club the orphan
+    // belonged to, so fall back to app-level config.
+    const { data: appCfg } = await supabase
+      .from("app_stripe_config")
+      .select("stripe_secret_key, is_enabled")
+      .eq("is_enabled", true)
+      .maybeSingle();
+
+    let key: string | null = appCfg?.stripe_secret_key ?? null;
+    if (!key) {
+      // Last resort — try any enabled club_stripe_configs row. Connect accounts
+      // are scoped per-club so this won't always work, which is why we still
+      // raise the admin_alert below.
+      const { data: anyClubCfg } = await supabase
+        .from("club_stripe_configs")
+        .select("stripe_secret_key")
+        .eq("is_enabled", true)
+        .limit(1)
+        .maybeSingle();
+      key = anyClubCfg?.stripe_secret_key ?? null;
+    }
+
+    if (!key) {
+      console.warn("Orphan auto-cancel skipped — no Stripe secret key available");
+      return { cancelled: false, refunded: false, reason: "no_stripe_key" };
+    }
+
+    const stripe = new Stripe(key, { apiVersion: "2023-10-16" });
+
+    let cancelled = false;
+    try {
+      await stripe.subscriptions.cancel(subscriptionId);
+      cancelled = true;
+      console.log("Orphan Stripe subscription auto-cancelled:", subscriptionId);
+    } catch (err: any) {
+      if (err?.code === "resource_missing") {
+        cancelled = true; // already gone
+      } else {
+        console.error("Orphan auto-cancel failed:", subscriptionId, err);
+      }
+    }
+
+    // Refund the just-charged invoice so the customer is made whole.
+    let refunded = false;
+    if (invoice?.charge) {
+      try {
+        await stripe.refunds.create({ charge: invoice.charge, reason: "duplicate" });
+        refunded = true;
+        console.log("Orphan invoice auto-refunded:", invoice.id);
+      } catch (err: any) {
+        console.error("Orphan refund failed:", invoice.id, err);
+      }
+    }
+
+    return { cancelled, refunded };
+  } catch (err) {
+    console.error("autoCancelOrphanSubscription unexpected error:", err);
+    return { cancelled: false, refunded: false, reason: "exception" };
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -362,9 +433,11 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
     .maybeSingle();
 
   if (!clubSub) {
-    // Orphan: Stripe billed a subscription we no longer track. Surface so an
-    // admin can refund and cancel in Stripe.
+    // Orphan: Stripe billed a subscription we no longer track. Auto-cancel
+    // it AND refund the just-charged invoice so the customer is never billed
+    // again. Also raise an admin_alert with the outcome for visibility.
     console.error('Orphan invoice.paid — no DB row for subscription:', subscriptionId);
+    const outcome = await autoCancelOrphanSubscription(supabase, subscriptionId, invoice);
     await supabase.from('admin_alerts').insert({
       alert_type: 'stripe_orphan_invoice_paid',
       details: {
@@ -373,7 +446,9 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
         invoice_id: invoice.id,
         amount_paid: invoice.amount_paid,
         currency: invoice.currency,
-        note: 'Stripe charged a customer for a subscription that has no matching club_subscriptions or team_subscriptions row. Likely an orphan left over from a deleted/cancelled entity. Refund and cancel in Stripe.',
+        auto_cancelled: outcome.cancelled,
+        auto_refunded: outcome.refunded,
+        note: 'Stripe charged a customer for a subscription with no matching club_subscriptions/team_subscriptions row. The webhook auto-cancelled the subscription and attempted a refund. Verify in Stripe.',
       },
     });
     return;
