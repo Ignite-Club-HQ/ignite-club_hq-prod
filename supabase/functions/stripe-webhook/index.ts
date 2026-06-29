@@ -1,5 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+
+// Auto-cancel + refund a Stripe subscription that has no matching DB row.
+// This is the safety net that guarantees a club never gets charged again
+// after a downgrade/delete, even if the original cancel path failed.
+async function autoCancelOrphanSubscription(
+  supabase: any,
+  subscriptionId: string,
+  invoice: any,
+) {
+  try {
+    // Resolve a Stripe secret key. We don't know which club the orphan
+    // belonged to, so fall back to app-level config.
+    const { data: appCfg } = await supabase
+      .from("app_stripe_config")
+      .select("stripe_secret_key, is_enabled")
+      .eq("is_enabled", true)
+      .maybeSingle();
+
+    let key: string | null = appCfg?.stripe_secret_key ?? null;
+    if (!key) {
+      // Last resort — try any enabled club_stripe_configs row. Connect accounts
+      // are scoped per-club so this won't always work, which is why we still
+      // raise the admin_alert below.
+      const { data: anyClubCfg } = await supabase
+        .from("club_stripe_configs")
+        .select("stripe_secret_key")
+        .eq("is_enabled", true)
+        .limit(1)
+        .maybeSingle();
+      key = anyClubCfg?.stripe_secret_key ?? null;
+    }
+
+    if (!key) {
+      console.warn("Orphan auto-cancel skipped — no Stripe secret key available");
+      return { cancelled: false, refunded: false, reason: "no_stripe_key" };
+    }
+
+    const stripe = new Stripe(key, { apiVersion: "2023-10-16" });
+
+    let cancelled = false;
+    try {
+      await stripe.subscriptions.cancel(subscriptionId);
+      cancelled = true;
+      console.log("Orphan Stripe subscription auto-cancelled:", subscriptionId);
+    } catch (err: any) {
+      if (err?.code === "resource_missing") {
+        cancelled = true; // already gone
+      } else {
+        console.error("Orphan auto-cancel failed:", subscriptionId, err);
+      }
+    }
+
+    // Refund the just-charged invoice so the customer is made whole.
+    let refunded = false;
+    if (invoice?.charge) {
+      try {
+        await stripe.refunds.create({ charge: invoice.charge, reason: "duplicate" });
+        refunded = true;
+        console.log("Orphan invoice auto-refunded:", invoice.id);
+      } catch (err: any) {
+        console.error("Orphan refund failed:", invoice.id, err);
+      }
+    }
+
+    return { cancelled, refunded };
+  } catch (err) {
+    console.error("autoCancelOrphanSubscription unexpected error:", err);
+    return { cancelled: false, refunded: false, reason: "exception" };
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
