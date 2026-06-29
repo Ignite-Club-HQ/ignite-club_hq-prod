@@ -1,10 +1,97 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+async function resolveStripeKey(adminClient: any, clubId: string | null): Promise<string | null> {
+  if (clubId) {
+    const { data } = await adminClient
+      .from("club_stripe_configs")
+      .select("stripe_secret_key, is_enabled")
+      .eq("club_id", clubId)
+      .eq("is_enabled", true)
+      .maybeSingle();
+    if (data?.stripe_secret_key) return data.stripe_secret_key;
+  }
+  const { data: app } = await adminClient
+    .from("app_stripe_config")
+    .select("stripe_secret_key, is_enabled")
+    .eq("is_enabled", true)
+    .maybeSingle();
+  return app?.stripe_secret_key ?? null;
+}
+
+async function cancelStripeSubscriptionsForEntity(
+  adminClient: any,
+  entityType: "club" | "team",
+  entityId: string,
+  clubId: string | null,
+) {
+  const subIds = new Set<string>();
+  if (entityType === "club") {
+    const { data } = await adminClient
+      .from("club_subscriptions")
+      .select("stripe_subscription_id")
+      .eq("club_id", entityId);
+    for (const r of data ?? []) if (r.stripe_subscription_id && !String(r.stripe_subscription_id).startsWith("iap_")) subIds.add(r.stripe_subscription_id);
+    // Also cancel any team subs belonging to the club's teams.
+    const { data: teams } = await adminClient.from("teams").select("id, stripe_subscription_id").eq("club_id", entityId);
+    for (const t of teams ?? []) if (t.stripe_subscription_id && !String(t.stripe_subscription_id).startsWith("iap_")) subIds.add(t.stripe_subscription_id);
+    if (teams && teams.length) {
+      const { data: teamSubs } = await adminClient
+        .from("team_subscriptions")
+        .select("stripe_subscription_id")
+        .in("team_id", teams.map((t: any) => t.id));
+      for (const r of teamSubs ?? []) if (r.stripe_subscription_id && !String(r.stripe_subscription_id).startsWith("iap_")) subIds.add(r.stripe_subscription_id);
+    }
+  } else {
+    const { data: team } = await adminClient.from("teams").select("stripe_subscription_id").eq("id", entityId).maybeSingle();
+    if (team?.stripe_subscription_id && !String(team.stripe_subscription_id).startsWith("iap_")) subIds.add(team.stripe_subscription_id);
+    const { data: sub } = await adminClient.from("team_subscriptions").select("stripe_subscription_id").eq("team_id", entityId).maybeSingle();
+    if (sub?.stripe_subscription_id && !String(sub.stripe_subscription_id).startsWith("iap_")) subIds.add(sub.stripe_subscription_id);
+  }
+
+  if (subIds.size === 0) return;
+
+  const key = await resolveStripeKey(adminClient, clubId);
+  if (!key) {
+    // Surface an alert so finance can chase the subscription manually.
+    await adminClient.from("admin_alerts").insert({
+      alert_type: "stripe_orphan_on_permanent_delete",
+      details: {
+        entityType, entityId, clubId,
+        stripe_subscription_ids: Array.from(subIds),
+        reason: "No Stripe secret key available — entity deleted without cancelling Stripe subscription(s).",
+      },
+    });
+    return;
+  }
+
+  const stripe = new Stripe(key, { apiVersion: "2023-10-16" });
+  for (const id of subIds) {
+    try {
+      await stripe.subscriptions.cancel(id);
+      console.log("Cancelled Stripe subscription before permanent delete:", id);
+    } catch (err: any) {
+      if (err?.code === "resource_missing") {
+        console.warn("Stripe subscription already gone:", id);
+        continue;
+      }
+      console.error("Failed to cancel Stripe subscription before delete:", id, err);
+      await adminClient.from("admin_alerts").insert({
+        alert_type: "stripe_cancel_failed_on_permanent_delete",
+        details: { entityType, entityId, clubId, stripe_subscription_id: id, error: String(err?.message ?? err) },
+      });
+      // Block delete to avoid losing the only reference to a live billing.
+      throw new Error(`Cannot permanently delete: Stripe subscription ${id} could not be cancelled.`);
+    }
+  }
+}
+
 
 function extractStoragePath(url: string, bucket: string): string | null {
   const patterns = [
