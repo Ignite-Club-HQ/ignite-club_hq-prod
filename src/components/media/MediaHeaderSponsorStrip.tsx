@@ -10,8 +10,8 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// HARD RESTRICTION: Pro sponsor strip is Riverside FC only for this MVP.
-const RIVERSIDE_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10";
+// Pro sponsor strip: any Pro club that opts in via clubs.media_header_sponsors_enabled.
+// Defaults to OFF (column default false); toggled in Club settings.
 
 // Pro dismiss — 24h, user+club scoped. Free clubs cannot dismiss (same as chat).
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
