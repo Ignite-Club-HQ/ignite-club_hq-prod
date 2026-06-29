@@ -1625,7 +1625,7 @@ export default function MediaPage() {
                 </div>
               </Card>
               {(index + 1) % 8 === 0 && (
-                <MediaSponsorTile seed={Math.floor(index / 8)} />
+                <MediaSponsorTile seed={Math.floor(index / 8)} clubId={scopedClubFilterId} />
               )}
               </Fragment>
             );
