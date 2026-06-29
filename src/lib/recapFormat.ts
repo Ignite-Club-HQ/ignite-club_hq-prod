@@ -249,7 +249,7 @@ export function stripRecapSpeakerPrefix(text: string): string {
   if (!text) return text;
   return text
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
     .trim();
 }
 
