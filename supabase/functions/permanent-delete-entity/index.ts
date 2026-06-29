@@ -277,6 +277,15 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Cancel any live Stripe team subscription before deletion.
+      try {
+        await cancelStripeSubscriptionsForEntity(adminClient, "team", entityId, team.club_id ?? null);
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Clean up storage for this team
       await cleanupTeamStorage(adminClient, entityId);
 
