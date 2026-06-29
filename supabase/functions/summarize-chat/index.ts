@@ -603,13 +603,18 @@ serve(async (req) => {
       return t.replace(/\s{2,}/g, " ").trim();
     };
 
+    // Pre-format the send-date tag in the human format the model is asked to
+    // copy into bullets. Feeding the machine ISO timestamp made the model
+    // derive its own tag and frequently anchor to a date mentioned *inside*
+    // the message (e.g. "Thursday night" -> next Thursday) instead of the
+    // send date. Copy-as-is removes that conversion step.
     const transcript = messages
       .map((m: any) => {
         const real = nameMap.get(m.author_id) || "Someone";
         const speaker = getPseudo(real);
-        const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
+        const sendTag = localTag(m.created_at as string).trim(); // "[Mon 29 Jun 10:30am]"
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
-        return { line: `[${ts}] ${speaker}: ${t}`, keep: !!t };
+        return { line: `${sendTag} ${speaker}: ${t}`, keep: !!t };
       })
       .filter((x) => x.keep)
       .map((x) => x.line)
