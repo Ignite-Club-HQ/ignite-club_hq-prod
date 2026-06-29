@@ -236,9 +236,9 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
       </div>
       
       {/* Pagination dots */}
-      {ads.length > 1 && (
+      {visibleAds.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-2">
-          {ads.map((_, index) => (
+          {visibleAds.map((_, index) => (
             <button
               key={index}
               onClick={(e) => {
