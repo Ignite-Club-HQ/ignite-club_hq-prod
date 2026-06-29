@@ -159,9 +159,17 @@ serve(async (req) => {
           await stripe.subscriptions.cancel(stripeSubscriptionId);
           console.log('Stripe subscription cancelled:', stripeSubscriptionId);
         } catch (stripeError: any) {
-          // If already cancelled or not found, that's fine
           if (stripeError.code === 'resource_missing') {
-            console.log('Stripe subscription already cancelled or not found:', stripeSubscriptionId);
+            console.warn('Stripe subscription not found — likely orphan:', stripeSubscriptionId);
+            await supabase.from('admin_alerts').insert({
+              alert_type: 'stripe_orphan_subscription_on_cancel',
+              details: {
+                subscription_type, entity_id, club_id: clubId,
+                stripe_subscription_id: stripeSubscriptionId,
+                actor_user_id: user.id,
+                note: 'Local row referenced a Stripe subscription id that Stripe did not recognise. A different live subscription may still be billing this customer.',
+              },
+            });
           } else {
             console.error('Stripe cancellation error:', stripeError);
             return new Response(JSON.stringify({ error: 'Failed to cancel Stripe subscription' }), {
