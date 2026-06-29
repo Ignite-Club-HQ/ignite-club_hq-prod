@@ -468,13 +468,30 @@ serve(async (req) => {
       return t.replace(/\s{2,}/g, " ").trim();
     };
 
+    // Pre-format the send-date tag in the human format the model is asked to
+    // copy into bullets verbatim (see "Thursday night" anchoring bug fix in
+    // summarize-chat/index.ts). Removes the conversion step that caused the
+    // model to tag bullets with the *referenced* date instead of the send
+    // date.
+    const WEEKDAYS_TAG = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const MONTHS_TAG = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const formatSendTag = (createdAt: string): string => {
+      const d = new Date(createdAt);
+      if (Number.isNaN(d.getTime())) return "";
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const suffix = h >= 12 ? "pm" : "am";
+      h = h % 12; if (h === 0) h = 12;
+      const time = m === 0 ? `${h}${suffix}` : `${h}:${m.toString().padStart(2,"0")}${suffix}`;
+      return `[${WEEKDAYS_TAG[d.getDay()]} ${d.getDate()} ${MONTHS_TAG[d.getMonth()]} ${time}]`;
+    };
     const transcript = messages
       .map((m: any) => {
         const real = nameMap.get(m.author_id) || "Someone";
         const speaker = getPseudo(real);
-        const ts = new Date(m.created_at).toISOString().slice(0, 16).replace("T", " ");
+        const sendTag = formatSendTag(m.created_at as string);
         const t = redactPII((m.text || "").replace(/\s+/g, " ").trim());
-        return { line: `[${ts}] ${speaker}: ${t}`, keep: !!t };
+        return { line: `${sendTag} ${speaker}: ${t}`, keep: !!t };
       })
       .filter((x) => x.keep)
       .map((x) => x.line)
