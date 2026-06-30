@@ -185,7 +185,7 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
                   <p className="text-xs text-muted-foreground truncate">
                     {conv.club_name} · Admin chat
                   </p>
-                  <p className="text-[13px] leading-relaxed mt-0.5 line-clamp-1 text-foreground/70">
+                  <p className="text-[0.8125rem] leading-relaxed mt-0.5 line-clamp-1 text-foreground/70">
                     {preview}
                   </p>
                 </div>

@@ -115,7 +115,7 @@ function ConversationRowImpl({
                   )}
                 </div>
               </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
+              <p className={`text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                 {item.draftText ? (
                   <span className="flex items-center gap-1.5">
                     <span className="font-semibold text-destructive">Draft:</span>
@@ -157,7 +157,7 @@ function ConversationRowImpl({
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
-              <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+              <p className="text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
                 {item.lastMessage?.text || "Welcome message"}
               </p>
             </div>
@@ -246,7 +246,7 @@ function ConversationRowImpl({
                   )}
                 </div>
               </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
+              <p className={`text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                 {item.draftText ? (
                   <span className="flex items-center gap-1.5">
                     <span className="font-semibold text-destructive">Draft:</span>
@@ -316,7 +316,7 @@ function ConversationRowImpl({
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </div>
-            <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-muted-foreground">
+            <p className="text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 text-muted-foreground">
               <MessagePreview
                 text={item.lastMessage?.text}
                 imageUrl={item.lastMessage?.image_url}
@@ -369,7 +369,7 @@ function ConversationRowImpl({
                 )}
               </div>
             </div>
-            <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
+            <p className={`text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
               {item.draftText ? (
                 <span className="flex items-center gap-1.5">
                   <span className="font-semibold text-destructive">Draft:</span>
@@ -437,7 +437,7 @@ function ConversationRowImpl({
                 )}
               </div>
             </div>
-            <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
+            <p className={`text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
               {item.draftText ? (
                 <span className="flex items-center gap-1.5">
                   <span className="font-semibold text-destructive">Draft:</span>
