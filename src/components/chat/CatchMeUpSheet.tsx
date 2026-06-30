@@ -24,23 +24,33 @@ import { scheduleTypewriter } from "@/lib/typewriterScheduler";
  * keep main-thread work modest while still showing the typewriter effect.
  */
 function useStaticReveal(): boolean {
-  const [staticMode, setStaticMode] = useState<boolean>(() => {
+  const computeStatic = () => {
     if (typeof window === "undefined") return true;
     try {
-      return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      const osPref = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      const userPref = document.documentElement.classList.contains("rm");
+      return osPref || userPref;
     } catch { return false; }
-  });
+  };
+  const [staticMode, setStaticMode] = useState<boolean>(computeStatic);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const recompute = () => setStaticMode(computeStatic());
     try {
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const onChange = () => setStaticMode(mq.matches);
-      mq.addEventListener?.("change", onChange);
-      return () => mq.removeEventListener?.("change", onChange);
+      mq.addEventListener?.("change", recompute);
+      // Observe class changes on <html> so user toggle is honoured live.
+      const mo = new MutationObserver(recompute);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      return () => {
+        mq.removeEventListener?.("change", recompute);
+        mo.disconnect();
+      };
     } catch { /* ignore */ }
   }, []);
   return staticMode;
 }
+
 
 
 

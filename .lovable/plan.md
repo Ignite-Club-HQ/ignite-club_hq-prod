@@ -1,105 +1,85 @@
-## Goal
+# In-App Text Size & Accessibility Settings
 
-Cut AI Catch Up cost and latency by classifying each message **once** and reusing it across every user in the thread. The current design re-runs the full LLM on the entire history for every user, every time.
+Add a user-controlled text size setting (plus a couple of bundled accessibility wins) without enabling pinch-to-zoom. Goal: better readability for users with vision issues, zero impact on chat gestures, pitch board, or fixed UI.
 
-Target: **~300ms hot-path** (no LLM call) when digests are warm. **70–90% fewer LLM tokens** when cold. Same UX, same output shape.
+## What the user gets
 
-## Architecture
+1. **Text size slider** in Profile → Settings → Accessibility
+   - 5 steps: Small (90%), Default (100%), Large (115%), Larger (130%), Largest (150%)
+   - Live preview as they drag
+   - Persists per-user (localStorage with `ignite_` prefix, synced to `profiles.accessibility_prefs` jsonb so it follows them across devices)
+2. **High contrast toggle** — boosts `--foreground` / `--muted-foreground` contrast for users on light themes
+3. **Reduce motion toggle** — disables typewriter, carousels auto-advance, non-essential transitions (respects OS `prefers-reduced-motion` by default, this lets users force it on)
+4. **Bold text toggle** — bumps body weight from 400 → 500 for users who find thin text hard to read
 
-```text
-   New message arrives
-          │
-          ▼
-   ┌──────────────────┐        ┌───────────────────────┐
-   │ message_digests  │◄───────│ digest-messages       │
-   │ (per message_id) │        │  (background worker)  │
-   │ classification,  │        │  batches 10 msgs,     │
-   │ summary, topic,  │        │  cheap LLM call       │
-   │ is_action,       │        │  (flash-lite / llama) │
-   │ is_question      │        └───────────────────────┘
-   └────────┬─────────┘
-            │
-   User taps "Catch me up"
-            │
-            ▼
-   ┌──────────────────────────────────┐
-   │ assemble-catchup (no LLM)        │
-   │ - read digests since last_opened │
-   │ - bucket by today/yesterday/...  │
-   │ - extract actions & questions    │
-   │ - return in <300ms               │
-   └──────────────────────────────────┘
-            │
-            ▼ (only if digests missing)
-   fallback to summarize-chat / -icp
-```
+All four live on one screen with clear labels and a "Reset to defaults" button.
 
-## What changes
+## How it works (technical)
 
-### 1. New table: `message_digests`
-One row per chat message. Immutable once written. Stores:
-- `message_id`, `message_type` ('club'|'team'|'group'), `chat_scope_id`, `created_at`
-- `classification` enum: `action` | `question` | `decision` | `social` | `info`
-- `summary` (short single-line, PII-scrubbed)
-- `topic` (short tag)
-- `mentions_user_ids` (uuid[])
-- `provider` ('gemini-flash-lite' | 'icp-llama' | 'icp-qwen')
-- `digested_at`
+**Root font-size scaling**
+- Set `font-size` on `<html>` via a CSS variable `--app-font-scale` (default `1`)
+- Tailwind's `rem`-based spacing/sizing already scales correctly because shadcn/Tailwind use `rem` for text and most spacing
+- Audit ~10 components that hardcode `px` font sizes (chat composer, recap sheet titles, a few headers) and convert to `text-base` / `text-lg` tokens so they scale too
+- Cap the scaler at 1.5× to prevent layout breakage on fixed-height headers/FABs
 
-RLS: read via same `can_access_chat_*` helpers as the source message.
+**What does NOT scale (intentional)**
+- Pitch board (fixed canvas, would break positioning)
+- Avatar sizes, icon sizes (visual chrome, not reading content)
+- Sticky header height, bottom nav height (fixed for touch targets)
+- Image dimensions in media gallery
 
-### 2. New edge function: `digest-messages`
-- Runs every 2 minutes via `pg_cron`.
-- Picks last 200 undigested messages across all Pro clubs with `ai_catch_up_enabled`.
-- Reuses existing PII scrubber.
-- Calls **Gemini Flash-Lite** (cheap) **or** ICP Llama based on `app_settings.ai_summary_provider`.
-- Single prompt classifies a **batch of 10** messages → JSON array. Cuts per-message overhead ~10x.
-- Inserts into `message_digests` (idempotent on `message_id`).
+**Storage**
+- `profiles.accessibility_prefs jsonb` column (default `{}`)
+- Shape: `{ textScale: 1.15, highContrast: false, reduceMotion: false, boldText: false }`
+- Loaded once at app boot in a new `useAccessibilityPrefs` hook, applied to `<html>` via CSS vars and class toggles
+- localStorage cache for instant first-paint, server is source of truth on login
 
-### 3. New edge function: `assemble-catchup`
-- No LLM call. Pure SQL + bucketing.
-- Input: `chat_scope`, `last_opened_at`.
-- Reads `message_digests` joined to source messages since `last_opened_at`.
-- Buckets: Today / Yesterday / Earlier.
-- Returns existing `CatchUpResponse` shape (compatible with `CatchMeUpSheet.tsx`).
-- Falls back to `summarize-chat` / `summarize-chat-icp` only if >20% of recent messages have no digest yet.
+**High contrast**
+- Adds `class="hc"` to `<html>`
+- `index.css` overrides: `.hc { --muted-foreground: <darker>; --border: <stronger>; }`
+- ~15 token overrides, no per-component changes needed
 
-### 4. Hook update: `useChatCatchUp.ts`
-- Calls `assemble-catchup` first.
-- Only falls back to full-LLM functions on `digests_missing` response code.
-- No UI changes.
+**Reduce motion**
+- Adds `class="rm"` to `<html>`
+- Existing `useStaticReveal` already checks native; extend to also check this class
+- Disable `animate-*` Tailwind utilities via a global `.rm *` CSS rule targeting non-essential animations
 
-### 5. Backfill
-- One-off invocation of `digest-messages` over last 7 days of Pro-club messages on rollout.
+**Bold text**
+- Adds `class="bt"` to `<html>`
+- `.bt body { font-weight: 500; }` and bumps `.bt .font-medium` → 600
 
-## Performance and cost projection
+## Files touched
 
-| Scenario | Today | After |
-|---|---|---|
-| Hot thread, 5 users hit "Catch me up" | 5 × 10s LLM calls | 5 × 300ms SQL, 0 LLM |
-| New message, 1 user opens | 1 × 10s | ~300ms (digest already warm) |
-| Cold thread | 1 × 10s | 1 × 10s (same — fallback) |
-| Gemini tokens/day (est.) | 100% baseline | ~10–25% baseline |
-| ICP calls/day | 100% baseline | ~10–25% baseline |
+- New: `src/hooks/useAccessibilityPrefs.tsx`
+- New: `src/pages/AccessibilitySettingsPage.tsx`
+- New: `src/components/accessibility/TextSizeSlider.tsx`
+- Edit: `src/index.css` — add CSS vars, `.hc`/`.rm`/`.bt` rules
+- Edit: `src/App.tsx` — mount prefs hook at root
+- Edit: `src/pages/ProfilePage.tsx` — add "Accessibility" row linking to new page
+- Edit: ~10 components with hardcoded `px` font sizes → token classes
+- Migration: add `accessibility_prefs jsonb default '{}'` to `profiles`
+- Edit: `src/lib/typewriterScheduler.ts` + `useStaticReveal` to honour reduce-motion class
 
-## Safety preserved
-- Same PII scrubber runs in `digest-messages` before LLM call.
-- Sensitive-topic blocklist runs in `assemble-catchup` over digest topics → returns `sensitive_content` as before.
-- 48h cache TTL no longer needed (digests are immutable; cheap to re-assemble).
-- Admin bypass / club toggle / junior club restrictions enforced in `assemble-catchup` (same code as today).
+## What I won't change
 
-## Out of scope
-- No UI changes.
-- No change to disclosure dialog.
-- No change to provider selector in `/admin/settings`.
-- Existing `summarize-chat` / `summarize-chat-icp` stay as fallback — not deleted.
+- Viewport meta tag stays `user-scalable=no` (pinch-zoom remains off — protects chat gestures, pitch board, image viewer)
+- No changes to icon sizes, tap targets, or layout dimensions
+- Pitch board untouched
+- Chat message bubbles scale with text; bubble max-width stays in `%` so they reflow cleanly
 
-## Rollout
-1. Migration: create `message_digests` + RLS + GRANTs + index on `(chat_scope_id, created_at)`.
-2. Ship `digest-messages` function + cron schedule (disabled by default via `app_settings.digest_worker_enabled`).
-3. Ship `assemble-catchup` function.
-4. Update `useChatCatchUp.ts` to try assemble first.
-5. Enable worker for one pilot club (Bridgewater SC) → observe for 24h.
-6. Enable globally.
+## Risks & mitigations
 
-Approve to proceed with step 1.
+- **Layout overflow at 1.5×**: Cap headers/FABs at fixed `px` heights, let text inside ellipsis-truncate. Tested combos before ship.
+- **Sticky header crowding**: At 1.3×+, header title uses `truncate` instead of growing.
+- **Cross-device drift**: Server-synced prefs ensure consistency; localStorage is just first-paint cache.
+
+## Effort estimate
+
+~1 focused session:
+- 30 min: migration + hook + CSS vars wiring
+- 45 min: settings page UI + slider component
+- 45 min: audit hardcoded `px` font sizes, convert to tokens
+- 30 min: high-contrast token overrides + bold/reduce-motion classes
+- 30 min: QA at each scale step across Home, Chat, Media, Events, Pitch Board
+
+Want me to build it as scoped, or adjust anything first (different scale steps, drop one of the toggles, add a different one)?

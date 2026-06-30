@@ -12,6 +12,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
+import { AccessibilityPrefsProvider } from "@/hooks/useAccessibilityPrefs";
 import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
@@ -65,6 +66,7 @@ const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AccessibilitySettingsPage = lazy(() => import("./pages/AccessibilitySettingsPage"));
 const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
@@ -330,6 +332,7 @@ const App = () => {
   <ThemeProvider attribute="class" defaultTheme={INITIAL_THEME} enableSystem={false} storageKey="app-theme">
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AccessibilityPrefsProvider>
         <ClubThemeProvider>
           <TooltipProvider>
           <Toaster />
@@ -414,6 +417,7 @@ const App = () => {
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/settings/accessibility" element={<AccessibilitySettingsPage />} />
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/admin/online-users" element={<OnlineUsersPage />} />
@@ -477,6 +481,7 @@ const App = () => {
           </BrowserRouter>
           </TooltipProvider>
         </ClubThemeProvider>
+        </AccessibilityPrefsProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>

@@ -387,3 +387,49 @@ html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
 [data-sonner-toaster] [data-sonner-toast] {
   pointer-events: auto;
 }
+
+/* ---------------------------------------------------------------------------
+ * Accessibility user preferences
+ * Applied via classes on <html> from useAccessibilityPrefs:
+ *   .hc — high contrast: stronger text + borders
+ *   .bt — bold text: thicker body weight
+ *   .rm — reduce motion: kill non-essential animations/transitions
+ * Text size scaling is applied as html { font-size: <scale>% } directly.
+ * ------------------------------------------------------------------------- */
+
+/* High contrast: darken muted text + strengthen borders in light mode,
+ * lighten in dark mode. Uses existing semantic tokens so all components
+ * pick it up without per-component changes. */
+html.hc {
+  --muted-foreground: 160 18% 22%;
+  --border: 160 14% 55%;
+  --input: 160 14% 55%;
+  --ring: 160 84% 28%;
+}
+html.hc.dark,
+.dark html.hc {
+  --muted-foreground: 160 12% 82%;
+  --border: 160 10% 70%;
+  --input: 160 10% 70%;
+}
+
+/* Bold text: bump default and medium weights one notch. */
+html.bt body {
+  font-weight: 500;
+}
+html.bt .font-medium {
+  font-weight: 600;
+}
+html.bt .font-semibold {
+  font-weight: 700;
+}
+
+/* Reduce motion: respect user choice, mirroring OS prefers-reduced-motion. */
+html.rm *,
+html.rm *::before,
+html.rm *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
