@@ -103,6 +103,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LONG_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const FULL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAY_WORD_RE_SOURCE = "Sun(?:day)?|Mon(?:day)?|Tue(?:sday|s)?|Wed(?:nesday)?|Thu(?:rsday|rs|r)?|Fri(?:day)?|Sat(?:urday)?";
 
 type RecapTagDate = { weekday: string; label: string; possessive: string };
 
@@ -151,6 +152,35 @@ function shiftDate(date: Date, days: number): Date {
   return next;
 }
 
+function isAfterEndOfToday(date: Date): boolean {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return date.getTime() > end.getTime();
+}
+
+function weekdayIndex(raw: string): number | null {
+  const key = raw.toLowerCase();
+  if (key.startsWith("sun")) return 0;
+  if (key.startsWith("mon")) return 1;
+  if (key.startsWith("tue")) return 2;
+  if (key.startsWith("wed")) return 3;
+  if (key.startsWith("thu")) return 4;
+  if (key.startsWith("fri")) return 5;
+  if (key.startsWith("sat")) return 6;
+  return null;
+}
+
+function resolveModifiedWeekday(baseDate: Date, modifier: string, rawWeekday: string): Date | null {
+  const target = weekdayIndex(rawWeekday);
+  if (target == null) return null;
+  const baseDay = baseDate.getDay();
+  const mod = modifier.toLowerCase();
+  let offset = (target - baseDay + 7) % 7;
+  if (mod === "next" && offset === 0) offset = 7;
+  if (mod === "last") offset = -(((baseDay - target + 7) % 7) || 7);
+  return shiftDate(baseDate, offset);
+}
+
 /**
  * Convert relative date words copied from a message into explicit dates anchored
  * to the message send-date tag. This prevents a Wednesday message saying
@@ -166,6 +196,12 @@ export function resolveRelativeDateWords(text: string, rawTag?: string | null): 
   const prev = tagDateLabel(shiftDate(baseDate, -1));
 
   return text
+    .replace(new RegExp(`\\b(this|next|last)\\s+(${WEEKDAY_WORD_RE_SOURCE})(['’]s)?\\b`, "gi"), (match, modifier: string, weekday: string, possessive: string | undefined) => {
+      const resolved = resolveModifiedWeekday(baseDate, modifier, weekday);
+      if (!resolved) return match;
+      const tag = tagDateLabel(resolved);
+      return possessive ? tag.possessive : tag.label;
+    })
     .replace(/\btoday['’]?s\b/gi, base.possessive)
     .replace(/\btomorrow['’]?s\b/gi, next.possessive)
     .replace(/\byesterday['’]?s\b/gi, prev.possessive)
@@ -314,6 +350,7 @@ export function rewriteRawChatEcho(text: string): string {
 export function stripRelativeDateWords(text: string): string {
   if (!text) return text;
   return text
+    .replace(new RegExp(`\\b(?:this|next|last)\\s+(${WEEKDAY_WORD_RE_SOURCE})(['’]s)?\\b`, "gi"), (_match, weekday: string, possessive = "") => `${weekday}${possessive}`)
     .replace(/\b(?:today|tonight|tomorrow|yesterday)['’]?s\s+/gi, "")
     .replace(/\b(?:this\s+morning|this\s+afternoon|this\s+evening|today|tonight|tomorrow|yesterday|this\s+week|next\s+week)\b/gi, "")
     .replace(/\s+([,.;:])/g, "$1")
@@ -336,9 +373,11 @@ export function parseRecapTimeTag(text: string): { time: string | null; text: st
 
   const rawTag = bracket[1].trim();
   const isLegacyRelativeTag = /\b(?:today|yest|yesterday|tomorrow)\b/i.test(rawTag) || /^\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(rawTag);
+  const tagDate = parseRecapTagDate(rawTag);
+  const isFutureEventTag = !!tagDate && isAfterEndOfToday(tagDate);
   const body = text.slice(bracket[0].length).trim();
   return {
-    time: isLegacyRelativeTag || machine ? null : rawTag,
+    time: isLegacyRelativeTag || isFutureEventTag ? null : rawTag,
     text: sanitizeRecapBullet(resolveRelativeDateWords(rewriteRawChatEcho(stripRecapSpeakerPrefix(body)), isLegacyRelativeTag ? null : rawTag)),
   };
 }

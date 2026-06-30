@@ -177,19 +177,14 @@ function parseTimelineTimestamp(time: string | null | undefined, text?: string):
   })();
   if (fromTag && fromTag <= endOfToday) return fromTag;
 
-  const body = text ?? "";
-  const explicit = body.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
-  if (explicit) {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const month = months.findIndex((m) => m.toLowerCase() === explicit[2].slice(0, 3).toLowerCase());
-    if (month >= 0) {
-      const ts = new Date(new Date().getFullYear(), month, Number(explicit[1])).getTime();
-      if (ts <= endOfToday) return ts;
-    }
-  }
   // No reliable send-date — bucket as "today" rather than dropping the bullet
   // or labelling it with a future date pulled from the message body.
   return endOfToday;
+}
+
+function timelineDayKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
@@ -552,16 +547,16 @@ export function GlobalChatRecapSheet({ open, onOpenChange, scopes }: GlobalChatR
                           for (const d of details) {
                             const ts = parseTimelineTimestamp(d.time, d.text);
                             if (!ts) continue; // drop undated items
-                            const dayKey = Math.floor(ts / 86400000);
-                            const key = `d:${dayKey}`;
-                            const dt = new Date(dayKey * 86400000);
+                            const key = `d:${timelineDayKey(ts)}`;
+                            const dt = new Date(ts);
+                            dt.setHours(0, 0, 0, 0);
                             const label = `${WD[dt.getDay()]} ${dt.getDate()} ${MO[dt.getMonth()]}`;
                             const existing = idx.get(key);
                             if (existing != null) {
                               dayGroups[existing].items.push(d);
                             } else {
                               idx.set(key, dayGroups.length);
-                              dayGroups.push({ label, ts: dayKey * 86400000, items: [d] });
+                              dayGroups.push({ label, ts: dt.getTime(), items: [d] });
                             }
                           }
                           dayGroups.sort((a, b) => b.ts - a.ts);
