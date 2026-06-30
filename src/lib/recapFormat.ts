@@ -196,9 +196,11 @@ export function resolveRelativeDateWords(text: string, rawTag?: string | null): 
   const prev = tagDateLabel(shiftDate(baseDate, -1));
 
   return text
-    .replace(new RegExp(`\\b(this|next|last)\\s+(${WEEKDAY_WORD_RE_SOURCE})(?:['’]s)?\\b`, "gi"), (match, modifier: string, weekday: string) => {
+    .replace(new RegExp(`\\b(this|next|last)\\s+(${WEEKDAY_WORD_RE_SOURCE})(['’]s)?\\b`, "gi"), (match, modifier: string, weekday: string, possessive: string | undefined) => {
       const resolved = resolveModifiedWeekday(baseDate, modifier, weekday);
-      return resolved ? tagDateLabel(resolved).label : match;
+      if (!resolved) return match;
+      const tag = tagDateLabel(resolved);
+      return possessive ? tag.possessive : tag.label;
     })
     .replace(/\btoday['’]?s\b/gi, base.possessive)
     .replace(/\btomorrow['’]?s\b/gi, next.possessive)
