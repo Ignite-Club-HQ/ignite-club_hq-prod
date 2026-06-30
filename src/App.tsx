@@ -65,6 +65,7 @@ const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AccessibilitySettingsPage = lazy(() => import("./pages/AccessibilitySettingsPage"));
 const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
@@ -330,6 +331,7 @@ const App = () => {
   <ThemeProvider attribute="class" defaultTheme={INITIAL_THEME} enableSystem={false} storageKey="app-theme">
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AccessibilityPrefsProvider>
         <ClubThemeProvider>
           <TooltipProvider>
           <Toaster />
@@ -414,6 +416,7 @@ const App = () => {
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/settings/accessibility" element={<AccessibilitySettingsPage />} />
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/admin/online-users" element={<OnlineUsersPage />} />
