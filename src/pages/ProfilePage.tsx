@@ -58,18 +58,29 @@ export default function ProfilePage() {
     activeClubFilter,
   );
 
-  // Auto-scroll to a section when navigated from a notification
+  // Auto-scroll to a section when navigated from a notification.
+  // IMPORTANT: do NOT use Element.scrollIntoView on Android WebView — it
+  // overscrolls past the sticky AppHeader and leaves page content pinned
+  // under the status bar with the header invisible (project memory rule).
+  // Compute the target Y manually and use window.scrollTo with an offset
+  // for the sticky header height so the header always remains in view.
   useEffect(() => {
     const section = searchParams.get('section');
+    const STICKY_HEADER_OFFSET = 72; // h-14 header + a little breathing room
+
+    const scrollToRef = (ref: React.RefObject<HTMLDivElement>) => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const targetY = Math.max(0, window.scrollY + rect.top - STICKY_HEADER_OFFSET);
+      window.scrollTo({ top: targetY, behavior: 'smooth' });
+    };
+
     if (section === 'points-history') {
       setPointsHistoryOpen(true);
-      setTimeout(() => {
-        pointsHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
+      setTimeout(() => scrollToRef(pointsHistoryRef), 300);
     } else if (section === 'rewards') {
-      setTimeout(() => {
-        rewardsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
+      setTimeout(() => scrollToRef(rewardsRef), 300);
     }
   }, [searchParams]);
 

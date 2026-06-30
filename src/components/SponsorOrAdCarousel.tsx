@@ -223,7 +223,11 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   if (settings?.is_enabled) {
     return (
       <>
-        <AppAdCarousel location={location} hasSponsorAds={false} />
+        <AppAdCarousel
+          location={location}
+          hasSponsorAds={false}
+          suppressUpgradeAdsForProUsers={false}
+        />
         {isNative && <AdMobBannerZone show={true} />}
       </>
     );

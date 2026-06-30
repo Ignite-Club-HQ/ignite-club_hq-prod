@@ -374,77 +374,73 @@ export function DriblImportMapper({
     const fixtures: DriblFixture[] = [];
     const teamMap = new Map<string, TeamMapping>();
     
-    for (const row of driblRows) {
-      // Skip if no date or cancelled
-      if (!row.date || row.eventStatus?.toLowerCase() === 'cancelled') continue;
-      
-      // Determine if this is a home or away game for your club
-      const isHome = sideMatchesClub(row, true, yourClubCode, clubName);
-      const isAway = sideMatchesClub(row, false, yourClubCode, clubName);
-      
-      // Skip if neither home nor away is your club
-      if (!isHome && !isAway) continue;
-      
+    // Emit one fixture+mapping for a given side (home or away) of a row.
+    const emitSide = (row: DriblRow, isHome: boolean, isDerby: boolean) => {
       const driblTeamKey = generateTeamKey(row, isHome);
-      // Prefer full club/team names over codes for display
-      const teamName = isHome 
+      const teamName = isHome
         ? (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'Unknown Team')
         : (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'Unknown Team');
-      const opponent = isHome 
-        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
-        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
-      // Opposing team display name (prefer club name over codes)
-      const opponentTeamName = isHome
-        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
-        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
-      
-      // Build address from ground + field
+
+      // Opposing team's full label (e.g. "U8 Blue"). For internal derbies the
+      // opposing club name matches ours, so use this to disambiguate.
+      const opponentFullLabel = cleanDriblValue(isHome ? row.awayTeam : row.homeTeam);
+      const opponentColorText = getDriblTeamColorText(row, !isHome);
+      const opponent = isDerby
+        ? (opponentFullLabel
+            || [teamName, opponentColorText].filter(Boolean).join(' ').trim()
+            || 'TBA')
+        : (isHome
+            ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+            : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA'));
+
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
-      
-      // Build title: "Round {N} - {OurClub} V {Opponent}" — always put the
-      // importing club first regardless of home/away so the matchup reads
-      // from our perspective.
+
       const roundLabel = row.round
         ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
         : null;
-      const opponentDisplay = isHome
-        ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
-        : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent');
-      const matchup = `${clubName} V ${opponentDisplay}`;
+
+      // For derbies, title both sides explicitly (e.g. "U8 Grey V U8 Blue")
+      // instead of "<Club> V <Club>".
+      const ownFullLabel = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+      const ownColorText = getDriblTeamColorText(row, isHome);
+      const ownDisplay = isDerby
+        ? (ownFullLabel || [teamName, ownColorText].filter(Boolean).join(' ').trim() || clubName)
+        : clubName;
+      const opponentDisplay = isDerby
+        ? opponent
+        : (isHome
+            ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
+            : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent'));
+      const matchup = `${ownDisplay} V ${opponentDisplay}`;
       const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
-      
-      // Parse date (Dribl uses DD/MM/YYYY format typically)
-      let parsedDate = row.date;
+
+      let parsedDate = row.date || '';
       if (row.date && row.date.includes('/')) {
         const parts = row.date.split('/');
         if (parts.length === 3) {
-          // Assume DD/MM/YYYY
           parsedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         }
       }
-      
-      // Parse time
+
       let time = row.start || '00:00';
       if (time && !time.includes(':')) {
-        // Handle time like "1000" -> "10:00"
         time = time.padStart(4, '0');
         time = `${time.slice(0, 2)}:${time.slice(2, 4)}`;
       }
-      
+
       fixtures.push({
         id: crypto.randomUUID(),
         title,
         date: parsedDate,
         time: time.substring(0, 5),
         address,
-        description: '',
+        description: opponentFullLabel || '',
         opponent,
         driblTeamKey,
         isHomeGame: isHome,
       });
-      
-      // Track team mapping
+
       if (!teamMap.has(driblTeamKey)) {
         const driblTeamColorText = getDriblTeamColorText(row, isHome);
         const fullTeamLabel = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
@@ -471,7 +467,27 @@ export function DriblImportMapper({
         });
       }
       teamMap.get(driblTeamKey)!.fixtureCount++;
+    };
+
+    for (const row of driblRows) {
+      // Skip if no date or cancelled
+      if (!row.date || row.eventStatus?.toLowerCase() === 'cancelled') continue;
+
+      const isHome = sideMatchesClub(row, true, yourClubCode, clubName);
+      const isAway = sideMatchesClub(row, false, yourClubCode, clubName);
+
+      // Skip if neither home nor away is your club
+      if (!isHome && !isAway) continue;
+
+      // Internal derby: both sides belong to our club (e.g. U8 Grey v U8 Blue).
+      // Emit a fixture for each side so both teams see the match in their
+      // schedule with the correct home/away flag, instead of silently dropping
+      // the away side.
+      const isDerby = isHome && isAway;
+      if (isHome) emitSide(row, true, isDerby);
+      if (isAway) emitSide(row, false, isDerby);
     }
+
     
     return { 
       fixtures, 
