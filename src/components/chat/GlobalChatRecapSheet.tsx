@@ -150,6 +150,16 @@ async function fetchOne(ref: RecapScopeRef, lookbackHours: number): Promise<{ re
 export interface TimelineEntry { time: string | null; text: string }
 
 function parseTimelineTimestamp(time: string | null | undefined, text?: string): number {
+  // Cap to end-of-today: a recap groups messages by when they were SENT, not
+  // by dates referenced inside the message ("this Saturday", "next week").
+  // The LLM occasionally tags a bullet with a future date that came from the
+  // message body — clamp those out so the bullet falls back to today's bucket.
+  const endOfToday = (() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  })();
+
   const fromTag = (() => {
     if (!time) return 0;
     const d = parseRecapTagDate(time);
@@ -165,16 +175,21 @@ function parseTimelineTimestamp(time: string | null | undefined, text?: string):
     }
     return d.getTime();
   })();
-  if (fromTag) return fromTag;
+  if (fromTag && fromTag <= endOfToday) return fromTag;
 
   const body = text ?? "";
   const explicit = body.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
   if (explicit) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = months.findIndex((m) => m.toLowerCase() === explicit[2].slice(0, 3).toLowerCase());
-    if (month >= 0) return new Date(new Date().getFullYear(), month, Number(explicit[1])).getTime();
+    if (month >= 0) {
+      const ts = new Date(new Date().getFullYear(), month, Number(explicit[1])).getTime();
+      if (ts <= endOfToday) return ts;
+    }
   }
-  return 0;
+  // No reliable send-date — bucket as "today" rather than dropping the bullet
+  // or labelling it with a future date pulled from the message body.
+  return endOfToday;
 }
 
 function normalise(summary: ChatSummaryPayload | undefined) {
