@@ -375,14 +375,23 @@ export function DriblImportMapper({
     const teamMap = new Map<string, TeamMapping>();
     
     // Emit one fixture+mapping for a given side (home or away) of a row.
-    const emitSide = (row: DriblRow, isHome: boolean) => {
+    const emitSide = (row: DriblRow, isHome: boolean, isDerby: boolean) => {
       const driblTeamKey = generateTeamKey(row, isHome);
       const teamName = isHome
         ? (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'Unknown Team')
         : (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'Unknown Team');
-      const opponent = isHome
-        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
-        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
+
+      // Opposing team's full label (e.g. "U8 Blue"). For internal derbies the
+      // opposing club name matches ours, so use this to disambiguate.
+      const opponentFullLabel = cleanDriblValue(isHome ? row.awayTeam : row.homeTeam);
+      const opponentColorText = getDriblTeamColorText(row, !isHome);
+      const opponent = isDerby
+        ? (opponentFullLabel
+            || [teamName, opponentColorText].filter(Boolean).join(' ').trim()
+            || 'TBA')
+        : (isHome
+            ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+            : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA'));
 
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
@@ -390,14 +399,20 @@ export function DriblImportMapper({
       const roundLabel = row.round
         ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
         : null;
-      // For internal derbies (both sides are our club), disambiguate by the
-      // opposing team's full label so Grey's card doesn't read identically to
-      // Blue's. Otherwise keep the existing club-vs-club matchup.
-      const opponentFullLabel = cleanDriblValue(isHome ? row.awayTeam : row.homeTeam);
-      const opponentDisplay = isHome
-        ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
-        : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent');
-      const matchup = `${clubName} V ${opponentDisplay}`;
+
+      // For derbies, title both sides explicitly (e.g. "U8 Grey V U8 Blue")
+      // instead of "<Club> V <Club>".
+      const ownFullLabel = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+      const ownColorText = getDriblTeamColorText(row, isHome);
+      const ownDisplay = isDerby
+        ? (ownFullLabel || [teamName, ownColorText].filter(Boolean).join(' ').trim() || clubName)
+        : clubName;
+      const opponentDisplay = isDerby
+        ? opponent
+        : (isHome
+            ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
+            : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent'));
+      const matchup = `${ownDisplay} V ${opponentDisplay}`;
       const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
 
       let parsedDate = row.date || '';
@@ -468,8 +483,9 @@ export function DriblImportMapper({
       // Emit a fixture for each side so both teams see the match in their
       // schedule with the correct home/away flag, instead of silently dropping
       // the away side.
-      if (isHome) emitSide(row, true);
-      if (isAway) emitSide(row, false);
+      const isDerby = isHome && isAway;
+      if (isHome) emitSide(row, true, isDerby);
+      if (isAway) emitSide(row, false, isDerby);
     }
 
     
