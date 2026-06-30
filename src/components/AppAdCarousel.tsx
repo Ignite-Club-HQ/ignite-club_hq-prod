@@ -11,6 +11,13 @@ import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 interface AppAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
   hasSponsorAds: boolean;
+  /**
+   * When true (default), upgrade-style ads are hidden from users who already have
+   * Pro on any club. Set to false in contexts where the surrounding UI is scoped
+   * to a free club — the upgrade nudge is relevant there even if the user has
+   * Pro elsewhere.
+   */
+  suppressUpgradeAdsForProUsers?: boolean;
 }
 
 interface AppAd {
@@ -28,7 +35,7 @@ interface AppAd {
   text_color: string | null;
 }
 
-export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
+export function AppAdCarousel({ location, hasSponsorAds, suppressUpgradeAdsForProUsers = true }: AppAdCarouselProps) {
   const { trackView, trackClick } = useAdAnalytics();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -99,6 +106,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
   // "flash then disappear" behaviour after resuming from inactivity.
   const visibleAds = (ads ?? []).filter((ad) => {
     if (!isUpgradeAdRow(ad)) return true;
+    if (!suppressUpgradeAdsForProUsers) return true;
     if (proLoading) return false;
     return !hasAnyClubPro;
   });
