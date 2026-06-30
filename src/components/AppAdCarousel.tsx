@@ -11,6 +11,13 @@ import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 interface AppAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
   hasSponsorAds: boolean;
+  /**
+   * When true (default), upgrade-style ads are hidden from users who already have
+   * Pro on any club. Set to false in contexts where the surrounding UI is scoped
+   * to a free club — the upgrade nudge is relevant there even if the user has
+   * Pro elsewhere.
+   */
+  suppressUpgradeAdsForProUsers?: boolean;
 }
 
 interface AppAd {
