@@ -12,6 +12,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
+import { AccessibilityPrefsProvider } from "@/hooks/useAccessibilityPrefs";
 import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
@@ -480,6 +481,7 @@ const App = () => {
           </BrowserRouter>
           </TooltipProvider>
         </ClubThemeProvider>
+        </AccessibilityPrefsProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
