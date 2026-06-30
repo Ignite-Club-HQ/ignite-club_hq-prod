@@ -106,6 +106,7 @@ export function AppAdCarousel({ location, hasSponsorAds, suppressUpgradeAdsForPr
   // "flash then disappear" behaviour after resuming from inactivity.
   const visibleAds = (ads ?? []).filter((ad) => {
     if (!isUpgradeAdRow(ad)) return true;
+    if (!suppressUpgradeAdsForProUsers) return true;
     if (proLoading) return false;
     return !hasAnyClubPro;
   });
