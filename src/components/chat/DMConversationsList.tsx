@@ -385,7 +385,7 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                   </div>
                 </div>
-                <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+                <p className="text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
                   {systemMessage.text.substring(0, 60)}...
                 </p>
               </div>
@@ -476,7 +476,7 @@ function DMConversationRow({ conv, currentUserId, isFetching, eventTitles }: DMC
                 />
               </div>
             </div>
-            <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+            <p className="text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
               <MessagePreview
                 text={conv.last_message?.text}
                 imageUrl={conv.last_message?.image_url}
