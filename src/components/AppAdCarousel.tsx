@@ -35,7 +35,7 @@ interface AppAd {
   text_color: string | null;
 }
 
-export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
+export function AppAdCarousel({ location, hasSponsorAds, suppressUpgradeAdsForProUsers = true }: AppAdCarouselProps) {
   const { trackView, trackClick } = useAdAnalytics();
   const { user } = useAuth();
   const navigate = useNavigate();
