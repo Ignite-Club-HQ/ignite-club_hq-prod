@@ -10,8 +10,8 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// HARD RESTRICTION: Pro sponsor strip is Riverside FC only for this MVP.
-const RIVERSIDE_CLUB_ID = "36231b76-5313-478e-b8d5-23ac4f5e8b10";
+// Pro sponsor strip: any Pro club that opts in via clubs.media_header_sponsors_enabled.
+// Defaults to OFF (column default false); toggled in Club settings.
 
 // Pro dismiss — 24h, user+club scoped. Free clubs cannot dismiss (same as chat).
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
@@ -107,22 +107,22 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
     },
   });
 
-  // Pro toggle — Riverside only
+  // Pro toggle — any Pro club that has opted in
   const { data: clubFlag } = useQuery({
-    queryKey: ["riverside-media-header-sponsors-enabled"],
-    enabled: !!clubId && clubId === RIVERSIDE_CLUB_ID && isProClub === true,
+    queryKey: ["media-header-sponsors-enabled", clubId],
+    enabled: !!clubId && isProClub === true,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clubs")
         .select("id, media_header_sponsors_enabled")
-        .eq("id", RIVERSIDE_CLUB_ID)
+        .eq("id", clubId!)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-  const proEnabled = clubId === RIVERSIDE_CLUB_ID && !!clubFlag?.media_header_sponsors_enabled;
+  const proEnabled = !!clubFlag?.media_header_sponsors_enabled;
 
   // Pro sponsors
   const { data: sponsors = [] } = useQuery({

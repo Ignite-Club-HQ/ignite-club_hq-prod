@@ -13,7 +13,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const RECAP_VERSION = "recap-v14";
+const RECAP_VERSION = "recap-v16";
 
 type ScopeType = "team" | "club" | "group" | "club_admin" | "direct";
 
@@ -72,7 +72,9 @@ function tagBullet(now: Date, ts: Date, text: string): string {
 function stripSpeakerPrefix(s: string): string {
   return s
     .replace(/^([A-Z][\w'’.-]+(?:\s+[A-Z][\w'’.-]+){0,2})\s*[:\-–]\s+/u, "")
-    .replace(/^Person\s+\d+\s*[:\-–]\s+/i, "")
+    .replace(/^(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker|Child)\s+\d+\s*[:\-–]\s+/i, "")
+    .replace(/\bChild\s+\d+\b/gi, "a child")
+    .replace(/\b(?:Person|Player|Member|Parent|Coach|Volunteer|User|Speaker)\s+\d+\b/gi, "someone")
     .trim();
 }
 
