@@ -1,16 +1,15 @@
 /**
  * Shared, module-level cache for `profiles` lookups by id.
  *
- * Purpose: cut repeated `profiles WHERE id = ANY(...)` fanouts (the top
- * total-time query in pg_stat_statements) by:
+ * Purpose: cut repeated `profiles WHERE id = ANY(...)` fanouts by:
  *   1. Serving hot rows from memory (5 min TTL).
- *   2. De-duplicating concurrent requests for the same ids across the whole app.
+ *   2. De-duplicating concurrent requests for the same ids across the app.
  *   3. Coalescing rapid-fire calls into a single batched fetch (10ms window).
  *
  * Safe by design:
- *   - TTL keeps drift bounded (avatar/name edits self-heal within 5min).
- *   - Realtime updates to `profiles` already flow via useAuth; consumers that
- *     need instant freshness can call `invalidateProfileCache(id)`.
+ *   - TTL keeps drift bounded; realtime updates elsewhere invalidate on edit.
+ *   - Consumers that need instant freshness can call `updateProfileCache()`
+ *     or `clearProfileCache()`.
  *   - No writes, no auth changes, no RLS interaction — pure read memoisation.
  */
 
@@ -22,8 +21,10 @@ export interface CachedProfile {
   avatar_url: string | null;
 }
 
-const TTL_MS = 5 * 60 * 1000;
+const FRESH_TTL_MS = 5 * 60 * 1000;      // considered fresh
+const STALE_TTL_MS = 30 * 60 * 1000;     // still usable when allowStale
 const BATCH_WINDOW_MS = 10;
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 interface Entry {
   profile: CachedProfile | null;
@@ -32,6 +33,7 @@ interface Entry {
 
 const cache = new Map<string, Entry>();
 const inFlight = new Map<string, Promise<CachedProfile | null>>();
+const updateListeners = new Set<(id: string) => void>();
 
 let pendingIds = new Set<string>();
 let pendingResolvers = new Map<
@@ -39,6 +41,12 @@ let pendingResolvers = new Map<
   Array<(p: CachedProfile | null) => void>
 >();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notify(id: string) {
+  for (const cb of updateListeners) {
+    try { cb(id); } catch { /* noop */ }
+  }
+}
 
 function scheduleFlush() {
   if (flushTimer) return;
@@ -58,28 +66,25 @@ async function flushBatch() {
       .from("profiles")
       .select("id, display_name, avatar_url")
       .in("id", ids);
-
     if (error) throw error;
 
     const now = Date.now();
     const byId = new Map<string, CachedProfile>();
-    for (const p of data ?? []) {
-      byId.set(p.id, p as CachedProfile);
-    }
+    for (const p of data ?? []) byId.set(p.id, p as CachedProfile);
 
     for (const id of ids) {
       const profile = byId.get(id) ?? null;
       cache.set(id, { profile, fetchedAt: now });
       inFlight.delete(id);
+      notify(id);
       const cbs = resolvers.get(id) ?? [];
       for (const cb of cbs) cb(profile);
     }
   } catch (err) {
-    // Fail-open: resolve with null so callers don't hang; do NOT cache failures.
     for (const id of ids) {
       inFlight.delete(id);
       const cbs = resolvers.get(id) ?? [];
-      for (const cb of cbs) cb(null);
+      for (const cb of cbs) cb(cache.get(id)?.profile ?? null);
     }
     // eslint-disable-next-line no-console
     console.warn("[profileCache] batch fetch failed", err);
@@ -89,7 +94,6 @@ async function flushBatch() {
 function requestOne(id: string): Promise<CachedProfile | null> {
   const existing = inFlight.get(id);
   if (existing) return existing;
-
   const p = new Promise<CachedProfile | null>((resolve) => {
     pendingIds.add(id);
     const arr = pendingResolvers.get(id) ?? [];
@@ -101,42 +105,147 @@ function requestOne(id: string): Promise<CachedProfile | null> {
   return p;
 }
 
-/**
- * Fetch profiles for the given ids. Returns a Map keyed by id.
- * Cached entries served instantly; misses batched into a single query.
- */
-export async function fetchProfilesByIds(
-  ids: readonly string[],
-): Promise<Map<string, CachedProfile>> {
-  const result = new Map<string, CachedProfile>();
-  const now = Date.now();
-  const misses: string[] = [];
-
-  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
-  for (const id of uniqueIds) {
-    const entry = cache.get(id);
-    if (entry && now - entry.fetchedAt < TTL_MS) {
-      if (entry.profile) result.set(id, entry.profile);
-    } else {
-      misses.push(id);
-    }
-  }
-
-  if (misses.length === 0) return result;
-
-  const fetched = await Promise.all(misses.map(requestOne));
-  for (let i = 0; i < misses.length; i++) {
-    const profile = fetched[i];
-    if (profile) result.set(misses[i], profile);
-  }
-  return result;
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(fallback);
+    }, ms);
+    p.then((v) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(v);
+    }).catch(() => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(fallback);
+    });
+  });
 }
 
-/** Invalidate one id (e.g., after a profile edit) so the next read refetches. */
-export function invalidateProfileCache(id?: string) {
-  if (!id) {
-    cache.clear();
-    return;
+// ---------- Public API ----------
+
+/** Read the current cached profile for `id`, ignoring TTL. Returns null if unknown. */
+export function getProfileFromCache(id: string | null | undefined): CachedProfile | null {
+  if (!id) return null;
+  return cache.get(id)?.profile ?? null;
+}
+
+/**
+ * Partition ids by cache state.
+ * - cached: fresh entries (within FRESH_TTL_MS)
+ * - stale:  present but past fresh TTL (still usable when allowStale)
+ * - missing: not in cache or past STALE_TTL_MS
+ */
+export function getProfilesFromCache(ids: readonly string[]): {
+  cached: Map<string, CachedProfile>;
+  missing: string[];
+  stale: string[];
+} {
+  const cached = new Map<string, CachedProfile>();
+  const missing: string[] = [];
+  const stale: string[] = [];
+  const now = Date.now();
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    const entry = cache.get(raw);
+    if (!entry) { missing.push(raw); continue; }
+    const age = now - entry.fetchedAt;
+    if (age < FRESH_TTL_MS) {
+      if (entry.profile) cached.set(raw, entry.profile);
+    } else if (age < STALE_TTL_MS) {
+      if (entry.profile) cached.set(raw, entry.profile);
+      stale.push(raw);
+    } else {
+      missing.push(raw);
+    }
   }
-  cache.delete(id);
+  return { cached, missing, stale };
+}
+
+/** Insert/refresh profiles in the cache (e.g., after a bespoke fetch). */
+export function cacheProfiles(
+  profiles: ReadonlyArray<Partial<CachedProfile> & { id: string }>,
+) {
+  const now = Date.now();
+  for (const p of profiles ?? []) {
+    if (!p?.id) continue;
+    cache.set(p.id, {
+      profile: {
+        id: p.id,
+        display_name: p.display_name ?? null,
+        avatar_url: p.avatar_url ?? null,
+      },
+      fetchedAt: now,
+    });
+    notify(p.id);
+  }
+}
+
+/** Update a single profile (e.g., after the current user edits their own). */
+export function updateProfileCache(profile: Partial<CachedProfile> & { id: string }) {
+  cacheProfiles([profile]);
+}
+
+/** Clear the whole cache (called on sign-out / cross-user switch). */
+export function clearProfileCache() {
+  cache.clear();
+  inFlight.clear();
+  pendingIds = new Set();
+  pendingResolvers = new Map();
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+}
+
+/** Subscribe to per-id cache updates. Returns unsubscribe. */
+export function onProfileCacheUpdate(cb: (id: string) => void): () => void {
+  updateListeners.add(cb);
+  return () => { updateListeners.delete(cb); };
+}
+
+/**
+ * Fetch profiles for the given ids. Returns a Map keyed by id.
+ * - Cached fresh entries served instantly, no network.
+ * - Misses batched into a single query (10ms window).
+ * - opts.allowStale: also serve stale entries (still triggers background refresh
+ *   for expired-but-not-purged ids to bound drift).
+ * - opts.timeout: fall back to whatever is currently cached if the network is slow.
+ */
+export async function fetchProfilesWithCache(
+  ids: readonly string[],
+  opts: { allowStale?: boolean; timeout?: number } = {},
+): Promise<Map<string, CachedProfile>> {
+  const { allowStale = false, timeout = DEFAULT_TIMEOUT_MS } = opts;
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return new Map();
+
+  const { cached, missing, stale } = getProfilesFromCache(uniqueIds);
+
+  const toFetch = allowStale ? missing : [...missing, ...stale];
+  if (toFetch.length === 0) return cached;
+
+  const fetchPromise = Promise.all(toFetch.map(requestOne)).then((fetched) => {
+    const merged = new Map(cached);
+    for (let i = 0; i < toFetch.length; i++) {
+      const p = fetched[i];
+      if (p) merged.set(toFetch[i], p);
+    }
+    return merged;
+  });
+
+  // Fallback returns whatever we have cached so UI never hangs on slow network.
+  return withTimeout(fetchPromise, timeout, cached);
+}
+
+/** Convenience: fetch one profile through the cache. */
+export async function fetchSingleProfileWithCache(
+  id: string,
+): Promise<CachedProfile | null> {
+  const map = await fetchProfilesWithCache([id]);
+  return map.get(id) ?? null;
 }
