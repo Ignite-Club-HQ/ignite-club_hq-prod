@@ -48,6 +48,8 @@ function isExternalUrl(url: string): boolean {
 
 function handlePayload(payload: any) {
   if (!payload) return;
+  coldMark("notif_tap");
+  coldRemark("notif_tap");
   const rawUrl: string | undefined = payload.url;
   const data = payload.data || payload;
   console.log("[WebNotificationLaunch] tap received", {
