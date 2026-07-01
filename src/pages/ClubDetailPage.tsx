@@ -96,8 +96,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-// PlayHQ sync hidden until API is configured — re-enable when PLAYHQ_API_KEY_<tenant> env var is set
-// import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
+import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
 
 type ClubRole = "club_admin";
 
@@ -2228,8 +2227,7 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              {/* PlayHQ sync hidden until API is configured */}
-              {/* <PlayHQClubSyncCard clubId={id!} /> */}
+              <PlayHQClubSyncCard clubId={id!} />
             </div>
 
           </AccordionContent>
