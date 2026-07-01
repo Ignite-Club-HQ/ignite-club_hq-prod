@@ -37,7 +37,7 @@ import { MessageReactionsPopover } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 import { scrollMessageIntoLowerThird } from "@/lib/scrollMessageIntoLowerThird";
-import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { claimFirstBubbleHint } from "@/hooks/useChatActionsOnboarding";
 
 
@@ -874,10 +874,7 @@ function GroupReactionsDialog({
       const unresolvedIds = allUserIds.filter((id) => !normalizeDisplayName(map.get(id)?.display_name));
 
       if (unresolvedIds.length > 0) {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", unresolvedIds);
+        const { data, error } = await selectCachedProfilesByIds(unresolvedIds);
         if (error) throw error;
         if (data?.length) {
           cacheProfiles(data);

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound, GripVertical, UserPlus, MoreVertical, Plus } from "lucide-react";
 import { AddSecondParentDialog } from "@/components/mini-league/AddSecondParentDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -192,10 +193,7 @@ export function ManagePlayersDialog({
     queryKey: ["parent-profiles", parentUserIds],
     queryFn: async () => {
       if (parentUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", parentUserIds);
+      const { data, error } = await selectCachedProfilesByIds(parentUserIds);
       if (error) throw error;
       return data as ParentProfile[];
     },
@@ -216,10 +214,7 @@ export function ManagePlayersDialog({
         .in("child_id", childIdsForGuardians);
       const guardianIds = [...new Set((gRows || []).map(g => g.guardian_id))];
       if (guardianIds.length === 0) return [];
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", guardianIds);
+      const { data: profs } = await selectCachedProfilesByIds(guardianIds);
       const nameMap = new Map((profs || []).map(p => [p.id, p.display_name]));
       return (gRows || []).map(g => ({
         child_id: g.child_id,

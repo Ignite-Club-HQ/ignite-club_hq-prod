@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
@@ -93,11 +94,7 @@ export default function JoinClubPage() {
   const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join-club", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user!.id)
-        .single();
+      const { data } = await selectCachedProfileById(user!.id);
       return data;
     },
     enabled: !!user,

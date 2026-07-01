@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -187,10 +188,7 @@ export default function AttendanceStatsPage({ teamIdOverride, embedded }: Attend
       const parentIds = [...new Set(rows.map((r: any) => r.parent_id).filter(Boolean))];
       let profileMap: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", parentIds);
+        const { data: profiles } = await selectCachedProfilesByIds(parentIds);
         (profiles || []).forEach((p) => { profileMap[p.id] = p; });
       }
 

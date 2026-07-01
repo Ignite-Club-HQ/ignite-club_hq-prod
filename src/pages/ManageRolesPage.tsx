@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AddClubRoleToMemberDialog from "@/components/AddClubRoleToMemberDialog";
@@ -132,10 +133,7 @@ export default function ManageRolesPage() {
       // Fetch profiles separately
       if (!data || data.length === 0) return [];
       const userIds = data.map(r => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
       
       return data.map(req => ({
         ...req,

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
@@ -223,11 +224,7 @@ export default function JoinTeamPage() {
   const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user!.id)
-        .single();
+      const { data } = await selectCachedProfileById(user!.id);
       return data;
     },
     enabled: !!user,
@@ -346,11 +343,7 @@ export default function JoinTeamPage() {
 
     // For pending invites, validate name match
     if (isPendingInvite && pendingInviteData?.invited_label) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .single();
+      const { data: profile } = await selectCachedProfileById(user.id);
 
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
       const actualName = (profile?.display_name || "").toLowerCase().trim();
@@ -661,11 +654,7 @@ export default function JoinTeamPage() {
         // Use the first match's label to prefill display name if needed
         const firstLabel = matchingPendingInvites.find(i => i.invited_label)?.invited_label;
         if (firstLabel) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("id", user.id)
-            .single();
+          const { data: profile } = await selectCachedProfileById(user.id);
 
           if (!profile?.display_name) {
             await supabase

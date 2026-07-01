@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { PageLoading } from "@/components/ui/page-loading";
 
 interface ActiveGameRow {
@@ -124,10 +125,7 @@ export default function AdminActiveGamesPage() {
     queryKey: ["admin-active-games", "coach-profiles", coachIds.sort().join(",")],
     enabled: !!isAppAdmin && coachIds.length > 0,
     queryFn: async (): Promise<Record<string, { id: string; display_name: string | null }>> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", coachIds);
+      const { data, error } = await selectCachedProfilesByIds(coachIds);
       if (error) throw error;
       const map: Record<string, { id: string; display_name: string | null }> = {};
       (data ?? []).forEach((p) => {

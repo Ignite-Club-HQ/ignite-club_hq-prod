@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -143,10 +144,7 @@ const CommentReactionUsersDialog = memo(function CommentReactionUsersDialog({
     queryKey: ["comment-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", allUserIds);
+      const { data, error } = await selectCachedProfilesByIds(allUserIds);
       if (error) throw error;
       return data;
     },

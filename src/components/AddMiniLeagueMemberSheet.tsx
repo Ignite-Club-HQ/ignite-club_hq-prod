@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -195,10 +196,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       if (!children?.length) return [];
 
       const parentIds = [...new Set(children.map(c => c.parent_id).filter(Boolean))];
-      const { data: parents } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", parentIds);
+      const { data: parents } = await selectCachedProfilesByIds(parentIds);
       const parentMap = new Map(parents?.map(p => [p.id, p.display_name]) || []);
 
       return children.map(c => ({

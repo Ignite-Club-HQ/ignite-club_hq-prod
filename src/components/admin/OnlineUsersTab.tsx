@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 
 type WindowMinutes = 2 | 5 | 15 | 60;
 
@@ -57,10 +58,7 @@ export default function OnlineUsersTab() {
       const userIds = [...new Set(rows.map((r) => r.user_id))];
       if (userIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
 
       // Emails live in auth.users — fetch via the admin-gated RPC.
       // Failures here are non-fatal; we just render the row without an email.

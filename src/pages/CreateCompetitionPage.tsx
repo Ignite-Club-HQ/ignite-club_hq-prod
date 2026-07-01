@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
@@ -74,11 +75,7 @@ export default function CreateCompetitionPage() {
     let clubIdToUse = organizerClubId;
 
     if (organizerClubId === PERSONAL_ORGANISER) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: profile } = await selectCachedProfileById(user.id);
       const who = profile?.display_name?.trim() || "My";
       const shellName = `${who}'s competitions`;
 

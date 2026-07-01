@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { 
-  fetchProfilesWithCache, 
-  getProfilesFromCache, 
-  CachedProfile,
-  cacheProfiles,
-  onProfileCacheUpdate,
-  getProfileFromCache,
-} from "@/lib/profileCache";
+import { CachedProfile, cacheProfiles, fetchProfilesWithCache, getProfileFromCache, getProfilesFromCache, onProfileCacheUpdate, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -144,11 +137,7 @@ export function prefetchProfiles(ids: string[]) {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", missing)
-          .abortSignal(controller.signal);
+        const { data } = await selectCachedProfilesByIds(missing);
         
         clearTimeout(timeoutId);
         if (data) {

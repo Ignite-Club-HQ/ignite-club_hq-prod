@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check, UserPlus, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -225,14 +226,10 @@ export default function EventGroupPitchPage() {
       if (!allUserIds.length) return [];
       
       // Fetch profiles for all these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", allUserIds)
-        .order("display_name");
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(allUserIds);
       if (profilesError) throw profilesError;
-      
-      return profiles || [];
+
+      return (profiles || []).slice().sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
     },
     enabled: !!group?.event?.mini_league_id,
   });

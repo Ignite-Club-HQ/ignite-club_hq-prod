@@ -3,6 +3,7 @@ import { LogoImage } from "@/components/ui/logo-image";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -887,10 +888,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       const allUserIds = Array.from(new Set(roles.map(r => r.user_id).filter(Boolean) as string[]));
       const profileMap = new Map<string, string | null>();
       if (allUserIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, avatar_url")
-          .in("id", allUserIds);
+        const { data: profiles } = await selectCachedProfilesByIds(allUserIds);
         for (const p of profiles || []) profileMap.set(p.id, p.avatar_url);
       }
 

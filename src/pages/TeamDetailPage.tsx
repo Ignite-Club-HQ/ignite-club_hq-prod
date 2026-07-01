@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
-import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
+import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical, Image as ImageIcon } from "lucide-react";
@@ -335,10 +335,7 @@ export default function TeamDetailPage() {
 
       let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", parentIds);
+        const { data: profiles } = await selectCachedProfilesByIds(parentIds);
         parentProfiles = (profiles || []).reduce((acc, p) => {
           acc[p.id] = p;
           return acc;
@@ -631,11 +628,7 @@ export default function TeamDetailPage() {
       const invitesWithProfiles = await Promise.all(
         identifiableInvites.map(async (invite) => {
           if (invite.invited_user_id) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .eq("id", invite.invited_user_id)
-              .single();
+            const { data: profile } = await selectCachedProfileById(invite.invited_user_id);
             return { ...invite, profiles: profile };
           }
           return { ...invite, profiles: null };

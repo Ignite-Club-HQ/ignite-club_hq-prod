@@ -69,6 +69,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -619,11 +620,7 @@ export default function ClubDetailPage() {
       const invitesWithProfiles = await Promise.all(
         identifiableInvites.map(async (invite) => {
           if (invite.invited_user_id) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .eq("id", invite.invited_user_id)
-              .maybeSingle();
+            const { data: profile } = await selectCachedProfileById(invite.invited_user_id);
             return { ...invite, profiles: profile };
           }
           return { ...invite, profiles: null };

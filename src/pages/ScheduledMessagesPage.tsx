@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import {
   ScheduledMessageRow,
   useAllScheduledMessages,
@@ -173,10 +174,7 @@ function useThreadLabels(rows: ScheduledMessageRow[]) {
           const userIds = [
             ...new Set(convs.flatMap((c: any) => [c.participant_1, c.participant_2])),
           ];
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, display_name")
-            .in("id", userIds);
+          const { data: profiles } = await selectCachedProfilesByIds(userIds);
           const profMap: Record<string, string> = {};
           (profiles || []).forEach((p: any) => {
             profMap[p.id] = p.display_name || "Unknown";

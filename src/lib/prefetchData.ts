@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { cacheRoles, getCachedRoles } from "@/lib/rolesCache";
 import { cacheClubs, cacheTeams, getCachedClubs, getCachedTeams } from "@/lib/clubTeamCache";
 
@@ -339,11 +340,8 @@ async function prefetchMediaAccess(
   teamIds: string[]
 ) {
   try {
-    const profilePromise = supabase
-      .from("profiles")
-      .select("display_name, avatar_url")
-      .eq("id", userId)
-      .maybeSingle();
+    const profilePromise = selectCachedProfileById(userId);
+
 
     if (isAppAdmin) {
       const profileResult = await profilePromise;

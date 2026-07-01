@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwipeableNotificationCard } from "@/components/SwipeableNotificationCard";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { playNotificationSound, showBrowserNotification } from "@/lib/notifications";
@@ -540,11 +541,7 @@ export default function NotificationsPage() {
         const entityName = teamName || clubName;
         const roleName = request.role.replace("_", " ");
 
-        const { data: requesterProfile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", request.user_id)
-          .maybeSingle();
+        const { data: requesterProfile } = await selectCachedProfileById(request.user_id);
 
         const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
         const userEmail = emailData?.[0]?.email;
@@ -616,11 +613,7 @@ export default function NotificationsPage() {
         const entityName = teamName || clubName;
         const roleName = request.role.replace("_", " ");
 
-        const { data: requesterProfile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", request.user_id)
-          .maybeSingle();
+        const { data: requesterProfile } = await selectCachedProfileById(request.user_id);
 
         const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
         const userEmail = emailData?.[0]?.email;

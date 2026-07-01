@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, UserPlus, Loader2, Check, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -113,14 +114,10 @@ export function MatchDutiesDialog({
       const allUserIds = [...new Set([...parentIds, ...adminIds])];
       if (!allUserIds.length) return [];
       
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", allUserIds)
-        .order("display_name");
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(allUserIds);
       if (profilesError) throw profilesError;
-      
-      return profiles || [];
+
+      return (profiles || []).slice().sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
     },
     enabled: open && !!miniLeagueId,
   });

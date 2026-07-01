@@ -8,6 +8,7 @@ import {
   UserPlus, CalendarDays, Shield, UserRound, MessageSquare, Mail
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -269,10 +270,7 @@ export default function MiniLeagueDetailPage() {
 
       if (allUserIds.length === 0) return { parents: [], staff: [] };
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", allUserIds);
+      const { data: profiles } = await selectCachedProfilesByIds(allUserIds);
 
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
