@@ -992,6 +992,16 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
 
     if (!inThemed) {
+      // Club is not in themed list. Two possibilities:
+      // (a) user genuinely no longer has themed Pro access → drop cache.
+      // (b) transient refetch after reconnect returned a partial embed
+      //     (e.g. `club_subscriptions` join briefly empty right after token
+      //     rotation) → the club is still in `userClubs` (fetched fresh via
+      //     the same reconnect refetch) so we must NOT evict.
+      // Only evict when BOTH queries agree the club is gone.
+      const stillOwned = userClubs.some(c => c.id === activeClubTheme);
+      if (stillOwned) return;
+
       // Club is free/non-themed/inaccessible for theme rendering.
       // Evict any stale themed cache so the header drops the logo + colours
       // and renders the free-club branch (name only, default Ignite icon).
@@ -1003,7 +1013,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, isLoading, isUserClubsLoading, isClubThemesSuccess, isUserClubsSuccess, isClubThemesError, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, isUserClubsLoading, isClubThemesSuccess, isUserClubsSuccess, isClubThemesError, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
