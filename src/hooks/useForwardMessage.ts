@@ -114,7 +114,7 @@ export function useForwardMessageMutation(currentUserId: string | undefined) {
       if (source.authorId && source.authorId !== currentUserId) {
         try {
           const [{ data: forwarder }, { data: groups }] = await Promise.all([
-            supabase.from("profiles").select("display_name").eq("id", currentUserId).maybeSingle(),
+            selectCachedProfileById(currentUserId),
             supabase.from("chat_groups").select("id, name, club_id").in("id", destinationGroupIds),
           ]);
           const forwarderName = forwarder?.display_name?.trim() || "Someone";
