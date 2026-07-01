@@ -280,6 +280,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } finally {
-    await admin.rpc("release_cron_lock", { p_key: LOCK_KEY }).catch(() => {});
+    try {
+      await admin.rpc("release_cron_lock", { p_key: LOCK_KEY });
+    } catch (releaseErr) {
+      console.error("release_cron_lock failed", releaseErr);
+    }
   }
 });
