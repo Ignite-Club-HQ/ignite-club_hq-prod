@@ -15,6 +15,7 @@ import { ArrowLeft, Send, Loader2, Flame, Search, CalendarPlus } from "lucide-re
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
+import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
