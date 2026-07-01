@@ -2227,8 +2227,7 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              {/* PlayHQ sync hidden until API is configured */}
-              {/* <PlayHQClubSyncCard clubId={id!} /> */}
+              <PlayHQClubSyncCard clubId={id!} />
             </div>
 
           </AccordionContent>
