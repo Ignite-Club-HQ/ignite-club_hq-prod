@@ -1114,7 +1114,7 @@ export default function DirectMessagePage() {
           // Fetch profile and reply data async
           const fetchExtra = async () => {
             const [profileResult, replyResult] = await Promise.all([
-              supabase.from("profiles").select("display_name, avatar_url").eq("id", newMsg.author_id).maybeSingle(),
+              selectCachedProfileById(newMsg.author_id),
               newMsg.reply_to_id
                 ? supabase.from("direct_messages").select("text, author_id").eq("id", newMsg.reply_to_id).maybeSingle()
                 : Promise.resolve({ data: null }),
