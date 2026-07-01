@@ -282,6 +282,14 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Per-group-chat row badges read from the denormalised `chat_group_unread`
+  // cache (realtime-backed). Falls back to `unreadCounts.groups[id]` if the
+  // hook hasn't populated yet — so behaviour is identical to the old RPC path
+  // in the worst case, and instant in the common case.
+  const { data: groupUnreadCache } = useGroupChatUnreadCache(
+    initialized ? user?.id : null,
+  );
+
   // Delete group mutation (soft-delete so an app admin can restore later)
   const deleteGroupMutation = useMutation({
     mutationFn: async (groupId: string) => {
