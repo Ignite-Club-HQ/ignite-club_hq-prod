@@ -753,7 +753,7 @@ export default function ClubAdminChatPage() {
             }
           );
           // Fetch profile async
-          supabase.from("profiles").select("display_name, avatar_url").eq("id", newMsg.author_id).maybeSingle().then(({ data: p }) => {
+          selectCachedProfileById(newMsg.author_id).then(({ data: p }) => {
             if (!p) return;
             queryClient.setQueryData(queryKey, (old: any) => {
               if (!old) return old;
