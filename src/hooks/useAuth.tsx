@@ -963,6 +963,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Object.keys(inboxRefreshState).forEach((k) => {
         if (inboxRefreshState[k]) cancelAnimationFrame(inboxRefreshState[k]);
       });
+      if (resyncTimer) clearTimeout(resyncTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
