@@ -903,12 +903,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         (payload) => {
           if (payload.new && (payload.new as any).is_read === true) {
-            fetchUnreadCount(user.id);
-            // Sync club-scoped badges (AppHeader bell + BottomNav Messages badge)
-            queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-            queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-            queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-            queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+            // RAF-dedupe: opening a thread with N unread messages fires N
+            // UPDATE events back-to-back; without dedupe we'd chain N full
+            // RPC round-trips and stall the badge for hundreds of ms.
+            scheduleInboxRefresh('unread', () => {
+              fetchUnreadCount(user.id);
+              queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+              queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+              queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+              queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+            });
           }
         }
       )
@@ -921,36 +925,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          fetchUnreadCount(user.id);
-          queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-          queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-          queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-          queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+          scheduleInboxRefresh('unread', () => {
+            fetchUnreadCount(user.id);
+            queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+            queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+            queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+            queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+          });
         }
       )
       .subscribe();
 
-    // Re-sync unread count from server when app becomes visible
-    // This catches any drift from missed realtime events (common on mobile/native)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+    // Re-sync unread count from server when app becomes visible or focused.
+    // visibility + focus often both fire on native resume, so debounce them
+    // into a single invalidation window (~500 ms) to avoid duplicate RPCs.
+    let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleResync = () => {
+      if (resyncTimer) return;
+      resyncTimer = setTimeout(() => {
+        resyncTimer = null;
         fetchUnreadCount(user.id);
         queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
         queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
         queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
         queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      }
+      }, 500);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleResync();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Also re-sync on focus (more reliable on some platforms)
-    const handleFocus = () => {
-      fetchUnreadCount(user.id);
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-    };
+    const handleFocus = () => scheduleResync();
     window.addEventListener('focus', handleFocus);
 
     return () => {
@@ -958,6 +963,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Object.keys(inboxRefreshState).forEach((k) => {
         if (inboxRefreshState[k]) cancelAnimationFrame(inboxRefreshState[k]);
       });
+      if (resyncTimer) clearTimeout(resyncTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
