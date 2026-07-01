@@ -10,6 +10,7 @@
 import { preloadMessageFromNotification } from "./notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
 import { prefetchChatChunkForUrl } from "./chatChunkPrefetch";
+import { mark as coldMark, remark as coldRemark } from "./coldStartMarks";
 
 let pendingUrl: string | null = null;
 const SS_KEY = "ignite_pending_web_push_nav";
@@ -47,6 +48,8 @@ function isExternalUrl(url: string): boolean {
 
 function handlePayload(payload: any) {
   if (!payload) return;
+  coldMark("notif_tap");
+  coldRemark("notif_tap");
   const rawUrl: string | undefined = payload.url;
   const data = payload.data || payload;
   console.log("[WebNotificationLaunch] tap received", {

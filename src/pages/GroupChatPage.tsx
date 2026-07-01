@@ -40,6 +40,7 @@ import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
+import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import {
   AlertDialog,
@@ -2061,7 +2062,7 @@ export default function GroupChatPage() {
     : groupBaseSublabel;
 
   if (groupLoading) {
-    return <PageLoading message="Loading group chat..." />;
+    return <ChatPageSkeleton />;
   }
 
   if (!group) {

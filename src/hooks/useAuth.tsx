@@ -10,6 +10,7 @@ import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
@@ -188,6 +189,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
   const [initialized, setInitialized] = useState(initialAuthState.initialized);
+  // Cold-start instrumentation: fire the `auth_ready` mark exactly once
+  // when `initialized` first flips true, regardless of which of the ~10
+  // setInitialized(true) sites triggered it.
+  useEffect(() => {
+    if (initialized) coldMark("auth_ready");
+  }, [initialized]);
   // profileResolved: true once the profile has been fetched from the server at least once
   // for the current session. Prevents routing to /complete-profile based on stale/missing cache.
   const [profileResolved, setProfileResolved] = useState(!!initialAuthState.profile?.display_name);

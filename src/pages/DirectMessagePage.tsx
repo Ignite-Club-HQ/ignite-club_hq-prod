@@ -19,6 +19,7 @@ import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-rea
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
+import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
@@ -1338,7 +1339,7 @@ export default function DirectMessagePage() {
   }, [firstMatchId, isSearchFetching, searchQuery]);
 
   if (conversationLoading || checkingCanDM) {
-    return <PageLoading />;
+    return <ChatPageSkeleton />;
   }
 
   if (!conversation) {
