@@ -261,59 +261,54 @@ serve(async (req) => {
       return stringified;
     })();
 
-    for (const tokenRecord of tokens) {
-      try {
-        // Build the FCM message PER-PLATFORM.
-        // Android must receive a visible notification payload; data-only FCM
-        // can be accepted by Firebase but not shown by the OS when the app is
-        // backgrounded/killed. We avoid the previous duplicate-banner issue by
-        // using Android-specific notification config instead of also sending a
-        // top-level `notification` block to Android.
-        const isIos = tokenRecord.platform === 'ios';
-
-        const message: Record<string, unknown> = {
-          token: tokenRecord.token,
-          data: dataPayload,
+    // Build one message envelope per token, then dispatch them via FCM HTTP v1
+    // in parallel batches (equivalent to Admin SDK's sendMulticast, which
+    // internally parallelises single-message sends now that the multipart
+    // batch endpoint has been deprecated). This replaces the previous
+    // serial for-loop that scaled linearly with token count.
+    const effectiveTag = tag || `notification-${notificationId || Date.now()}`;
+    const buildMessage = (tokenRecord: any): Record<string, unknown> => {
+      const isIos = tokenRecord.platform === 'ios';
+      const message: Record<string, unknown> = {
+        token: tokenRecord.token,
+        data: dataPayload,
+      };
+      if (isIos) {
+        message.notification = {
+          title: title || 'Ignite',
+          body: body || 'You have a new notification',
         };
-
-        if (isIos) {
-          const effectiveTag = tag || `notification-${notificationId || Date.now()}`;
-          message.notification = {
+        message.apns = {
+          headers: {
+            'apns-collapse-id': effectiveTag.slice(0, 64),
+            'apns-priority': '10',
+          },
+          payload: {
+            aps: {
+              'mutable-content': 1,
+              sound: 'default',
+              badge: 1,
+              'thread-id': effectiveTag,
+            },
+          },
+        };
+      } else {
+        message.android = {
+          priority: 'high',
+          notification: {
             title: title || 'Ignite',
             body: body || 'You have a new notification',
-          };
-          message.apns = {
-            // apns-collapse-id groups updates with the same id in Notification
-            // Center so repeated messages in the same chat stack instead of
-            // piling up. Max 64 bytes per Apple spec.
-            headers: {
-              'apns-collapse-id': effectiveTag.slice(0, 64),
-              'apns-priority': '10',
-            },
-            payload: {
-              aps: {
-                'mutable-content': 1,
-                sound: 'default',
-                badge: 1,
-                // thread-id groups conversations in Notification Center
-                'thread-id': effectiveTag,
-              },
-            },
-          };
-        } else {
-          message.android = {
-            priority: 'high',
-            notification: {
-              title: title || 'Ignite',
-              body: body || 'You have a new notification',
-              channel_id: 'default',
-              sound: 'default',
-              tag: tag || `notification-${notificationId || Date.now()}`,
-            },
-          };
-        }
+            channel_id: 'default',
+            sound: 'default',
+            tag: effectiveTag,
+          },
+        };
+      }
+      return message;
+    };
 
-        // Send via FCM HTTP v1 API
+    const sendOne = async (tokenRecord: any) => {
+      try {
         const response = await fetch(
           `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
           {
@@ -322,36 +317,45 @@ serve(async (req) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${accessToken}`,
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message: buildMessage(tokenRecord) }),
           }
         );
 
-        const result = await response.json();
-        console.log('[FCM] Send result:', JSON.stringify(result));
+        const result = await response.json().catch(() => ({}));
+        const preview = tokenRecord.token.substring(0, 20) + '...';
 
         if (response.ok) {
           successCount++;
-          results.push({ token: tokenRecord.token.substring(0, 20) + '...', status: 'sent' });
+          results.push({ token: preview, status: 'sent' });
+          return;
+        }
+
+        const errorCode = result.error?.details?.[0]?.errorCode || result.error?.code;
+        if (
+          errorCode === 'UNREGISTERED' ||
+          errorCode === 'INVALID_ARGUMENT' ||
+          result.error?.message?.includes('not a valid FCM registration token')
+        ) {
+          console.log('[FCM] Token expired or invalid, marking for cleanup');
+          expiredTokens.push(tokenRecord.id);
+          results.push({ token: preview, status: 'expired' });
         } else {
-          // Check for invalid/expired token errors
-          const errorCode = result.error?.details?.[0]?.errorCode || result.error?.code;
-          if (
-            errorCode === 'UNREGISTERED' ||
-            errorCode === 'INVALID_ARGUMENT' ||
-            result.error?.message?.includes('not a valid FCM registration token')
-          ) {
-            console.log('[FCM] Token expired or invalid, marking for cleanup');
-            expiredTokens.push(tokenRecord.id);
-            results.push({ token: tokenRecord.token.substring(0, 20) + '...', status: 'expired' });
-          } else {
-            console.error('[FCM] Send failed:', result.error);
-            results.push({ token: tokenRecord.token.substring(0, 20) + '...', status: 'failed' });
-          }
+          console.error('[FCM] Send failed:', result.error);
+          results.push({ token: preview, status: 'failed' });
         }
       } catch (err) {
         console.error('[FCM] Error sending to token:', err);
         results.push({ token: tokenRecord.token.substring(0, 20) + '...', status: 'error' });
       }
+    };
+
+    // Batch of 500 mirrors Admin SDK sendMulticast's per-call ceiling and
+    // caps concurrent outbound sockets so the edge function stays under CPU
+    // budget even for large fan-outs.
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+      const batch = tokens.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(sendOne));
     }
 
     // Cleanup expired tokens
