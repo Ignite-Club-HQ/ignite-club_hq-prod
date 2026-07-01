@@ -127,6 +127,11 @@ function isExternalUrl(url: string): boolean {
  */
 function handleNotificationTap(notification: any) {
   try {
+    // First mark wins (cold tap); warm taps re-mark so relative timings still
+    // reflect this specific navigation instead of the original boot.
+    if (!coldMark) return;
+    coldMark("notif_tap");
+    coldRemark("notif_tap");
     const data = notification?.notification?.data ?? notification?.data ?? {};
     const rawUrl = data?.url || data?.link || data?.path;
     const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;
