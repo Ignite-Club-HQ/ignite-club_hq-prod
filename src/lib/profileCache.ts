@@ -251,3 +251,29 @@ export async function fetchSingleProfileWithCache(
   const map = await fetchProfilesWithCache([id]);
   return map.get(id) ?? null;
 }
+
+// ---------- Drop-in helpers that mirror Supabase's `{ data, error }` shape ----------
+// These exist so raw `supabase.from('profiles').select(...).in('id', ids)` calls
+// can be replaced with a single line while preserving the caller's existing
+// destructuring pattern. Both are pure reads via the cache — no network hit
+// when entries are fresh, deduped batching when they aren't.
+
+/** List variant: replaces `.select("id, display_name, avatar_url").in("id", ids)`. */
+export async function selectCachedProfilesByIds(
+  ids: readonly (string | null | undefined)[],
+): Promise<{ data: CachedProfile[]; error: null }> {
+  const clean = ids.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (clean.length === 0) return { data: [], error: null };
+  const map = await fetchProfilesWithCache(clean);
+  return { data: Array.from(map.values()), error: null };
+}
+
+/** Single variant: replaces `.select("...").eq("id", id).maybeSingle()`. */
+export async function selectCachedProfileById(
+  id: string | null | undefined,
+): Promise<{ data: CachedProfile | null; error: null }> {
+  if (!id) return { data: null, error: null };
+  const profile = await fetchSingleProfileWithCache(id);
+  return { data: profile, error: null };
+}
+
