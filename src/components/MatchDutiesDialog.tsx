@@ -114,11 +114,10 @@ export function MatchDutiesDialog({
       const allUserIds = [...new Set([...parentIds, ...adminIds])];
       if (!allUserIds.length) return [];
       
-      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(allUserIds)
-        .order("display_name");
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(allUserIds);
       if (profilesError) throw profilesError;
-      
-      return profiles || [];
+
+      return (profiles || []).slice().sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
     },
     enabled: open && !!miniLeagueId,
   });
