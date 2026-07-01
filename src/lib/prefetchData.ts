@@ -340,11 +340,8 @@ async function prefetchMediaAccess(
   teamIds: string[]
 ) {
   try {
-    const profilePromise = supabase
-      .from("profiles")
-      .select("display_name, avatar_url")
-      .eq("id", userId)
-      .maybeSingle();
+    const profilePromise = selectCachedProfileById(userId);
+
 
     if (isAppAdmin) {
       const profileResult = await profilePromise;
