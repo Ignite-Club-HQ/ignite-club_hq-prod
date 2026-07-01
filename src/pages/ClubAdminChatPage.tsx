@@ -24,6 +24,7 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
+import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatCatchUp } from "@/components/chat/ChatCatchUp";
 import { markChatOpened } from "@/hooks/useChatCatchUp";
