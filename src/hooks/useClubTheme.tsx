@@ -992,6 +992,16 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
 
     if (!inThemed) {
+      // Club is not in themed list. Two possibilities:
+      // (a) user genuinely no longer has themed Pro access → drop cache.
+      // (b) transient refetch after reconnect returned a partial embed
+      //     (e.g. `club_subscriptions` join briefly empty right after token
+      //     rotation) → the club is still in `userClubs` (fetched fresh via
+      //     the same reconnect refetch) so we must NOT evict.
+      // Only evict when BOTH queries agree the club is gone.
+      const stillOwned = userClubs.some(c => c.id === activeClubTheme);
+      if (stillOwned) return;
+
       // Club is free/non-themed/inaccessible for theme rendering.
       // Evict any stale themed cache so the header drops the logo + colours
       // and renders the free-club branch (name only, default Ignite icon).
@@ -1003,7 +1013,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [activeClubTheme, availableClubThemes, isLoading, isUserClubsLoading, isClubThemesSuccess, isUserClubsSuccess, isClubThemesError, cachedThemeData, user?.id]);
+  }, [activeClubTheme, availableClubThemes, userClubs, isLoading, isUserClubsLoading, isClubThemesSuccess, isUserClubsSuccess, isClubThemesError, cachedThemeData, user?.id]);
 
   // Cache theme data when server data becomes available
   useEffect(() => {
@@ -1016,14 +1026,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, activeClubTheme, availableClubThemes]);
 
-  // Use server data if available. Only fall back to cached data while the
-  // themed-clubs query is still loading — once loaded, if the active club
-  // isn't a themed Pro club, we treat it as a free club (no logo, no colours).
+  // Use server data if available. Fall back to cached data whenever the
+  // themed-clubs query hasn't produced a match — this covers both the initial
+  // load AND background refetches after reconnect where a transient partial
+  // response can briefly drop the active club from `availableClubThemes`.
+  // The eviction effect above is the only path that clears `cachedThemeData`
+  // when the club is genuinely gone (missing from userClubs too).
   const serverThemeMatch = activeClubTheme
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
     : null;
   const activeThemeData = activeClubTheme
-    ? serverThemeMatch ?? (isLoading ? cachedThemeData : null)
+    ? serverThemeMatch ?? cachedThemeData ?? null
     : null;
 
   // Free club data: when a club is selected but has no theme (Pro + theme required)
