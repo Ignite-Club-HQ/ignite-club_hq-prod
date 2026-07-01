@@ -7085,6 +7085,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          accessibility_prefs: Json
           active_club_theme_id: string | null
           ai_catch_up_acknowledged_at: string | null
           ai_catch_up_enabled: boolean
@@ -7108,6 +7109,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accessibility_prefs?: Json
           active_club_theme_id?: string | null
           ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean
@@ -7131,6 +7133,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accessibility_prefs?: Json
           active_club_theme_id?: string | null
           ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean

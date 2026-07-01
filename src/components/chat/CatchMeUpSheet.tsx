@@ -24,23 +24,33 @@ import { scheduleTypewriter } from "@/lib/typewriterScheduler";
  * keep main-thread work modest while still showing the typewriter effect.
  */
 function useStaticReveal(): boolean {
-  const [staticMode, setStaticMode] = useState<boolean>(() => {
+  const computeStatic = () => {
     if (typeof window === "undefined") return true;
     try {
-      return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      const osPref = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      const userPref = document.documentElement.classList.contains("rm");
+      return osPref || userPref;
     } catch { return false; }
-  });
+  };
+  const [staticMode, setStaticMode] = useState<boolean>(computeStatic);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const recompute = () => setStaticMode(computeStatic());
     try {
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const onChange = () => setStaticMode(mq.matches);
-      mq.addEventListener?.("change", onChange);
-      return () => mq.removeEventListener?.("change", onChange);
+      mq.addEventListener?.("change", recompute);
+      // Observe class changes on <html> so user toggle is honoured live.
+      const mo = new MutationObserver(recompute);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      return () => {
+        mq.removeEventListener?.("change", recompute);
+        mo.disconnect();
+      };
     } catch { /* ignore */ }
   }, []);
   return staticMode;
 }
+
 
 
 
@@ -112,6 +122,38 @@ interface RecapTimelineItem { time: string | null; text: string }
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const WD_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function endOfTodayTs(): number {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+function timelineSendTimestamp(time: string | null | undefined): number {
+  const fallback = endOfTodayTs();
+  if (!time) return fallback;
+  const d = parseRecapTagDate(time);
+  if (!d) return fallback;
+  const clock = time.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (clock) {
+    let hours = Number(clock[1]);
+    const minutes = Number(clock[2] ?? 0);
+    const meridiem = clock[3].toLowerCase();
+    if (meridiem === "pm" && hours !== 12) hours += 12;
+    if (meridiem === "am" && hours === 12) hours = 0;
+    d.setHours(hours, minutes, 0, 0);
+  }
+  const ts = d.getTime();
+  // Future tags are usually event dates copied from the message body, not the
+  // actual send date. Keep those in today's activity bucket instead of showing
+  // misleading future headers such as "Sat 4 Jul".
+  return ts > fallback ? fallback : ts;
+}
+
+function localDayKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
 function errorMessage(code: string | null): { title: string; body: string; isPro?: boolean; isSensitive?: boolean } {
   switch (code) {
@@ -302,40 +344,10 @@ export function CatchMeUpSheet({
         detailed.schedule_changes.length + detailed.files_shared.length + detailed.discussion.length > 0;
     }
 
-    // Sort timeline items chronologically (most-recent first) before grouping.
-    sinceTimeline.sort((a, b) => {
-      const ts = (item: RecapTimelineItem): number => {
-        if (item.time) {
-          const d = parseRecapTagDate(item.time);
-          if (d) return d.getTime();
-        }
-        const dm = item.text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i);
-        if (dm) {
-          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === dm[2].toLowerCase());
-          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(dm[1])).getTime();
-        }
-        const md = item.text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\b/i);
-        if (md) {
-          const m = MONTH_NAMES.findIndex((n) => n.toLowerCase() === md[1].toLowerCase());
-          if (m >= 0) return new Date(new Date().getFullYear(), m, Number(md[2])).getTime();
-        }
-        const wd = item.text.match(/\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*\b/i);
-        if (wd) {
-          const target = WD_NAMES.findIndex((n) => n.toLowerCase() === wd[1].toLowerCase());
-          if (target >= 0) {
-            const now = new Date();
-            const diff = (now.getDay() - target + 7) % 7;
-            const daysAgo = diff === 0 ? 7 : diff;
-            const d = new Date(now);
-            d.setHours(0, 0, 0, 0);
-            d.setDate(d.getDate() - daysAgo);
-            return d.getTime();
-          }
-        }
-        return 0;
-      };
-      return ts(b) - ts(a);
-    });
+    // Sort by message send tag only. Do not infer timeline dates from words in
+    // the summary body, because phrases like "this Saturday" describe an event,
+    // not when the message was sent.
+    sinceTimeline.sort((a, b) => timelineSendTimestamp(b.time) - timelineSendTimestamp(a.time));
 
     const sinceHasAny = sinceTimeline.length > 0 || since.today.length + since.yesterday.length + since.earlier.length > 0;
     const anythingAtAll = sinceHasAny || actions.length > 0 || questions.length > 0 || detailedHasAny;
@@ -565,15 +577,13 @@ export function CatchMeUpSheet({
                         const groups: { date: string; ts: number; items: typeof view.sinceTimeline }[] = [];
                         const indexByKey = new Map<string, number>();
                         for (const item of view.sinceTimeline) {
-                          const extracted = extractDateFromText(item.text);
-                          const fromTime = stripTime(item.time);
-                          const rawLabel = extracted || (isMeaningfulDate(fromTime) ? fromTime : "");
-                          const ts = labelToTs(rawLabel);
-                          // Skip items we can't anchor to a real day —
-                          // a generic "Earlier" header is unhelpful.
-                          if (ts == null) continue;
+                          // Group by the message SEND timestamp only. Never
+                          // pull a date from the summary body, because that
+                          // may be a future fixture mentioned in chat (e.g.
+                          // "this Saturday") rather than when it was said.
+                          const ts = timelineSendTimestamp(item.time);
                           const displayLabel = canonicalFromTs(ts);
-                          const key = `ts:${Math.floor(ts / 86400000)}`;
+                          const key = `ts:${localDayKey(ts)}`;
                           const existing = indexByKey.get(key);
                           if (existing != null) {
                             groups[existing].items.push(item);

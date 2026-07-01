@@ -25,7 +25,7 @@ const MAX_PER_RUN = 200;        // total messages digested per invocation
 const BATCH_SIZE = 10;           // messages per LLM call
 const LOOKBACK_HOURS = 48;       // only digest recent messages
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const RECAP_VERSION = "recap-v16";
+const RECAP_VERSION = "recap-v17";
 const DIGEST_PROVIDER = `gemini:${GEMINI_MODEL}:${RECAP_VERSION}`;
 
 interface DigestRow {
@@ -99,7 +99,7 @@ You receive a JSON array of messages including created_at ISO timestamps. For EA
   * USE REAL NAMES: when the speaker is identified, refer to them by their actual first name. NEVER write "someone", "a player", "a parent", "one member", "another member", "a coach", or "a club member" if the speaker label gives you a name. Example: prefer "Jas volunteered to be linesperson" or "Bec is interested in the tournament" over "Someone volunteered" or "A player is interested". Drop the name only when the transcript truly does not identify who did the thing. NEVER invent numbered placeholders like "Player 7", "Member 3", "Parent 2", "Coach 1" or "Speaker 5" — these are forbidden. If the label is "Person N" / "Child N" with no real name available, write "someone" / "a child" with no number.
   * PAYER ATTRIBUTION: for any mention of money, payments, donations, sponsorship, fees or invoices, the payer/donor MUST be the literal name written in the message (e.g. a business or sponsor name like "Pimento Pizza"). NEVER attribute a payment, donation or sponsorship to "<Person>'s child", "a child", a parent, or the message author unless the transcript explicitly says so. If the payer name isn't present, write "A sponsor".
   * Prefer concrete nouns (venue, time, role, count) over pronouns.
-  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week") from the message. Resolve them against that message's created_at timestamp: "today" = created_at date, "tomorrow" = created_at + 1 day, "yesterday" = created_at - 1 day. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
+  * Do NOT copy relative time words ("today", "tonight", "tomorrow", "yesterday", "this week", "next week", "this Saturday", "next Friday", etc.) from the message. Resolve them against that message's created_at timestamp. "this <weekday>" means the next occurrence of that weekday on/after created_at; "next <weekday>" means the following occurrence. Write an explicit weekday/date when useful; otherwise omit the time reference entirely.
   * You cannot see uploaded images or videos. Only mention photos/files when the sender wrote an explicit caption or description in the same message that says what the media/file is of or why it matters. Never infer image content from surrounding replies or thanks.
   * If the message only says a photo/video/file was shared and gives no description of what it shows or contains, classify it as "social" and set summary to "". Never write generic summaries like "A photo was shared in the team chat" or inferred captions like "photos of kids celebrating".
   * If the message has no informational value, classify as "social" and set summary to "".
