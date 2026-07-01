@@ -98,7 +98,7 @@ export default function AdminDeletedChatsPage() {
           ? supabase.from("clubs").select("id, name").in("id", clubIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
-      const nameMap = new Map((profilesRes.data ?? []).map((p: any) => [p.id, p.display_name]));
+      const nameMap = new Map<string, string>((profilesRes.data ?? []).map((p: any) => [p.id as string, (p.display_name ?? "") as string]));
       const clubMap = new Map((clubsRes.data ?? []).map((c: any) => [c.id, c.name]));
       return rows.map((r) => ({
         ...r,
