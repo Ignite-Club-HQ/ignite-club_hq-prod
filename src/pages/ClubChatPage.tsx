@@ -1498,7 +1498,7 @@ export default function ClubChatPage() {
     : "Club chat";
 
   if (isLoadingClubSubscription && !club) {
-    return <PageLoading message="Loading club chat..." />;
+    return <ChatPageSkeleton title="Club chat" />;
   }
 
   // Block access for non-Pro users - show full page blocker
