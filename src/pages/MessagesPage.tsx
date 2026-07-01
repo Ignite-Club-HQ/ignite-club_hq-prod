@@ -586,10 +586,7 @@ export default function MessagesPage() {
       ));
       const authorNameById: Record<string, string> = {};
       if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", authorIds);
+        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
         for (const p of profiles ?? []) {
           if (p.display_name) authorNameById[p.id] = p.display_name;
         }
