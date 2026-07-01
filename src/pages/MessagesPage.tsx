@@ -25,6 +25,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
+import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
@@ -280,6 +281,14 @@ export default function MessagesPage() {
     enabled: initialized,
     placeholderData: (prev) => prev,
   });
+
+  // Per-group-chat row badges read from the denormalised `chat_group_unread`
+  // cache (realtime-backed). Falls back to `unreadCounts.groups[id]` if the
+  // hook hasn't populated yet — so behaviour is identical to the old RPC path
+  // in the worst case, and instant in the common case.
+  const { data: groupUnreadCache } = useGroupChatUnreadCache(
+    initialized ? user?.id : null,
+  );
 
   // Delete group mutation (soft-delete so an app admin can restore later)
   const deleteGroupMutation = useMutation({
@@ -2252,7 +2261,7 @@ export default function MessagesPage() {
         link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: unreadCounts?.groups[group.id] || 0,
+        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
       });
     });
@@ -2286,7 +2295,7 @@ export default function MessagesPage() {
         link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: unreadCounts?.groups[group.id] || 0,
+        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
@@ -2384,7 +2393,7 @@ export default function MessagesPage() {
       };
     });
   }, [
-    showBroadcast, displayLatestBroadcast, unreadCounts,
+    showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,

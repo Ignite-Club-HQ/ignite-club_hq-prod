@@ -1,85 +1,45 @@
-# In-App Text Size & Accessibility Settings
+# Per-group-chat row badges via `chat_group_unread`
 
-Add a user-controlled text size setting (plus a couple of bundled accessibility wins) without enabling pinch-to-zoom. Goal: better readability for users with vision issues, zero impact on chat gestures, pitch board, or fixed UI.
+## Goal
+Move per-row unread badges for **group chats** (both "League" and "Group" rows in MessagesPage) off the `get_unread_message_counts` RPC path and onto the denormalised `chat_group_unread` cache table. Other scopes (teams, clubs, DMs, broadcast) keep using the RPC unchanged. This is the payoff for the cache table we already shipped.
 
-## What the user gets
+## Why this is worth doing
+- Removes the group-messages JOIN + aggregate from the hottest inbox RPC.
+- Per-row badges update instantly via realtime on `chat_group_unread` (one row per user/group) instead of waiting for a full RPC refetch on every notification.
+- Cheap fallback: if the hook errors, rows fall back to the existing `unreadCounts.groups[id]` value, so nothing breaks.
 
-1. **Text size slider** in Profile → Settings → Accessibility
-   - 5 steps: Small (90%), Default (100%), Large (115%), Larger (130%), Largest (150%)
-   - Live preview as they drag
-   - Persists per-user (localStorage with `ignite_` prefix, synced to `profiles.accessibility_prefs` jsonb so it follows them across devices)
-2. **High contrast toggle** — boosts `--foreground` / `--muted-foreground` contrast for users on light themes
-3. **Reduce motion toggle** — disables typewriter, carousels auto-advance, non-essential transitions (respects OS `prefers-reduced-motion` by default, this lets users force it on)
-4. **Bold text toggle** — bumps body weight from 400 → 500 for users who find thin text hard to read
+## Scope (what changes)
 
-All four live on one screen with clear labels and a "Reset to defaults" button.
+### 1. New hook: `useGroupChatUnreadCache`
+Reads the current user's rows from `chat_group_unread` and returns `Record<groupId, unread_count>`.
+- Single query keyed by `["chat-group-unread-cache", userId]`.
+- Realtime subscription on `chat_group_unread` filtered by `user_id=eq.${userId}` — INSERT/UPDATE/DELETE all patch the local cache (no refetch needed since payload contains `group_id` + `unread_count`).
+- Same `staleTime`/jitter defaults as `useUnreadMessageCounts`.
+- Cleanup removes the channel on unmount (per project realtime rule).
 
-## How it works (technical)
+### 2. MessagesPage wiring
+- Call `useGroupChatUnreadCache(user?.id)` alongside the existing `useUnreadMessageCounts` call.
+- At the two row-build sites (League rows ~L2255, Group rows ~L2289), use the cache value when defined and fall back to `unreadCounts?.groups[group.id] ?? 0`.
 
-**Root font-size scaling**
-- Set `font-size` on `<html>` via a CSS variable `--app-font-scale` (default `1`)
-- Tailwind's `rem`-based spacing/sizing already scales correctly because shadcn/Tailwind use `rem` for text and most spacing
-- Audit ~10 components that hardcode `px` font sizes (chat composer, recap sheet titles, a few headers) and convert to `text-base` / `text-lg` tokens so they scale too
-- Cap the scaler at 1.5× to prevent layout breakage on fixed-height headers/FABs
+### 3. Existing invalidation paths
+- `markChatScopeRead.ts` and other spots that currently mutate `unread-message-counts` cache should also invalidate `["chat-group-unread-cache", userId]` so opening a thread clears the row badge instantly (the DB trigger will follow via realtime, but the invalidation guarantees no flicker).
+- No change to `useAuth.tsx` realtime — its notification-driven invalidations still keep the RPC-sourced totals in sync for other scopes.
 
-**What does NOT scale (intentional)**
-- Pitch board (fixed canvas, would break positioning)
-- Avatar sizes, icon sizes (visual chrome, not reading content)
-- Sticky header height, bottom nav height (fixed for touch targets)
-- Image dimensions in media gallery
+## Out of scope
+- No change to `get_unread_message_counts` RPC yet. Once this ships and is stable, we can revisit removing the `grps` CTE from the RPC as a follow-up.
+- No change to the global inbox pill (BottomNav / AppHeader) — it still totals via the RPC.
+- Team/club/DM row badges unchanged.
 
-**Storage**
-- `profiles.accessibility_prefs jsonb` column (default `{}`)
-- Shape: `{ textScale: 1.15, highContrast: false, reduceMotion: false, boldText: false }`
-- Loaded once at app boot in a new `useAccessibilityPrefs` hook, applied to `<html>` via CSS vars and class toggles
-- localStorage cache for instant first-paint, server is source of truth on login
+## Technical notes
+- `chat_group_unread` schema: `(group_id uuid, user_id uuid, unread_count int, last_read_message_id uuid, updated_at timestamptz)`.
+- RLS is already scoped to `user_id = auth.uid()`; the realtime filter is redundant server-side but reduces client-side event volume.
+- The cache covers both "personal" chat groups and club/team/mini-league groups (triggers fire on all `group_messages` inserts), so both League and Group rows are handled by the same hook.
+- Realtime payload for UPDATE gives us `new.unread_count` directly — no follow-up fetch.
 
-**High contrast**
-- Adds `class="hc"` to `<html>`
-- `index.css` overrides: `.hc { --muted-foreground: <darker>; --border: <stronger>; }`
-- ~15 token overrides, no per-component changes needed
-
-**Reduce motion**
-- Adds `class="rm"` to `<html>`
-- Existing `useStaticReveal` already checks native; extend to also check this class
-- Disable `animate-*` Tailwind utilities via a global `.rm *` CSS rule targeting non-essential animations
-
-**Bold text**
-- Adds `class="bt"` to `<html>`
-- `.bt body { font-weight: 500; }` and bumps `.bt .font-medium` → 600
+## Rollback
+Delete the hook, remove the two fallback lookups. Rows revert to reading `unreadCounts.groups[id]` from the RPC. Zero DB changes required to roll back.
 
 ## Files touched
-
-- New: `src/hooks/useAccessibilityPrefs.tsx`
-- New: `src/pages/AccessibilitySettingsPage.tsx`
-- New: `src/components/accessibility/TextSizeSlider.tsx`
-- Edit: `src/index.css` — add CSS vars, `.hc`/`.rm`/`.bt` rules
-- Edit: `src/App.tsx` — mount prefs hook at root
-- Edit: `src/pages/ProfilePage.tsx` — add "Accessibility" row linking to new page
-- Edit: ~10 components with hardcoded `px` font sizes → token classes
-- Migration: add `accessibility_prefs jsonb default '{}'` to `profiles`
-- Edit: `src/lib/typewriterScheduler.ts` + `useStaticReveal` to honour reduce-motion class
-
-## What I won't change
-
-- Viewport meta tag stays `user-scalable=no` (pinch-zoom remains off — protects chat gestures, pitch board, image viewer)
-- No changes to icon sizes, tap targets, or layout dimensions
-- Pitch board untouched
-- Chat message bubbles scale with text; bubble max-width stays in `%` so they reflow cleanly
-
-## Risks & mitigations
-
-- **Layout overflow at 1.5×**: Cap headers/FABs at fixed `px` heights, let text inside ellipsis-truncate. Tested combos before ship.
-- **Sticky header crowding**: At 1.3×+, header title uses `truncate` instead of growing.
-- **Cross-device drift**: Server-synced prefs ensure consistency; localStorage is just first-paint cache.
-
-## Effort estimate
-
-~1 focused session:
-- 30 min: migration + hook + CSS vars wiring
-- 45 min: settings page UI + slider component
-- 45 min: audit hardcoded `px` font sizes, convert to tokens
-- 30 min: high-contrast token overrides + bold/reduce-motion classes
-- 30 min: QA at each scale step across Home, Chat, Media, Events, Pitch Board
-
-Want me to build it as scoped, or adjust anything first (different scale steps, drop one of the toggles, add a different one)?
+- `src/hooks/useGroupChatUnreadCache.ts` (new, ~60 lines)
+- `src/pages/MessagesPage.tsx` (2 small edits at row-build sites)
+- `src/lib/markChatScopeRead.ts` (add one invalidation)

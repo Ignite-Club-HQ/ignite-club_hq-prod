@@ -147,6 +147,7 @@ export function markChatScopeNotificationsRead({
       await refreshUnreadCount();
     } catch { }
     queryClient.invalidateQueries({ queryKey: ["unread-message-counts", userId] });
+    queryClient.invalidateQueries({ queryKey: ["chat-group-unread-cache", userId] });
     queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
     const post = queryClient.getQueryData<UnreadMessageCounts>(cacheKey);
     if (post) {
