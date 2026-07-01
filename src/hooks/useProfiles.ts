@@ -137,8 +137,7 @@ export function prefetchProfiles(ids: string[]) {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       try {
-        const { data } = await selectCachedProfilesByIds(missing)
-          .abortSignal(controller.signal);
+        const { data } = await selectCachedProfilesByIds(missing);
         
         clearTimeout(timeoutId);
         if (data) {
