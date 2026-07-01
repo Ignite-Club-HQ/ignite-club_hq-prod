@@ -64,7 +64,7 @@ describe("reactQueryNativeAdapter — reconnect preserves club theme", () => {
     currentConnected = true;
     onlineManager.setOnline(true);
     qc = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: { queries: { retry: false } },
     });
   });
 
