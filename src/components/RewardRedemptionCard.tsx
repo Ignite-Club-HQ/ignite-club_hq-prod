@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { useUserClubPoints } from "@/hooks/useClubPoints";
@@ -485,11 +486,7 @@ export default function RewardRedemptionCard() {
       if (error) throw error;
 
       // Get claimer's name
-      const { data: claimerProfile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user!.id)
-        .single();
+      const { data: claimerProfile } = await selectCachedProfileById(user!.id);
 
       const claimerName = claimerProfile?.display_name || "Someone";
 

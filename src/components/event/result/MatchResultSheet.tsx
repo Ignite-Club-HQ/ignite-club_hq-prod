@@ -11,6 +11,7 @@ import {
   Square,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -161,10 +162,7 @@ export function MatchResultSheet({
       const userIds = (rolesRes.data || []).map((r: any) => r.user_id);
       let adults: RosterPlayer[] = [];
       if (userIds.length) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         adults = (profiles || []).map((p: any) => ({
           id: p.id,
           name: p.display_name || "Player",

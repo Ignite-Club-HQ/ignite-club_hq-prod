@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2, Shield, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
 /**
@@ -53,11 +54,7 @@ export default function StartTeamPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: profile } = await selectCachedProfileById(user.id);
       const who = profile?.display_name?.trim() || "My";
 
       const { data: shell, error: shellErr } = await supabase

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StickyNote, Pencil, Send, X, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,11 +42,7 @@ export function EventNoteSection({
     queryKey: ["event-note-author", noteAuthor],
     enabled: !!noteAuthor && !authorName,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", noteAuthor!)
-        .maybeSingle();
+      const { data } = await selectCachedProfileById(noteAuthor!);
       return data?.display_name ?? null;
     },
   });

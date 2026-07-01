@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
@@ -43,10 +44,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
       const profileMap = new Map<string, any>();
       const childMap = new Map<string, any>();
       if (userIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profs } = await selectCachedProfilesByIds(userIds);
         (profs || []).forEach((p: any) => profileMap.set(p.id, p));
       }
       if (childIds.length) {

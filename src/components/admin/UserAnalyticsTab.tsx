@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 
 type TimePeriod = "7d" | "14d" | "30d" | "90d";
 
@@ -86,10 +87,7 @@ export default function UserAnalyticsTab() {
     queryKey: ["admin-activity-profiles", userIds],
     queryFn: async () => {
       if (userIds.length === 0) return {};
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data } = await selectCachedProfilesByIds(userIds);
       const map: Record<string, { display_name: string; avatar_url: string | null }> = {};
       data?.forEach((p) => {
         map[p.id] = { display_name: p.display_name || "Unknown", avatar_url: p.avatar_url };

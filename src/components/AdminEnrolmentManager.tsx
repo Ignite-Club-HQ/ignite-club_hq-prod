@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useToast } from "@/hooks/use-toast";
 import { AdminManualEnrolDialog } from "@/components/AdminManualEnrolDialog";
 import { exportEnrolmentsCSV } from "@/lib/exportEnrolments";
@@ -87,10 +88,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
 
       let profileMap: Record<string, string> = {};
       if (adultUserIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", adultUserIds);
+        const { data: profiles } = await selectCachedProfilesByIds(adultUserIds);
         profiles?.forEach((p) => {
           if (p.display_name) profileMap[p.id] = p.display_name;
         });

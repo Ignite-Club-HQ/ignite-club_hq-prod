@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { detectGameBoardKind } from "@/lib/sportDetection";
 
 // Lazy-load the sport boards to avoid pulling all three into chat bundles.
@@ -78,10 +79,7 @@ export function BoardViewerDialog({
       const userIds = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean);
       let profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         for (const p of profiles ?? []) {
           profilesMap.set(p.id, {
             display_name: p.display_name,

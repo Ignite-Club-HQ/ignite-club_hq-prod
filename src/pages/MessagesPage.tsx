@@ -29,7 +29,7 @@ import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
-import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache, selectCachedProfilesByIds, selectCachedProfileById } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -1071,10 +1071,7 @@ export default function MessagesPage() {
         // fetch fails or returns empty (handled by the layered fallbacks below).
         (async () => {
           try {
-            const { data } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .in("id", otherUserIds);
+            const { data } = await selectCachedProfilesByIds(otherUserIds);
             if (data && data.length) {
               // Refresh the global profile cache so every other surface
               // (chat rows, member lists, mention chips) picks up the new name.
@@ -1635,10 +1632,7 @@ export default function MessagesPage() {
       const batch = new Map(pendingByAuthor);
       pendingByAuthor.clear();
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", ids);
+        const { data } = await selectCachedProfilesByIds(ids);
         if (data && data.length) cacheProfiles(data);
         const byId = new Map((data ?? []).map(p => [p.id, p.display_name || ""]));
         batch.forEach((targets, authorId) => {

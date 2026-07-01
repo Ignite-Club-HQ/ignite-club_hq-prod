@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/lib/memberIdentity";
@@ -279,10 +280,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryKey: ["team-member-names", teamId, existingMembers],
     queryFn: async () => {
       if (!existingMembers?.length) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", existingMembers);
+      const { data } = await selectCachedProfilesByIds(existingMembers);
       return data || [];
     },
     enabled: open && !!teamId && (existingMembers?.length || 0) > 0,
@@ -354,10 +352,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       
       if (!children?.length) return [];
       const parentIds = [...new Set(children.map(c => c.parent_id))];
-      const { data: parents } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", parentIds);
+      const { data: parents } = await selectCachedProfilesByIds(parentIds);
       const parentMap = new Map(parents?.map(p => [p.id, p.display_name]) || []);
       
       return children.map(c => ({
@@ -457,10 +452,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
       
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         if (profiles) {
           profiles.forEach(p => profileMap.set(p.id, p));
         }

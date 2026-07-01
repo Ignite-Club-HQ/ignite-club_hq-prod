@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -422,11 +423,7 @@ export default function MediaPage() {
   const { data: userProfile } = useQuery({
     queryKey: ["user-profile-media", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("id", user!.id)
-        .maybeSingle();
+      const { data } = await selectCachedProfileById(user!.id);
       return data;
     },
     enabled: !!user,

@@ -49,7 +49,7 @@ import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
-import { fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
+import { fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -221,11 +221,7 @@ export default function ClubAdminChatPage() {
     queryFn: async () => {
       const memberId = conversation?.member_user_id;
       if (!memberId) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .eq("id", memberId)
-        .single();
+      const { data, error } = await selectCachedProfileById(memberId);
       if (error) throw error;
       return data;
     },

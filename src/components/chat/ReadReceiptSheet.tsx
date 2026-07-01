@@ -8,6 +8,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 
 type MessageType = "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
@@ -143,10 +144,7 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
         const allIds = new Set<string>([...readerUserIds, ...memberIds]);
         let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
         if (allIds.size > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, display_name, avatar_url")
-            .in("id", Array.from(allIds));
+          const { data: profiles } = await selectCachedProfilesByIds(Array.from(allIds));
           for (const p of profiles || []) {
             profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url });
           }

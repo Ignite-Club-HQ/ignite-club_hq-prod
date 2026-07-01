@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -285,10 +286,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryKey: ["parent-profiles-for-duties", parentUserIds.join(",")],
     queryFn: async () => {
       if (parentUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", parentUserIds);
+      const { data, error } = await selectCachedProfilesByIds(parentUserIds);
       if (error) throw error;
       return (data || []).map(p => ({
         id: p.id,

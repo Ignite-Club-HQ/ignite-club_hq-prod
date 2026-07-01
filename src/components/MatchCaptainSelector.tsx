@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 
 interface MatchCaptainSelectorProps {
@@ -58,11 +59,7 @@ export default function MatchCaptainSelector({
 
       let profile = null;
       if (data.user_id) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .eq("id", data.user_id)
-          .single();
+        const { data: profileData } = await selectCachedProfileById(data.user_id);
         profile = profileData;
       }
       return { ...data, profiles: profile };

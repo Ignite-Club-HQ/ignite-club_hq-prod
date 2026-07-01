@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useToast } from "@/hooks/use-toast";
 import { EventViewMemberRow } from "@/components/EventViewMemberRow";
 
@@ -187,10 +188,7 @@ export function EventViewsAdminSection({
       if (uniqueUserIds.length === 0) return [];
 
       // Fetch profiles
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", uniqueUserIds);
+      const { data: profiles, error } = await selectCachedProfilesByIds(uniqueUserIds);
 
       if (error) throw error;
       return profiles || [];

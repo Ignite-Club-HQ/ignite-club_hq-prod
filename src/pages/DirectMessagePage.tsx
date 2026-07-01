@@ -52,7 +52,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
-import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { fetchProfilesWithCache, selectCachedProfileById } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -379,11 +379,7 @@ export default function DirectMessagePage() {
   const { data: otherUser, isLoading: otherUserLoading } = useQuery({
     queryKey: ["dm-other-user", otherUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .eq("id", otherUserId!)
-        .single();
+      const { data, error } = await selectCachedProfileById(otherUserId!);
       if (error) {
         console.error("[DM] Failed to fetch other user profile:", error.message);
         throw error;
@@ -1125,7 +1121,7 @@ export default function DirectMessagePage() {
             ]);
             let replyAuthor = null;
             if (replyResult.data?.author_id) {
-              const { data: rp } = await supabase.from("profiles").select("display_name").eq("id", replyResult.data.author_id).maybeSingle();
+              const { data: rp } = await selectCachedProfileById(replyResult.data.author_id);
               replyAuthor = rp;
             }
             queryClient.setQueryData(
