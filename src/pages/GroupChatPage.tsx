@@ -2062,7 +2062,7 @@ export default function GroupChatPage() {
     : groupBaseSublabel;
 
   if (groupLoading) {
-    return <PageLoading message="Loading group chat..." />;
+    return <ChatPageSkeleton />;
   }
 
   if (!group) {
