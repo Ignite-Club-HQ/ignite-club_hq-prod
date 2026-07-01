@@ -91,7 +91,7 @@ export default function AdminDeletedChatsPage() {
 
       const [profilesRes, clubsRes] = await Promise.all([
         userIds.length
-          ? supabase.from("profiles").select("id, display_name").in("id", userIds)
+          ? selectCachedProfilesByIds(userIds)
           : Promise.resolve({ data: [] as any[] }),
         clubIds.length
           ? supabase.from("clubs").select("id, name").in("id", clubIds)
