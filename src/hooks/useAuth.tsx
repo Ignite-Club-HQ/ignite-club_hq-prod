@@ -10,6 +10,7 @@ import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
