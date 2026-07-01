@@ -29,7 +29,7 @@ import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
-import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
+import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache, selectCachedProfilesByIds, selectCachedProfileById } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
