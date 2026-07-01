@@ -1,0 +1,1 @@
+ALTER TABLE public.chat_open_perf ADD COLUMN IF NOT EXISTS stages jsonb;
