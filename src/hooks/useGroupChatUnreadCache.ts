@@ -51,7 +51,9 @@ export function useGroupChatUnreadCache(userId: string | null | undefined) {
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
+    // Primary: subscribe to our own rows in the denormalised cache. Payloads
+    // carry the new count so we patch in-place with zero extra queries.
+    const cacheChannel = supabase
       .channel(`chat-group-unread-${userId}`)
       .on(
         "postgres_changes",
@@ -84,8 +86,52 @@ export function useGroupChatUnreadCache(userId: string | null | undefined) {
       )
       .subscribe();
 
+    // Belt-and-braces fallback: if the cache-table replication payload is
+    // ever delayed or dropped (network hiccup, publication lag), listen for
+    // the two upstream events that would move the count and refetch the
+    // cache. Both are throttled via a single trailing rAF so bursts of
+    // messages or read receipts coalesce into one refetch.
+    let refetchScheduled = false;
+    const scheduleRefetch = () => {
+      if (refetchScheduled) return;
+      refetchScheduled = true;
+      requestAnimationFrame(() => {
+        refetchScheduled = false;
+        queryClient.invalidateQueries({ queryKey: key });
+      });
+    };
+
+    // New group message anywhere → any group the user belongs to may have
+    // ticked up. We can't filter server-side to the user's groups, but the
+    // refetch is a single indexed query on (user_id) so the overhead is low.
+    const messagesChannel = supabase
+      .channel(`chat-group-unread-msgs-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "group_messages" },
+        () => scheduleRefetch()
+      )
+      .subscribe();
+
+    // Our own read receipt → the corresponding row should clear immediately.
+    const readsChannel = supabase
+      .channel(`chat-group-unread-reads-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "message_reads",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => scheduleRefetch()
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(cacheChannel);
+      supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(readsChannel);
     };
     // key intentionally excluded — it changes only when userId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,3 +139,4 @@ export function useGroupChatUnreadCache(userId: string | null | undefined) {
 
   return query;
 }
+
