@@ -59,8 +59,8 @@ export function useUnreadMessageCounts<TData = UnreadMessageCounts>(
     staleTime: 5 * 60 * 1000,
     refetchInterval: jitteredInterval,
     select,
-    placeholderData: placeholderData ?? (keepPreviousData as any),
-    initialData: createEmptyUnreadMessageCounts as unknown as UnreadMessageCounts,
+    placeholderData: placeholderData ?? keepPreviousData,
+    initialData: createEmptyUnreadMessageCounts,
     initialDataUpdatedAt: 0,
   });
 }
