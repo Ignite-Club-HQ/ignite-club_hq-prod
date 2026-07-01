@@ -1015,11 +1015,10 @@ export default function EventDetailPage() {
       if (!filteredUserIds.length) return [];
       
       // Fetch profiles for all these users
-      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(filteredUserIds)
-        .order("display_name");
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(filteredUserIds);
       if (profilesError) throw profilesError;
-      
-      return profiles || [];
+
+      return (profiles || []).slice().sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
     },
     enabled: !!event?.mini_league_id && !!id,
   });
