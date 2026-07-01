@@ -19,6 +19,8 @@ export interface CachedProfile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  /** Legacy field kept for backward compat with older callers. */
+  cached_at?: number;
 }
 
 const FRESH_TTL_MS = 5 * 60 * 1000;      // considered fresh
