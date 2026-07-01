@@ -258,10 +258,17 @@ export async function fetchSingleProfileWithCache(
 // destructuring pattern. Both are pure reads via the cache — no network hit
 // when entries are fresh, deduped batching when they aren't.
 
+/**
+ * The `error` field is typed as `Error | null` (never actually populated) so
+ * existing call-sites that destructure `{ data, error }` and dereference
+ * `error.message` still type-check without change.
+ */
+type CachedProfileResult<T> = { data: T; error: Error | null };
+
 /** List variant: replaces `.select("id, display_name, avatar_url").in("id", ids)`. */
 export async function selectCachedProfilesByIds(
   ids: readonly (string | null | undefined)[],
-): Promise<{ data: CachedProfile[]; error: null }> {
+): Promise<CachedProfileResult<CachedProfile[]>> {
   const clean = ids.filter((v): v is string => typeof v === "string" && v.length > 0);
   if (clean.length === 0) return { data: [], error: null };
   const map = await fetchProfilesWithCache(clean);
@@ -271,9 +278,10 @@ export async function selectCachedProfilesByIds(
 /** Single variant: replaces `.select("...").eq("id", id).maybeSingle()`. */
 export async function selectCachedProfileById(
   id: string | null | undefined,
-): Promise<{ data: CachedProfile | null; error: null }> {
+): Promise<CachedProfileResult<CachedProfile | null>> {
   if (!id) return { data: null, error: null };
   const profile = await fetchSingleProfileWithCache(id);
   return { data: profile, error: null };
 }
+
 
