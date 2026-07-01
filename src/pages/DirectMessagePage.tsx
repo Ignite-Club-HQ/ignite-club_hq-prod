@@ -1339,7 +1339,7 @@ export default function DirectMessagePage() {
   }, [firstMatchId, isSearchFetching, searchQuery]);
 
   if (conversationLoading || checkingCanDM) {
-    return <PageLoading />;
+    return <ChatPageSkeleton />;
   }
 
   if (!conversation) {
