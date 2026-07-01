@@ -1046,7 +1046,7 @@ export default function BroadcastChatPage() {
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
   if (showLoading) {
-    return <PageLoading message="Loading announcements..." />;
+    return <ChatPageSkeleton title="Announcements" subtitle="Official updates & news" />;
   }
 
   return (
