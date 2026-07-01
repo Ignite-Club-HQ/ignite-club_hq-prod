@@ -20,6 +20,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
+import { mark as coldMark, remark as coldRemark } from './coldStartMarks';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
@@ -126,6 +127,10 @@ function isExternalUrl(url: string): boolean {
  */
 function handleNotificationTap(notification: any) {
   try {
+    // First mark wins (cold tap); warm taps re-mark so relative timings still
+    // reflect this specific navigation instead of the original boot.
+    coldMark("notif_tap");
+    coldRemark("notif_tap");
     const data = notification?.notification?.data ?? notification?.data ?? {};
     const rawUrl = data?.url || data?.link || data?.path;
     const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;

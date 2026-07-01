@@ -42,6 +42,10 @@
 
 // IMPORTANT: silencer must be imported before anything that logs on evaluation
 import "./lib/prodConsoleSilencer";
+// Cold-start instrumentation — first mark, so every later stage is measured
+// relative to the moment JS started evaluating.
+import { mark as coldMark } from "./lib/coldStartMarks";
+coldMark("boot");
 // Install AFTER silencer so we wrap the (potentially silenced) console fns.
 // console.info is preserved in production so [TimerAudit] entries are captured.
 import { installTimerAuditCapture } from "./lib/timerAuditLog";

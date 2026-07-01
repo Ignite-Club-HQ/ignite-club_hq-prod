@@ -898,6 +898,7 @@ export type Database = {
           message_count: number | null
           platform: string | null
           source: string
+          stages: Json | null
           tap_to_render_ms: number
           target_id: string
           user_id: string
@@ -910,6 +911,7 @@ export type Database = {
           message_count?: number | null
           platform?: string | null
           source: string
+          stages?: Json | null
           tap_to_render_ms: number
           target_id: string
           user_id: string
@@ -922,6 +924,7 @@ export type Database = {
           message_count?: number | null
           platform?: string | null
           source?: string
+          stages?: Json | null
           tap_to_render_ms?: number
           target_id?: string
           user_id?: string
