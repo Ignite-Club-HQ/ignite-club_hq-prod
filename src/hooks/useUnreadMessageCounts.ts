@@ -1,5 +1,9 @@
-import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
-import { fetchUnreadMessageCounts, type UnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { useQuery, keepPreviousData, type UseQueryOptions } from "@tanstack/react-query";
+import {
+  fetchUnreadMessageCounts,
+  createEmptyUnreadMessageCounts,
+  type UnreadMessageCounts,
+} from "@/lib/unreadMessageCounts";
 import { Capacitor } from "@capacitor/core";
 
 /**
@@ -36,6 +40,12 @@ type Options<TData> = {
  * Single source of truth for unread-message-count fetches. Dedupes the RPC
  * across all callers. Pass a `select` to derive per-consumer slices without
  * re-fetching.
+ *
+ * Seeds with `keepPreviousData` + an empty-counts placeholder so:
+ * - Cold mounts paint an instant 0-badge instead of blank while the RPC
+ *   round-trips (previously ~150-500 ms of visual lag on native).
+ * - Re-mounts (nav between tabs) keep the last-known counts visible while
+ *   the background refetch runs, so badges never flicker back to 0.
  */
 export function useUnreadMessageCounts<TData = UnreadMessageCounts>(
   userId: string | null | undefined,
@@ -49,6 +59,9 @@ export function useUnreadMessageCounts<TData = UnreadMessageCounts>(
     staleTime: 5 * 60 * 1000,
     refetchInterval: jitteredInterval,
     select,
-    placeholderData,
+    placeholderData: placeholderData ?? (keepPreviousData as any),
+    initialData: createEmptyUnreadMessageCounts as unknown as UnreadMessageCounts,
+    initialDataUpdatedAt: 0,
   });
 }
+
