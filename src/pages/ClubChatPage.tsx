@@ -31,6 +31,7 @@ import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
+import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
