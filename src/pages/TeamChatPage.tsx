@@ -1756,13 +1756,13 @@ export default function TeamChatPage() {
 
   // Only block on the metadata fetch if we have nothing cached to render the header with.
   if (loadingTeam && !team) {
-    return <PageLoading message="Loading team chat..." />;
+    return <ChatPageSkeleton title="Team chat" />;
   }
 
   // Query is paused (offline) and we have no cached team — keep showing loader
   // instead of a misleading "Team not found".
   if (teamFetchStatus === "paused" && !team) {
-    return <PageLoading message="Loading team chat..." />;
+    return <ChatPageSkeleton title="Team chat" />;
   }
 
   if (!team) {
