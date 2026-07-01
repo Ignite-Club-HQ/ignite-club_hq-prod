@@ -2393,7 +2393,7 @@ export default function MessagesPage() {
       };
     });
   }, [
-    showBroadcast, displayLatestBroadcast, unreadCounts,
+    showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
