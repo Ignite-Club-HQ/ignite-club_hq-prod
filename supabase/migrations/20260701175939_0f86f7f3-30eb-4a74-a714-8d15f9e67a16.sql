@@ -1,0 +1,1 @@
+ALTER FUNCTION public.can_view_message_read(uuid, uuid, uuid, uuid, uuid, uuid, uuid) PARALLEL SAFE;
