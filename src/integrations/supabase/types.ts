@@ -708,6 +708,38 @@ export type Database = {
           },
         ]
       }
+      chat_group_unread: {
+        Row: {
+          group_id: string
+          last_read_message_id: string | null
+          unread_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          last_read_message_id?: string | null
+          unread_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          last_read_message_id?: string | null
+          unread_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_group_unread_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_groups: {
         Row: {
           allow_forwarding: boolean
@@ -11038,6 +11070,15 @@ export type Database = {
         Args: { _event_id: string; _status: string }
         Returns: {
           inserted_count: number
+        }[]
+      }
+      reconcile_chat_group_unread: {
+        Args: never
+        Returns: {
+          actual: number
+          cached: number
+          group_id: string
+          user_id: string
         }[]
       }
       reconcile_pending_invites: {
