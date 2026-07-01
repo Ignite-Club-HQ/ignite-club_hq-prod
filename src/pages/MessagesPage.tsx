@@ -486,11 +486,7 @@ export default function MessagesPage() {
       
       let authorName = "";
       if (data.author_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", data.author_id)
-          .maybeSingle();
+        const { data: profile } = await selectCachedProfileById(data.author_id);
         if (profile?.display_name) {
           authorName = profile.display_name;
         }
