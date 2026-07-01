@@ -2295,7 +2295,7 @@ export default function MessagesPage() {
         link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: unreadCounts?.groups[group.id] || 0,
+        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
