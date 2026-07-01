@@ -69,6 +69,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -96,8 +97,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-// PlayHQ sync hidden until API is configured — re-enable when PLAYHQ_API_KEY_<tenant> env var is set
-// import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
+import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
 
 type ClubRole = "club_admin";
 
@@ -620,11 +620,7 @@ export default function ClubDetailPage() {
       const invitesWithProfiles = await Promise.all(
         identifiableInvites.map(async (invite) => {
           if (invite.invited_user_id) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .eq("id", invite.invited_user_id)
-              .maybeSingle();
+            const { data: profile } = await selectCachedProfileById(invite.invited_user_id);
             return { ...invite, profiles: profile };
           }
           return { ...invite, profiles: null };
@@ -2228,8 +2224,7 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              {/* PlayHQ sync hidden until API is configured */}
-              {/* <PlayHQClubSyncCard clubId={id!} /> */}
+              <PlayHQClubSyncCard clubId={id!} />
             </div>
 
           </AccordionContent>

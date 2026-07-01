@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -426,10 +426,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
       const unresolvedIds = allUserIds.filter((id) => !normalizeDisplayName(map.get(id)?.display_name));
 
       if (unresolvedIds.length > 0) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", unresolvedIds);
+        const { data } = await selectCachedProfilesByIds(unresolvedIds);
 
         if (data?.length) {
           cacheProfiles(data);

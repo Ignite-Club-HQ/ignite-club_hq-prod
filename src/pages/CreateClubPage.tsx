@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
 import { isCachedAppAdmin, getCachedRoles } from "@/lib/rolesCache";
 
@@ -71,11 +72,7 @@ export default function CreateClubPage() {
   const { data: isReviewerProfile = false } = useQuery({
     queryKey: ["isReviewerProfile", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user!.id)
-        .maybeSingle();
+      const { data } = await selectCachedProfileById(user!.id);
       return data?.display_name === "Reviewer";
     },
     enabled: !!user,

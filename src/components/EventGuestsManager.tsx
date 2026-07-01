@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -56,10 +57,7 @@ export function EventGuestsManager({
     queryKey: ["guest-adder-profiles", adderIds],
     queryFn: async () => {
       if (adderIds.length === 0) return {};
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", adderIds);
+      const { data } = await selectCachedProfilesByIds(adderIds);
       const map: Record<string, string> = {};
       data?.forEach((p) => {
         map[p.id] = p.display_name || "Unknown";

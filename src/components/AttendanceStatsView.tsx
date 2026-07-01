@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MobileSelect } from "@/components/ui/mobile-select";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useState } from "react";
 
 interface AttendanceStatsViewProps {
@@ -66,10 +67,7 @@ export function AttendanceStatsView({ clubId }: AttendanceStatsViewProps) {
         .map((e: any) => e.user_id) || [];
       let profileMap: Record<string, string> = {};
       if (adultIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", adultIds);
+        const { data: profiles } = await selectCachedProfilesByIds(adultIds);
         profiles?.forEach((p) => {
           if (p.display_name) profileMap[p.id] = p.display_name;
         });

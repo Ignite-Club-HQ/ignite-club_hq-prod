@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds, selectCachedProfileById } from "@/lib/profileCache";
 
 type MessageType = "team" | "club" | "group" | "broadcast" | "dm" | "club_admin";
 
@@ -184,10 +185,7 @@ export function useMessageReads(
 
     const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
     if (userIds.size > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", Array.from(userIds));
+      const { data: profiles } = await selectCachedProfilesByIds(Array.from(userIds));
       for (const p of profiles || []) {
         profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url });
       }
@@ -332,11 +330,7 @@ export function useMessageReads(
           });
 
           if (userId !== currentUserId) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("display_name, avatar_url")
-              .eq("id", userId)
-              .maybeSingle();
+            const { data: profile } = await selectCachedProfileById(userId);
 
             setReadersByMessage((prev) => {
               const existing = prev[msgId] || [];

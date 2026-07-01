@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
@@ -330,10 +331,7 @@ function useRsvpSummary(eventId: string, eventType?: string) {
 
       const profileMap = guardianUserIds.length > 0
         ? Object.fromEntries(
-            ((await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .in("id", guardianUserIds)).data || []).map((profile) => [profile.id, profile])
+            ((await selectCachedProfilesByIds(guardianUserIds)).data || []).map((profile) => [profile.id, profile])
           )
         : {};
 

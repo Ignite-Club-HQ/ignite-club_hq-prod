@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ResponsiveDialog,
@@ -87,11 +88,7 @@ export function AddSecondParentDialog({
             .limit(6);
           return (data || []).filter(u => u.id !== user?.id);
         }
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .eq("id", userId)
-          .maybeSingle();
+        const { data: profile } = await selectCachedProfileById(userId);
         if (!profile || profile.id === user?.id) return [];
         return [{ ...profile, email: debouncedSearch.trim().toLowerCase() }];
       }
@@ -137,11 +134,7 @@ export function AddSecondParentDialog({
       if (error && !error.message?.toLowerCase().includes("duplicate")) throw error;
 
       // Notify the linked parent (in-app notification — push fires via trigger)
-      const { data: actor } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: actor } = await selectCachedProfileById(user.id);
       const actorName = actor?.display_name || "An admin";
       await supabase.from("notifications").insert({
         user_id: selectedUser.id,

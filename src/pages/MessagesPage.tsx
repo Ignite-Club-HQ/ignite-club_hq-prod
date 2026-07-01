@@ -25,10 +25,11 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
+import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
-import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -281,6 +282,14 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Per-group-chat row badges read from the denormalised `chat_group_unread`
+  // cache (realtime-backed). Falls back to `unreadCounts.groups[id]` if the
+  // hook hasn't populated yet — so behaviour is identical to the old RPC path
+  // in the worst case, and instant in the common case.
+  const { data: groupUnreadCache } = useGroupChatUnreadCache(
+    initialized ? user?.id : null,
+  );
+
   // Delete group mutation (soft-delete so an app admin can restore later)
   const deleteGroupMutation = useMutation({
     mutationFn: async (groupId: string) => {
@@ -425,10 +434,7 @@ export default function MessagesPage() {
       ));
       const authorNameById: Record<string, string> = {};
       if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", authorIds);
+        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
         for (const p of profiles ?? []) {
           if (p.display_name) authorNameById[p.id] = p.display_name;
         }
@@ -480,11 +486,7 @@ export default function MessagesPage() {
       
       let authorName = "";
       if (data.author_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", data.author_id)
-          .maybeSingle();
+        const { data: profile } = await selectCachedProfileById(data.author_id);
         if (profile?.display_name) {
           authorName = profile.display_name;
         }
@@ -584,10 +586,7 @@ export default function MessagesPage() {
       ));
       const authorNameById: Record<string, string> = {};
       if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", authorIds);
+        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
         for (const p of profiles ?? []) {
           if (p.display_name) authorNameById[p.id] = p.display_name;
         }
@@ -908,10 +907,7 @@ export default function MessagesPage() {
       ));
       const authorNameById: Record<string, string> = {};
       if (authorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", authorIds);
+        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
         for (const p of profiles ?? []) {
           if (p.display_name) authorNameById[p.id] = p.display_name;
         }
@@ -1075,10 +1071,7 @@ export default function MessagesPage() {
         // fetch fails or returns empty (handled by the layered fallbacks below).
         (async () => {
           try {
-            const { data } = await supabase
-              .from("profiles")
-              .select("id, display_name, avatar_url")
-              .in("id", otherUserIds);
+            const { data } = await selectCachedProfilesByIds(otherUserIds);
             if (data && data.length) {
               // Refresh the global profile cache so every other surface
               // (chat rows, member lists, mention chips) picks up the new name.
@@ -1639,10 +1632,7 @@ export default function MessagesPage() {
       const batch = new Map(pendingByAuthor);
       pendingByAuthor.clear();
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", ids);
+        const { data } = await selectCachedProfilesByIds(ids);
         if (data && data.length) cacheProfiles(data);
         const byId = new Map((data ?? []).map(p => [p.id, p.display_name || ""]));
         batch.forEach((targets, authorId) => {
@@ -2252,7 +2242,7 @@ export default function MessagesPage() {
         link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: unreadCounts?.groups[group.id] || 0,
+        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
       });
     });
@@ -2286,7 +2276,7 @@ export default function MessagesPage() {
         link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: unreadCounts?.groups[group.id] || 0,
+        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
@@ -2384,7 +2374,7 @@ export default function MessagesPage() {
       };
     });
   }, [
-    showBroadcast, displayLatestBroadcast, unreadCounts,
+    showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,

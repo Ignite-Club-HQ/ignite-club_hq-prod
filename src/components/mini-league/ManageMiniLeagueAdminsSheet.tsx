@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -93,10 +94,7 @@ export function ManageMiniLeagueAdminsSheet({
       const userIds = (data || []).map((r) => r.user_id);
       if (userIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
 
       const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
       return (data || []).map((r) => ({
@@ -121,10 +119,7 @@ export function ManageMiniLeagueAdminsSheet({
       const ids = [...new Set((roles || []).map((r) => r.user_id))];
       if (ids.length === 0) return [] as ClubMember[];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", ids);
+      const { data: profiles } = await selectCachedProfilesByIds(ids);
 
       return (profiles || []).map((p) => ({
         user_id: p.id,

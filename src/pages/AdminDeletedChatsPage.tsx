@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { PageLoading } from "@/components/ui/page-loading";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -91,13 +92,13 @@ export default function AdminDeletedChatsPage() {
 
       const [profilesRes, clubsRes] = await Promise.all([
         userIds.length
-          ? supabase.from("profiles").select("id, display_name").in("id", userIds)
+          ? selectCachedProfilesByIds(userIds)
           : Promise.resolve({ data: [] as any[] }),
         clubIds.length
           ? supabase.from("clubs").select("id, name").in("id", clubIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
-      const nameMap = new Map((profilesRes.data ?? []).map((p: any) => [p.id, p.display_name]));
+      const nameMap = new Map<string, string>((profilesRes.data ?? []).map((p: any) => [p.id as string, (p.display_name ?? "") as string]));
       const clubMap = new Map((clubsRes.data ?? []).map((c: any) => [c.id, c.name]));
       return rows.map((r) => ({
         ...r,

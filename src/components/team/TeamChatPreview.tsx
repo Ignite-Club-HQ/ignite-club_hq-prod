@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Badge } from "@/components/ui/badge";
@@ -38,11 +39,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
       }
 
       // Get author profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", data.author_id)
-        .maybeSingle();
+      const { data: profile } = await selectCachedProfileById(data.author_id);
 
       return {
         ...data,

@@ -63,6 +63,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
@@ -353,10 +354,7 @@ export default function EventDetailPage() {
       let childrenMap: Record<string, { id: string; name: string }> = {};
       
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         if (profiles) {
           profilesMap = Object.fromEntries(profiles.map(p => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
         }
@@ -396,10 +394,7 @@ export default function EventDetailPage() {
       const adderIds = [...new Set(data.map(g => g.added_by))];
       let adderMap: Record<string, string> = {};
       if (adderIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name")
-          .in("id", adderIds);
+        const { data: profiles } = await selectCachedProfilesByIds(adderIds);
         if (profiles) {
           adderMap = Object.fromEntries(profiles.map(p => [p.id, p.display_name || "A member"]));
         }
@@ -882,10 +877,7 @@ export default function EventDetailPage() {
         ),
       );
       if (parentIds.length === 0) return [] as Array<{ id: string; display_name: string | null; avatar_url: string | null; roles: string[] }>;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", parentIds);
+      const { data, error } = await selectCachedProfilesByIds(parentIds);
       if (error) throw error;
       return (data || []).map((p: any) => ({ ...p, roles: ["parent"] }));
     },
@@ -1023,14 +1015,10 @@ export default function EventDetailPage() {
       if (!filteredUserIds.length) return [];
       
       // Fetch profiles for all these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", filteredUserIds)
-        .order("display_name");
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(filteredUserIds);
       if (profilesError) throw profilesError;
-      
-      return profiles || [];
+
+      return (profiles || []).slice().sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
     },
     enabled: !!event?.mini_league_id && !!id,
   });

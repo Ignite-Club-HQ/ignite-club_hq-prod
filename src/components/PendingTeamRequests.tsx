@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -41,10 +42,7 @@ export function PendingTeamRequests({ clubId }: PendingTeamRequestsProps) {
       // Fetch requester profiles
       if (!data || data.length === 0) return [];
       const userIds = [...new Set(data.map(r => r.requested_by))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
 
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
       return data.map(r => ({

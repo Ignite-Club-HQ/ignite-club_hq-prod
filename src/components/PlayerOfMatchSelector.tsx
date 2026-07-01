@@ -24,6 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 
@@ -108,11 +109,7 @@ export default function PlayerOfMatchSelector({
       let profile: any = null;
       let child: any = null;
       if (data.user_id) {
-        const { data: p } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .eq("id", data.user_id)
-          .maybeSingle();
+        const { data: p } = await selectCachedProfileById(data.user_id);
         profile = p || profileFallbacks.get(data.user_id) || null;
       }
       if (data.child_id) {

@@ -27,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -105,10 +106,7 @@ export default function ManagePromoCodesPage() {
       if (data && data.length > 0) {
         const creatorIds = [...new Set(data.map(p => p.created_by).filter(Boolean))];
         if (creatorIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, display_name")
-            .in("id", creatorIds);
+          const { data: profiles } = await selectCachedProfilesByIds(creatorIds);
           
           const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
           return data.map(promo => ({

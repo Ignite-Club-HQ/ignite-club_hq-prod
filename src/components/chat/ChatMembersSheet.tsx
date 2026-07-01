@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -221,10 +222,7 @@ export function ChatMembersSheet({
         
         const userIds = groupMembers.map(gm => gm.user_id);
         
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         
         return (profiles || []).map(p => ({
           id: p.id,
@@ -272,10 +270,7 @@ export function ChatMembersSheet({
 
       const userIds = [...new Set(roles.map(r => r.user_id))] as string[];
       
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
 
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
       

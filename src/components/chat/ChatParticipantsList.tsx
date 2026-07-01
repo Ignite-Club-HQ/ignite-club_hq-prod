@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
@@ -265,10 +266,7 @@ export function ChatParticipantsList({
         }
         const userIds = Array.from(roleMap.keys());
         if (userIds.length === 0) return [] as Member[];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
         return userIds.map((id) => {
           const p = profileMap.get(id);
@@ -314,10 +312,7 @@ export function ChatParticipantsList({
         }
         const userIds = Array.from(roleMap.keys());
         if (userIds.length === 0) return [] as Member[];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
+        const { data: profiles } = await selectCachedProfilesByIds(userIds);
         const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
         return userIds.map((id) => {
           const profile = profileMap.get(id);
@@ -398,10 +393,7 @@ export function ChatParticipantsList({
       if (!roles?.length) return [];
 
       const userIds = [...new Set(roles.map((r) => r.user_id))] as string[];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const { data: profiles } = await selectCachedProfilesByIds(userIds);
 
       const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
       const memberMap = new Map<string, Member>();

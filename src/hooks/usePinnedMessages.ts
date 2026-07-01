@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { toast } from "sonner";
 
 export type PinnedChatType = "team" | "club" | "group" | "dm";
@@ -76,10 +77,7 @@ export function usePinnedMessages(
       );
 
       const { data: profiles } = authorIds.length
-        ? await supabase
-            .from("profiles")
-            .select("id, display_name, avatar_url")
-            .in("id", authorIds)
+        ? await selectCachedProfilesByIds(authorIds)
         : { data: [] as any[] };
 
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
