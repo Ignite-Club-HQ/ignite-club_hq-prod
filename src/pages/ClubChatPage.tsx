@@ -1735,7 +1735,7 @@ export default function ClubChatPage() {
                       hasReply={!!msg.reply_to_id}
                       onReply={handleReply}
                       onEdit={handleEdit}
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       isLastMessage={index === arr.length - 1}
