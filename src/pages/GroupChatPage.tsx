@@ -265,6 +265,10 @@ export default function GroupChatPage() {
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  // When the highlight ring clears, drop the persisted search highlight too.
+  useEffect(() => {
+    if (!highlightedMessageId && highlightQuery) setHighlightQuery("");
+  }, [highlightedMessageId, highlightQuery]);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
