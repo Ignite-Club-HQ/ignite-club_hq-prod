@@ -335,6 +335,7 @@ export default function TeamChatPage() {
   // set (search alone merges only the matched row, leaving a gap).
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && teamId) {
