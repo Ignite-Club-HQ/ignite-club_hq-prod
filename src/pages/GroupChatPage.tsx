@@ -252,6 +252,10 @@ export default function GroupChatPage() {
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after the user taps a result so highlights
+  // remain visible on the jumped-to message. Cleared when the highlight
+  // ring fades (via effect below on highlightedMessageId).
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
