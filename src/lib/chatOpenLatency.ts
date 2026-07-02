@@ -43,7 +43,7 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
     // Snapshot per-stage deltas so we can attribute cold-start time.
     const stagesSnap = snapshotStages();
     const stages = stagesSnap.anchor !== null
-      ? { anchor: stagesSnap.anchor, ...stagesSnap.deltas, total_ms: tap_to_render_ms }
+      ? { anchor: stagesSnap.anchor, nav_ms: stagesSnap.nav_ms ?? 0, ...stagesSnap.deltas, total_ms: tap_to_render_ms }
       : null;
 
     // Compact dev-only console line for quick local inspection.
