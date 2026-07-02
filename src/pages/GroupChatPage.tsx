@@ -2350,7 +2350,7 @@ export default function GroupChatPage() {
                       deleteMessageMutation={deleteMessageMutation}
                       toggleReactionMutation={toggleReactionMutation}
                       groupId={groupId || ""}
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       isPinned={pinnedMessageIds.has(msg.id)}
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
