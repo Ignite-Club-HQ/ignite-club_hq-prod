@@ -1313,6 +1313,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       setInitialRevealReady(true);
       return;
     }
+    // Deep-link jump path (push notification / search / reply / pin tap):
+    // when an `initialTargetMessageId` was supplied and its row is already
+    // in the loaded set, Virtuoso mounted with
+    // `initialTopMostItemIndex={index:target, align:"end"}` — the viewport
+    // is ALREADY on the correct row. Running the bottom-pin sequence here
+    // would immediately snap to LAST/end (the parent's jump effect that
+    // sets `isChatJumpActive` runs AFTER this useLayoutEffect in commit
+    // ordering, so the guard above misses on the tap that opens/refocuses
+    // the chat), producing the visible "message moves around before
+    // settling" jitter reported when tapping a notification for a
+    // different message in a chat that's already open at another
+    // position. Treat as already-pinned and reveal without re-scrolling.
+    if (initialTargetMessageId && initialTargetIndex >= 0) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      setInitialRevealReady(true);
+      return;
+    }
     // Skip if a pin sequence for this revision is already in flight — a
     // re-render mid-stabilisation must not retrigger the synchronous
     // `jump("immediate")` below.
