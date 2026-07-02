@@ -204,6 +204,9 @@ export default function TeamChatPage() {
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after tapping a result so highlights stay
+  // visible on the jumped-to row; cleared when the highlight ring fades.
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
