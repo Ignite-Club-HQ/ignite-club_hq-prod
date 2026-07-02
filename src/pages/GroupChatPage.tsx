@@ -718,6 +718,9 @@ export default function GroupChatPage() {
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
+
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
     if (perfLoggedRef.current) return;
