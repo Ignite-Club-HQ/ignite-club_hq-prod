@@ -300,6 +300,7 @@ export default function ClubChatPage() {
 
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && clubId) {
