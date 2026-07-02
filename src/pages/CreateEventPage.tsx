@@ -737,6 +737,7 @@ export default function CreateEventPage() {
       end_time: timeToTimestamp(endTime, parsedDateTime),
       restricted_to_roles:
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
+      adults_only: adultsOnly,
     };
 
     try {
