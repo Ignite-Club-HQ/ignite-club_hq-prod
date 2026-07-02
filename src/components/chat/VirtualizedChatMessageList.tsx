@@ -1325,6 +1325,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let revealFrame: number | null = null;
       const reveal = () => {
         if (cancelled) return;
+        if (isChatJumpActive()) {
+          window.setTimeout(wait, 80);
+          return;
+        }
         revealFrame = requestAnimationFrame(() => {
           if (!cancelled) setInitialRevealReady(true);
         });
@@ -2214,7 +2218,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (scroller) {
         cancelSettleWait = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 450, maxMs: 3500 },
+          { quietMs: 650, maxMs: 8000 },
           () => {
             cancelSettleWait = null;
             // Tiny intentional cross-fade so the reveal reads as "settled".
