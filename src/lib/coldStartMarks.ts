@@ -16,12 +16,13 @@
  */
 
 export type ColdStartStage =
-  | "boot"          // main.tsx module evaluated (Capacitor + JS runtime ready)
-  | "notif_tap"     // notification tap dispatched (native or web)
-  | "auth_ready"    // useAuth `initialized` flipped true
-  | "chat_mount"    // chat page component mounted
-  | "chat_fetch"    // chat page kicked off its messages fetch
-  | "chat_render";  // chat page painted its first message
+  | "boot"              // main.tsx module evaluated (Capacitor + JS runtime ready)
+  | "notif_tap"         // notification tap dispatched (native or web)
+  | "auth_ready"        // useAuth `initialized` flipped true
+  | "chat_mount"        // chat page component mounted
+  | "chat_fetch"        // chat page kicked off its messages fetch
+  | "chat_query_return" // first messages RPC returned
+  | "chat_render";      // chat page painted its first message
 
 interface MarkRecord {
   ts: number;
@@ -32,12 +33,29 @@ const marks = new Map<ColdStartStage, MarkRecord>();
 // Absolute anchor for the very first thing we observe (usually `boot`).
 let anchorTs: number | null = null;
 
+/**
+ * Milliseconds spent in native/webview startup BEFORE main.tsx evaluated.
+ * Captured once at first `mark("boot")` call as
+ * `Date.now() - performance.timeOrigin`. On true Android cold starts this
+ * dominates when it's large (webview cold-init + JS bundle parse). On warm
+ * in-session navigations this is ~0.
+ */
+let navMs: number | null = null;
+
 export function mark(stage: ColdStartStage): void {
   try {
     if (marks.has(stage)) return; // first-write wins so retries don't overwrite
     const ts = Date.now();
     marks.set(stage, { ts });
     if (anchorTs === null) anchorTs = ts;
+    if (stage === "boot" && navMs === null) {
+      try {
+        const origin = typeof performance !== "undefined" ? performance.timeOrigin : ts;
+        navMs = Math.max(0, Math.round(ts - origin));
+      } catch {
+        navMs = 0;
+      }
+    }
   } catch {
     // ignore
   }
