@@ -16,6 +16,32 @@ function isImageLoaded(img: HTMLImageElement) {
   return img.complete && img.naturalHeight > 0;
 }
 
+function getVisibleRowGeometrySignature(root: HTMLElement) {
+  const rootRect = root.getBoundingClientRect();
+  const visibleRows = Array.from(root.querySelectorAll<HTMLElement>("[data-row-id]")).filter((row) => {
+    const rect = row.getBoundingClientRect();
+    return rect.bottom >= rootRect.top && rect.top <= rootRect.bottom;
+  });
+
+  if (visibleRows.length === 0) return "no-visible-rows";
+
+  const sample = visibleRows.length <= 8
+    ? visibleRows
+    : [...visibleRows.slice(0, 4), ...visibleRows.slice(-4)];
+
+  return sample
+    .map((row) => {
+      const rect = row.getBoundingClientRect();
+      return [
+        row.dataset.rowId ?? "",
+        Math.round(rect.top - rootRect.top),
+        Math.round(rect.bottom - rootRect.top),
+        Math.round(rect.height),
+      ].join("/");
+    })
+    .join("|");
+}
+
 /**
  * Holds chat reveal until visible row assets/placeholders stop changing.
  *
@@ -38,27 +64,21 @@ export function waitForChatVisualContentSettle(
   const quietMs = options.quietMs ?? 520;
   const maxMs = options.maxMs ?? 2400;
   let finished = false;
-  let quietTimer: Timer | null = null;
   let maxTimer: Timer | null = null;
   let rafId: number | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
   let lastSignature = "";
+  let stableSince = 0;
+  let stableFrames = 0;
   const imageListeners = new Map<HTMLImageElement, () => void>();
 
-  const clearQuietTimer = () => {
-    if (quietTimer !== null) {
-      window.clearTimeout(quietTimer);
-      quietTimer = null;
-    }
-  };
-
   const cleanup = () => {
-    clearQuietTimer();
     if (maxTimer !== null) window.clearTimeout(maxTimer);
     if (rafId !== null) window.cancelAnimationFrame(rafId);
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
+    root.removeEventListener("scroll", scheduleCheck);
     imageListeners.forEach((handler, img) => {
       img.removeEventListener("load", handler);
       img.removeEventListener("error", handler);
@@ -110,17 +130,37 @@ export function waitForChatVisualContentSettle(
       Math.round(root.scrollHeight),
       Math.round(root.clientHeight),
       root.firstElementChild?.childElementCount ?? root.childElementCount,
+      getVisibleRowGeometrySignature(root),
     ].join(":");
 
     const ready = pendingImages.length === 0 && loadingCount === 0;
-    if (!ready || signature !== lastSignature) {
+    if (!ready) {
       lastSignature = signature;
-      clearQuietTimer();
-      if (ready) quietTimer = window.setTimeout(finish, quietMs);
+      stableSince = 0;
+      stableFrames = 0;
       return;
     }
 
-    if (quietTimer === null) quietTimer = window.setTimeout(finish, quietMs);
+    const now = performance.now();
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      stableSince = now;
+      stableFrames = 0;
+      scheduleCheck();
+      return;
+    }
+
+    stableFrames += 1;
+    if (stableSince === 0) stableSince = now;
+    if (now - stableSince >= quietMs && stableFrames >= 2) {
+      finish();
+      return;
+    }
+
+    // Keep sampling through the quiet window. ResizeObserver / MutationObserver
+    // do not fire for every programmatic scrollTop correction, and those pure
+    // scroll movements are exactly what must stay hidden behind the skeleton.
+    scheduleCheck();
   }
 
   if (typeof ResizeObserver !== "undefined") {
@@ -138,6 +178,8 @@ export function waitForChatVisualContentSettle(
     attributes: true,
     characterData: true,
   });
+
+  root.addEventListener("scroll", scheduleCheck, { passive: true });
 
   maxTimer = window.setTimeout(finish, maxMs);
   scheduleCheck();
