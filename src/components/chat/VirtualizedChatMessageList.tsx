@@ -1299,20 +1299,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const graceTimer = window.setTimeout(() => setInitialRevealReady(true), 700);
       return () => window.clearTimeout(graceTimer);
     }
-    if (!initialBottomPinned) {
-      bottomPinReadyRef.current = true;
-      pinnedRevisionRef.current = bottomPinRevision;
-      pinAttemptRevisionRef.current = null;
-      setInitialRevealReady(true);
-      return;
-    }
-    if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
-    if (isChatJumpActive()) {
-      bottomPinReadyRef.current = true;
-      pinnedRevisionRef.current = bottomPinRevision;
-      setInitialRevealReady(true);
-      return;
-    }
     // Deep-link jump path (push notification / search / reply / pin tap):
     // when an `initialTargetMessageId` was supplied and its row is already
     // in the loaded set, Virtuoso mounted with
@@ -1324,8 +1310,54 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // the chat), producing the visible "message moves around before
     // settling" jitter reported when tapping a notification for a
     // different message in a chat that's already open at another
-    // position. Treat as already-pinned and reveal without re-scrolling.
+    // position. Treat as already-pinned, but do NOT reveal immediately: wait
+    // until Virtuoso's row measurement, exact-DOM correction, and any visible
+    // row hydration have produced a quiet scroller. This branch must run
+    // BEFORE the `!initialBottomPinned` shortcut below because every deep-link
+    // page passes `initialBottomPinned={false}`.
     if (initialTargetMessageId && initialTargetIndex >= 0) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      pinAttemptRevisionRef.current = null;
+      setInitialRevealReady(false);
+      let cancelled = false;
+      let cleanup: (() => void) | null = null;
+      let revealFrame: number | null = null;
+      const reveal = () => {
+        if (cancelled) return;
+        revealFrame = requestAnimationFrame(() => {
+          if (!cancelled) setInitialRevealReady(true);
+        });
+      };
+      const wait = () => {
+        if (cancelled) return;
+        const scroller = scrollerElRef.current;
+        if (!scroller) {
+          revealFrame = requestAnimationFrame(wait);
+          return;
+        }
+        cleanup = waitForChatVisualContentSettle(
+          scroller,
+          { quietMs: 650, maxMs: 6500 },
+          reveal,
+        );
+      };
+      wait();
+      return () => {
+        cancelled = true;
+        cleanup?.();
+        if (revealFrame !== null) cancelAnimationFrame(revealFrame);
+      };
+    }
+    if (!initialBottomPinned) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      pinAttemptRevisionRef.current = null;
+      setInitialRevealReady(true);
+      return;
+    }
+    if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    if (isChatJumpActive()) {
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
       setInitialRevealReady(true);
