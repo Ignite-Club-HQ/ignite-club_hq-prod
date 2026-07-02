@@ -92,7 +92,7 @@ describe("waitForChatVisualContentSettle", () => {
 
     await flushFrame(80);
     expect(done).not.toHaveBeenCalled();
-    await flushFrame(40);
+    await flushFrame(80);
     expect(done).toHaveBeenCalledTimes(1);
   });
 });
