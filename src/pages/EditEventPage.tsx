@@ -459,6 +459,7 @@ export default function EditEventPage() {
       setMaxGuestsPerMember(event.max_guests_per_member || 2);
       const rr = (event as any).restricted_to_roles;
       setRestrictedRoles(Array.isArray(rr) ? (rr as ClubEventRole[]) : []);
+      setAdultsOnly((event as any).adults_only === true);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
