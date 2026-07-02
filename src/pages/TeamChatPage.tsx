@@ -82,6 +82,7 @@ import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
+import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
@@ -786,6 +787,9 @@ export default function TeamChatPage() {
     return () => window.clearTimeout(t);
   }, [showLoading, bannersDataReady, teamId]);
 
+
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {

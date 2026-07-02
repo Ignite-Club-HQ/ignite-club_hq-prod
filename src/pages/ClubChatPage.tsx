@@ -75,6 +75,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
+import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -597,6 +598,9 @@ export default function ClubChatPage() {
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
+
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
