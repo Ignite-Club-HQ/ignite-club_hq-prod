@@ -1025,8 +1025,9 @@ export default function EventDetailPage() {
 
   // Fetch children for parent RSVP - team-assigned children for team events, all children for club-wide events
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, user?.id],
+    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, user?.id],
     queryFn: async () => {
+      if ((event as any)?.adults_only) return [] as Array<{ id: string; name: string }>;
       // Get children where user is parent OR guardian
       const [ownChildren, guardianLinks] = await Promise.all([
         // Direct children (parent_id)
