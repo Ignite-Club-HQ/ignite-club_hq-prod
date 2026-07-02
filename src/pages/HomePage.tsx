@@ -443,7 +443,7 @@ export default function HomePage() {
 
       let eventsQuery = supabase
         .from("events")
-        .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
+        .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
         // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
         // today's local-morning fixtures are stored as YESTERDAY's UTC date
         // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
