@@ -66,4 +66,33 @@ describe("waitForChatVisualContentSettle", () => {
     await flushFrame(1);
     expect(done).toHaveBeenCalledTimes(1);
   });
+
+  it("does not reveal while scroll position is still changing", async () => {
+    const root = makeRoot();
+    const row = document.createElement("div");
+    row.dataset.rowId = "message-1";
+    Object.defineProperty(root, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 0, bottom: 600, height: 600, width: 320, left: 0, right: 320, x: 0, y: 0, toJSON: () => ({}) }),
+    });
+    Object.defineProperty(row, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 520 - root.scrollTop, bottom: 580 - root.scrollTop, height: 60, width: 240, left: 0, right: 240, x: 0, y: 520 - root.scrollTop, toJSON: () => ({}) }),
+    });
+    root.appendChild(row);
+
+    const done = vi.fn();
+    waitForChatVisualContentSettle(root, { quietMs: 100, maxMs: 1000 }, done);
+
+    await flushFrame(80);
+    expect(done).not.toHaveBeenCalled();
+
+    root.scrollTop = 120;
+    root.dispatchEvent(new Event("scroll"));
+
+    await flushFrame(80);
+    expect(done).not.toHaveBeenCalled();
+    await flushFrame(40);
+    expect(done).toHaveBeenCalledTimes(1);
+  });
 });
