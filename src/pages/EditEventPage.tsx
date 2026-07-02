@@ -564,6 +564,7 @@ export default function EditEventPage() {
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
         restricted_to_roles:
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
+        adults_only: adultsOnly,
       };
 
       // If converting single event to recurring series
