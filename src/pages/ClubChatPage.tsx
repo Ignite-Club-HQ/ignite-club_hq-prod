@@ -173,6 +173,9 @@ export default function ClubChatPage() {
     ? { chat_type: "club", club_id: clubId }
     : null;
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after tapping a result so highlights stay
+  // visible on the jumped-to row; cleared when the highlight ring fades.
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
