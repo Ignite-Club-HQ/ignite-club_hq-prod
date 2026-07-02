@@ -386,6 +386,10 @@ export default function GroupChatPage() {
 
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    // Preserve the query for highlighting the jumped-to row until the
+    // highlight ring clears — clearing searchQuery here would strip the
+    // <mark> spans mid-jump and leave the user unsure why the row matched.
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && groupId) {
