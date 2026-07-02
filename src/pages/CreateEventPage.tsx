@@ -138,6 +138,7 @@ export default function CreateEventPage() {
   const [isBye, setIsBye] = useState(false);
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
+  const [adultsOnly, setAdultsOnly] = useState(false);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -736,6 +737,7 @@ export default function CreateEventPage() {
       end_time: timeToTimestamp(endTime, parsedDateTime),
       restricted_to_roles:
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
+      adults_only: adultsOnly,
     };
 
     try {
@@ -1189,6 +1191,15 @@ export default function CreateEventPage() {
                   teamDefault={null}
                 />
               )}
+
+              {/* Adults only - hides child RSVP prompts */}
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
+                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
+                </div>
+                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
+              </div>
 
               {/* Role restriction - only for club-wide social events */}
               {type === "social" && !teamId && (

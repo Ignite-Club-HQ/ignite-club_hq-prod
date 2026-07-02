@@ -122,6 +122,7 @@ export default function EditEventPage() {
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [teamDefaultRsvpAudience, setTeamDefaultRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
+  const [adultsOnly, setAdultsOnly] = useState(false);
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -458,6 +459,7 @@ export default function EditEventPage() {
       setMaxGuestsPerMember(event.max_guests_per_member || 2);
       const rr = (event as any).restricted_to_roles;
       setRestrictedRoles(Array.isArray(rr) ? (rr as ClubEventRole[]) : []);
+      setAdultsOnly((event as any).adults_only === true);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -562,6 +564,7 @@ export default function EditEventPage() {
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
         restricted_to_roles:
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
+        adults_only: adultsOnly,
       };
 
       // If converting single event to recurring series
@@ -968,6 +971,14 @@ export default function EditEventPage() {
                   teamDefault={teamDefaultRsvpAudience}
                 />
               )}
+
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
+                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
+                </div>
+                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
+              </div>
 
               {type === "social" && !selectedTeamId && (
                 <EventRoleAudienceSelect

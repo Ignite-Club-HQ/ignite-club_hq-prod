@@ -3993,6 +3993,7 @@ export type Database = {
       events: {
         Row: {
           address: string | null
+          adults_only: boolean
           allow_guests: boolean | null
           amount: number | null
           arrival_minutes_before: number | null
@@ -4046,6 +4047,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          adults_only?: boolean
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
@@ -4099,6 +4101,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          adults_only?: boolean
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null

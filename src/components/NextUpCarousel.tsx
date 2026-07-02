@@ -218,10 +218,11 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   });
 }
 
-function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"> & { mini_league_id?: string | null }, userId: string | undefined) {
+function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"> & { mini_league_id?: string | null; adults_only?: boolean | null }, userId: string | undefined) {
   return useQuery({
-    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, (event as any).mini_league_id, userId],
+    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, (event as any).mini_league_id, (event as any).adults_only, userId],
     queryFn: async () => {
+      if ((event as any).adults_only) return [] as Array<{ id: string; name: string }>;
       const [ownChildren, guardianLinks] = await Promise.all([
         event.team_id
           ? supabase
