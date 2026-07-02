@@ -2002,7 +2002,7 @@ export default function TeamChatPage() {
                             )
                           : undefined
                       }
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       isLastMessage={index === arr.length - 1}
