@@ -466,6 +466,7 @@ export default function EventsPage() {
           opponent,
           arrival_minutes_before,
           rsvp_audience,
+          adults_only,
           updated_at,
           teams (name, default_match_arrival_minutes, default_rsvp_audience),
           clubs!club_id (name, sport)
