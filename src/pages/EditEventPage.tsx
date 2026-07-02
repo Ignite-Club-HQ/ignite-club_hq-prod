@@ -972,6 +972,14 @@ export default function EditEventPage() {
                 />
               )}
 
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
+                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
+                </div>
+                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
+              </div>
+
               {type === "social" && !selectedTeamId && (
                 <EventRoleAudienceSelect
                   value={restrictedRoles}
