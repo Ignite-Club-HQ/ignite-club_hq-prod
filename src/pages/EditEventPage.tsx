@@ -122,6 +122,7 @@ export default function EditEventPage() {
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [teamDefaultRsvpAudience, setTeamDefaultRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
+  const [adultsOnly, setAdultsOnly] = useState(false);
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
