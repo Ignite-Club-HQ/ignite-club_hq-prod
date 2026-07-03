@@ -20,8 +20,12 @@ export function ClubThemeToggle() {
   const { user } = useAuth();
 
   // Fetch ALL user clubs (including non-Pro) to show with lock
+  // `keepPreviousData` + throw-on-error mirrors the resilience guarantee in
+  // `useClubTheme` so a transient reconnect refetch never wipes the picker.
   const { data: allUserClubs = [] } = useQuery({
     queryKey: ["all-user-clubs-for-theme-v2", user?.id],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     queryFn: async () => {
       if (!user?.id) return [];
 
