@@ -686,10 +686,14 @@ export function AppHeader() {
         created_at: notification.created_at,
         is_read: notification.is_read,
       });
-      // Mark as read first - use mutateAsync to ensure it completes before navigation
+      // Mark as read in the background — do NOT block navigation on the network RTT.
+      // The unread badge update can settle after the user has already landed on the thread.
       if (!notification.is_read) {
-        await markAsRead.mutateAsync(notification.id);
+        void markAsRead.mutateAsync(notification.id).catch(() => {
+          // Silent — the read state will reconcile on next inbox refetch.
+        });
       }
+
 
       const relatedId = notification.related_id;
       if (!relatedId) {
@@ -699,28 +703,36 @@ export function AppHeader() {
 
       switch (notification.type) {
         case "message_reaction": {
-          // Current trigger stores the reacted message id in related_id. Resolve
-          // which chat container that message belongs to and deep-link with
-          // ?message= so the chat page scrolls to it.
-          const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle();
+          // Resolve the container in parallel — the reacted message lives in exactly
+          // one of these tables, so fire all probes at once and use whichever wins.
+          const [tMsgRes, cMsgRes, gMsgRes, dMsgRes, bMsgRes] = await Promise.all([
+            supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle(),
+          ]);
+          const tMsg = tMsgRes.data;
+          const cMsg = cMsgRes.data;
+          const gMsg = gMsgRes.data;
+          const dMsg = dMsgRes.data;
+          const bMsg = bMsgRes.data;
           if (tMsg?.team_id) { navigateWithFreshJump(`/messages/${tMsg.team_id}?message=${relatedId}`); return; }
-          const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle();
           if (cMsg?.club_id) { navigateWithFreshJump(`/messages/club/${cMsg.club_id}?message=${relatedId}`); return; }
-          const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle();
           if (gMsg?.group_id) { navigateWithFreshJump(`/groups/${gMsg.group_id}?message=${relatedId}`); return; }
-          const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle();
           if (dMsg?.conversation_id) { setPendingChatJump("dm", dMsg.conversation_id, relatedId); navigateWithFreshJump(`/messages/dm/${dMsg.conversation_id}?message=${relatedId}`); return; }
-          const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle();
           if (bMsg) { navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`); return; }
-          // Backward-compat: very old rows stored container_id as related_id.
-          const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
-          if (teamCheck) { navigate(`/messages/${relatedId}`); return; }
-          const { data: clubCheck } = await supabase.from("clubs").select("id").eq("id", relatedId).maybeSingle();
-          if (clubCheck) { navigate(`/messages/club/${relatedId}`); return; }
-          const { data: groupCheck } = await supabase.from("chat_groups").select("id").eq("id", relatedId).maybeSingle();
-          if (groupCheck) { navigate(`/groups/${relatedId}`); return; }
-          const { data: convCheck } = await supabase.from("direct_conversations").select("id").eq("id", relatedId).maybeSingle();
-          if (convCheck) { navigate(`/messages/dm/${relatedId}`); return; }
+          // Backward-compat: very old rows stored container_id as related_id. Parallelize these too.
+          const [teamCheckRes, clubCheckRes, groupCheckRes, convCheckRes] = await Promise.all([
+            supabase.from("teams").select("id").eq("id", relatedId).maybeSingle(),
+            supabase.from("clubs").select("id").eq("id", relatedId).maybeSingle(),
+            supabase.from("chat_groups").select("id").eq("id", relatedId).maybeSingle(),
+            supabase.from("direct_conversations").select("id").eq("id", relatedId).maybeSingle(),
+          ]);
+          if (teamCheckRes.data) { navigate(`/messages/${relatedId}`); return; }
+          if (clubCheckRes.data) { navigate(`/messages/club/${relatedId}`); return; }
+          if (groupCheckRes.data) { navigate(`/groups/${relatedId}`); return; }
+          if (convCheckRes.data) { navigate(`/messages/dm/${relatedId}`); return; }
           navigate("/messages");
           return;
         }
@@ -730,56 +742,40 @@ export function AppHeader() {
         case "message_reply":
         case "message_mention":
         case "message_forwarded": {
-          // Always anchor to the exact message the notification was created
-          // for. Each notification row carries its own related_id pointing to
-          // the specific message — so when the same sender has multiple
-          // notifications, each one routes to its own message rather than
-          // collapsing to the latest.
-          const { data: teamMessage } = await supabase
-            .from("team_messages")
-            .select("team_id")
-            .eq("id", relatedId)
-            .maybeSingle();
+          // Same container as message_reaction — resolve in parallel instead of
+          // 4 sequential RTTs (DMs used to pay the full miss chain).
+          const [teamMsgRes, clubMsgRes, groupMsgRes, dmMsgRes, broadcastMsgRes] = await Promise.all([
+            supabase.from("team_messages").select("team_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("club_messages").select("club_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("group_messages").select("group_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("direct_messages").select("conversation_id").eq("id", relatedId).maybeSingle(),
+            supabase.from("broadcast_messages").select("id").eq("id", relatedId).maybeSingle(),
+          ]);
+          const teamMessage = teamMsgRes.data;
+          const clubMsg = clubMsgRes.data;
+          const groupMsg = groupMsgRes.data;
+          const dmMsg = dmMsgRes.data;
+          const broadcastMsg = broadcastMsgRes.data;
           if (teamMessage?.team_id) {
             setPendingChatJump("team", teamMessage.team_id, relatedId);
             navigateWithFreshJump(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
-          const { data: clubMsg } = await supabase
-            .from("club_messages")
-            .select("club_id")
-            .eq("id", relatedId)
-            .maybeSingle();
           if (clubMsg?.club_id) {
             setPendingChatJump("club", clubMsg.club_id, relatedId);
             navigateWithFreshJump(`/messages/club/${clubMsg.club_id}?message=${relatedId}`);
             return;
           }
-          const { data: groupMsg } = await supabase
-            .from("group_messages")
-            .select("group_id")
-            .eq("id", relatedId)
-            .maybeSingle();
           if (groupMsg?.group_id) {
             setPendingChatJump("group", groupMsg.group_id, relatedId);
             navigateWithFreshJump(`/groups/${groupMsg.group_id}?message=${relatedId}`);
             return;
           }
-          const { data: dmMsg } = await supabase
-            .from("direct_messages")
-            .select("conversation_id")
-            .eq("id", relatedId)
-            .maybeSingle();
           if (dmMsg?.conversation_id) {
             setPendingChatJump("dm", dmMsg.conversation_id, relatedId);
             navigateWithFreshJump(`/messages/dm/${dmMsg.conversation_id}?message=${relatedId}`);
             return;
           }
-          const { data: broadcastMsg } = await supabase
-            .from("broadcast_messages")
-            .select("id")
-            .eq("id", relatedId)
-            .maybeSingle();
           if (broadcastMsg) {
             setPendingChatJump("broadcast", null, relatedId);
             navigateWithFreshJump(`/messages/broadcast?message=${relatedId}`);
@@ -787,6 +783,7 @@ export function AppHeader() {
           }
           break;
         }
+
 
         case "club_admin_message": {
           // related_id is the club_admin_messages.id — resolve the conversation
