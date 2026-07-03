@@ -819,12 +819,18 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // selections that aren't themed and to display free club names in the header.
   const { data: userClubs = [], isLoading: isUserClubsLoading, isSuccess: isUserClubsSuccess }= useQuery<{ id: string; name: string; logo_url: string | null }[]>({
     queryKey: ["user-clubs-for-switcher", user?.id],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     queryFn: async () => {
       if (!user?.id) return [];
       const [rolesRes, teamRolesRes] = await Promise.all([
         supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
         supabase.from("user_roles").select("teams!inner(club_id)").eq("user_id", user.id).not("team_id", "is", null),
       ]);
+      // Propagate errors so react-query keeps prior data on a transient
+      // reconnect failure — otherwise the club dropdown briefly empties out.
+      if (rolesRes.error) throw rolesRes.error;
+      if (teamRolesRes.error) throw teamRolesRes.error;
       const ids = new Set<string>();
       (rolesRes.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
       (teamRolesRes.data || []).forEach((r: any) => {
@@ -832,11 +838,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         if (cid) ids.add(cid);
       });
       if (!ids.size) return [];
-      const { data: clubs } = await supabase
+      const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select("id, name, logo_url")
         .in("id", Array.from(ids))
         .is("deleted_at", null);
+      if (clubsError) throw clubsError;
       return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
     },
     enabled: !!user?.id,
