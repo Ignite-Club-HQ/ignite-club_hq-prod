@@ -274,6 +274,23 @@ export default function MessagesPage() {
   // so their existing useQuery blocks become instant cache hits. Rollback:
   // `localStorage.removeItem("msg_bootstrap_v1")`.
   useMessagesPageBootstrap(user?.id, initialized);
+  const bootstrapQuery = (queryClient.getQueryState(["messages-page-bootstrap", user?.id]) as any) || null;
+
+  // Inbox perf: mark mount + track bootstrap RPC return + first paint. See
+  // src/lib/inboxOpenLatency.ts. Best-effort; one sample per open.
+  const inboxOpenStartRef = useRef<number>(Date.now());
+  useEffect(() => {
+    inboxOpenStartRef.current = Date.now();
+    coldMark("inbox_mount");
+    return () => { resetInboxOpenLog(); };
+  }, []);
+  const bootstrapData = queryClient.getQueryData(["messages-page-bootstrap", user?.id]);
+  useEffect(() => {
+    if (bootstrapData !== undefined && bootstrapData !== null) {
+      coldMark("inbox_bootstrap_return");
+    }
+  }, [bootstrapData]);
+
 
   // Fetch unread message notifications grouped by thread.
   // Uses the shared useUnreadMessageCounts hook so the RPC is deduped across
