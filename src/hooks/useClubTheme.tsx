@@ -674,9 +674,16 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Fetch all Pro clubs that the user belongs to with custom themes
+  // Fetch all Pro clubs that the user belongs to with custom themes.
+  // Resilience: throw on Supabase errors + `keepPreviousData` so a transient
+  // reconnect refetch (partial embed, RLS hiccup, network blip) never
+  // overwrites a good cached list with an empty one — that was previously
+  // causing the club selector to disappear + theme to drop after coming back
+  // online.
   const { data: availableClubThemes = [], isLoading, isSuccess: isClubThemesSuccess, isError: isClubThemesError } = useQuery({
     queryKey: ["club-themes", user?.id],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -687,7 +694,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .eq("user_id", user.id)
         .not("club_id", "is", null);
 
-      if (rolesError || !userRoles?.length) return [];
+      if (rolesError) throw rolesError;
+      if (!userRoles?.length) return [];
 
       const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
 
