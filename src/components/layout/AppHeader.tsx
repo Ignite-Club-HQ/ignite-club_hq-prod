@@ -686,10 +686,14 @@ export function AppHeader() {
         created_at: notification.created_at,
         is_read: notification.is_read,
       });
-      // Mark as read first - use mutateAsync to ensure it completes before navigation
+      // Mark as read in the background — do NOT block navigation on the network RTT.
+      // The unread badge update can settle after the user has already landed on the thread.
       if (!notification.is_read) {
-        await markAsRead.mutateAsync(notification.id);
+        void markAsRead.mutateAsync(notification.id).catch(() => {
+          // Silent — the read state will reconcile on next inbox refetch.
+        });
       }
+
 
       const relatedId = notification.related_id;
       if (!relatedId) {
