@@ -2397,6 +2397,35 @@ export default function MessagesPage() {
     filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
 
+  // Perf: log inbox open latency once when the first meaningful list is ready.
+  const perfLoggedRef = useRef(false);
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!user?.id) return;
+    // "First paint" = we actually have rows to render, OR every source query
+    // has resolved (empty inbox is a valid state).
+    const listReady = unifiedConversations.length > 0
+      || (teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched && latestBroadcastFetched);
+    if (!listReady) return;
+    perfLoggedRef.current = true;
+    void logInboxOpenLatency({
+      userId: user.id,
+      source: cachedData ? "warm_nav" : "cold_open",
+      startTs: inboxOpenStartRef.current,
+      cacheHit: !!cachedData,
+      bootstrapEnabled: isMessagesBootstrapEnabled(),
+      sectionCounts: {
+        teams: filteredTeams.length,
+        clubs: filteredClubs.length,
+        groups: filteredChatGroups.length + filteredLeagueChats.length,
+        dms: filteredDMs.length,
+        total: unifiedConversations.length,
+      },
+    });
+  }, [unifiedConversations, user?.id, cachedData, teamsFetched, memberClubsFetched, chatGroupsFetched, dmFetched, latestBroadcastFetched, filteredTeams.length, filteredClubs.length, filteredChatGroups.length, filteredLeagueChats.length, filteredDMs.length]);
+
+
+
 
   // Resolve event titles referenced in any conversation preview so they
   // display the actual event name instead of a generic "Event" placeholder.
