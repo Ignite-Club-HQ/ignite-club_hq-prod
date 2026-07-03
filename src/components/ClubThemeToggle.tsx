@@ -59,7 +59,7 @@ export function ClubThemeToggle() {
       if (!clubIds.length) return [];
 
       // Fetch clubs with subscription info
-      const { data: clubs } = await supabase
+      const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select(`
           id,
@@ -76,6 +76,7 @@ export function ClubThemeToggle() {
         .in("id", clubIds)
         .is("deleted_at", null)
         .neq("kind", "shell");
+      if (clubsError) throw clubsError;
 
       if (!clubs) return [];
 
