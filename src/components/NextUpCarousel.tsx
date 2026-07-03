@@ -245,6 +245,11 @@ function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"
           .select("child_id, children!inner (id, name)")
           .eq("guardian_id", userId!),
       ]);
+      // Throw on any sub-query error so React Query retries and keeps prior
+      // data instead of caching an empty roster (which briefly hides guardian
+      // children like Winnie and reverts the card to a parent-only RSVP prompt).
+      if (ownChildren.error) throw ownChildren.error;
+      if (guardianLinks.error) throw guardianLinks.error;
 
       const directChildren = ownChildren.data || [];
       const guardianChildren = (guardianLinks.data || [])
@@ -255,15 +260,17 @@ function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"
 
       if (event.team_id && guardianChildren.length > 0) {
         const guardianChildIds = guardianChildren.map((child: any) => child.id);
-        const { data: assignments } = await supabase
+        const { data: assignments, error: assignErr } = await supabase
           .from("child_team_assignments")
           .select("child_id")
           .eq("team_id", event.team_id)
           .in("child_id", guardianChildIds);
+        if (assignErr) throw assignErr;
 
         const assignedIds = new Set((assignments || []).map((assignment: any) => assignment.child_id));
         filteredGuardianChildren = guardianChildren.filter((child: any) => assignedIds.has(child.id));
       }
+
 
       const seen = new Set<string>();
       let merged = [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
