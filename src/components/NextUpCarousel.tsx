@@ -192,6 +192,11 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
         supabase.from("children").select("id").eq("parent_id", userId!),
         supabase.from("child_guardians").select("child_id").eq("guardian_id", userId!),
       ]);
+      // Fail loudly on transient errors so React Query keeps prior data
+      // (placeholderData) instead of caching an empty "success" that would
+      // wipe household children from the RSVP card during a network blip.
+      if (ownChildren.error) throw ownChildren.error;
+      if (guardianLinks.error) throw guardianLinks.error;
       const childIds = [
         ...(ownChildren.data || []).map(c => c.id),
         ...(guardianLinks.data || []).map(g => g.child_id),
@@ -205,6 +210,7 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
         .eq("event_id", eventId)
         .in("child_id", uniqueChildIds);
       if (error) throw error;
+
       return (data || []) as Array<{
         id: string;
         status: string;
