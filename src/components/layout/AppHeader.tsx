@@ -74,27 +74,34 @@ function LogoClubThemeDropdown() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
   const defaultLogo = igniteIcon;
   const { user, signOut } = useAuth();
-  // Fetch ALL user clubs (including non-Pro) to show with lock
+  // Fetch ALL user clubs (including non-Pro) to show with lock.
+  // Resilience: `keepPreviousData` + explicit throw on error means a transient
+  // reconnect refetch (e.g. RLS/token hiccup right after coming back online)
+  // cannot wipe the dropdown by caching an empty result.
   const { data: allUserClubs = [] } = useQuery({
     queryKey: ["all-user-clubs-for-theme-v2", user?.id],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     queryFn: async () => {
       if (!user?.id) return [];
 
       // Get club IDs from user roles
-      const { data: clubRoles } = await supabase
+      const { data: clubRoles, error: clubRolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user.id)
         .not("club_id", "is", null);
+      if (clubRolesError) throw clubRolesError;
 
       const clubIds = [...new Set((clubRoles || []).map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from team roles
-      const { data: teamRoles } = await supabase
+      const { data: teamRoles, error: teamRolesError } = await supabase
         .from("user_roles")
         .select("team_id, teams!inner(club_id)")
         .eq("user_id", user.id)
         .not("team_id", "is", null);
+      if (teamRolesError) throw teamRolesError;
 
       if (teamRoles) {
         teamRoles.forEach(r => {
@@ -108,7 +115,7 @@ function LogoClubThemeDropdown() {
       if (!clubIds.length) return [];
 
       // Fetch clubs with subscription info (exclude soft-deleted clubs)
-      const { data: clubs } = await supabase
+      const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select(`
           id,
@@ -119,12 +126,13 @@ function LogoClubThemeDropdown() {
           theme_primary_h,
           theme_primary_s,
           theme_primary_l,
+          theme_enabled,
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
         .in("id", clubIds)
         .is("deleted_at", null)
         .neq("kind", "shell");
-
+      if (clubsError) throw clubsError;
 
       if (!clubs) return [];
 
@@ -132,26 +140,35 @@ function LogoClubThemeDropdown() {
         isSelectable: boolean;
         hasPro: boolean;
         hasTheme: boolean;
+        themeEnabled: boolean;
       }) => (
-        (club.isSelectable ? 4 : 0) +
-        (club.hasPro ? 2 : 0) +
-        (club.hasTheme ? 1 : 0)
+        (club.isSelectable ? 8 : 0) +
+        (club.hasPro ? 4 : 0) +
+        (club.hasTheme ? 2 : 0) +
+        (club.themeEnabled ? 1 : 0)
       );
 
       const result = clubs.map(club => {
-        const sub = (club.club_subscriptions as any)?.[0];
-        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
+        // Handle both array and single object subscription data
+        const subs = club.club_subscriptions as any;
+        const sub = Array.isArray(subs) && subs.length > 0 ? subs[0] :
+                   (subs && !Array.isArray(subs) ? subs : null);
+        const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) &&
           (!sub.expires_at || new Date(sub.expires_at) > new Date());
-        const hasPro = club.is_pro || hasProFromSub;
+        const hasPro = club.is_pro === true || hasProFromSub === true;
         const hasTheme = club.theme_primary_h !== null;
-        
+        const themeEnabled = (club as any).theme_enabled !== false; // Default to true
+        // Only selectable if Pro AND has theme AND theme is enabled
+        const isSelectable = hasPro && hasTheme && themeEnabled;
+
         return {
           clubId: club.id,
           clubName: club.name.trim(),
           logoUrl: club.logo_url,
           hasPro,
           hasTheme,
-          isSelectable: hasPro && hasTheme,
+          themeEnabled,
+          isSelectable,
         };
       });
 
