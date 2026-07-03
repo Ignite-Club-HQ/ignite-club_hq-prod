@@ -273,8 +273,7 @@ export default function MessagesPage() {
   // is-committee-member, admin-team-ids, user-all-roles, has-any-pro-access)
   // so their existing useQuery blocks become instant cache hits. Rollback:
   // `localStorage.removeItem("msg_bootstrap_v1")`.
-  useMessagesPageBootstrap(user?.id, initialized);
-  const bootstrapQuery = (queryClient.getQueryState(["messages-page-bootstrap", user?.id]) as any) || null;
+  const bootstrapQ = useMessagesPageBootstrap(user?.id, initialized);
 
   // Inbox perf: mark mount + track bootstrap RPC return + first paint. See
   // src/lib/inboxOpenLatency.ts. Best-effort; one sample per open.
@@ -284,12 +283,10 @@ export default function MessagesPage() {
     coldMark("inbox_mount");
     return () => { resetInboxOpenLog(); };
   }, []);
-  const bootstrapData = queryClient.getQueryData(["messages-page-bootstrap", user?.id]);
   useEffect(() => {
-    if (bootstrapData !== undefined && bootstrapData !== null) {
-      coldMark("inbox_bootstrap_return");
-    }
-  }, [bootstrapData]);
+    if (bootstrapQ.data) coldMark("inbox_bootstrap_return");
+  }, [bootstrapQ.data]);
+
 
 
   // Fetch unread message notifications grouped by thread.
