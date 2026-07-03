@@ -82,6 +82,7 @@ import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
+import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
@@ -204,10 +205,16 @@ export default function TeamChatPage() {
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after tapping a result so highlights stay
+  // visible on the jumped-to row; cleared when the highlight ring fades.
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightedMessageId && highlightQuery) setHighlightQuery("");
+  }, [highlightedMessageId, highlightQuery]);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -329,6 +336,7 @@ export default function TeamChatPage() {
   // set (search alone merges only the matched row, leaving a gap).
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && teamId) {
@@ -779,6 +787,9 @@ export default function TeamChatPage() {
     return () => window.clearTimeout(t);
   }, [showLoading, bannersDataReady, teamId]);
 
+
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1995,7 +2006,7 @@ export default function TeamChatPage() {
                             )
                           : undefined
                       }
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       isLastMessage={index === arr.length - 1}

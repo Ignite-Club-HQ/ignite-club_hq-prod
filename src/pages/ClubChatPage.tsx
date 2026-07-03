@@ -75,6 +75,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
+import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -173,9 +174,15 @@ export default function ClubChatPage() {
     ? { chat_type: "club", club_id: clubId }
     : null;
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after tapping a result so highlights stay
+  // visible on the jumped-to row; cleared when the highlight ring fades.
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightedMessageId && highlightQuery) setHighlightQuery("");
+  }, [highlightedMessageId, highlightQuery]);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -294,6 +301,7 @@ export default function ClubChatPage() {
 
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && clubId) {
@@ -590,6 +598,9 @@ export default function ClubChatPage() {
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
+
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -1728,7 +1739,7 @@ export default function ClubChatPage() {
                       hasReply={!!msg.reply_to_id}
                       onReply={handleReply}
                       onEdit={handleEdit}
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       isLastMessage={index === arr.length - 1}

@@ -10,7 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -20,26 +20,32 @@ export function ClubThemeToggle() {
   const { user } = useAuth();
 
   // Fetch ALL user clubs (including non-Pro) to show with lock
+  // `keepPreviousData` + throw-on-error mirrors the resilience guarantee in
+  // `useClubTheme` so a transient reconnect refetch never wipes the picker.
   const { data: allUserClubs = [] } = useQuery({
     queryKey: ["all-user-clubs-for-theme-v2", user?.id],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     queryFn: async () => {
       if (!user?.id) return [];
 
       // Get club IDs from user roles
-      const { data: clubRoles } = await supabase
+      const { data: clubRoles, error: clubRolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user.id)
         .not("club_id", "is", null);
+      if (clubRolesError) throw clubRolesError;
 
       const clubIds = [...new Set((clubRoles || []).map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from team roles
-      const { data: teamRoles } = await supabase
+      const { data: teamRoles, error: teamRolesError } = await supabase
         .from("user_roles")
         .select("team_id, teams!inner(club_id)")
         .eq("user_id", user.id)
         .not("team_id", "is", null);
+      if (teamRolesError) throw teamRolesError;
 
       if (teamRoles) {
         teamRoles.forEach(r => {
@@ -53,7 +59,7 @@ export function ClubThemeToggle() {
       if (!clubIds.length) return [];
 
       // Fetch clubs with subscription info
-      const { data: clubs } = await supabase
+      const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select(`
           id,
@@ -70,6 +76,7 @@ export function ClubThemeToggle() {
         .in("id", clubIds)
         .is("deleted_at", null)
         .neq("kind", "shell");
+      if (clubsError) throw clubsError;
 
       if (!clubs) return [];
 

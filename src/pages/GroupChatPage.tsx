@@ -95,6 +95,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
+import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -252,6 +253,10 @@ export default function GroupChatPage() {
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Persists the search text after the user taps a result so highlights
+  // remain visible on the jumped-to message. Cleared when the highlight
+  // ring fades (via effect below on highlightedMessageId).
+  const [highlightQuery, setHighlightQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
@@ -261,6 +266,10 @@ export default function GroupChatPage() {
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  // When the highlight ring clears, drop the persisted search highlight too.
+  useEffect(() => {
+    if (!highlightedMessageId && highlightQuery) setHighlightQuery("");
+  }, [highlightedMessageId, highlightQuery]);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [jumpRenderNonce, setJumpRenderNonce] = useState<number | string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -382,6 +391,10 @@ export default function GroupChatPage() {
 
   const handleSearchResultClick = async (mid: string) => {
     const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    // Preserve the query for highlighting the jumped-to row until the
+    // highlight ring clears — clearing searchQuery here would strip the
+    // <mark> spans mid-jump and leave the user unsure why the row matched.
+    setHighlightQuery(searchQuery);
     setSearchQuery("");
     setSearchOpen(false);
     if (target?.created_at && groupId) {
@@ -704,6 +717,9 @@ export default function GroupChatPage() {
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
+
+  // Cold-start stage marks (chat_mount + chat_query_return).
+  useChatPerfMarks(messagesData);
 
   // Log notification-tap → first-message-render latency once per mount.
   useEffect(() => {
@@ -2338,7 +2354,7 @@ export default function GroupChatPage() {
                       deleteMessageMutation={deleteMessageMutation}
                       toggleReactionMutation={toggleReactionMutation}
                       groupId={groupId || ""}
-                      searchQuery={searchQuery}
+                      searchQuery={searchQuery || highlightQuery}
                       isPinned={pinnedMessageIds.has(msg.id)}
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={pinMessage}
