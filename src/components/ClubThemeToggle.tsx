@@ -30,11 +30,12 @@ export function ClubThemeToggle() {
       if (!user?.id) return [];
 
       // Get club IDs from user roles
-      const { data: clubRoles } = await supabase
+      const { data: clubRoles, error: clubRolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user.id)
         .not("club_id", "is", null);
+      if (clubRolesError) throw clubRolesError;
 
       const clubIds = [...new Set((clubRoles || []).map(r => r.club_id).filter(Boolean))];
 
