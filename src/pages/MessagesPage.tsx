@@ -27,7 +27,9 @@ import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
+import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
+import { mark as coldMark } from "@/lib/coldStartMarks";
+import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
 import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
@@ -271,7 +273,21 @@ export default function MessagesPage() {
   // is-committee-member, admin-team-ids, user-all-roles, has-any-pro-access)
   // so their existing useQuery blocks become instant cache hits. Rollback:
   // `localStorage.removeItem("msg_bootstrap_v1")`.
-  useMessagesPageBootstrap(user?.id, initialized);
+  const bootstrapQ = useMessagesPageBootstrap(user?.id, initialized);
+
+  // Inbox perf: mark mount + track bootstrap RPC return + first paint. See
+  // src/lib/inboxOpenLatency.ts. Best-effort; one sample per open.
+  const inboxOpenStartRef = useRef<number>(Date.now());
+  useEffect(() => {
+    inboxOpenStartRef.current = Date.now();
+    coldMark("inbox_mount");
+    return () => { resetInboxOpenLog(); };
+  }, []);
+  useEffect(() => {
+    if (bootstrapQ.data) coldMark("inbox_bootstrap_return");
+  }, [bootstrapQ.data]);
+
+
 
   // Fetch unread message notifications grouped by thread.
   // Uses the shared useUnreadMessageCounts hook so the RPC is deduped across
@@ -2380,6 +2396,35 @@ export default function MessagesPage() {
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
     filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
+
+  // Perf: log inbox open latency once when the first meaningful list is ready.
+  const perfLoggedRef = useRef(false);
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!user?.id) return;
+    // "First paint" = we actually have rows to render, OR every source query
+    // has resolved (empty inbox is a valid state).
+    const listReady = unifiedConversations.length > 0
+      || (teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched && latestBroadcastFetched);
+    if (!listReady) return;
+    perfLoggedRef.current = true;
+    void logInboxOpenLatency({
+      userId: user.id,
+      source: cachedData ? "warm_nav" : "cold_open",
+      startTs: inboxOpenStartRef.current,
+      cacheHit: !!cachedData,
+      bootstrapEnabled: isMessagesBootstrapEnabled(),
+      sectionCounts: {
+        teams: filteredTeams.length,
+        clubs: filteredClubs.length,
+        groups: filteredChatGroups.length + filteredLeagueChats.length,
+        dms: filteredDMs.length,
+        total: unifiedConversations.length,
+      },
+    });
+  }, [unifiedConversations, user?.id, cachedData, teamsFetched, memberClubsFetched, chatGroupsFetched, dmFetched, latestBroadcastFetched, filteredTeams.length, filteredClubs.length, filteredChatGroups.length, filteredLeagueChats.length, filteredDMs.length]);
+
+
 
 
   // Resolve event titles referenced in any conversation preview so they
