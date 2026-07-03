@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
