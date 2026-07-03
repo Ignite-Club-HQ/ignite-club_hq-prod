@@ -22,7 +22,10 @@ export type ColdStartStage =
   | "chat_mount"        // chat page component mounted
   | "chat_fetch"        // chat page kicked off its messages fetch
   | "chat_query_return" // first messages RPC returned
-  | "chat_render";      // chat page painted its first message
+  | "chat_render"       // chat page painted its first message
+  | "inbox_mount"       // MessagesPage component mounted
+  | "inbox_bootstrap_return" // messages-page bootstrap RPC resolved
+  | "inbox_first_paint";     // MessagesPage rendered first conversation row
 
 interface MarkRecord {
   ts: number;

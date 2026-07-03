@@ -4922,6 +4922,51 @@ export type Database = {
         }
         Relationships: []
       }
+      inbox_open_perf: {
+        Row: {
+          bootstrap_enabled: boolean
+          bootstrap_ms: number | null
+          cache_hit: boolean
+          created_at: string
+          first_paint_ms: number | null
+          id: string
+          platform: string | null
+          section_counts: Json | null
+          source: string
+          stages: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Insert: {
+          bootstrap_enabled?: boolean
+          bootstrap_ms?: number | null
+          cache_hit?: boolean
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          section_counts?: Json | null
+          source: string
+          stages?: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Update: {
+          bootstrap_enabled?: boolean
+          bootstrap_ms?: number | null
+          cache_hit?: boolean
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          section_counts?: Json | null
+          source?: string
+          stages?: Json | null
+          tap_to_paint_ms?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       match_captains: {
         Row: {
           assigned_by: string | null
