@@ -754,7 +754,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .in("id", clubIds)
         .is("deleted_at", null);
 
-      if (clubsError || !clubs) return [];
+      if (clubsError) throw clubsError;
+      if (!clubs) return [];
 
       // Filter to only Pro clubs with theme data that have theme enabled
       return clubs
