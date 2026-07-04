@@ -9,6 +9,12 @@ import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { readStripHint, writeStripHint } from "@/lib/stripContentHint";
+
+const STRIP_KEY = "events_header";
+// Height of the rendered strip row (avatar h-6 + py-2 + border) — reserved
+// during first-ever cold load to prevent content-jump when queries resolve.
+const RESERVED_CLASS = "min-h-[44px]";
 
 // Any club may opt in via clubs.events_sponsor_strip_enabled.
 
