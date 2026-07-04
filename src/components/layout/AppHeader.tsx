@@ -604,8 +604,10 @@ export function AppHeader() {
       return filtered.length;
     },
     enabled: !!user?.id && !!activeClubFilter,
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+    // Realtime already invalidates this key when notifications change; polling
+    // is only a safety net for missed events, so 60s is plenty.
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
 
