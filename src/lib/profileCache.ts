@@ -23,8 +23,11 @@ export interface CachedProfile {
   cached_at?: number;
 }
 
-const FRESH_TTL_MS = 5 * 60 * 1000;      // considered fresh
-const STALE_TTL_MS = 30 * 60 * 1000;     // still usable when allowStale
+// Profile display_name / avatar_url change rarely; local edits already call
+// `updateProfileCache()` to refresh the entry immediately, so a long TTL is
+// safe and dramatically cuts the #1 slow query (`profiles WHERE id = ANY(...)`).
+const FRESH_TTL_MS = 60 * 60 * 1000;     // 1h — considered fresh
+const STALE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — still usable when allowStale
 const BATCH_WINDOW_MS = 10;
 const DEFAULT_TIMEOUT_MS = 15_000;
 

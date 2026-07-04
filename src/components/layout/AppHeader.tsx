@@ -579,7 +579,10 @@ export function AppHeader() {
       return rows;
     },
     enabled: !!user?.id,
-    staleTime: 0,
+    // Realtime subscription in useAuth invalidates this key on new/updated
+    // notifications, so a small staleTime is safe and prevents duplicate
+    // fetches during rapid remounts (nav, resume, sheet toggles).
+    staleTime: 30_000,
   });
 
 
@@ -601,8 +604,10 @@ export function AppHeader() {
       return filtered.length;
     },
     enabled: !!user?.id && !!activeClubFilter,
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+    // Realtime already invalidates this key when notifications change; polling
+    // is only a safety net for missed events, so 60s is plenty.
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
 
@@ -826,6 +831,8 @@ export function AppHeader() {
         case "event_updated":
         case "event_reminder":
         case "duty_assigned":
+        case "duty_completed":
+
           navigate(`/events/${relatedId}`);
           return;
         case "photo_comment":

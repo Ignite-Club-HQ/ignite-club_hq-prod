@@ -28,7 +28,7 @@ import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
-import { mark as coldMark } from "@/lib/coldStartMarks";
+import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
 import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
@@ -2408,9 +2408,27 @@ export default function MessagesPage() {
       || (teamsFetched && memberClubsFetched && chatGroupsFetched && dmFetched && latestBroadcastFetched);
     if (!listReady) return;
     perfLoggedRef.current = true;
+    // Attribute notification-tap opens: if a notif_tap mark fired within 10s
+    // of this inbox mount, treat this as source="notification" so we can
+    // separate push-tap latency from warm/cold navigation.
+    let inboxSource: "warm_nav" | "cold_open" | "notification" =
+      cachedData ? "warm_nav" : "cold_open";
+    try {
+      const snap = snapshotStages();
+      const notifTap = snap.deltas.notif_tap;
+      const inboxMount = snap.deltas.inbox_mount;
+      if (
+        typeof notifTap === "number" &&
+        typeof inboxMount === "number" &&
+        inboxMount >= notifTap &&
+        inboxMount - notifTap < 10_000
+      ) {
+        inboxSource = "notification";
+      }
+    } catch {}
     void logInboxOpenLatency({
       userId: user.id,
-      source: cachedData ? "warm_nav" : "cold_open",
+      source: inboxSource,
       startTs: inboxOpenStartRef.current,
       cacheHit: !!cachedData,
       bootstrapEnabled: isMessagesBootstrapEnabled(),

@@ -213,10 +213,8 @@ export default function MediaPage() {
     
     if (urlTeamId) {
       setSelectedTeamId(urlTeamId);
-      setShowFilters(true);
     } else if (urlClubId) {
       setSelectedClubId(urlClubId);
-      setShowFilters(true);
     } else if (activeClubFilter) {
       setSelectedClubId(activeClubFilter);
       setSelectedTeamId("all");

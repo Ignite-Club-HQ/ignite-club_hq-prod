@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
 import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SponsorOrAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
@@ -12,6 +13,7 @@ interface SponsorOrAdCarouselProps {
 // Events sponsor strip is per-club opt-in via clubs.events_sponsor_strip_enabled.
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
+  const { user, initialized } = useAuth();
   const isEventsPlacement = location === "events" || location === "event-detail";
 
   // Events-placement gate: any club that has events_sponsor_strip_enabled = true.
@@ -66,19 +68,24 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
 
   // Check Pro status per-club (filtered club) or globally (no filter)
-  const { data: proStatus, isLoading: isProLoading } = useQuery({
-    queryKey: ["user-pro-status-per-club", effectiveClubFilter],
+  // Scoped to user.id so a device swap doesn't leak the previous user's pro
+  // status. `placeholderData: (prev) => prev` keeps the last known answer
+  // visible during WebView resume/refetch — critical so we don't flash a
+  // free-club "Upgrade to Pro" ad to a paying Pro user while the query
+  // re-resolves after the app was backgrounded.
+  const { data: proStatus, isLoading: isProLoading, isFetching: isProFetching } = useQuery({
+    queryKey: ["user-pro-status-per-club", user?.id, effectiveClubFilter],
+    enabled: !!user,
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { isProFiltered: false, hasAnyPro: false };
-
       // Get all clubs the user belongs to
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
-        .eq("user_id", user.id);
+        .eq("user_id", user!.id);
 
-      if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false };
+      if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       const clubIds = roles.filter(r => r.club_id).map(r => r.club_id);
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
@@ -96,7 +103,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       }
 
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
-      if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false };
+      if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       // Fetch Pro subscriptions for all user clubs
       const { data: subscriptions } = await supabase
@@ -111,7 +118,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       // If filtered to a specific club, check if THAT club is Pro
       const isProFiltered = effectiveClubFilter ? proClubIds.has(effectiveClubFilter) : hasAnyPro;
 
-      return { isProFiltered, hasAnyPro };
+      return { isProFiltered, hasAnyPro, resolved: true };
     },
   });
 
@@ -185,11 +192,15 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   });
 
   const isProFiltered = proStatus?.isProFiltered ?? false;
+  const proResolved = !!proStatus?.resolved;
   const isNative = !!(window as any).Capacitor;
 
-  // While loading Pro status, don't show ads
-  if (isProLoading) {
-    return null;
+  // Wait until auth AND pro status are definitively resolved before deciding
+  // which ad tier to show. Without this guard, a WebView resume can briefly
+  // yield `!user` / empty proStatus and flash the free-club "Upgrade to Pro"
+  // ad to a paying Pro user before the query re-resolves.
+  if (!initialized || !user || isProLoading || !proResolved) {
+    return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
   // Events placement: gated by pilot club + per-club opt-in toggle.

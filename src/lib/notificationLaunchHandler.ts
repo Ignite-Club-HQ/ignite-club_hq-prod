@@ -20,7 +20,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
-import { mark as coldMark, remark as coldRemark } from './coldStartMarks';
+import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from './coldStartMarks';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
@@ -131,6 +131,9 @@ function handleNotificationTap(notification: any) {
     // reflect this specific navigation instead of the original boot.
     coldMark("notif_tap");
     coldRemark("notif_tap");
+    // Begin sampling main-thread blocking so we can attribute the
+    // notif_tap → chat_mount gap between JS blocking vs I/O.
+    try { startLongTaskWindow("notif_to_chat_mount"); } catch {}
     const data = notification?.notification?.data ?? notification?.data ?? {};
     const rawUrl = data?.url || data?.link || data?.path;
     const url = normalizeNotificationChatUrl(data, rawUrl) || rawUrl;

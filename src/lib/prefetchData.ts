@@ -273,16 +273,34 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
     let accessibleGroups: Array<{ id: string; name: string; club_id: string | null; team_id: string | null; allowed_roles: string[] }> = [];
 
     if (clubIds.length > 0 || teamIds.length > 0) {
-      const filters: string[] = [];
-      if (clubIds.length > 0) filters.push(`club_id.in.(${clubIds.join(",")})`);
-      if (teamIds.length > 0) filters.push(`team_id.in.(${teamIds.join(",")})`);
+      // Split the OR into two `.in()` queries executed in parallel. The
+      // combined `.or(club_id.in.(...),team_id.in.(...))` form forces a
+      // bitmap-or plan that is 5-10x slower than two indexed scans against
+      // idx_chat_groups_club_id / idx_chat_groups_team_id.
+      const [clubGroupsRes, teamGroupsRes] = await Promise.all([
+        clubIds.length > 0
+          ? supabase
+              .from("chat_groups")
+              .select("id, name, club_id, team_id, allowed_roles")
+              .in("club_id", clubIds)
+          : Promise.resolve({ data: [] as any[] }),
+        teamIds.length > 0
+          ? supabase
+              .from("chat_groups")
+              .select("id, name, club_id, team_id, allowed_roles")
+              .in("team_id", teamIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
 
-      const { data: chatGroups } = await supabase
-        .from("chat_groups")
-        .select("id, name, club_id, team_id, allowed_roles")
-        .or(filters.join(","));
+      const seen = new Set<string>();
+      const chatGroups: any[] = [];
+      for (const g of [...(clubGroupsRes.data || []), ...(teamGroupsRes.data || [])]) {
+        if (seen.has(g.id)) continue;
+        seen.add(g.id);
+        chatGroups.push(g);
+      }
 
-      accessibleGroups = (chatGroups || []).filter(group => {
+      accessibleGroups = chatGroups.filter(group => {
         const userRolesForGroup = roles.filter(r =>
           (group.club_id && r.club_id === group.club_id) ||
           (group.team_id && r.team_id === group.team_id)

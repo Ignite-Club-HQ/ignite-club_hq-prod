@@ -176,13 +176,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // user on the latest message) stay clear of the fixed composer instead of
   // disappearing behind it. 56px keeps metadata + a single-row reaction pill
   // fully visible while still feeling tight (à la Messenger).
-  // Reduced 80 → 24: the previous 80px buffer created a large empty gap
-  // between the newest bubble's "Sent"/timestamp row and the composer that
-  // users reported as excessive whitespace after sending. The bubble row
-  // already includes intrinsic space for inline timestamp + read-frontier
-  // strip, and reactions pills render inside the row's own margin. A tight
-  // 24px breathing gap matches WhatsApp/Messenger density without clipping.
-  const COMPOSER_GAP = 24;
+  // Tuned to 44px: 24 was too tight — the read-frontier ("Sent / Read by")
+  // strip hydrates AFTER Virtuoso's initial bottom pin, and at 24px the
+  // frontier line ended up clipped behind the composer on freshly-sent
+  // messages (see screenshot report 2026-07-04). 80 was the earlier value
+  // that felt like excessive whitespace. 44 keeps a single-line frontier
+  // + inline timestamp fully visible with a small breathing gap without
+  // opening a large empty band above the composer.
+  const COMPOSER_GAP = 44;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
