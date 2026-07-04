@@ -223,10 +223,34 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
     if (activeAd && user?.id) trackAdView(activeAd.id, "messages_page");
   }, [activeAd?.id, user?.id, trackAdView]);
 
+  // Resolution / hint bookkeeping — see events strip for rationale.
+  const decisionResolved =
+    !clubId
+      ? true
+      : isProClubOk &&
+        (isProClub === true
+          ? clubFlagOk && (!proEnabled || sponsorsOk)
+          : placementOk && (!freePlacementEnabled || appAdsOk));
+
+  const hasContent = !!activeSponsor || !!activeAd;
+
+  useEffect(() => {
+    if (!decisionResolved) return;
+    writeStripHint(STRIP_KEY, user?.id, clubId, hasContent);
+  }, [decisionResolved, hasContent, user?.id, clubId]);
+
+  const [reserveOnLoad] = useState(() => {
+    const hint = readStripHint(STRIP_KEY, user?.id, clubId ?? null);
+    return hint !== false;
+  });
+
+  const renderReserved = () =>
+    reserveOnLoad ? <div className={RESERVED_CLASS} aria-hidden="true" /> : null;
+
   // Gates
   if (!clubId) return null;
-  if (isProClub === undefined) return null;
-  if (!activeSponsor && !activeAd) return null;
+  if (!decisionResolved) return renderReserved();
+  if (!hasContent) return null;
   if (activeSponsor && dismissed) return null;
 
   // Pro Riverside: dismissible club-sponsor row
