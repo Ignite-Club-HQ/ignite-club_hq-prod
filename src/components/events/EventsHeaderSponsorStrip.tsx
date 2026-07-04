@@ -9,6 +9,12 @@ import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { readStripHint, writeStripHint } from "@/lib/stripContentHint";
+
+const STRIP_KEY = "events_header";
+// Height of the rendered strip row (avatar h-6 + py-2 + border) — reserved
+// during first-ever cold load to prevent content-jump when queries resolve.
+const RESERVED_CLASS = "min-h-[44px]";
 
 // Any club may opt in via clubs.events_sponsor_strip_enabled.
 
@@ -67,7 +73,7 @@ export function EventsHeaderSponsorStrip({
 
   // Resolve the effective club: prefer explicit filter; otherwise pick the
   // first club the user belongs to that has the strip toggle enabled.
-  const { data: resolved } = useQuery({
+  const { data: resolved, isSuccess: resolvedOk } = useQuery({
     queryKey: ["events-header-strip-resolve", activeClubFilter, user?.id],
     enabled: !!user?.id,
     staleTime: 5 * 60_000,
@@ -122,7 +128,7 @@ export function EventsHeaderSponsorStrip({
     setDismissed(true);
   };
 
-  const { data: isProClub } = useQuery({
+  const { data: isProClub, isSuccess: isProClubOk } = useQuery({
     queryKey: ["club-is-pro", clubId],
     enabled: !!clubId,
     staleTime: 5 * 60_000,
@@ -138,7 +144,7 @@ export function EventsHeaderSponsorStrip({
     },
   });
 
-  const { data: sponsors = [] } = useQuery({
+  const { data: sponsors = [], isSuccess: sponsorsOk } = useQuery({
     queryKey: ["events-header-sponsors", clubId],
     enabled: !!clubId && isProClub === true,
     staleTime: 5 * 60_000,
@@ -153,7 +159,7 @@ export function EventsHeaderSponsorStrip({
     },
   });
 
-  const { data: placementSettings } = useQuery({
+  const { data: placementSettings, isSuccess: placementOk } = useQuery({
     queryKey: ["app-ad-settings", "events"],
     enabled: !!clubId && isProClub === false,
     staleTime: 5 * 60_000,
@@ -168,7 +174,7 @@ export function EventsHeaderSponsorStrip({
   });
   const freePlacementEnabled = !!placementSettings?.is_enabled;
 
-  const { data: appAds = [] } = useQuery({
+  const { data: appAds = [], isSuccess: appAdsOk } = useQuery({
     queryKey: ["events-header-app-ads"],
     enabled: !!clubId && isProClub === false && freePlacementEnabled,
     staleTime: 5 * 60_000,
@@ -224,9 +230,38 @@ export function EventsHeaderSponsorStrip({
     if (activeAd && user?.id) trackAdView(activeAd.id, "events_page");
   }, [activeAd?.id, user?.id, trackAdView]);
 
-  if (!clubId) return null;
-  if (isProClub === undefined) return null;
-  if (!activeSponsor && !activeAd) return null;
+  // Determine whether the strip's async decision has fully resolved for this
+  // user+club. Used to (a) persist the "has content" hint and (b) decide
+  // whether to reserve vertical space while still loading (preventing CLS).
+  const decisionResolved =
+    resolvedOk &&
+    (!clubId ||
+      (isProClubOk &&
+        (isProClub === true
+          ? sponsorsOk
+          : placementOk && (!freePlacementEnabled || appAdsOk))));
+
+  const hasContent = !!activeSponsor || !!activeAd;
+
+  // Persist outcome so the next cold load knows whether to reserve space.
+  useEffect(() => {
+    if (!decisionResolved) return;
+    writeStripHint(STRIP_KEY, user?.id, clubId, hasContent);
+  }, [decisionResolved, hasContent, user?.id, clubId]);
+
+  // Read the previous hint on first render to decide whether to reserve
+  // height while queries are still in flight. Unknown (first ever visit) →
+  // reserve, so the very first cold load is also CLS-free.
+  const [reserveOnLoad] = useState(() => {
+    const hint = readStripHint(STRIP_KEY, user?.id, activeClubFilter ?? null);
+    return hint !== false; // reserve when true or unknown
+  });
+
+  const renderReserved = () =>
+    reserveOnLoad ? <div className={RESERVED_CLASS} aria-hidden="true" /> : null;
+
+  if (!decisionResolved) return renderReserved();
+  if (!hasContent) return null;
   if (activeSponsor && dismissed) return null;
 
   if (activeSponsor) {
