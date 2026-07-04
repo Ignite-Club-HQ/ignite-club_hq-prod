@@ -579,7 +579,10 @@ export function AppHeader() {
       return rows;
     },
     enabled: !!user?.id,
-    staleTime: 0,
+    // Realtime subscription in useAuth invalidates this key on new/updated
+    // notifications, so a small staleTime is safe and prevents duplicate
+    // fetches during rapid remounts (nav, resume, sheet toggles).
+    staleTime: 30_000,
   });
 
 
