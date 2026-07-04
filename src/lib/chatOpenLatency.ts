@@ -10,7 +10,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-import { mark as coldMark, snapshotStages, logStagesToConsole } from "./coldStartMarks";
+import { mark as coldMark, snapshotStages, logStagesToConsole, stopLongTaskWindow } from "./coldStartMarks";
 
 export type ChatPerfKind = "dm" | "team" | "club" | "group";
 export type ChatPerfSource = "notification" | "cold_open";
