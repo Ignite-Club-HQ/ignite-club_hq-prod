@@ -825,6 +825,8 @@ export default function NotificationsPage() {
       case "event_reminder":
       case "event_view_reminder":
       case "duty_assigned":
+      case "duty_completed":
+
       case "rsvp":
       case "rsvp_update":
       case "rsvp_updated":
