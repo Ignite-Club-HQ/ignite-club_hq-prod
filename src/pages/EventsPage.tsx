@@ -206,52 +206,6 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
-  const { data: userTeams } = useQuery({
-    queryKey: ["user-teams-for-filter", user?.id, clubFilter],
-    queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id")
-        .eq("user_id", user!.id);
-      
-      if (!roles) return [];
-      
-      const teamIds = new Set(roles.filter(r => r.team_id).map(r => r.team_id!));
-
-      const [{ data: guardianRows }, { data: ownChildren }] = await Promise.all([
-        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
-        supabase.from("children").select("id").eq("parent_id", user!.id),
-      ]);
-      const childIds = Array.from(new Set([
-        ...(guardianRows || []).map((g: any) => g.child_id).filter(Boolean),
-        ...(ownChildren || []).map((c: any) => c.id).filter(Boolean),
-      ]));
-      if (childIds.length > 0) {
-        const { data: childTeams } = await supabase
-          .from("child_team_assignments")
-          .select("team_id")
-          .in("child_id", childIds);
-        (childTeams || []).forEach((ct: any) => {
-          if (ct.team_id) teamIds.add(ct.team_id);
-        });
-      }
-      
-      // Show teams the user has direct team access to, plus teams for their children.
-      if (teamIds.size === 0) return [];
-      let query = supabase.from("teams").select("id, name, club_id").in("id", Array.from(teamIds)).order("name");
-      if (clubFilter) {
-        query = query.eq("club_id", clubFilter);
-      }
-      
-      const { data: teams } = await query;
-      return teams || [];
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
-
-
   // Get user's accessible team, club, and mini league IDs for event filtering
   const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
@@ -275,16 +229,18 @@ export default function EventsPage() {
       if (rolesErr) throw rolesErr;
       if (!roles) {
         diagLog("memberships:end-no-roles", { totalMs: Math.round(performance.now() - overall) });
-        return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+        return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], isAppAdmin: false };
       }
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
       const clubAdminClubIds = new Set<string>();
       const leagueAdminClubIds = new Set<string>();
+      let isAppAdmin = false;
       
       // Direct club roles
       roles.forEach(r => {
+        if (r.role === 'app_admin') isAppAdmin = true;
         if (r.club_id) {
           clubIds.add(r.club_id);
           // Track club admin roles for team event visibility
@@ -373,17 +329,39 @@ export default function EventsPage() {
       
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
+        roles,
         teamIds, 
         clubIds: Array.from(clubIds), 
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
-        miniLeagueIds 
+        miniLeagueIds,
+        isAppAdmin,
       };
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    // Roles + memberships change rarely; 30min stale eliminates the repeat
+    // waterfall on tab focus / navigation returns.
+    staleTime: 30 * 60 * 1000,
     retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || onlineManager.isOnline()),
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    placeholderData: (prev) => prev,
+  });
+
+  // Teams the user can filter the schedule by — names for memberships.teamIds,
+  // optionally narrowed to the current club filter. Reuses membership team IDs
+  // so we don't re-run the roles + children waterfall.
+  const { data: userTeams } = useQuery({
+    queryKey: ["user-teams-for-filter", user?.id, clubFilter, userMemberships?.teamIds],
+    queryFn: async () => {
+      const teamIds = userMemberships?.teamIds || [];
+      if (teamIds.length === 0) return [];
+      let query = supabase.from("teams").select("id, name, club_id").in("id", teamIds).order("name");
+      if (clubFilter) query = query.eq("club_id", clubFilter);
+      const { data: teams } = await query;
+      return teams || [];
+    },
+    enabled: !!user && !!userMemberships,
+    staleTime: 30 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -400,9 +378,10 @@ export default function EventsPage() {
       return data || [];
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
   const eventsScopeKey = useMemo(
     () => `${user?.id || "anon"}_${filter}_${teamFilter || "all"}_${clubFilter || "all"}`,
     [user?.id, filter, teamFilter, clubFilter]
