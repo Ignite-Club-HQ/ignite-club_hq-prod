@@ -68,19 +68,24 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
 
   // Check Pro status per-club (filtered club) or globally (no filter)
-  const { data: proStatus, isLoading: isProLoading } = useQuery({
-    queryKey: ["user-pro-status-per-club", effectiveClubFilter],
+  // Scoped to user.id so a device swap doesn't leak the previous user's pro
+  // status. `placeholderData: (prev) => prev` keeps the last known answer
+  // visible during WebView resume/refetch — critical so we don't flash a
+  // free-club "Upgrade to Pro" ad to a paying Pro user while the query
+  // re-resolves after the app was backgrounded.
+  const { data: proStatus, isLoading: isProLoading, isFetching: isProFetching } = useQuery({
+    queryKey: ["user-pro-status-per-club", user?.id, effectiveClubFilter],
+    enabled: !!user,
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { isProFiltered: false, hasAnyPro: false };
-
       // Get all clubs the user belongs to
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
-        .eq("user_id", user.id);
+        .eq("user_id", user!.id);
 
-      if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false };
+      if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       const clubIds = roles.filter(r => r.club_id).map(r => r.club_id);
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
@@ -98,7 +103,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       }
 
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
-      if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false };
+      if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       // Fetch Pro subscriptions for all user clubs
       const { data: subscriptions } = await supabase
@@ -113,7 +118,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       // If filtered to a specific club, check if THAT club is Pro
       const isProFiltered = effectiveClubFilter ? proClubIds.has(effectiveClubFilter) : hasAnyPro;
 
-      return { isProFiltered, hasAnyPro };
+      return { isProFiltered, hasAnyPro, resolved: true };
     },
   });
 
