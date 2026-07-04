@@ -73,7 +73,7 @@ export function EventsHeaderSponsorStrip({
 
   // Resolve the effective club: prefer explicit filter; otherwise pick the
   // first club the user belongs to that has the strip toggle enabled.
-  const { data: resolved } = useQuery({
+  const { data: resolved, isSuccess: resolvedOk } = useQuery({
     queryKey: ["events-header-strip-resolve", activeClubFilter, user?.id],
     enabled: !!user?.id,
     staleTime: 5 * 60_000,
