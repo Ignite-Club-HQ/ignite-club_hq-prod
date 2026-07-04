@@ -20,7 +20,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
-import { mark as coldMark, remark as coldRemark } from './coldStartMarks';
+import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from './coldStartMarks';
 
 // Store pending navigation URL until the app is ready to handle it
 let pendingNavigationUrl: string | null = null;
