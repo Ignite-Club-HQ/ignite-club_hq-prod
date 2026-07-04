@@ -174,7 +174,7 @@ export function EventsHeaderSponsorStrip({
   });
   const freePlacementEnabled = !!placementSettings?.is_enabled;
 
-  const { data: appAds = [] } = useQuery({
+  const { data: appAds = [], isSuccess: appAdsOk } = useQuery({
     queryKey: ["events-header-app-ads"],
     enabled: !!clubId && isProClub === false && freePlacementEnabled,
     staleTime: 5 * 60_000,
