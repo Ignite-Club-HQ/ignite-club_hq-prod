@@ -10,7 +10,7 @@
 import { preloadMessageFromNotification } from "./notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
 import { prefetchChatChunkForUrl } from "./chatChunkPrefetch";
-import { mark as coldMark, remark as coldRemark } from "./coldStartMarks";
+import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from "./coldStartMarks";
 
 let pendingUrl: string | null = null;
 const SS_KEY = "ignite_pending_web_push_nav";
