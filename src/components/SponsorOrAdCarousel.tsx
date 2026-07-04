@@ -192,11 +192,15 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   });
 
   const isProFiltered = proStatus?.isProFiltered ?? false;
+  const proResolved = !!proStatus?.resolved;
   const isNative = !!(window as any).Capacitor;
 
-  // While loading Pro status, don't show ads
-  if (isProLoading) {
-    return null;
+  // Wait until auth AND pro status are definitively resolved before deciding
+  // which ad tier to show. Without this guard, a WebView resume can briefly
+  // yield `!user` / empty proStatus and flash the free-club "Upgrade to Pro"
+  // ad to a paying Pro user before the query re-resolves.
+  if (!initialized || !user || isProLoading || !proResolved) {
+    return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
   // Events placement: gated by pilot club + per-club opt-in toggle.
