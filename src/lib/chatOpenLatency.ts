@@ -10,7 +10,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-import { mark as coldMark, snapshotStages, logStagesToConsole } from "./coldStartMarks";
+import { mark as coldMark, snapshotStages, logStagesToConsole, stopLongTaskWindow } from "./coldStartMarks";
 
 export type ChatPerfKind = "dm" | "team" | "club" | "group";
 export type ChatPerfSource = "notification" | "cold_open";
@@ -42,8 +42,18 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
 
     // Snapshot per-stage deltas so we can attribute cold-start time.
     const stagesSnap = snapshotStages();
+    // Stop main-thread longtask sampling window that started at notif_tap.
+    // `blocked_ms` in the payload = cumulative >50ms tasks between the tap
+    // and this first chat_render — attributes JS blocking vs I/O in the gap.
+    const blockedMs = stopLongTaskWindow("notif_to_chat_mount");
     const stages = stagesSnap.anchor !== null
-      ? { anchor: stagesSnap.anchor, nav_ms: stagesSnap.nav_ms ?? 0, ...stagesSnap.deltas, total_ms: tap_to_render_ms }
+      ? {
+          anchor: stagesSnap.anchor,
+          nav_ms: stagesSnap.nav_ms ?? 0,
+          ...stagesSnap.deltas,
+          blocked_ms: blockedMs ?? undefined,
+          total_ms: tap_to_render_ms,
+        }
       : null;
 
     // Compact dev-only console line for quick local inspection.

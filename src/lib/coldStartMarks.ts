@@ -19,6 +19,7 @@ export type ColdStartStage =
   | "boot"              // main.tsx module evaluated (Capacitor + JS runtime ready)
   | "notif_tap"         // notification tap dispatched (native or web)
   | "auth_ready"        // useAuth `initialized` flipped true
+  | "chat_chunk_loaded" // lazy chat page dynamic import resolved
   | "chat_mount"        // chat page component mounted
   | "chat_fetch"        // chat page kicked off its messages fetch
   | "chat_query_return" // first messages RPC returned
@@ -26,6 +27,43 @@ export type ColdStartStage =
   | "inbox_mount"       // MessagesPage component mounted
   | "inbox_bootstrap_return" // messages-page bootstrap RPC resolved
   | "inbox_first_paint";     // MessagesPage rendered first conversation row
+
+/**
+ * Cumulative main-thread longtask blocking time (ms) between two stages.
+ * Populated by `startLongTaskWindow` / `stopLongTaskWindow`. Reported in the
+ * `chat_open_perf.stages` payload so we can attribute the auth_ready →
+ * chat_mount gap between JS blocking vs I/O (chunk fetch).
+ */
+const longTaskWindows = new Map<string, { start: number; blockedMs: number; observer?: PerformanceObserver }>();
+
+export function startLongTaskWindow(key: string): void {
+  try {
+    if (longTaskWindows.has(key)) return;
+    const entry = { start: Date.now(), blockedMs: 0 } as { start: number; blockedMs: number; observer?: PerformanceObserver };
+    longTaskWindows.set(key, entry);
+    if (typeof PerformanceObserver === "undefined") return;
+    try {
+      const observer = new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) entry.blockedMs += Math.round(e.duration);
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+      entry.observer = observer;
+    } catch {}
+  } catch {}
+}
+
+export function stopLongTaskWindow(key: string): number | null {
+  const entry = longTaskWindows.get(key);
+  if (!entry) return null;
+  try { entry.observer?.disconnect(); } catch {}
+  longTaskWindows.delete(key);
+  return entry.blockedMs;
+}
+
+export function peekLongTaskWindow(key: string): number | null {
+  const entry = longTaskWindows.get(key);
+  return entry ? entry.blockedMs : null;
+}
 
 interface MarkRecord {
   ts: number;
