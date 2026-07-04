@@ -831,6 +831,8 @@ export function AppHeader() {
         case "event_updated":
         case "event_reminder":
         case "duty_assigned":
+        case "duty_completed":
+
           navigate(`/events/${relatedId}`);
           return;
         case "photo_comment":
