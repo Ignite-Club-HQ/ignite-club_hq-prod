@@ -146,7 +146,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   });
 
   // Free app-ad placement gate — controlled by app admin in /admin/ads
-  const { data: placementSettings } = useQuery({
+  const { data: placementSettings, isSuccess: placementOk } = useQuery({
     queryKey: ["app-ad-settings", "media-header"],
     enabled: isProClub === false,
     staleTime: 5 * 60_000,
