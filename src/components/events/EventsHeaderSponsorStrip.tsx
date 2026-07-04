@@ -230,9 +230,38 @@ export function EventsHeaderSponsorStrip({
     if (activeAd && user?.id) trackAdView(activeAd.id, "events_page");
   }, [activeAd?.id, user?.id, trackAdView]);
 
-  if (!clubId) return null;
-  if (isProClub === undefined) return null;
-  if (!activeSponsor && !activeAd) return null;
+  // Determine whether the strip's async decision has fully resolved for this
+  // user+club. Used to (a) persist the "has content" hint and (b) decide
+  // whether to reserve vertical space while still loading (preventing CLS).
+  const decisionResolved =
+    resolvedOk &&
+    (!clubId ||
+      (isProClubOk &&
+        (isProClub === true
+          ? sponsorsOk
+          : placementOk && (!freePlacementEnabled || appAdsOk))));
+
+  const hasContent = !!activeSponsor || !!activeAd;
+
+  // Persist outcome so the next cold load knows whether to reserve space.
+  useEffect(() => {
+    if (!decisionResolved) return;
+    writeStripHint(STRIP_KEY, user?.id, clubId, hasContent);
+  }, [decisionResolved, hasContent, user?.id, clubId]);
+
+  // Read the previous hint on first render to decide whether to reserve
+  // height while queries are still in flight. Unknown (first ever visit) →
+  // reserve, so the very first cold load is also CLS-free.
+  const [reserveOnLoad] = useState(() => {
+    const hint = readStripHint(STRIP_KEY, user?.id, activeClubFilter ?? null);
+    return hint !== false; // reserve when true or unknown
+  });
+
+  const renderReserved = () =>
+    reserveOnLoad ? <div className={RESERVED_CLASS} aria-hidden="true" /> : null;
+
+  if (!decisionResolved) return renderReserved();
+  if (!hasContent) return null;
   if (activeSponsor && dismissed) return null;
 
   if (activeSponsor) {
