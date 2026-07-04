@@ -94,7 +94,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   };
 
   // Is club Pro? (drives Pro vs Free path)
-  const { data: isProClub } = useQuery({
+  const { data: isProClub, isSuccess: isProClubOk } = useQuery({
     queryKey: ["club-is-pro", clubId],
     enabled: !!clubId,
     staleTime: 5 * 60_000,
