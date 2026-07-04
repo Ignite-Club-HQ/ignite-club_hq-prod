@@ -1,19 +1,33 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
 import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
 import { useAuth } from "@/hooks/useAuth";
+import { readAdTierHint, writeAdTierHint, type AdTierHint } from "@/lib/adTierHint";
 
 interface SponsorOrAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
   activeClubFilter?: string | null;
 }
 
+// Reserve vertical space matching the ad card height (h-28 = 112px) plus a
+// little breathing room so the layout doesn't shift when the ad resolves.
+const RESERVED_CLASS = "min-h-[112px]";
+
 // Events sponsor strip is per-club opt-in via clubs.events_sponsor_strip_enabled.
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
   const { user, initialized } = useAuth();
+
+  // Read the persisted tier hint synchronously on first render so that on
+  // cold load we can render the correct ad component immediately, in parallel
+  // with the rest of the page, instead of waiting for the pro-status query.
+  const [initialHint] = useState<AdTierHint | null>(() =>
+    readAdTierHint(location, user?.id, activeClubFilter ?? null),
+  );
+  const hintWrittenRef = useRef(false);
   const isEventsPlacement = location === "events" || location === "event-detail";
 
   // Events-placement gate: any club that has events_sponsor_strip_enabled = true.
