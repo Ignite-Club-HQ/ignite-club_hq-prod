@@ -163,7 +163,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   const freePlacementEnabled = !!placementSettings?.is_enabled;
 
   // Free app ads
-  const { data: appAds = [] } = useQuery({
+  const { data: appAds = [], isSuccess: appAdsOk } = useQuery({
     queryKey: ["media-header-app-ads"],
     enabled: isProClub === false && freePlacementEnabled,
     staleTime: 5 * 60_000,
