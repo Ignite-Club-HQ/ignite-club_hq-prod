@@ -39,6 +39,12 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
       return data as Sponsor;
     },
     enabled: !!sponsorId,
+    // Sponsors change rarely — cache aggressively to eliminate the ~12k/day
+    // duplicate PK lookups this component was generating across mounts.
+    staleTime: 15 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Track view when sponsor is displayed
