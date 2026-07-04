@@ -55,12 +55,17 @@ const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
 const TeamDetailPage = lazy(() => import("./pages/TeamDetailPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const ScheduledMessagesPage = lazy(() => import("./pages/ScheduledMessagesPage"));
-const TeamChatPage = lazy(() => import("./pages/TeamChatPage"));
-const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
-const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
-const GroupChatPage = lazy(() => import("./pages/GroupChatPage"));
-const DirectMessagePage = lazy(() => import("./pages/DirectMessagePage"));
-const ClubAdminChatPage = lazy(() => import("./pages/ClubAdminChatPage"));
+// Chat routes: mark `chat_chunk_loaded` when the lazy dynamic import resolves,
+// so `chat_open_perf.stages` can split the auth_ready → chat_mount gap into
+// "chunk fetch/parse" vs "React render". See src/lib/coldStartMarks.ts.
+import { mark as _coldMark } from "@/lib/coldStartMarks";
+const markChatChunk = <T,>(mod: T): T => { try { _coldMark("chat_chunk_loaded"); } catch {} return mod; };
+const TeamChatPage = lazy(() => import("./pages/TeamChatPage").then(markChatChunk));
+const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage").then(markChatChunk));
+const ClubChatPage = lazy(() => import("./pages/ClubChatPage").then(markChatChunk));
+const GroupChatPage = lazy(() => import("./pages/GroupChatPage").then(markChatChunk));
+const DirectMessagePage = lazy(() => import("./pages/DirectMessagePage").then(markChatChunk));
+const ClubAdminChatPage = lazy(() => import("./pages/ClubAdminChatPage").then(markChatChunk));
 const WelcomeMessagePage = lazy(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
