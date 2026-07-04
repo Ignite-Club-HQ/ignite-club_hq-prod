@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
 import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SponsorOrAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
@@ -12,6 +13,7 @@ interface SponsorOrAdCarouselProps {
 // Events sponsor strip is per-club opt-in via clubs.events_sponsor_strip_enabled.
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
+  const { user, initialized } = useAuth();
   const isEventsPlacement = location === "events" || location === "event-detail";
 
   // Events-placement gate: any club that has events_sponsor_strip_enabled = true.
