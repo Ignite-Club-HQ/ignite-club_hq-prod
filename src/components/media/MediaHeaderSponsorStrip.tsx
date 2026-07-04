@@ -9,6 +9,10 @@ import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { readStripHint, writeStripHint } from "@/lib/stripContentHint";
+
+const STRIP_KEY = "media_header";
+const RESERVED_CLASS = "min-h-[44px]";
 
 // Pro sponsor strip: any Pro club that opts in via clubs.media_header_sponsors_enabled.
 // Defaults to OFF (column default false); toggled in Club settings.
