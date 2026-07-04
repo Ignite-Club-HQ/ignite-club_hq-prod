@@ -275,4 +275,3 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
     </>
   );
 }
-}
