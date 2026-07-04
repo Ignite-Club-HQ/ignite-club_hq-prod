@@ -128,7 +128,7 @@ export function EventsHeaderSponsorStrip({
     setDismissed(true);
   };
 
-  const { data: isProClub } = useQuery({
+  const { data: isProClub, isSuccess: isProClubOk } = useQuery({
     queryKey: ["club-is-pro", clubId],
     enabled: !!clubId,
     staleTime: 5 * 60_000,
