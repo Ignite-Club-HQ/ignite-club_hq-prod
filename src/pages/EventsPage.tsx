@@ -534,45 +534,19 @@ export default function EventsPage() {
       return finalEvents;
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 30 * 1000, // 30s — keep payload fresh on iOS where app stays resumed
+    staleTime: 5 * 60 * 1000, // 5min — avoid re-running the full events query on every tab focus
     // Render from cache first; background-refetch only if stale. Big snappiness
     // win on navigation — previously every mount paid a full round-trip.
     refetchOnMount: true,
-    refetchOnWindowFocus: "always",
+    refetchOnWindowFocus: true,
     refetchOnReconnect: "always",
     placeholderData: (prev) => prev,
   });
 
-  // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
-  const { data: userRoles } = useQuery({
-    queryKey: ["user-admin-roles", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
+  // Derived from userMemberships — no extra round trips.
+  const isAppAdmin = userMemberships?.isAppAdmin ?? false;
+  const userRoles = userMemberships?.roles;
+
 
   // Get IDs of events user has viewed
   const eventIds = events?.map(e => e.id) || [];
