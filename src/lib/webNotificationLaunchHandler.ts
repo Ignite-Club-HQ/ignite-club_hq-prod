@@ -50,6 +50,7 @@ function handlePayload(payload: any) {
   if (!payload) return;
   coldMark("notif_tap");
   coldRemark("notif_tap");
+  try { startLongTaskWindow("notif_to_chat_mount"); } catch {}
   const rawUrl: string | undefined = payload.url;
   const data = payload.data || payload;
   console.log("[WebNotificationLaunch] tap received", {
