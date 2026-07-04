@@ -159,7 +159,7 @@ export function EventsHeaderSponsorStrip({
     },
   });
 
-  const { data: placementSettings } = useQuery({
+  const { data: placementSettings, isSuccess: placementOk } = useQuery({
     queryKey: ["app-ad-settings", "events"],
     enabled: !!clubId && isProClub === false,
     staleTime: 5 * 60_000,
