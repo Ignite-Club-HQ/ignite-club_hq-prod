@@ -129,7 +129,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   const proEnabled = !!clubFlag?.media_header_sponsors_enabled;
 
   // Pro sponsors
-  const { data: sponsors = [] } = useQuery({
+  const { data: sponsors = [], isSuccess: sponsorsOk } = useQuery({
     queryKey: ["media-header-sponsors", clubId],
     enabled: proEnabled,
     staleTime: 5 * 60_000,
