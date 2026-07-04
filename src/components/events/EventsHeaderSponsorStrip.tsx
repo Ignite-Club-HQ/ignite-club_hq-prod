@@ -144,7 +144,7 @@ export function EventsHeaderSponsorStrip({
     },
   });
 
-  const { data: sponsors = [] } = useQuery({
+  const { data: sponsors = [], isSuccess: sponsorsOk } = useQuery({
     queryKey: ["events-header-sponsors", clubId],
     enabled: !!clubId && isProClub === true,
     staleTime: 5 * 60_000,
