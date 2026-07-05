@@ -28,6 +28,10 @@ export interface CachedProfile {
 // safe and dramatically cuts the #1 slow query (`profiles WHERE id = ANY(...)`).
 const FRESH_TTL_MS = 60 * 60 * 1000;     // 1h — considered fresh
 const STALE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — still usable when allowStale
+// A null profile can be caused by a transient RLS/session/timing miss. Do not
+// keep it "fresh" for an hour, otherwise Messages/Media can get stuck showing
+// "Unknown User" for people whose profile is readable moments later.
+const NULL_PROFILE_RETRY_MS = 5 * 1000;
 const BATCH_WINDOW_MS = 10;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -162,10 +166,14 @@ export function getProfilesFromCache(ids: readonly string[]): {
     const entry = cache.get(raw);
     if (!entry) { missing.push(raw); continue; }
     const age = now - entry.fetchedAt;
+    if (!entry.profile) {
+      if (age >= NULL_PROFILE_RETRY_MS) missing.push(raw);
+      continue;
+    }
     if (age < FRESH_TTL_MS) {
-      if (entry.profile) cached.set(raw, entry.profile);
+      cached.set(raw, entry.profile);
     } else if (age < STALE_TTL_MS) {
-      if (entry.profile) cached.set(raw, entry.profile);
+      cached.set(raw, entry.profile);
       stale.push(raw);
     } else {
       missing.push(raw);
