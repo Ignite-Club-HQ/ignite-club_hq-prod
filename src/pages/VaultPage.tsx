@@ -90,7 +90,12 @@ export default function VaultPage() {
   const { folderId: urlFolderId } = useParams<{ folderId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const fromChat = (location.state as { fromChat?: boolean } | null)?.fromChat === true;
+  // Capture once — subsequent setSearchParams({}, { replace: true }) calls
+  // below wipe location.state, which would otherwise lose the fromChat flag
+  // and break the header back button after opening from a chat's pinned vault.
+  const [fromChat] = useState<boolean>(
+    () => (location.state as { fromChat?: boolean } | null)?.fromChat === true,
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const [currentView, setCurrentView] = useState<FolderView>({ type: "root" });
