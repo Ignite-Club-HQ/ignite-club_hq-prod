@@ -6,6 +6,7 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { writeHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 interface ClubSponsorSectionProps {
   clubId: string | null;
