@@ -8,6 +8,13 @@ interface LazyMountProps {
   minHeight?: number;
   /** Force-mount after this many ms even if never scrolled into view. Defaults to 4000. */
   fallbackTimeoutMs?: number;
+  /**
+   * When true, keep a wrapper with the reserved `minHeight` around the
+   * mounted children too. This prevents a second layout shift when the
+   * children render `null` while their own queries load and then jump to
+   * full height when data arrives (e.g. the home page sponsor / ad tiles).
+   */
+  keepMinHeight?: boolean;
 }
 
 /**
@@ -19,6 +26,7 @@ export function LazyMount({
   rootMargin = "300px",
   minHeight = 80,
   fallbackTimeoutMs = 4000,
+  keepMinHeight = false,
 }: LazyMountProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [shown, setShown] = useState(false);
@@ -47,6 +55,12 @@ export function LazyMount({
     };
   }, [shown, rootMargin, fallbackTimeoutMs]);
 
-  if (shown) return <>{children}</>;
+  if (shown) {
+    if (keepMinHeight) {
+      return <div style={{ minHeight }}>{children}</div>;
+    }
+    return <>{children}</>;
+  }
   return <div ref={ref} style={{ minHeight }} aria-hidden="true" />;
 }
+

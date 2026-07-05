@@ -85,6 +85,7 @@ import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { LazyMount } from "@/components/LazyMount";
+import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2803,19 +2804,29 @@ export default function HomePage() {
 
 
       {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
-      <LazyMount minHeight={120} rootMargin="500px">
-        {activeClubFilter ? (
-          !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
-            <ClubSponsorSection clubId={activeClubFilter} />
-          )
-        ) : (
-          <MultiClubSponsorCarousel />
-        )}
-      </LazyMount>
+      {(() => {
+        const sponsorHint = readHomeSponsorHint(user?.id, activeClubFilter);
+        // Reserve the full tile height when we know (or don't yet know) there
+        // are sponsors, so this block occupies its final slot on the first
+        // paint and doesn't push Next Up / Rewards / Teams down when the
+        // query resolves.
+        const sponsorMinHeight = sponsorHint === "none" ? 0 : 120;
+        return (
+          <LazyMount minHeight={sponsorMinHeight} rootMargin="500px" keepMinHeight>
+            {activeClubFilter ? (
+              !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
+                <ClubSponsorSection clubId={activeClubFilter} />
+              )
+            ) : (
+              <MultiClubSponsorCarousel />
+            )}
+          </LazyMount>
+        );
+      })()}
 
       {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
       {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
-        <LazyMount minHeight={100} rootMargin="500px">
+        <LazyMount minHeight={112} rootMargin="500px" keepMinHeight>
           <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
         </LazyMount>
       )}

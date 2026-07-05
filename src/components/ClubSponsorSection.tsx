@@ -6,6 +6,7 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { writeHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 interface ClubSponsorSectionProps {
   clubId: string | null;
@@ -92,6 +93,15 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
     },
     enabled: !!clubId && !!user?.id,
   });
+
+  // Persist a per-(user, club) hint so the home page can reserve the right
+  // amount of vertical space on the next cold load and avoid a shift when
+  // this section pops in after other content.
+  useEffect(() => {
+    if (!user?.id || !clubId) return;
+    writeHomeSponsorHint(user.id, clubId, sponsors.length > 0 ? "has" : "none");
+  }, [user?.id, clubId, sponsors.length]);
+
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: true,
