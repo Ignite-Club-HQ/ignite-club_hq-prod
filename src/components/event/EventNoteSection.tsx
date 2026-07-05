@@ -33,10 +33,25 @@ export function EventNoteSection({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note ?? "");
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!editing) setDraft(note ?? "");
   }, [note, editing]);
+
+  // When entering edit mode, gently scroll the card into view before focusing
+  // the textarea. Mobile browsers otherwise scroll the focused input to the
+  // very top of the viewport, which yanks the surrounding context off-screen.
+  useEffect(() => {
+    if (!editing) return;
+    const raf = requestAnimationFrame(() => {
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focus after the scroll starts so the keyboard opens in place.
+      setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 250);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [editing]);
 
   const { data: fetchedAuthor } = useQuery({
     queryKey: ["event-note-author", noteAuthor],
