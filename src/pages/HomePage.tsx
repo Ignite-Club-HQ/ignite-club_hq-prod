@@ -85,6 +85,7 @@ import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { LazyMount } from "@/components/LazyMount";
+import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
