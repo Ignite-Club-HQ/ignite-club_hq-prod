@@ -6,7 +6,6 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
-import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
@@ -2277,8 +2276,6 @@ export default function GroupChatPage() {
         />
       )}
 
-
-      <ChatThreadSponsorStrip clubId={group?.club_id ?? null} />
 
       <ChatCatchUp
         scope_type="group"

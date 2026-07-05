@@ -39,7 +39,7 @@ interface ChatHeaderMenuProps {
   pinnedVaultLocked?: boolean;
   /**
    * Trigger an AI "Chat Recap" summary of recent messages.
-   * Renders as a first-class header action (Sparkles button), NOT inside the overflow.
+   * Renders inside the overflow dropdown menu.
    * Pass even for free-tier users together with `summarizeLocked` so the entry
    * point is visible and clicking can route to the upgrade flow.
    */
@@ -66,10 +66,10 @@ export function ChatHeaderMenu({
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
   const hasDropdownAction =
     !!onRefresh || !!onScheduleMessage || hasMoreActions;
-  const hasAnyAction = hasDropdownAction || !!onSummarizeMessages || !!onSearch;
+  const hasAnyAction = hasDropdownAction || !!onSearch;
   if (!hasAnyAction) return null;
 
-  // If refresh is the only action (no AI, no search, no others), render directly.
+  // If refresh is the only action (no search, no others), render directly.
   const isRefreshOnly =
     !!onRefresh
     && !onEditGroup
@@ -95,28 +95,6 @@ export function ChatHeaderMenu({
 
   return (
     <div className="flex items-center gap-0.5">
-      {onSummarizeMessages && (
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0 text-primary transition-transform active:scale-95"
-            onClick={onSummarizeMessages}
-            aria-label={summarizeLocked ? "AI Chat Recap (Pro)" : "AI summary of recent messages"}
-          >
-            <Sparkles className="h-[18px] w-[18px]" />
-          </Button>
-          {summarizeLocked && (
-            <span
-              className="pointer-events-none absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[8px] leading-none font-bold px-1 py-0.5 rounded-full"
-              aria-hidden="true"
-            >
-              PRO
-            </span>
-          )}
-        </div>
-      )}
-
       {hasDropdownAction && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -137,6 +115,19 @@ export function ChatHeaderMenu({
               >
                 <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
                 Refresh messages
+              </DropdownMenuItem>
+            )}
+
+            {onSummarizeMessages && (
+              <DropdownMenuItem onClick={onSummarizeMessages}>
+                <Sparkles className="h-4 w-4 mr-2 text-primary" />
+                <span className="flex-1">AI Chat Recap</span>
+                {summarizeLocked && (
+                  <span className="ml-2 inline-flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                    <Crown className="h-3 w-3" />
+                    Pro
+                  </span>
+                )}
               </DropdownMenuItem>
             )}
 
