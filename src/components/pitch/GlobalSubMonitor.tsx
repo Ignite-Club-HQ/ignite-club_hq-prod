@@ -286,8 +286,15 @@ export default function GlobalSubMonitor() {
 
     // Keep the game active during halftime break so the server can send
     // halftime push notifications. Halftime = half 2, elapsed 0, paused.
-    const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && pitchState.autoSubActive;
-    if ((!timerState.isRunning && !isHalftimeBreak) || !pitchState.autoSubActive) {
+    //
+    // NOTE: Do NOT gate this on `pitchState.autoSubActive`. Half-time, full-time,
+    // and pending-sub notifications should fire whenever the board is linked to
+    // an event (see `linkedEventId` gate below), regardless of whether the coach
+    // has enabled the auto-sub plan. Previously this branch deactivated the
+    // active_games row whenever auto-sub was off, which silently suppressed all
+    // pitch-board pushes for coaches who never turned on auto-sub.
+    const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0;
+    if (!timerState.isRunning && !isHalftimeBreak) {
       if (activeGameIdRef.current) {
         console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
         await supabase
