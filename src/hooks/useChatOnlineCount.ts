@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useOnlineCount } from "@/hooks/useUserPresence";
+import { useOnlineSet } from "@/hooks/useUserPresence";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -132,12 +132,10 @@ export function useChatOnlineCount(
 
   const ids = useMemo(() => memberIds || [], [memberIds]);
 
-  // --- Source 1: Realtime presence channel ---
-  const realtimeCount = useOnlineCount(ids, user?.id);
+  // --- Source 1: Realtime presence channel (instant on desktop) ---
+  const realtimeOnlineSet = useOnlineSet(ids);
 
-  // --- Source 2: DB heartbeat fallback ---
-  // Polls the user_presence heartbeat table for any of the chat members
-  // active in the last 90 seconds. Reliable across app backgrounding.
+  // --- Source 2: DB heartbeat fallback (survives mobile backgrounding) ---
   const { data: heartbeatOnlineIds } = useQuery({
     queryKey: ["chat-online-heartbeat", ids, user?.id ?? null],
     queryFn: async (): Promise<string[]> => {
@@ -147,21 +145,20 @@ export function useChatOnlineCount(
         { _user_ids: ids },
       );
       if (error || !data) return [];
-      return (data as Array<{ user_id: string }>)
-        .map((r) => r.user_id)
-        .filter((id) => id !== user?.id);
+      return (data as Array<{ user_id: string }>).map((r) => r.user_id);
     },
     enabled: enabled && ids.length > 0,
     staleTime: 30 * 1000,
     refetchInterval: 45 * 1000,
   });
 
-  // The realtime set is a superset on desktop (instant join/leave), the
-  // heartbeat set is a superset on mobile (survives backgrounding). Taking
-  // the max gives the correct answer in both environments without inflating
-  // the count via double-counting.
+  // Union the two sources (mirrors the green-dot logic in
+  // ChatParticipantsList so the header count and the per-member dots
+  // reconcile), then exclude the current user.
   return useMemo(() => {
-    const heartbeatCount = (heartbeatOnlineIds || []).length;
-    return Math.max(realtimeCount, heartbeatCount);
-  }, [realtimeCount, heartbeatOnlineIds]);
+    const union = new Set<string>(realtimeOnlineSet);
+    for (const id of heartbeatOnlineIds || []) union.add(id);
+    if (user?.id) union.delete(user.id);
+    return union.size;
+  }, [realtimeOnlineSet, heartbeatOnlineIds, user?.id]);
 }
