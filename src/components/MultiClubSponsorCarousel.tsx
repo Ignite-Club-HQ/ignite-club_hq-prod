@@ -108,6 +108,14 @@ export function MultiClubSponsorCarousel() {
     enabled: !!user?.id,
   });
 
+  // Persist a hint so the home page can reserve the right amount of vertical
+  // space on the *next* cold load — prevents this tile from popping in later
+  // and pushing surrounding sections down.
+  useEffect(() => {
+    if (!user?.id) return;
+    writeHomeSponsorHint(user.id, null, allSponsors.length > 0 ? "has" : "none");
+  }, [user?.id, allSponsors.length]);
+
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: true,
     dragFree: false,
