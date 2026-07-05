@@ -28,7 +28,8 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
       .eq("id", record.vault_file_id)
       .maybeSingle();
     if (!data) return null;
-    return { label: data.name ?? "Vault file", href: `/vault?file=${data.id}`, count: 1 };
+    // Single file — no count badge needed.
+    return { label: data.name ?? "Vault file", href: `/vault?file=${data.id}`, count: 0 };
   }
   if (record.vault_folder_id) {
     const [folderRes, countRes] = await Promise.all([
@@ -36,7 +37,8 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
       supabase
         .from("vault_files")
         .select("id", { count: "exact", head: true })
-        .eq("folder_id", record.vault_folder_id),
+        .eq("folder_id", record.vault_folder_id)
+        .is("deleted_at", null),
     ]);
     if (!folderRes.data) return null;
     return {
@@ -47,33 +49,22 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
   }
   if (record.root_scope && record.root_id) {
     if (record.root_scope === "team") {
-      const [teamRes, countRes] = await Promise.all([
-        supabase.from("teams").select("id, name").eq("id", record.root_id).maybeSingle(),
-        supabase
-          .from("vault_files")
-          .select("id", { count: "exact", head: true })
-          .eq("team_id", record.root_id),
-      ]);
-      if (!teamRes.data) return null;
-      return {
-        label: `${teamRes.data.name ?? "Team"} vault`,
-        href: `/vault?team=${teamRes.data.id}`,
-        count: countRes.count ?? 0,
-      };
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("id", record.root_id)
+        .maybeSingle();
+      if (!data) return null;
+      // Whole-vault pin — omit count (too broad to be useful).
+      return { label: `${data.name ?? "Team"} vault`, href: `/vault?team=${data.id}`, count: 0 };
     }
-    const [clubRes, countRes] = await Promise.all([
-      supabase.from("clubs").select("id, name").eq("id", record.root_id).maybeSingle(),
-      supabase
-        .from("vault_files")
-        .select("id", { count: "exact", head: true })
-        .eq("club_id", record.root_id),
-    ]);
-    if (!clubRes.data) return null;
-    return {
-      label: `${clubRes.data.name ?? "Club"} vault`,
-      href: `/vault?club=${clubRes.data.id}`,
-      count: countRes.count ?? 0,
-    };
+    const { data } = await supabase
+      .from("clubs")
+      .select("id, name")
+      .eq("id", record.root_id)
+      .maybeSingle();
+    if (!data) return null;
+    return { label: `${data.name ?? "Club"} vault`, href: `/vault?club=${data.id}`, count: 0 };
   }
   return null;
 }
