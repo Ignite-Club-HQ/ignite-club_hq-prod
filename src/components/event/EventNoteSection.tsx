@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StickyNote, Pencil, Send, X, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
