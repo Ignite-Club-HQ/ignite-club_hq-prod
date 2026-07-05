@@ -1859,22 +1859,6 @@ export default function TeamChatPage() {
         externalOpen={inviteSheetOpen}
         onExternalOpenChange={setInviteSheetOpen}
       />
-      {/* Invite banner — team chats */}
-      <button
-        onClick={() => setInviteSheetOpen(true)}
-        aria-label={`Invite people to ${team.name}`}
-        className="group w-full flex items-center gap-2 px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-left touch-manipulation active:bg-primary/15 transition-colors shrink-0"
-      >
-        <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-          <UserPlus className="h-3 w-3 text-primary" strokeWidth={2.25} />
-        </div>
-        <span className="flex-1 min-w-0 text-[13.5px] text-foreground truncate">
-          Invite people to <span className="font-semibold">{team.name}</span>
-        </span>
-        <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
-      </button>
-
-
       {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
       {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">
