@@ -85,6 +85,7 @@ import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { LazyMount } from "@/components/LazyMount";
+import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2802,22 +2803,31 @@ export default function HomePage() {
       </ResponsiveDialog>
 
 
-      {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
-      <LazyMount minHeight={120} rootMargin="500px">
-        {activeClubFilter ? (
-          !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
-            <ClubSponsorSection clubId={activeClubFilter} />
-          )
-        ) : (
-          <MultiClubSponsorCarousel />
-        )}
-      </LazyMount>
+      {/* Club Sponsor Section — mounted eagerly (not LazyMount'd) so its
+          Supabase query fires in parallel with above-the-fold content and
+          the tile appears at the same time as Next Up / Rewards / Teams
+          instead of after a scroll. Reserved min-height prevents shift. */}
+      {(() => {
+        const sponsorHint = readHomeSponsorHint(user?.id, activeClubFilter);
+        const sponsorMinHeight = sponsorHint === "none" ? 0 : 120;
+        const inClassMode = !!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled);
+        return (
+          <div style={{ minHeight: sponsorMinHeight }}>
+            {activeClubFilter ? (
+              !inClassMode && <ClubSponsorSection clubId={activeClubFilter} />
+            ) : (
+              <MultiClubSponsorCarousel />
+            )}
+          </div>
+        );
+      })()}
 
-      {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
+      {/* App Ads — same reasoning: mount eagerly so the tier query runs in
+          parallel and the ad renders alongside the other home sections. */}
       {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
-        <LazyMount minHeight={100} rootMargin="500px">
+        <div style={{ minHeight: 112 }}>
           <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
-        </LazyMount>
+        </div>
       )}
 
       {/* Pitch Board Loading Overlay */}

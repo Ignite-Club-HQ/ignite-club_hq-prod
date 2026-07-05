@@ -308,12 +308,26 @@ async function notifyTeamStaff(
   // Batch-check preferences for all recipients at once (single DB query)
   const enabledUsers = await getEnabledUserIds(supabase, Array.from(allRecipients));
 
+  // Resolve club_id from teamId so the in-app bell scopes this notification
+  // to the correct club (otherwise club_id IS NULL and the notification
+  // appears under every club the user is a member of).
+  let notifClubId: string | null = null;
+  if (teamId && !isMiniLeague) {
+    const { data: teamRow } = await supabase
+      .from('teams')
+      .select('club_id')
+      .eq('id', teamId)
+      .maybeSingle();
+    notifClubId = teamRow?.club_id ?? null;
+  }
+
   // Batch-insert all in-app notifications at once
   const notifInserts = Array.from(enabledUsers).map(userId => ({
     user_id: userId,
     type: inAppType,
     message: notificationMessage,
     related_id: gameId,
+    club_id: notifClubId,
     skip_push: true,
   }));
 

@@ -9,6 +9,10 @@ import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { readStripHint, writeStripHint } from "@/lib/stripContentHint";
+
+const STRIP_KEY = "media_header";
+const RESERVED_CLASS = "min-h-[44px]";
 
 // Pro sponsor strip: any Pro club that opts in via clubs.media_header_sponsors_enabled.
 // Defaults to OFF (column default false); toggled in Club settings.
@@ -90,7 +94,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   };
 
   // Is club Pro? (drives Pro vs Free path)
-  const { data: isProClub } = useQuery({
+  const { data: isProClub, isSuccess: isProClubOk } = useQuery({
     queryKey: ["club-is-pro", clubId],
     enabled: !!clubId,
     staleTime: 5 * 60_000,
@@ -108,7 +112,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   });
 
   // Pro toggle — any Pro club that has opted in
-  const { data: clubFlag } = useQuery({
+  const { data: clubFlag, isSuccess: clubFlagOk } = useQuery({
     queryKey: ["media-header-sponsors-enabled", clubId],
     enabled: !!clubId && isProClub === true,
     staleTime: 5 * 60_000,
@@ -125,7 +129,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   const proEnabled = !!clubFlag?.media_header_sponsors_enabled;
 
   // Pro sponsors
-  const { data: sponsors = [] } = useQuery({
+  const { data: sponsors = [], isSuccess: sponsorsOk } = useQuery({
     queryKey: ["media-header-sponsors", clubId],
     enabled: proEnabled,
     staleTime: 5 * 60_000,
@@ -142,7 +146,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   });
 
   // Free app-ad placement gate — controlled by app admin in /admin/ads
-  const { data: placementSettings } = useQuery({
+  const { data: placementSettings, isSuccess: placementOk } = useQuery({
     queryKey: ["app-ad-settings", "media-header"],
     enabled: isProClub === false,
     staleTime: 5 * 60_000,
@@ -159,7 +163,7 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
   const freePlacementEnabled = !!placementSettings?.is_enabled;
 
   // Free app ads
-  const { data: appAds = [] } = useQuery({
+  const { data: appAds = [], isSuccess: appAdsOk } = useQuery({
     queryKey: ["media-header-app-ads"],
     enabled: isProClub === false && freePlacementEnabled,
     staleTime: 5 * 60_000,
@@ -219,10 +223,34 @@ export function MediaHeaderSponsorStrip({ clubId }: { clubId: string | null | un
     if (activeAd && user?.id) trackAdView(activeAd.id, "messages_page");
   }, [activeAd?.id, user?.id, trackAdView]);
 
+  // Resolution / hint bookkeeping — see events strip for rationale.
+  const decisionResolved =
+    !clubId
+      ? true
+      : isProClubOk &&
+        (isProClub === true
+          ? clubFlagOk && (!proEnabled || sponsorsOk)
+          : placementOk && (!freePlacementEnabled || appAdsOk));
+
+  const hasContent = !!activeSponsor || !!activeAd;
+
+  useEffect(() => {
+    if (!decisionResolved) return;
+    writeStripHint(STRIP_KEY, user?.id, clubId, hasContent);
+  }, [decisionResolved, hasContent, user?.id, clubId]);
+
+  const [reserveOnLoad] = useState(() => {
+    const hint = readStripHint(STRIP_KEY, user?.id, clubId ?? null);
+    return hint !== false;
+  });
+
+  const renderReserved = () =>
+    reserveOnLoad ? <div className={RESERVED_CLASS} aria-hidden="true" /> : null;
+
   // Gates
   if (!clubId) return null;
-  if (isProClub === undefined) return null;
-  if (!activeSponsor && !activeAd) return null;
+  if (!decisionResolved) return renderReserved();
+  if (!hasContent) return null;
   if (activeSponsor && dismissed) return null;
 
   // Pro Riverside: dismissible club-sponsor row

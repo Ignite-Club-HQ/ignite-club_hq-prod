@@ -1,19 +1,33 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
 import { AppAdCarousel } from "@/components/AppAdCarousel";
 import { AdMobBannerZone } from "@/components/AdMobBannerZone";
 import { useAuth } from "@/hooks/useAuth";
+import { readAdTierHint, writeAdTierHint, type AdTierHint } from "@/lib/adTierHint";
 
 interface SponsorOrAdCarouselProps {
   location: "home" | "events" | "messages" | "event-detail" | "schedule";
   activeClubFilter?: string | null;
 }
 
+// Reserve vertical space matching the ad card height (h-28 = 112px) plus a
+// little breathing room so the layout doesn't shift when the ad resolves.
+const RESERVED_CLASS = "min-h-[112px]";
+
 // Events sponsor strip is per-club opt-in via clubs.events_sponsor_strip_enabled.
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
   const { user, initialized } = useAuth();
+
+  // Read the persisted tier hint synchronously on first render so that on
+  // cold load we can render the correct ad component immediately, in parallel
+  // with the rest of the page, instead of waiting for the pro-status query.
+  const [initialHint] = useState<AdTierHint | null>(() =>
+    readAdTierHint(location, user?.id, activeClubFilter ?? null),
+  );
+  const hintWrittenRef = useRef(false);
   const isEventsPlacement = location === "events" || location === "event-detail";
 
   // Events-placement gate: any club that has events_sponsor_strip_enabled = true.
@@ -195,55 +209,69 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   const proResolved = !!proStatus?.resolved;
   const isNative = !!(window as any).Capacitor;
 
-  // Wait until auth AND pro status are definitively resolved before deciding
-  // which ad tier to show. Without this guard, a WebView resume can briefly
-  // yield `!user` / empty proStatus and flash the free-club "Upgrade to Pro"
-  // ad to a paying Pro user before the query re-resolves.
-  if (!initialized || !user || isProLoading || !proResolved) {
-    return isNative ? <AdMobBannerZone show={true} /> : null;
-  }
-
-  // Events placement: gated by pilot club + per-club opt-in toggle.
-  if (isEventsPlacement) {
-    if (isStripGateLoading) return null;
-    if (!eventsStripAllowed) return null;
-  }
-
-  // === PRO CLUB ===
-  if (isProFiltered) {
-    // Pro club WITH sponsors → show club sponsor banners
-    if (hasSponsors) {
-      if (location === "home") {
-        // On home, sponsors are shown separately via ClubSponsorSection
-        return null;
-      }
-      return (
-        <>
-          <MessagesSponsorCarousel activeClubFilter={effectiveClubFilter} />
-          {isNative && <AdMobBannerZone show={true} />}
-        </>
-      );
+  // Decide the resolved tier once all inputs have settled.
+  const resolvedTier: AdTierHint | null = (() => {
+    if (!initialized || !user || isProLoading || !proResolved) return null;
+    if (isEventsPlacement && isStripGateLoading) return null;
+    if (isEventsPlacement && !eventsStripAllowed) return "none";
+    if (isProFiltered) {
+      if (hasSponsors === undefined) return null;
+      if (hasSponsors) return location === "home" ? "none" : "pro-sponsors";
+      return "pro-none";
     }
-    // Pro club WITHOUT sponsors → show nothing (no ads for Pro)
+    if (settings === undefined) return null;
+    return settings?.is_enabled ? "free-ads" : "none";
+  })();
+
+  // Persist the resolved outcome so the next cold load renders instantly.
+  useEffect(() => {
+    if (!resolvedTier || hintWrittenRef.current) return;
+    hintWrittenRef.current = true;
+    writeAdTierHint(location, user?.id, activeClubFilter ?? null, resolvedTier);
+  }, [resolvedTier, location, user?.id, activeClubFilter]);
+
+  // Prefer the resolved tier; on cold load fall back to the persisted hint so
+  // the ad renders at the same time as the rest of the page.
+  const effectiveTier: AdTierHint | null = resolvedTier ?? initialHint;
+
+  const renderReserved = () => (
+    <>
+      <div className={RESERVED_CLASS} aria-hidden="true" />
+      {isNative && <AdMobBannerZone show={true} />}
+    </>
+  );
+
+  if (effectiveTier === null) {
+    // Unknown tier and still resolving → reserve space so layout is stable.
+    return renderReserved();
+  }
+
+  if (effectiveTier === "none") {
     return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
-  // === FREE CLUB ===
-  // Free clubs CANNOT have their own sponsors (Pro-only feature)
-  // Only app admin ads are shown to free clubs
-  if (settings?.is_enabled) {
+  if (effectiveTier === "pro-sponsors") {
     return (
       <>
-        <AppAdCarousel
-          location={location}
-          hasSponsorAds={false}
-          suppressUpgradeAdsForProUsers={false}
-        />
+        <MessagesSponsorCarousel activeClubFilter={effectiveClubFilter} />
         {isNative && <AdMobBannerZone show={true} />}
       </>
     );
   }
 
-  // No ads enabled
-  return isNative ? <AdMobBannerZone show={true} /> : null;
+  if (effectiveTier === "pro-none") {
+    return isNative ? <AdMobBannerZone show={true} /> : null;
+  }
+
+  // effectiveTier === "free-ads"
+  return (
+    <>
+      <AppAdCarousel
+        location={location}
+        hasSponsorAds={false}
+        suppressUpgradeAdsForProUsers={false}
+      />
+      {isNative && <AdMobBannerZone show={true} />}
+    </>
+  );
 }
