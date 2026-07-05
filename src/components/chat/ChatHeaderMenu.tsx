@@ -39,7 +39,7 @@ interface ChatHeaderMenuProps {
   pinnedVaultLocked?: boolean;
   /**
    * Trigger an AI "Chat Recap" summary of recent messages.
-   * Renders as a first-class header action (Sparkles button), NOT inside the overflow.
+   * Renders inside the overflow dropdown menu.
    * Pass even for free-tier users together with `summarizeLocked` so the entry
    * point is visible and clicking can route to the upgrade flow.
    */
