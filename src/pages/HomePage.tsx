@@ -2803,32 +2803,31 @@ export default function HomePage() {
       </ResponsiveDialog>
 
 
-      {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
+      {/* Club Sponsor Section — mounted eagerly (not LazyMount'd) so its
+          Supabase query fires in parallel with above-the-fold content and
+          the tile appears at the same time as Next Up / Rewards / Teams
+          instead of after a scroll. Reserved min-height prevents shift. */}
       {(() => {
         const sponsorHint = readHomeSponsorHint(user?.id, activeClubFilter);
-        // Reserve the full tile height when we know (or don't yet know) there
-        // are sponsors, so this block occupies its final slot on the first
-        // paint and doesn't push Next Up / Rewards / Teams down when the
-        // query resolves.
         const sponsorMinHeight = sponsorHint === "none" ? 0 : 120;
+        const inClassMode = !!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled);
         return (
-          <LazyMount minHeight={sponsorMinHeight} rootMargin="500px" keepMinHeight>
+          <div style={{ minHeight: sponsorMinHeight }}>
             {activeClubFilter ? (
-              !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
-                <ClubSponsorSection clubId={activeClubFilter} />
-              )
+              !inClassMode && <ClubSponsorSection clubId={activeClubFilter} />
             ) : (
               <MultiClubSponsorCarousel />
             )}
-          </LazyMount>
+          </div>
         );
       })()}
 
-      {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
+      {/* App Ads — same reasoning: mount eagerly so the tier query runs in
+          parallel and the ad renders alongside the other home sections. */}
       {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
-        <LazyMount minHeight={112} rootMargin="500px" keepMinHeight>
+        <div style={{ minHeight: 112 }}>
           <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
-        </LazyMount>
+        </div>
       )}
 
       {/* Pitch Board Loading Overlay */}
