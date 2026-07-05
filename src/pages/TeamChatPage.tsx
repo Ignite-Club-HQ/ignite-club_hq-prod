@@ -1794,9 +1794,20 @@ export default function TeamChatPage() {
         }
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)} aria-label="Search messages">
               <Search className="h-4 w-4" />
             </Button>
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setInviteSheetOpen(true)}
+                aria-label={`Invite members to ${team.name}`}
+              >
+                <UserPlus className="h-[18px] w-[18px]" />
+              </Button>
+            )}
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
