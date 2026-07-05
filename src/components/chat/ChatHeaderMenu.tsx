@@ -66,10 +66,10 @@ export function ChatHeaderMenu({
   const hasMoreActions = !!onManagePinnedVault || !!onEditGroup || !!onDeleteGroup;
   const hasDropdownAction =
     !!onRefresh || !!onScheduleMessage || hasMoreActions;
-  const hasAnyAction = hasDropdownAction || !!onSummarizeMessages || !!onSearch;
+  const hasAnyAction = hasDropdownAction || !!onSearch;
   if (!hasAnyAction) return null;
 
-  // If refresh is the only action (no AI, no search, no others), render directly.
+  // If refresh is the only action (no search, no others), render directly.
   const isRefreshOnly =
     !!onRefresh
     && !onEditGroup
