@@ -1366,7 +1366,11 @@ export default function MediaPage() {
       ) : hasProAccessQueryFailed ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">We couldn’t verify Pro access right now.</p>
+            <p className="text-muted-foreground">
+              {typeof navigator !== "undefined" && navigator.onLine === false
+                ? "You appear to be offline. Check your internet connection and try again."
+                : "We couldn’t verify Pro access right now."}
+            </p>
             <Button
               variant="outline"
               className="mt-3"
@@ -1376,6 +1380,7 @@ export default function MediaPage() {
             </Button>
           </CardContent>
         </Card>
+
       ) : photos.length === 0 && !hasActiveFilters ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
