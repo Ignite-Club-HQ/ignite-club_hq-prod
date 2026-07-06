@@ -108,9 +108,23 @@ serve(async (req) => {
         .from('club_subscriptions')
         .select('stripe_subscription_id')
         .eq('club_id', entity_id)
-        .single();
+        .maybeSingle();
 
-      stripeSubscriptionId = sub?.stripe_subscription_id;
+      // Fall back to legacy clubs.stripe_subscription_id — some older clubs
+      // (e.g. Basket Range CC) never had a club_subscriptions row created,
+      // so ignoring this field left their Stripe subscription billing
+      // silently after the app said "Free". See admin_alerts for history.
+      let legacyClubStripeSubId: string | null = null;
+      if (!sub?.stripe_subscription_id) {
+        const { data: legacyClub } = await supabase
+          .from('clubs')
+          .select('stripe_subscription_id')
+          .eq('id', entity_id)
+          .maybeSingle();
+        legacyClubStripeSubId = legacyClub?.stripe_subscription_id ?? null;
+      }
+
+      stripeSubscriptionId = sub?.stripe_subscription_id || legacyClubStripeSubId;
       clubId = entity_id;
     }
 
