@@ -698,7 +698,7 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
     // Update club is_pro flag
     await supabase
       .from('clubs')
-      .update({ is_pro: false })
+      .update({ is_pro: false, stripe_subscription_id: null })
       .eq('id', clubSub.club_id);
 
     if (clubSub.clubs?.created_by) {
@@ -707,6 +707,38 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
         type: 'subscription_cancelled',
         message: 'Your club subscription has been cancelled.',
         related_id: clubSub.club_id,
+      });
+    }
+    return;
+  }
+
+  // Legacy fallback: no club_subscriptions row exists, but a club may still
+  // hold this Stripe subscription id in the legacy clubs.stripe_subscription_id
+  // column. Clear it so future audits and cancel paths don't see a stale live
+  // sub id on a free club.
+  const { data: legacyClub } = await supabase
+    .from('clubs')
+    .update({ is_pro: false, stripe_subscription_id: null })
+    .eq('stripe_subscription_id', subscriptionId)
+    .select('id, created_by')
+    .maybeSingle();
+
+  if (legacyClub) {
+    console.log('Legacy clubs.stripe_subscription_id cleared on cancel:', subscriptionId, 'club:', legacyClub.id);
+    await supabase.from('admin_alerts').insert({
+      alert_type: 'legacy_club_subscription_cleared',
+      details: {
+        club_id: legacyClub.id,
+        stripe_subscription_id: subscriptionId,
+        note: 'Stripe reported this subscription as cancelled. It only lived on the legacy clubs.stripe_subscription_id column (no club_subscriptions row). Field has been cleared.',
+      },
+    });
+    if (legacyClub.created_by) {
+      await supabase.from('notifications').insert({
+        user_id: legacyClub.created_by,
+        type: 'subscription_cancelled',
+        message: 'Your club subscription has been cancelled.',
+        related_id: legacyClub.id,
       });
     }
   }
