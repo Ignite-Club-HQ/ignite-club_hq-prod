@@ -90,7 +90,12 @@ export default function VaultPage() {
   const { folderId: urlFolderId } = useParams<{ folderId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const fromChat = (location.state as { fromChat?: boolean } | null)?.fromChat === true;
+  // Capture once — subsequent setSearchParams({}, { replace: true }) calls
+  // below wipe location.state, which would otherwise lose the fromChat flag
+  // and break the header back button after opening from a chat's pinned vault.
+  const [fromChat] = useState<boolean>(
+    () => (location.state as { fromChat?: boolean } | null)?.fromChat === true,
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const [currentView, setCurrentView] = useState<FolderView>({ type: "root" });
@@ -3220,8 +3225,14 @@ export default function VaultPage() {
       {currentView.type === "root" ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 h-10 w-10"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-primary/10">

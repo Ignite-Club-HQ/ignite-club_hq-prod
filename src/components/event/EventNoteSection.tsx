@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StickyNote, Pencil, Send, X, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -33,10 +33,25 @@ export function EventNoteSection({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note ?? "");
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!editing) setDraft(note ?? "");
   }, [note, editing]);
+
+  // When entering edit mode, gently scroll the card into view before focusing
+  // the textarea. Mobile browsers otherwise scroll the focused input to the
+  // very top of the viewport, which yanks the surrounding context off-screen.
+  useEffect(() => {
+    if (!editing) return;
+    const raf = requestAnimationFrame(() => {
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focus after the scroll starts so the keyboard opens in place.
+      setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 250);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [editing]);
 
   const { data: fetchedAuthor } = useQuery({
     queryKey: ["event-note-author", noteAuthor],
@@ -98,59 +113,57 @@ export function EventNoteSection({
 
   if (editing) {
     return (
-      <Card className="border-primary/30">
+      <Card ref={cardRef} className="border-primary/30 scroll-mt-20">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4 text-primary" />
             {hasNote ? "Edit event note (visible to everyone)" : "Post event note (visible to everyone)"}
           </div>
           <Textarea
+            ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value.slice(0, MAX_LEN))}
             placeholder="e.g. Bring both kits, parking is on Smith St, arrive 15 min early."
-            rows={4}
-            autoFocus
+            rows={3}
           />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {draft.length}/{MAX_LEN} · Sends a push to RSVP'd members
-            </span>
-            <div className="flex gap-2">
+          <p className="text-xs text-muted-foreground">
+            {draft.length}/{MAX_LEN} · Sends a push to RSVP'd members
+          </p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setEditing(false);
+                setDraft(note ?? "");
+              }}
+              disabled={saveMutation.isPending}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+            {hasNote && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setDraft(note ?? "");
-                }}
+                onClick={() => saveMutation.mutate("")}
                 disabled={saveMutation.isPending}
               >
-                <X className="h-4 w-4 mr-1" />
-                Cancel
+                Remove
               </Button>
-              {hasNote && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => saveMutation.mutate("")}
-                  disabled={saveMutation.isPending}
-                >
-                  Remove
-                </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate(draft)}
+              disabled={saveMutation.isPending || !draft.trim() || draft.trim() === (note ?? "").trim()}
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
               )}
-              <Button
-                size="sm"
-                onClick={() => saveMutation.mutate(draft)}
-                disabled={saveMutation.isPending || !draft.trim() || draft.trim() === (note ?? "").trim()}
-              >
-                {saveMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-1" />
-                )}
-                {hasNote ? "Update & notify" : "Post & notify"}
-              </Button>
-            </div>
+              {hasNote ? "Update & notify" : "Post & notify"}
+            </Button>
           </div>
         </CardContent>
       </Card>
