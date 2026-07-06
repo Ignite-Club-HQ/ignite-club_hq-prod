@@ -534,7 +534,21 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   // Also gates the "RSVP Required" pill so it never flashes before child
   // RSVPs hydrate (which would briefly show the pill on already-responded events).
   const dutiesReady = !user?.id || event.is_cancelled || myDutiesFetched;
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && rsvpSummaryFetched && membershipFetched && dutiesReady);
+  // Fallback timer: offline / very slow secondary queries can leave the six
+  // hero queries in "pending" for tens of seconds (browser fetch has no short
+  // timeout when the network is down), which strands the card as a skeleton
+  // even though the parent events query hydrated instantly from localStorage
+  // and the rest of the home page (My Teams, etc.) is fully painted. After
+  // 1500ms, reveal with whatever data we have — RSVP buttons still work with
+  // no cached `myRsvp`, and missing summary/children data just renders empty
+  // instead of a skeleton. Matches the parent carousel's own 1500ms fallback.
+  const [heroReadyTimedOut, setHeroReadyTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    setHeroReadyTimedOut(false);
+    const t = setTimeout(() => setHeroReadyTimedOut(true), 1500);
+    return () => clearTimeout(t);
+  }, [event.id]);
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched && rsvpSummaryFetched && membershipFetched && dutiesReady) || heroReadyTimedOut;
 
   React.useEffect(() => {
     onReadyChange?.(event.id, heroDataReady);
