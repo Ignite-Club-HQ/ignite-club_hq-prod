@@ -176,11 +176,21 @@ const navigateToChatTarget = (navigate: (to: string) => void, target: ChatTarget
 };
 
 // Helper component for rendering notification icons with read state
-function NotificationIconWrapper({ type, isRead }: { type: string; isRead: boolean }) {
-  const { Icon, colorClass } = useNotificationIcon(type);
+function NotificationIconWrapper({ type, isRead, message }: { type: string; isRead: boolean; message?: string | null }) {
+  const { Icon, reactionEmoji, colorClass } = useNotificationIcon(type, message);
   return (
     <div className={`p-2 rounded-lg ${isRead ? "bg-muted" : "bg-primary/10"}`}>
-      <Icon className={`h-4 w-4 ${isRead ? "text-muted-foreground" : colorClass}`} />
+      {reactionEmoji ? (
+        <span
+          className="inline-flex items-center justify-center h-4 w-4 text-base leading-none"
+          role="img"
+          aria-label={type.replace(/_/g, " ")}
+        >
+          {reactionEmoji}
+        </span>
+      ) : (
+        <Icon className={`h-4 w-4 ${isRead ? "text-muted-foreground" : colorClass}`} />
+      )}
     </div>
   );
 }
