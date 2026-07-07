@@ -59,6 +59,12 @@ export interface NotificationIconProps {
   className?: string;
   /** Whether to include the color class from config */
   withColor?: boolean;
+  /**
+   * Optional notification message. When provided for reaction notification
+   * types, the actual reaction emoji (👍, 🎉, 😂, …) is rendered instead of
+   * the generic Heart icon so the icon matches the reaction that was made.
+   */
+  message?: string | null;
 }
 
 /**
@@ -71,17 +77,25 @@ export function NotificationIcon({
   size = 16,
   className,
   withColor = true,
+  message,
 }: NotificationIconProps) {
   const config = getNotificationIconConfig(type);
 
-  if (mode === 'emoji') {
+  // For reaction notifications, prefer the actual reaction emoji so the
+  // icon matches the reaction (👍 shows a thumbs-up, 🎉 a party popper, …).
+  const reactionEmoji = REACTION_NOTIFICATION_TYPES.has(type)
+    ? extractReactionEmoji(message)
+    : null;
+
+  if (mode === 'emoji' || reactionEmoji) {
+    const glyph = reactionEmoji ?? config.emoji;
     return (
-      <span 
-        className={cn("text-xl", className)} 
-        role="img" 
+      <span
+        className={cn("text-xl leading-none", className)}
+        role="img"
         aria-label={type.replace(/_/g, ' ')}
       >
-        {config.emoji}
+        {glyph}
       </span>
     );
   }
@@ -102,13 +116,17 @@ export function NotificationIcon({
 /**
  * Hook to get notification icon data for custom rendering
  */
-export function useNotificationIcon(type: string) {
+export function useNotificationIcon(type: string, message?: string | null) {
   const config = getNotificationIconConfig(type);
   const IconComponent = ICON_MAP[config.iconName] || Bell;
-  
+  const reactionEmoji = REACTION_NOTIFICATION_TYPES.has(type)
+    ? extractReactionEmoji(message)
+    : null;
+
   return {
     Icon: IconComponent,
-    emoji: config.emoji,
+    emoji: reactionEmoji ?? config.emoji,
+    reactionEmoji,
     colorClass: config.colorClass,
     iconName: config.iconName,
   };
