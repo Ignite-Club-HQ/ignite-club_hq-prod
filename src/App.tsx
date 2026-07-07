@@ -148,6 +148,7 @@ const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
+import { installWebReconnectInvalidator } from "@/lib/webReconnectInvalidator";
 import { setupAndroidWebViewWake } from "@/lib/androidWebViewWake";
 
 // `offlineFirst` lets queryFn run even when the device is offline, so our
