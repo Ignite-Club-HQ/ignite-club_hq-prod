@@ -22,7 +22,30 @@ export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
   const nowSec = Math.floor(Date.now() / 1000);
 
   if (expiresAt - nowSec <= bufferSeconds) {
-    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    // Only bound the refresh when the page is visible — a hanging refresh
+    // on resume (half-dead socket after long inactivity) was leaving read
+    // queries like has-pro-access spinning forever. On timeout we degrade
+    // to the existing session id and let downstream requests 401 naturally;
+    // the global auth-retry interceptor (supabaseAuthRetry.ts) will then
+    // trigger a fresh refresh cycle on the retry.
+    const isVisible = typeof document === "undefined" || document.visibilityState === "visible";
+    const REFRESH_TIMEOUT_MS = 12_000;
+
+    const refreshPromise = supabase.auth.refreshSession();
+    const raced = isVisible
+      ? await Promise.race([
+          refreshPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS)),
+        ])
+      : await refreshPromise;
+
+    if (raced === null) {
+      // Timed out — return existing user id. The stale token may still be
+      // valid for ~30s of buffer, and if it isn't the caller's request
+      // will 401 and be retried after a fresh refresh.
+      return session.user.id;
+    }
+    const { data: refreshed, error } = raced;
     if (error || !refreshed.session) {
       throw error ?? new Error("Session refresh failed");
     }

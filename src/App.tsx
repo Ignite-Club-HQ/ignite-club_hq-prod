@@ -148,6 +148,7 @@ const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
+import { installWebReconnectInvalidator } from "@/lib/webReconnectInvalidator";
 import { setupAndroidWebViewWake } from "@/lib/androidWebViewWake";
 
 // `offlineFirst` lets queryFn run even when the device is offline, so our
@@ -184,6 +185,9 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter(queryClient);
+// Web equivalent (native adapter early-returns off-native): scoped invalidator
+// for photos / Pro-access on reconnect + tab-focus so Media doesn't stall.
+installWebReconnectInvalidator(queryClient);
 // Force Android WebView to repaint on resume (compositor pauses in background)
 setupAndroidWebViewWake();
 
