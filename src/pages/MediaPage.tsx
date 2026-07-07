@@ -537,6 +537,8 @@ export default function MediaPage() {
     hasNextPage,
     isFetchingNextPage,
     isSuccess: photosSuccess,
+    isError: photosIsError,
+    refetch: refetchPhotos,
   } = useInfiniteQuery({
     queryKey: photosQueryKey,
     queryFn: async ({ pageParam = 0 }) => {
