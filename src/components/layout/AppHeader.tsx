@@ -456,7 +456,14 @@ export function AppHeader() {
   // stale values while the auth session is being established. Wait for isThemeReady
   // to prevent incorrect contrast colors during this transition.
   const { isThemeReady } = useClubTheme();
-  const shouldShowClubTheming = isThemeReady && activeThemeData;
+  // NOTE: Do NOT gate this on `isThemeReady`. On resume from inactivity
+  // (phone unlock, tab refocus) auth/token refresh briefly flips readiness
+  // to false; if we hid the club branch here, the button `key` below would
+  // flip `club-<id>` → `ignite` → `club-<id>`, remounting <LogoImage> and
+  // forcing a fresh <img> decode → visible blank logo for a beat.
+  // `activeThemeData` is cached via keepPreviousData, so trust its presence
+  // as the identity signal and let contrast colors re-settle in place.
+  const shouldShowClubTheming = !!activeThemeData;
 
   // Parse club name to split into main name and suffix (e.g., "Bridgewater Soccer Club" -> ["Bridgewater", "Soccer Club"])
   const parseClubName = (name: string): { mainName: string; suffix: string } => {
