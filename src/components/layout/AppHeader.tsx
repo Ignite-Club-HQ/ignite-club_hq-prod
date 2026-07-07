@@ -1236,7 +1236,7 @@ export function AppHeader() {
                         handleNotificationClick(notification);
                       }}
                     >
-                      {renderNotificationIcon(notification.type)}
+                      {renderNotificationIcon(notification.type, notification.message)}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
                           {notification.message}
