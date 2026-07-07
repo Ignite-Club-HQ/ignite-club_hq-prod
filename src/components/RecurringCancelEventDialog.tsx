@@ -213,7 +213,7 @@ export function RecurringCancelEventDialog({
           <Button
             variant="default"
             className="w-full bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
-            onClick={handleSeriesAction}
+            onClick={handleSingleAction}
             disabled={isPending || isLoading}
           >
             {isPending ? (
@@ -222,16 +222,16 @@ export function RecurringCancelEventDialog({
                 Cancelling...
               </>
             ) : (
-              "Cancel Entire Series"
+              `Cancel This ${typeLabel} Only`
             )}
           </Button>
           <Button
             variant="outline"
             className="w-full min-h-[44px]"
-            onClick={handleSingleAction}
+            onClick={handleSeriesAction}
             disabled={isPending || isLoading}
           >
-            Cancel This {typeLabel} Only
+            Cancel Entire Series
           </Button>
           <Button
             variant="ghost"
