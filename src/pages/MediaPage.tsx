@@ -1322,6 +1322,24 @@ export default function MediaPage() {
         </div>
       </div>
 
+      {/* Retry banner: shown if either the photos feed or the Pro-access
+          query errored out (e.g. after a network drop). Gives users a
+          manual escape hatch instead of relying purely on background
+          reconnect logic. */}
+      {(photosIsError || hasProAccessQueryFailed) && (
+        <div className="max-w-lg mx-auto">
+          <QueryErrorBanner
+            hasError
+            onRetry={async () => {
+              await Promise.all([
+                refetchPhotos(),
+                queryClient.invalidateQueries({ queryKey: ["has-pro-access", user?.id] }),
+              ]);
+            }}
+          />
+        </div>
+      )}
+
       {/* Header sponsor / ad strip — Pro: any club with media_header_sponsors_enabled (default off). Free: app ads only. */}
       <div className="max-w-lg mx-auto">
         <MediaHeaderSponsorStrip
