@@ -19,7 +19,11 @@ import {
   Info,
   type LucideIcon
 } from "lucide-react";
-import { getNotificationIconConfig } from "@/lib/notificationTypes";
+import {
+  getNotificationIconConfig,
+  extractReactionEmoji,
+  REACTION_NOTIFICATION_TYPES,
+} from "@/lib/notificationTypes";
 import { cn } from "@/lib/utils";
 
 // Icon name to component mapping
