@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PageLoading } from "@/components/ui/page-loading";
+import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { Button } from "@/components/ui/button";
 
 import { Label } from "@/components/ui/label";
