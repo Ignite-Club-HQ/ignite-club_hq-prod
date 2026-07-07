@@ -178,13 +178,30 @@ export default function MediaPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const PHOTOS_PER_PAGE = 9; // Smaller initial load for faster first paint
 
-  // Load cached photos immediately on mount for instant display
+  // Load cached photos immediately on mount for instant display, AND re-hydrate
+  // whenever the tab returns to foreground or the network comes back. Without
+  // the visibility/online listeners, a user who was already on Media when the
+  // network dropped would keep seeing skeletons after reconnect because the
+  // original mount-time hydrate had already run with no cache present.
   useEffect(() => {
-    const { photos: cached, isStale } = getFeedPhotosFromCache();
-    if (cached && cached.length > 0) {
-      setCachedPhotosData(cached);
-      setIsCacheStale(isStale);
-    }
+    const hydrate = () => {
+      const { photos: cached, isStale } = getFeedPhotosFromCache();
+      if (cached && cached.length > 0) {
+        setCachedPhotosData(cached);
+        setIsCacheStale(isStale);
+      }
+    };
+    hydrate();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") hydrate();
+    };
+    window.addEventListener("online", hydrate);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", hydrate);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Filter state - default to active club filter if set; persists across tab navigation
