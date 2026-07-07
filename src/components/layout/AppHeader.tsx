@@ -1044,9 +1044,11 @@ export function AppHeader() {
     }
   };
 
-  // Render notification icon using centralized component
-  const renderNotificationIcon = (type: string) => (
-    <NotificationIcon type={type} mode="emoji" />
+  // Render notification icon using centralized component. Passing the
+  // message lets reaction notifications render the actual reaction emoji
+  // (👍, 🎉, 😂, …) rather than a generic heart.
+  const renderNotificationIcon = (type: string, message?: string | null) => (
+    <NotificationIcon type={type} mode="emoji" message={message} />
   );
 
   const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
