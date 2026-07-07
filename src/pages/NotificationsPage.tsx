@@ -1153,7 +1153,7 @@ export default function NotificationsPage() {
               onDelete={() => deleteNotification.mutate(notification.id)}
             >
               <div className="flex items-start gap-3">
-                <NotificationIconWrapper type={notification.type} isRead={notification.read} />
+                <NotificationIconWrapper type={notification.type} isRead={notification.read} message={notification.message} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm ${notification.read ? "text-muted-foreground" : ""}`}>
                     {notification.message}
