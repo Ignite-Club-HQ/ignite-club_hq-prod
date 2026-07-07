@@ -167,3 +167,46 @@ export function getNotificationCategory(type: string): 'message' | 'event' | 'me
   if ((ADMIN_NOTIFICATION_TYPES as readonly string[]).includes(type)) return 'admin';
   return 'unknown';
 }
+
+/**
+ * Map of reaction_type identifiers → emoji, mirroring
+ * REACTION_EMOJIS in src/components/chat/MessageReactions.tsx.
+ * Used to render the actual reaction emoji in notifications
+ * instead of a generic heart icon.
+ */
+export const REACTION_TYPE_EMOJI_MAP: Record<string, string> = {
+  thumbsup: '👍',
+  like: '❤️',
+  laugh: '😂',
+  celebrate: '🎉',
+  wow: '😮',
+  sad: '😢',
+  fire: '🔥',
+  clap: '👏',
+};
+
+// Matches a single emoji-like grapheme cluster (covers pictographs + skin/ZWJ sequences).
+const EMOJI_REGEX = /\p{Extended_Pictographic}(\p{Emoji_Modifier}|\uFE0F|\u200D\p{Extended_Pictographic})*/u;
+
+/**
+ * Extract the reaction emoji from a reaction notification message such as
+ * "Alice reacted 👍 to your message" or (legacy) "Alice reacted thumbsup to
+ * your message". Returns null if it can't determine one.
+ */
+export function extractReactionEmoji(message: string | null | undefined): string | null {
+  if (!message) return null;
+  const m = message.match(/reacted\s+(\S+)/i);
+  if (!m) return null;
+  const token = m[1];
+  const mapped = REACTION_TYPE_EMOJI_MAP[token.toLowerCase()];
+  if (mapped) return mapped;
+  const emojiMatch = token.match(EMOJI_REGEX);
+  return emojiMatch ? emojiMatch[0] : null;
+}
+
+/** Notification types whose icon should be the actual reaction emoji. */
+export const REACTION_NOTIFICATION_TYPES = new Set([
+  'message_reaction',
+  'photo_reaction',
+  'comment_reaction',
+]);
