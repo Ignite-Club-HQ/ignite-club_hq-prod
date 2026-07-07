@@ -185,6 +185,9 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter(queryClient);
+// Web equivalent (native adapter early-returns off-native): scoped invalidator
+// for photos / Pro-access on reconnect + tab-focus so Media doesn't stall.
+installWebReconnectInvalidator(queryClient);
 // Force Android WebView to repaint on resume (compositor pauses in background)
 setupAndroidWebViewWake();
 
