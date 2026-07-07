@@ -1044,9 +1044,11 @@ export function AppHeader() {
     }
   };
 
-  // Render notification icon using centralized component
-  const renderNotificationIcon = (type: string) => (
-    <NotificationIcon type={type} mode="emoji" />
+  // Render notification icon using centralized component. Passing the
+  // message lets reaction notifications render the actual reaction emoji
+  // (👍, 🎉, 😂, …) rather than a generic heart.
+  const renderNotificationIcon = (type: string, message?: string | null) => (
+    <NotificationIcon type={type} mode="emoji" message={message} />
   );
 
   const freeClubNameParts = activeFreeClubData ? parseClubName(activeFreeClubData.name) : null;
@@ -1234,7 +1236,7 @@ export function AppHeader() {
                         handleNotificationClick(notification);
                       }}
                     >
-                      {renderNotificationIcon(notification.type)}
+                      {renderNotificationIcon(notification.type, notification.message)}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
                           {notification.message}
