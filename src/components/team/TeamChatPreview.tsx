@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { selectCachedProfileById } from "@/lib/profileCache";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Badge } from "@/components/ui/badge";
@@ -15,35 +15,35 @@ interface TeamChatPreviewProps {
 export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
   const { user } = useAuth();
 
-  // Get latest message
+  // Latest message reads denormalised columns kept fresh by
+  // tg_team_messages_update_parent_preview on the teams row.
+  // Single indexed row read, no profile join, no message-table scan.
   const { data: latestMessage } = useQuery({
     queryKey: ["team-chat-preview", teamId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("team_messages")
-        .select("id, text, created_at, author_id, is_club_announcement, club_announcement_name, is_system_message")
-        .eq("team_id", teamId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .from("teams")
+        .select(
+          "last_message_id, last_message_text, last_message_at, last_message_author_id, last_message_author_name, last_message_is_system, last_message_is_club_announcement, last_message_club_announcement_name"
+        )
+        .eq("id", teamId)
         .maybeSingle();
-      
-      if (!data) return null;
 
-      // For club announcements, use the club name instead of the author's profile
-      if (data.is_club_announcement && data.club_announcement_name) {
-        return {
-          ...data,
-          authorName: data.club_announcement_name,
-        };
-      }
+      if (!data || !data.last_message_id) return null;
 
-      // Get author profile
-      const { data: profile } = await selectCachedProfileById(data.author_id);
+      const authorName = data.last_message_is_club_announcement
+        ? data.last_message_club_announcement_name || "Club"
+        : data.last_message_author_name || "Someone";
 
       return {
-        ...data,
-        authorName: profile?.display_name || "Someone",
+        id: data.last_message_id,
+        text: data.last_message_text ?? "",
+        created_at: data.last_message_at,
+        author_id: data.last_message_author_id,
+        is_club_announcement: data.last_message_is_club_announcement,
+        club_announcement_name: data.last_message_club_announcement_name,
+        is_system_message: data.last_message_is_system,
+        authorName,
       };
     },
     enabled: !!teamId,

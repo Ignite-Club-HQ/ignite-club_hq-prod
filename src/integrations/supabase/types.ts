@@ -753,6 +753,13 @@ export type Database = {
           deleted_by: string | null
           id: string
           join_policy: string
+          last_message_at: string | null
+          last_message_author_id: string | null
+          last_message_author_name: string | null
+          last_message_id: string | null
+          last_message_image_url: string | null
+          last_message_is_system: boolean | null
+          last_message_text: string | null
           membership_mode: string
           mini_league_id: string | null
           name: string
@@ -771,6 +778,13 @@ export type Database = {
           deleted_by?: string | null
           id?: string
           join_policy?: string
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_is_system?: boolean | null
+          last_message_text?: string | null
           membership_mode?: string
           mini_league_id?: string | null
           name: string
@@ -789,6 +803,13 @@ export type Database = {
           deleted_by?: string | null
           id?: string
           join_policy?: string
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_is_system?: boolean | null
+          last_message_text?: string | null
           membership_mode?: string
           mini_league_id?: string | null
           name?: string
@@ -2125,6 +2146,12 @@ export type Database = {
           id: string
           is_pro: boolean
           kind: string
+          last_message_at: string | null
+          last_message_author_id: string | null
+          last_message_author_name: string | null
+          last_message_id: string | null
+          last_message_image_url: string | null
+          last_message_text: string | null
           latitude: number | null
           listed_on_marketplace: boolean
           logo_only_mode: boolean | null
@@ -2204,6 +2231,12 @@ export type Database = {
           id?: string
           is_pro?: boolean
           kind?: string
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_text?: string | null
           latitude?: number | null
           listed_on_marketplace?: boolean
           logo_only_mode?: boolean | null
@@ -2283,6 +2316,12 @@ export type Database = {
           id?: string
           is_pro?: boolean
           kind?: string
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_text?: string | null
           latitude?: number | null
           listed_on_marketplace?: boolean
           logo_only_mode?: boolean | null
@@ -8893,6 +8932,15 @@ export type Database = {
           is_archived: boolean
           is_pro: boolean
           is_shell: boolean
+          last_message_at: string | null
+          last_message_author_id: string | null
+          last_message_author_name: string | null
+          last_message_club_announcement_name: string | null
+          last_message_id: string | null
+          last_message_image_url: string | null
+          last_message_is_club_announcement: boolean | null
+          last_message_is_system: boolean | null
+          last_message_text: string | null
           level_age: string | null
           lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
@@ -8948,6 +8996,15 @@ export type Database = {
           is_archived?: boolean
           is_pro?: boolean
           is_shell?: boolean
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_club_announcement_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_is_club_announcement?: boolean | null
+          last_message_is_system?: boolean | null
+          last_message_text?: string | null
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
@@ -9003,6 +9060,15 @@ export type Database = {
           is_archived?: boolean
           is_pro?: boolean
           is_shell?: boolean
+          last_message_at?: string | null
+          last_message_author_id?: string | null
+          last_message_author_name?: string | null
+          last_message_club_announcement_name?: string | null
+          last_message_id?: string | null
+          last_message_image_url?: string | null
+          last_message_is_club_announcement?: boolean | null
+          last_message_is_system?: boolean | null
+          last_message_text?: string | null
           level_age?: string | null
           lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
