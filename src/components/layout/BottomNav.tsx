@@ -111,7 +111,7 @@ export function BottomNav() {
       (suppressedClubs.has(activeClubFilter) ? 0 : (counts.clubs[activeClubFilter] || 0)) +
       sumRecord(counts.teams, activeClubTeamIds, suppressedTeams) +
       sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups) +
-      Object.entries(counts.dms).reduce((a, [id, n]) => a + (suppressedDms.has(id) ? 0 : b_safe(n)), 0)
+      Object.entries(counts.dms).reduce((a, [id, n]) => a + (suppressedDms.has(id) ? 0 : (n || 0)), 0)
     );
   })();
 
