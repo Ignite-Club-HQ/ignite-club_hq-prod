@@ -1,0 +1,68 @@
+name: Promote to Prod
+
+# When a merge lands on the `prod` branch, run any pending Supabase migrations
+# and deploy edge functions to Supabase PROD *before* Netlify / Codemagic
+# rebuild the frontend against the same commit. If migrations or function
+# deploys fail, the frontend never ships → no schema/UI mismatch possible.
+#
+# Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN      — personal access token from
+#                                https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
+#   SUPABASE_DB_PASSWORD       — the prod DB password (Project Settings →
+#                                Database → Connection string). Required by
+#                                `supabase db push` for a non-interactive run.
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch: {}
+
+concurrency:
+  group: promote-to-prod
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Migrate + deploy backend
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Check out prod
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets are present
+        run: |
+          missing=0
+          for var in SUPABASE_ACCESS_TOKEN PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required secret: $var"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then exit 1; fi
+
+      - name: Link to Supabase PROD project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Apply pending migrations
+        run: supabase db push --linked
+
+      - name: Deploy edge functions
+        # Deploys every function under supabase/functions/. Individual function
+        # config (verify_jwt, import_map, etc.) still comes from
+        # supabase/config.toml.
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+      - name: Success
+        run: |
+          echo "✅ Backend promoted. Netlify + Codemagic will now build the"
+          echo "   frontend against commit $GITHUB_SHA."
