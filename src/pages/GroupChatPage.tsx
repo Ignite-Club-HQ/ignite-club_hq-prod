@@ -879,6 +879,36 @@ export default function GroupChatPage() {
         reply_to: m.reply_to,
       })));
 
+      // Identity bail-out: if merged is structurally identical to prev
+      // (same IDs in same order, same reaction id-set per message, same
+      // text/image_url), return prev so Virtuoso doesn't see a new `data`
+      // reference and doesn't run a re-layout pass that flashes the
+      // viewport blank for a frame on cold-start push taps.
+      if (prev && prev.length === mergedMessages.length) {
+        let identical = true;
+        for (let i = 0; i < prev.length; i++) {
+          const a = prev[i] as any;
+          const b = mergedMessages[i] as any;
+          if (
+            a.id !== b.id ||
+            a.text !== b.text ||
+            a.image_url !== b.image_url ||
+            a.reply_to_id !== b.reply_to_id
+          ) { identical = false; break; }
+          const ar: any[] = a.reactions || [];
+          const br: any[] = b.reactions || [];
+          if (ar.length !== br.length) { identical = false; break; }
+          if (ar.length > 0) {
+            const aIds = new Set(ar.map((r) => r.id));
+            for (const r of br) {
+              if (!aIds.has(r.id)) { identical = false; break; }
+            }
+            if (!identical) break;
+          }
+        }
+        if (identical) return prev;
+      }
+
       return mergedMessages;
     });
   }, [messages, reactions, groupId]);
