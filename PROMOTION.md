@@ -57,7 +57,32 @@ described below.
 
 ---
 
+## Disaster recovery stack (Supabase Pro — PITR enabled)
+
+Prod is on the Supabase **Pro plan with Point-in-Time Recovery (PITR)**
+enabled. Recovery options, in order of preference:
+
+1. **Forward reverse-migration** — write a new migration that undoes the bad
+   change and promote it normally. Zero data loss. Use for schema mistakes
+   caught after some legitimate writes have already landed.
+2. **Supabase PITR** (dashboard → Database → Backups → Point in Time) —
+   restore prod to any exact second within the retention window (7 days on
+   Pro by default). Covers everything: `public` schema, `auth.users`,
+   `storage`. Use for bad migrations, accidental mass deletes, corruption
+   caught within the window.
+3. **Pre-promotion artifact restore** (`scripts/restore-prod-backup.sh`) —
+   last-resort nuclear restore from the GitHub Actions tarball. Use only if
+   PITR is unavailable or the incident is older than the PITR window.
+   DESTROYS anything written since the backup and does NOT restore
+   `auth.users` or `storage`.
+
+**Enabling PITR:** Supabase dashboard → prod project → Database → Backups →
+Point in Time Recovery → enable. One-time setup.
+
+---
+
 ## What NOT to do
+
 
 - ❌ Don't edit `prod` directly. Always merge from `main`.
 - ❌ Don't run `supabase db push` from your laptop against prod. Only the
