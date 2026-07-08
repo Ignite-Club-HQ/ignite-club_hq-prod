@@ -2132,7 +2132,11 @@ export default function GroupChatPage() {
     ((group as any).allowed_roles as string[]).some((r) =>
       ["coach", "team_admin", "committee_member", "club_admin"].includes(r),
     );
-  if (isClubRoleGroup && !groupClubProLoading && !groupClubHasPro) {
+  // Only show the Pro lock once the pro-access query has actually resolved.
+  // Before `chatReady` flips true the query is disabled, so isLoading=false and
+  // hasPro=false — without the chatReady + club_id guards the locked screen
+  // flashes for one frame on cold-start push taps into a Pro club chat.
+  if (isClubRoleGroup && chatReady && !!group?.club_id && !groupClubProLoading && !groupClubHasPro) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 p-4 border-b">
