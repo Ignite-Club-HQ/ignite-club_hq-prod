@@ -402,9 +402,12 @@ export default function ClubAdminChatPage() {
     );
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
+  // A 1-item local cache must still show the loading state — otherwise the
+  // stranded push-preload paints for a frame before the real fetch resolves.
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
-    (!authReady && !(localMessages?.length)) ||
-    (messagesLoading && !messagesData && !(localMessages?.length));
+    (!authReady && !hasMeaningfulLocal) ||
+    (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
