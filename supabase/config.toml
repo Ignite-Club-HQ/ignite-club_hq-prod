@@ -1,6 +1,8 @@
 project_id = "yabcfiuntwqjwvschnji"
 
 [functions]
+  [functions.export-write-audit]
+    verify_jwt = false
   [functions.auth-email-hook]
     verify_jwt = false
   [functions.backfill-chat-vault-groups]
