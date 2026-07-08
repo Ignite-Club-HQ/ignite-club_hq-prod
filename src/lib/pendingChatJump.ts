@@ -179,7 +179,7 @@ function pickMessageId(data: any, parsed?: URL): string | null {
   return data?.related_id || data?.relatedId || null;
 }
 
-function getJumpTarget(data: any, url: string | null | undefined): ChatJumpTarget | null {
+export function getJumpTarget(data: any, url: string | null | undefined): ChatJumpTarget | null {
   if (!url && !data) return null;
   try {
     const parsed = url ? new URL(url, "https://placeholder.local") : undefined;

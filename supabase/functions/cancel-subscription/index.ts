@@ -108,9 +108,23 @@ serve(async (req) => {
         .from('club_subscriptions')
         .select('stripe_subscription_id')
         .eq('club_id', entity_id)
-        .single();
+        .maybeSingle();
 
-      stripeSubscriptionId = sub?.stripe_subscription_id;
+      // Fall back to legacy clubs.stripe_subscription_id — some older clubs
+      // (e.g. Basket Range CC) never had a club_subscriptions row created,
+      // so ignoring this field left their Stripe subscription billing
+      // silently after the app said "Free". See admin_alerts for history.
+      let legacyClubStripeSubId: string | null = null;
+      if (!sub?.stripe_subscription_id) {
+        const { data: legacyClub } = await supabase
+          .from('clubs')
+          .select('stripe_subscription_id')
+          .eq('id', entity_id)
+          .maybeSingle();
+        legacyClubStripeSubId = legacyClub?.stripe_subscription_id ?? null;
+      }
+
+      stripeSubscriptionId = sub?.stripe_subscription_id || legacyClubStripeSubId;
       clubId = entity_id;
     }
 
@@ -152,33 +166,53 @@ serve(async (req) => {
         }
       }
 
-      if (stripeSecretKey) {
-        const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
+      if (!stripeSecretKey) {
+        // Refuse to downgrade a club/team that still has an active Stripe
+        // subscription id when we have no key to actually cancel it. Silently
+        // marking it Free here is what caused Basket Range CC to keep being
+        // billed for months after admins thought they'd cancelled. Raise a
+        // loud admin alert and return an error so the user knows this needs
+        // manual attention.
+        await supabase.from('admin_alerts').insert({
+          alert_type: 'stripe_cancel_blocked_no_key',
+          details: {
+            subscription_type, entity_id, club_id: clubId,
+            stripe_subscription_id: stripeSubscriptionId,
+            actor_user_id: user.id,
+            note: 'Downgrade blocked: a Stripe subscription is attached but no Stripe secret key is configured. Add a Stripe key in Admin → Stripe Settings, or cancel the subscription manually in the Stripe Dashboard and clear stripe_subscription_id on the row.',
+          },
+        });
+        return new Response(JSON.stringify({
+          error: 'Cannot downgrade: a Stripe subscription is still attached to this account, but no Stripe key is configured to cancel it. Contact support so this can be cancelled without leaving you billed.',
+          code: 'stripe_cancel_blocked_no_key',
+        }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
-        try {
-          await stripe.subscriptions.cancel(stripeSubscriptionId);
-          console.log('Stripe subscription cancelled:', stripeSubscriptionId);
-        } catch (stripeError: any) {
-          if (stripeError.code === 'resource_missing') {
-            console.warn('Stripe subscription not found — likely orphan:', stripeSubscriptionId);
-            await supabase.from('admin_alerts').insert({
-              alert_type: 'stripe_orphan_subscription_on_cancel',
-              details: {
-                subscription_type, entity_id, club_id: clubId,
-                stripe_subscription_id: stripeSubscriptionId,
-                actor_user_id: user.id,
-                note: 'Local row referenced a Stripe subscription id that Stripe did not recognise. A different live subscription may still be billing this customer.',
-              },
-            });
-          } else {
-            console.error('Stripe cancellation error:', stripeError);
-            return new Response(JSON.stringify({ error: 'Failed to cancel Stripe subscription' }), {
-              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
+      const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
+
+      try {
+        await stripe.subscriptions.cancel(stripeSubscriptionId);
+        console.log('Stripe subscription cancelled:', stripeSubscriptionId);
+      } catch (stripeError: any) {
+        if (stripeError.code === 'resource_missing') {
+          console.warn('Stripe subscription not found — likely orphan:', stripeSubscriptionId);
+          await supabase.from('admin_alerts').insert({
+            alert_type: 'stripe_orphan_subscription_on_cancel',
+            details: {
+              subscription_type, entity_id, club_id: clubId,
+              stripe_subscription_id: stripeSubscriptionId,
+              actor_user_id: user.id,
+              note: 'Local row referenced a Stripe subscription id that Stripe did not recognise. A different live subscription may still be billing this customer.',
+            },
+          });
+        } else {
+          console.error('Stripe cancellation error:', stripeError);
+          return new Response(JSON.stringify({ error: 'Failed to cancel Stripe subscription' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
-      } else {
-        console.warn('No Stripe secret key found, skipping Stripe cancellation');
       }
     }
 

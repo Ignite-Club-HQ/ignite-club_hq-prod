@@ -38,6 +38,16 @@ async function cancelStripeSubscriptionsForEntity(
       .select("stripe_subscription_id")
       .eq("club_id", entityId);
     for (const r of data ?? []) if (r.stripe_subscription_id && !String(r.stripe_subscription_id).startsWith("iap_")) subIds.add(r.stripe_subscription_id);
+    // Legacy: clubs.stripe_subscription_id was used before club_subscriptions
+    // existed. Some clubs (e.g. Basket Range CC) still only hold their live
+    // Stripe sub id here. Missing this field caused deletes to leave the
+    // subscription billing indefinitely.
+    const { data: legacyClub } = await adminClient
+      .from("clubs")
+      .select("stripe_subscription_id")
+      .eq("id", entityId)
+      .maybeSingle();
+    if (legacyClub?.stripe_subscription_id && !String(legacyClub.stripe_subscription_id).startsWith("iap_")) subIds.add(legacyClub.stripe_subscription_id);
     // Also cancel any team subs belonging to the club's teams.
     const { data: teams } = await adminClient.from("teams").select("id, stripe_subscription_id").eq("club_id", entityId);
     for (const t of teams ?? []) if (t.stripe_subscription_id && !String(t.stripe_subscription_id).startsWith("iap_")) subIds.add(t.stripe_subscription_id);

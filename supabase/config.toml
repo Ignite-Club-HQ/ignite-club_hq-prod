@@ -35,6 +35,8 @@ project_id = "yabcfiuntwqjwvschnji"
     verify_jwt = false
   [functions.public-club-events]
     verify_jwt = false
+  [functions.reconcile-legacy-subscriptions]
+    verify_jwt = false
   [functions.public-club-teams]
     verify_jwt = false
   [functions.retry-missed-push-notifications]
