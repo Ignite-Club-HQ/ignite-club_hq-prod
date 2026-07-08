@@ -353,9 +353,15 @@ export default function ClubAdminChatPage() {
     );
   }, [messagesData]);
 
-  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() =>
-    conversationId ? getCachedClubAdminMessages(conversationId) : undefined,
-  );
+  // Guard: never seed from a 1-item cache — that is the push-notification
+  // preload and would render a lone message stranded at the top of the
+  // viewport, then blank/jolt when the real fetch resolves. See
+  // mem://technical/notification-preload-single-message-guard.
+  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() => {
+    if (!conversationId) return undefined;
+    const cached = getCachedClubAdminMessages(conversationId);
+    return cached && cached.length >= 2 ? cached : undefined;
+  });
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
 
