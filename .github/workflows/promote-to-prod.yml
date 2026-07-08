@@ -60,6 +60,30 @@ jobs:
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
 
+      - name: Backup PROD database (pre-migration)
+        id: backup
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          FILE="prod-backup-${STAMP}-${GITHUB_SHA::7}.sql.gz"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          # `supabase db dump` uses the linked project + SUPABASE_DB_PASSWORD.
+          # --data-only=false (default) captures schema + data. Roles/auth
+          # schema come from separate flags.
+          supabase db dump --linked -f prod-schema.sql
+          supabase db dump --linked --data-only -f prod-data.sql
+          supabase db dump --linked --role-only -f prod-roles.sql
+          tar czf "$FILE" prod-schema.sql prod-data.sql prod-roles.sql
+          ls -lh "$FILE"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.file }}
+          path: ${{ steps.backup.outputs.file }}
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Apply pending migrations
         run: supabase db push --linked
 
@@ -68,6 +92,7 @@ jobs:
         # config (verify_jwt, import_map, etc.) still comes from
         # supabase/config.toml.
         run: supabase functions deploy --project-ref "$PROJECT_REF"
+
 
       - name: Success
         run: |
