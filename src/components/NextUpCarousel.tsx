@@ -704,10 +704,36 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   // Report up to parent so the carousel "X need RSVP" badge stays in sync
   // with what each card actually shows (membership, BYE, guardian children).
+  //
+  // IMPORTANT: only report while the underlying per-card queries have TRULY
+  // settled — never while we're on the 1500 ms `heroReadyTimedOut` fallback
+  // branch. Otherwise we optimistically claim "needs RSVP" (currentStatus is
+  // still null, childRsvps still empty) and the aggregate pill flashes
+  // "1 needs RSVP" for a beat before myRsvp resolves as e.g. "going" and it
+  // vanishes. Users read that as a broken/glitchy badge.
+  const rsvpDataFullySettled =
+    !user ||
+    (myRsvpFetched &&
+      childrenFetched &&
+      childRsvpsFetched &&
+      rsvpSummaryFetched &&
+      membershipFetched &&
+      dutiesReady);
+
+  // Split into two effects so the "report false" cleanup only runs on
+  // unmount (or when the card's event.id changes), NOT on every re-render
+  // caused by `needsRsvp` toggling. Previously the combined cleanup fired
+  // `false` on every dependency change, producing 2 → 1 → 2 flicker in the
+  // aggregate count as sibling cards resolved on different frames.
   React.useEffect(() => {
+    if (!rsvpDataFullySettled) return;
     onNeedsRsvpChange?.(event.id, !!needsRsvp);
-    return () => onNeedsRsvpChange?.(event.id, false);
-  }, [needsRsvp, event.id, onNeedsRsvpChange]);
+  }, [needsRsvp, event.id, onNeedsRsvpChange, rsvpDataFullySettled]);
+
+  React.useEffect(() => {
+    const id = event.id;
+    return () => onNeedsRsvpChange?.(id, false);
+  }, [event.id, onNeedsRsvpChange]);
 
   const needsRsvpPillLabel = hasGuardianChildren
     ? (guardianUnrespondedCount === 1
