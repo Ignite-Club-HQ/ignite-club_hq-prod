@@ -108,3 +108,56 @@ Options in order of preference:
    2. `export SUPABASE_DB_URL='postgresql://postgres:<PWD>@db.<REF>.supabase.co:5432/postgres'`
    3. `./scripts/restore-prod-backup.sh prod-backup-*.tar.gz`
    4. Revert the frontend by re-promoting the prior commit to `prod`.
+   5. **Replay the gap window** so no user writes are lost — see next section.
+
+## Gap-Data Recovery (Write Audit Log)
+
+Every write to ~40 user-facing tables is captured by a Postgres trigger into
+`public.write_audit_log`, and exported hourly to the private Storage bucket
+`audit-log-exports` (JSONL files at `YYYY/MM/DD/HH-<startId>-<endId>.jsonl`).
+
+The audit *table* is lost when the DB is restored; the Storage *files* are not.
+Use those files to replay every insert/update/delete that happened between the
+backup timestamp and the restore.
+
+### Replay procedure
+
+1. Note two timestamps in UTC:
+   - `start` — the backup's `created_at` (or the moment just before the bad change).
+   - `end` — the moment you triggered the restore.
+2. Force an immediate audit export so the last partial hour is on Storage:
+   ```
+   curl -X POST https://<REF>.supabase.co/functions/v1/export-write-audit \
+     -H "apikey: <ANON_KEY>"
+   ```
+3. Dry-run the replay to review scope:
+   ```
+   SUPABASE_URL=https://<REF>.supabase.co \
+   SUPABASE_SERVICE_ROLE_KEY=<service_role> \
+   deno run --allow-env --allow-net --allow-read scripts/replay-audit-log.ts \
+     --start "2026-07-08T10:00:00Z" \
+     --end   "2026-07-08T14:30:00Z" \
+     --dry-run
+   ```
+4. Review the printed summary (rows per table, per op).
+5. Rerun without `--dry-run` to apply. Failures are logged per row; the script
+   continues so a single bad row doesn't halt recovery.
+6. Optional: pass `--tables events,rsvps` to scope the replay.
+
+### Retention & monitoring
+
+- `public.prune_write_audit_log()` runs nightly at 03:15 UTC and deletes rows
+  older than 30 days from the DB (Storage files are kept indefinitely — set a
+  bucket lifecycle rule if cost matters).
+- Export cursor lives in `app_settings` under key `write_audit_export_cursor`.
+- If the hourly export starts failing, alerts land in edge function logs. Check
+  `/functions/export-write-audit/logs`.
+
+### Not covered
+
+- Storage file uploads (photos, vault files) — files are durable in their own
+  buckets and unaffected by a DB restore; only DB rows referencing them are
+  audited.
+- Schema changes — use reverse migrations.
+- `auth.users` — Supabase-managed, out of scope.
+
