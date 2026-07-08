@@ -11,7 +11,14 @@ name: Promote to Prod
 #   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
 #   SUPABASE_DB_PASSWORD       — the prod DB password (Project Settings →
 #                                Database → Connection string). Required by
-#                                `supabase db push` for a non-interactive run.
+#                                `supabase db push` and `pg_dump` for a
+#                                non-interactive run.
+#
+# Pre-promotion backup:
+#   Before applying any migrations we run `pg_dump` against prod and upload the
+#   dump as a workflow artifact (retained 30 days). To roll back, download the
+#   artifact and follow scripts/restore-prod-backup.sh.
+
 
 on:
   push:
