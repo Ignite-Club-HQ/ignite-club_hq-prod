@@ -1,8 +1,25 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+/**
+ * Dev / Prod split
+ * ================
+ * Codemagic sets LOVABLE_ENV=prod in the prod workflow, and LOVABLE_ENV=dev
+ * (or leaves it unset) in the dev workflow. That drives:
+ *   - which bundle ID / appId the native app is built with, so dev + prod
+ *     apps install side-by-side on the same phone
+ *   - which display name shows under the icon
+ *
+ * PROD  → app.lovable.igniteteamhub        "Ignite"
+ * DEV   → app.lovable.igniteteamhub.dev    "Ignite DEV"
+ */
+const IS_PROD = process.env.LOVABLE_ENV === 'prod';
+
+const PROD_APP_ID = 'app.lovable.igniteteamhub';
+const DEV_APP_ID = 'app.lovable.igniteteamhub.dev';
+
 const config: CapacitorConfig = {
-  appId: 'app.lovable.igniteteamhub',
-  appName: 'Ignite',
+  appId: IS_PROD ? PROD_APP_ID : DEV_APP_ID,
+  appName: IS_PROD ? 'Ignite' : 'Ignite DEV',
   webDir: 'dist',
   // Remove server.url to bundle web app locally for offline support
   // Only use server.url during development for hot-reload
@@ -35,7 +52,7 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     // Keep all navigation inside the WebView
-    appendUserAgent: 'IgniteClubHQ-Android',
+    appendUserAgent: IS_PROD ? 'IgniteClubHQ-Android' : 'IgniteClubHQ-Android-DEV',
     // Disable native overscroll glow/spinner
     overScrollMode: 'never' as any,
   },
@@ -43,7 +60,7 @@ const config: CapacitorConfig = {
     // Let the WebView span edge-to-edge; the app already applies safe-area padding in CSS.
     contentInset: 'never',
     // Keep all navigation inside the WebView
-    appendUserAgent: 'IgniteClubHQ-iOS',
+    appendUserAgent: IS_PROD ? 'IgniteClubHQ-iOS' : 'IgniteClubHQ-iOS-DEV',
     allowsLinkPreview: false,
     backgroundColor: '#0f1a14',
   },
@@ -64,6 +81,12 @@ export default config;
  * For Google OAuth to return to the native app after authentication,
  * you need to configure App Links (Android) and Universal Links (iOS).
  * 
+ * NOTE ON DEV BUNDLE: Universal Links / App Links must be configured
+ * against the *dev* bundle ID and *dev* domain for the dev workflow,
+ * and against the prod bundle ID / prod domain for the prod workflow.
+ * You will need two AASA files and two assetlinks.json entries if you
+ * want deep linking to work in both stacks.
+ *
  * ANDROID: Add to android/app/src/main/AndroidManifest.xml inside <activity>:
  * 
  *   <intent-filter android:autoVerify="true">
