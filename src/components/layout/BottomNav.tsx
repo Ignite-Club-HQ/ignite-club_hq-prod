@@ -43,9 +43,10 @@ export function BottomNav() {
   // Uses the shared useUnreadMessageCounts hook so the underlying RPC is
   // deduped with MessagesPage + MyTeamsPremiumCarousel (was previously firing
   // independently every 30s — top of the slow-query list).
-  const { data: counts } = useUnreadMessageCounts(user?.id, {
-    enabled: !!activeClubFilter,
-  });
+  // Always fetch: the RPC is deduped across consumers, and we need the
+  // per-scope breakdown even when no club filter is active so we can subtract
+  // suppressed scopes (see useSuppressedChatScopes below) from the total.
+  const { data: counts } = useUnreadMessageCounts(user?.id);
 
   // Secondary lookup: which chat groups belong to the active club. Cached
   // separately so it doesn't piggy-back on every unread refetch.
@@ -66,6 +67,28 @@ export function BottomNav() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Suppressed scopes are the chats the user just tapped a push for. We
+  // subtract their unread contribution from the badge for ~1.5s so it
+  // doesn't flash a number that is about to clear as soon as the chat page
+  // mounts and marks the message read.
+  const suppressedScopes = useSuppressedChatScopes();
+  const suppressionDelta = (() => {
+    if (!counts || suppressedScopes.length === 0) return 0;
+    let delta = 0;
+    for (const s of suppressedScopes) {
+      if (!s.targetId && s.kind === "broadcast") { delta += counts.broadcast; continue; }
+      if (!s.targetId) continue;
+      switch (s.kind) {
+        case "team": delta += counts.teams[s.targetId] || 0; break;
+        case "club": delta += counts.clubs[s.targetId] || 0; break;
+        case "group": delta += counts.groups[s.targetId] || 0; break;
+        case "dm": delta += counts.dms[s.targetId] || 0; break;
+        // club_admin isn't broken out in counts; skip.
+      }
+    }
+    return delta;
+  })();
+
   const clubMessagesCount = (() => {
     if (!counts || !activeClubFilter) return 0;
     const clubGroupIds = new Set<string>();
@@ -75,18 +98,26 @@ export function BottomNav() {
       if (meta.club_id === activeClubFilter) clubGroupIds.add(gid);
       else if (meta.team_id && activeClubTeamIds.includes(meta.team_id)) clubGroupIds.add(gid);
     }
-    const sumRecord = (rec: Record<string, number>, keys: string[]) =>
-      keys.reduce((acc, k) => acc + (rec[k] || 0), 0);
+    const suppressedTeams = new Set(suppressedScopes.filter(s => s.kind === "team" && s.targetId).map(s => s.targetId!));
+    const suppressedClubs = new Set(suppressedScopes.filter(s => s.kind === "club" && s.targetId).map(s => s.targetId!));
+    const suppressedGroups = new Set(suppressedScopes.filter(s => s.kind === "group" && s.targetId).map(s => s.targetId!));
+    const suppressedDms = new Set(suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!));
+    const suppressBroadcast = suppressedScopes.some(s => s.kind === "broadcast");
+
+    const sumRecord = (rec: Record<string, number>, keys: string[], skip: Set<string>) =>
+      keys.reduce((acc, k) => acc + (skip.has(k) ? 0 : (rec[k] || 0)), 0);
     return (
-      counts.broadcast +
-      (counts.clubs[activeClubFilter] || 0) +
-      sumRecord(counts.teams, activeClubTeamIds) +
-      sumRecord(counts.groups, Array.from(clubGroupIds)) +
-      Object.values(counts.dms).reduce((a, b) => a + b, 0)
+      (suppressBroadcast ? 0 : counts.broadcast) +
+      (suppressedClubs.has(activeClubFilter) ? 0 : (counts.clubs[activeClubFilter] || 0)) +
+      sumRecord(counts.teams, activeClubTeamIds, suppressedTeams) +
+      sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups) +
+      Object.entries(counts.dms).reduce((a, [id, n]) => a + (suppressedDms.has(id) ? 0 : b_safe(n)), 0)
     );
   })();
 
-  const unreadMessagesCount = activeClubFilter ? clubMessagesCount : globalMessagesCount;
+  const unreadMessagesCount = activeClubFilter
+    ? clubMessagesCount
+    : Math.max(0, globalMessagesCount - suppressionDelta);
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
