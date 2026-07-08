@@ -138,6 +138,12 @@ export function PushNotificationManager() {
       // Preload message cache so chat renders the new push at first paint.
       try { preloadMessageFromNotification(payload.data || payload); } catch {}
       try { captureJumpFromNotification(payload.data || payload, url); } catch {}
+      // Suppress bottom-nav badge for the tapped scope for ~1.5s to avoid
+      // "flash count then vanish" as the RPC and read-receipt race.
+      try {
+        const target = getJumpTarget(payload.data || payload, url);
+        if (target) suppressChatScope(target.kind, target.targetId, 1800);
+      } catch {}
       navigateToUrl(url);
     };
 
