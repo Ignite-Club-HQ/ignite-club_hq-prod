@@ -11,7 +11,8 @@ import { useRealtimePerfSampler } from "@/hooks/useRealtimePerfSampler";
 import { getPlatform, isNativePlatform } from "@/lib/nativePush";
 import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
-import { captureJumpFromNotification, normalizeNotificationChatUrl } from "@/lib/pendingChatJump";
+import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from "@/lib/pendingChatJump";
+import { suppressChatScope } from "@/lib/pushTapSuppression";
 
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
@@ -138,6 +139,12 @@ export function PushNotificationManager() {
       // Preload message cache so chat renders the new push at first paint.
       try { preloadMessageFromNotification(payload.data || payload); } catch {}
       try { captureJumpFromNotification(payload.data || payload, url); } catch {}
+      // Suppress bottom-nav badge for the tapped scope for ~1.5s to avoid
+      // "flash count then vanish" as the RPC and read-receipt race.
+      try {
+        const target = getJumpTarget(payload.data || payload, url);
+        if (target) suppressChatScope(target.kind, target.targetId, 1800);
+      } catch {}
       navigateToUrl(url);
     };
 
