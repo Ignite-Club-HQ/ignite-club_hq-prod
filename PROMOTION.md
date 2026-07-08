@@ -65,3 +65,21 @@ described below.
 - ❌ Don't copy data from prod → dev or vice versa via the promotion flow.
   Data is manual (Supabase → Database → Backups → Restore to another project).
 - ❌ Don't rename or delete migration files after they've been applied.
+
+## Rolling back a bad promotion
+
+Every promotion runs `supabase db dump` against prod *before* applying
+migrations, and uploads the result as a GitHub Actions artifact
+(`prod-backup-<timestamp>-<sha>.tar.gz`, retained 30 days).
+
+Options in order of preference:
+
+1. **Forward reverse-migration** (safe, no data loss) — write a new migration
+   that undoes the bad change, PR → merge to `prod` as normal.
+2. **Supabase PITR** — dashboard → Database → Backups. Point-in-time restore.
+3. **Nuclear restore from the pre-promotion artifact** — DESTROYS anything
+   written to prod since the backup:
+   1. Actions → Promote to Prod → the bad run → Artifacts → download the tarball.
+   2. `export SUPABASE_DB_URL='postgresql://postgres:<PWD>@db.<REF>.supabase.co:5432/postgres'`
+   3. `./scripts/restore-prod-backup.sh prod-backup-*.tar.gz`
+   4. Revert the frontend by re-promoting the prior commit to `prod`.
