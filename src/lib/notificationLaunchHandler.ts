@@ -18,7 +18,8 @@
 
 import { PushNotifications } from '@capacitor/push-notifications';
 import { preloadMessageFromNotification } from './notificationPreload';
-import { captureJumpFromNotification, normalizeNotificationChatUrl } from './pendingChatJump';
+import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from './pendingChatJump';
+import { suppressChatScope, type SuppressedChatKind } from './pushTapSuppression';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
 import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from './coldStartMarks';
 
