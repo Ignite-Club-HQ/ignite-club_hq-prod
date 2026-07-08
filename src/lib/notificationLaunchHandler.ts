@@ -178,6 +178,16 @@ function handleNotificationTap(notification: any) {
     // Best-effort preload + jump capture.
     try { preloadMessageFromNotification(data); } catch {}
     try { captureJumpFromNotification(data, url); } catch {}
+    // Suppress the bottom-nav unread badge contribution for the tapped scope
+    // for ~1.5s so the user doesn't see a "flash count then vanish" as the
+    // RPC returns the just-arrived message immediately before the chat page
+    // marks it read. See src/lib/pushTapSuppression.ts.
+    try {
+      const target = getJumpTarget(data, url);
+      if (target) {
+        suppressChatScope(target.kind as SuppressedChatKind, target.targetId, 1800);
+      }
+    } catch {}
     // Warm the chat page chunk in parallel with auth/profile bootstrap so it
     // is already in the module cache by the time the route mounts.
     try { prefetchChatChunkForUrl(url); } catch {}
