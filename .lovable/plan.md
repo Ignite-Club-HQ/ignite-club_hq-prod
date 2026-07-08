@@ -1,105 +1,119 @@
+# Gap-Data Recovery: Write Audit Log
 
-# Dev / Prod Environment Split
+Goal: after restoring the DB from a backup (daily or artifact), be able to replay every write that happened between the backup timestamp and the restore, so no user data is lost.
 
-Reuses your existing `main` / `prod` branch topology. Adds a parallel Supabase project for dev, dual Capacitor bundle IDs, dev-track mobile builds, and an automated promotion workflow that keeps frontend + backend in lockstep.
-
-## Final Topology
+## How it works
 
 ```text
-                 ┌──────────── main branch ────────────┐
-Lovable edits ──►│ Netlify preview  │ Codemagic (dev)  │──► Supabase DEV
-                 │ (auto-deploy)    │ TestFlight Intl. │    (ignite-dev)
-                 │                  │ Play Internal    │
-                 └──────────────────┴──────────────────┘
-                            │
-                            │  PR: main → prod
-                            ▼
-                 ┌──────────── prod branch ────────────┐
-                 │ GitHub Action:                       │
-                 │   1. supabase db push  ──────────────┼──► Supabase PROD
-                 │   2. supabase functions deploy       │    (existing)
-                 │   3. On success → Netlify + Codemagic│
-                 │      build against prod              │
-                 └──────────────────────────────────────┘
+user write ──> table (INSERT/UPDATE/DELETE)
+                │
+                └─> trigger ──> public.write_audit_log (row JSON + metadata)
+                                        │
+                                        └─> hourly edge function
+                                                    │
+                                                    └─> Supabase Storage
+                                                        (audit-log bucket, JSONL files)
+
+restore day:
+  1. restore prod from backup (loses gap writes AND audit table)
+  2. download audit JSONL files from Storage covering [backup_ts, incident_ts]
+  3. run replay script → re-applies INSERTs/UPDATEs/DELETEs in order
 ```
 
-Data never crosses. Code + migrations promote as one atomic PR.
+The audit table lives in the DB (fast writes, no network in the hot path), but is **continuously exported to Storage** so it survives a full restore.
 
-## What Gets Built
+## Critical tables to audit
 
-### 1. Second Supabase project (`ignite-dev`)
-- You create it on the Supabase free tier (£0; auto-pauses after 7 idle days, wakes on next request).
-- I generate a one-shot seed migration bundle (schema + policies + functions from current prod) for you to run against dev on first setup.
-- Storage buckets and edge-function secrets: you copy over manually (I'll produce a checklist).
+User-generated writes only — skip logs, presence, analytics, caches.
 
-### 2. Environment-aware app code
-- `src/integrations/supabase/client.ts` continues reading `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` — Netlify + Codemagic inject different values per branch, no code change needed.
-- New `src/lib/env.ts` exports `IS_DEV_ENV` (derived from Supabase URL match) and logs `[env] supabase=<host>` at boot.
-- New `<DevRibbon />` component — small "DEV" badge fixed top-right, only renders when `IS_DEV_ENV`.
+- events, rsvps, event_payments, event_guests, event_groups, event_group_players, event_group_duties
+- teams, clubs, team_memberships, club_players, children, child_guardians
+- messages: club_messages, team_messages, group_messages, direct_messages, chat_groups
+- photos, photo_albums, photo_comments, photo_reactions
+- competitions, competition_matches, competition_entries, game_results, game_player_stats
+- mini_leagues, mini_league_sessions, mini_league_players, mini_league_session_availability
+- class_enrolments, class_attendance
+- profiles, user_roles, notification_preferences
+- vault_folders, vault_files, vault_drive_links
+- polls, poll_options, poll_votes
+- eoi_submissions, member_referrals, member_subscription_payments, iap_transactions
+- drills, training_session_drills, event_session_drills
 
-### 3. Dual Capacitor configs
-- `capacitor.config.ts` reads `process.env.LOVABLE_ENV`:
-  - `LOVABLE_ENV=prod` → `appId: app.lovable.ignite`, `appName: Ignite`
-  - anything else → `appId: app.lovable.ignite.dev`, `appName: Ignite DEV`
-- Installs side-by-side on the same phone.
+~40 tables. Skip: *_log, *_perf, presence, unread caches, reminder_log, views, cron_locks.
 
-### 4. Netlify wiring (you configure in Netlify UI, I document exact values)
-- Site A (existing prod site): watches `prod`, env = Supabase PROD keys.
-- Site B (new dev site): watches `main`, env = Supabase DEV keys. Netlify auto-generates the URL.
+## Build steps
 
-### 5. Codemagic wiring (you configure, I document)
-- Existing prod workflow: unchanged (watches `prod`, prod bundle ID, App Store/Play).
-- New dev workflow: watches `main`, sets `LOVABLE_ENV=dev`, dev bundle ID, distributes to TestFlight Internal + Play Internal Testing.
+### 1. Audit table + generic trigger
 
-### 6. GitHub Action: `.github/workflows/promote-to-prod.yml`
-- Trigger: push to `prod`.
-- Steps (in order, hard-fails if any step errors):
-  1. Install Supabase CLI.
-  2. `supabase link --project-ref $SUPABASE_PROD_PROJECT_REF`
-  3. `supabase db push` — applies any new `supabase/migrations/*.sql` files.
-  4. `supabase functions deploy --project-ref $SUPABASE_PROD_PROJECT_REF`
-  5. Success → Netlify + Codemagic auto-trigger on the same commit and build the frontend.
-- If migrations fail, frontend never ships → no schema/UI mismatch possible.
+```sql
+CREATE TABLE public.write_audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  operation TEXT NOT NULL,      -- INSERT | UPDATE | DELETE
+  row_id TEXT,                  -- primary key as text
+  row_data JSONB NOT NULL,      -- NEW for INSERT/UPDATE, OLD for DELETE
+  old_data JSONB,               -- OLD for UPDATE (for reconstructing state)
+  actor_id UUID,                -- auth.uid() if available
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ON public.write_audit_log (occurred_at);
+CREATE INDEX ON public.write_audit_log (table_name, occurred_at);
+```
 
-### 7. Repo docs
-- `PROMOTION.md` — one-page checklist: "how to promote main → prod", "how to roll back", "what to do if a migration fails halfway."
+Generic trigger function that captures NEW/OLD as JSONB, attaches actor, table name, operation.
 
-## Your Manual Steps (I can't do these for you)
+Attached to all critical tables via a helper: `SELECT attach_write_audit('events'); ...`
 
-1. Create `ignite-dev` project in Supabase dashboard → give me the project ref.
-2. Generate Supabase personal access token at supabase.com/dashboard/account/tokens → save in password manager.
-3. Add three GitHub Actions secrets to your repo:
-   - `SUPABASE_ACCESS_TOKEN` (from step 2)
-   - `SUPABASE_PROD_PROJECT_REF` = `yabcfiuntwqjwvschnji`
-   - `SUPABASE_DEV_PROJECT_REF` = (from step 1)
-4. Create Netlify Site B pointing at `main`, paste dev Supabase keys as env vars.
-5. Duplicate Codemagic workflow to watch `main` with `LOVABLE_ENV=dev` + dev signing cert.
-6. Run the seed migration bundle against dev Supabase (one-time, from Supabase SQL editor — I'll give you the file).
-7. Copy edge-function secrets from prod Supabase → dev Supabase (I'll list which ones).
+### 2. Retention
 
-## Playback — What I Will Do In Code
+Nightly cron prunes rows older than 30 days from `write_audit_log` (after they've been exported). Keeps table small — writes stay fast.
 
-When you approve this plan, I will, in one pass:
+### 3. Hourly export to Storage
 
-1. **Create `src/lib/env.ts`** — env detection + boot log.
-2. **Create `src/components/DevRibbon.tsx`** — conditional DEV badge.
-3. **Mount `<DevRibbon />`** in `src/App.tsx` (top level, above routes).
-4. **Rewrite `capacitor.config.ts`** — env-switched appId/appName, keep existing plugin config.
-5. **Create `.github/workflows/promote-to-prod.yml`** — the migrate-then-deploy action.
-6. **Create `PROMOTION.md`** at repo root — checklist + rollback steps.
-7. **Create `SETUP-DEV-ENV.md`** at repo root — your step-by-step for the 7 manual steps above, with exact URLs, commands, and env-var names.
-8. **Generate the seed migration file** at `supabase/migrations/_seed-dev-from-prod.sql` (marked as manual-run only, not picked up by `db push` — has a comment header explaining this).
+New private bucket: `audit-log-exports`.
 
-I will **NOT**:
-- Touch the existing prod Supabase project.
-- Touch `main` branch behavior (Lovable continues editing here as normal).
-- Change any existing edge functions, RLS policies, or tables.
-- Modify the current Netlify or Codemagic prod pipeline.
+Edge function `export-write-audit` (scheduled hourly via pg_cron):
+- Queries rows since last export cursor
+- Writes JSONL file: `audit-log-exports/YYYY/MM/DD/HH.jsonl`
+- Advances cursor stored in `app_settings`
 
-Everything above is additive. If you decide to abandon the split later, deleting the two docs, the workflow file, `env.ts`, `DevRibbon.tsx`, and reverting `capacitor.config.ts` returns you to today's exact state.
+This is the critical piece — Storage survives DB restore.
 
-## Risk Recap
-- Zero risk to prod Supabase (never written to during setup).
-- Zero risk to prod Netlify site (different branch).
-- Zero risk to App Store / Play listings (different bundle ID for dev).
-- Only real risk: forgetting which environment you're testing → mitigated by DEV ribbon + boot log.
+### 4. Replay script (documented, not automated)
+
+`scripts/replay-audit-log.ts` — takes a start and end timestamp, downloads the matching JSONL files from Storage, replays them via service-role client:
+- INSERT: upsert with original id + row_data
+- UPDATE: update by id with row_data
+- DELETE: delete by id
+
+Manual, run-once-during-incident tool. Documented in `PROMOTION.md`.
+
+### 5. Write-overhead check
+
+After deploying triggers, spot-check `chat_open_perf` and event RSVP timings. Expect ~5-10% overhead on writes; if worse, drop audit on the highest-volume tables (messages) and rely on chat's own retention for those.
+
+## What this does NOT cover
+
+- Storage file uploads (photos, vault files) — files themselves are already durable in Storage buckets and unaffected by DB restore. Only DB rows referencing them are audited.
+- Schema changes — reverse migrations still handle these.
+- Auth.users writes — Supabase-managed, out of scope.
+
+## Trade-offs vs PITR
+
+| | Audit Log | PITR |
+|---|---|---|
+| Cost | ~$0 | $100/mo |
+| Coverage | Only listed tables | Entire DB |
+| Restore granularity | Per-write | Per-second |
+| Replay effort | Manual script run | Automatic |
+| Build effort | 1–2 days | 0 |
+| Ongoing maintenance | Prune + monitor exports | None |
+
+Good enough for current scale. Revisit PITR when revenue justifies it or the audit list becomes unwieldy.
+
+## Deliverables
+
+1. Migration: `write_audit_log` table, `attach_write_audit` helper, triggers on ~40 tables, retention function
+2. Storage bucket `audit-log-exports` (private)
+3. Edge function `export-write-audit` + pg_cron hourly schedule
+4. Replay script + `PROMOTION.md` runbook section
