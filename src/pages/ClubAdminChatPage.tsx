@@ -420,7 +420,8 @@ export default function ClubAdminChatPage() {
       setLocalMessages(undefined);
       return;
     }
-    setLocalMessages(getCachedClubAdminMessages(conversationId));
+    const cached = getCachedClubAdminMessages(conversationId);
+    setLocalMessages(cached && cached.length >= 2 ? cached : undefined);
   }, [conversationId]);
 
   // Sync localMessages with fetched messages
