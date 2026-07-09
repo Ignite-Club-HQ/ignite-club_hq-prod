@@ -157,6 +157,7 @@ jobs:
           ls -lh "$FILE"
 
       - name: Upload backup artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.backup.outputs.file }}
