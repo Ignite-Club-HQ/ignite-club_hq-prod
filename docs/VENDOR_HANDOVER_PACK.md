@@ -248,3 +248,9 @@ If any answer is *"not yet"*, do not accept operational ownership.
 ---
 
 *Companion documents:* `docs/VENDOR_HANDOVER.md` (full technical reference), `docs/PROMOTION.md` (release process), `docs/PROMOTION_CHECKLIST.md` (env var checklist).
+
+---
+
+## Appendix A — Outstanding manual actions
+
+- [ ] **Apply Firebase option 2 (R9a).** In DEV Supabase → Edge Function Secrets, delete: `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT`. Confirm the same four are present in PROD Supabase. Result: dev `push-fanout` cannot deliver to devices; prod unchanged. Optional follow-up: patch `push-fanout` to early-return when FCM env vars are absent so dev logs stay clean.
