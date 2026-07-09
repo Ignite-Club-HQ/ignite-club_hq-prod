@@ -23,6 +23,8 @@ name: Promote to Prod
 on:
   push:
     branches: [prod]
+  pull_request:
+    branches: [prod]
   workflow_dispatch: {}
 
 concurrency:
@@ -67,7 +69,11 @@ jobs:
 
       - name: Preview pending migration SQL
         run: |
-          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BEFORE="${{ github.event.pull_request.base.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+          fi
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             BEFORE="HEAD^"
           fi
@@ -93,7 +99,11 @@ jobs:
         # marker:  -- promote-guard: allow  (only do this after human review).
         run: |
           set -euo pipefail
-          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BEFORE="${{ github.event.pull_request.base.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+          fi
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             BEFORE="HEAD^"
           fi
@@ -130,6 +140,7 @@ jobs:
 
 
       - name: Backup PROD database (pre-migration)
+        if: github.event_name == 'push'
         id: backup
         run: |
           set -euo pipefail
@@ -146,6 +157,7 @@ jobs:
           ls -lh "$FILE"
 
       - name: Upload backup artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.backup.outputs.file }}
@@ -154,9 +166,11 @@ jobs:
           if-no-files-found: error
 
       - name: Apply pending migrations
+        if: github.event_name == 'push'
         run: supabase db push --linked
 
       - name: Deploy edge functions
+        if: github.event_name == 'push'
         # Deploys every function under supabase/functions/. Individual function
         # config (verify_jwt, import_map, etc.) still comes from
         # supabase/config.toml.
