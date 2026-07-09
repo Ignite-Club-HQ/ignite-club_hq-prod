@@ -1,163 +1,231 @@
-# Promoting `main` → `prod`
+# Dev → Prod Promotion Process
 
-This project uses a two-branch pipeline:
+This document describes the complete process for promoting changes from the dev environment (`main` branch) to production (`prod` branch). It covers frontend, backend, mobile (Codemagic), and the GitHub PR workflow.
 
-| Branch | Frontend host | Backend (Supabase) | Mobile track |
-|--------|--------------|--------------------|--------------|
+## Architecture Overview
+
+| Branch | Frontend | Backend (Supabase) | Mobile Track |
+|--------|----------|-------------------|--------------|
 | `main` | Netlify dev site | `ignite-dev` project | Codemagic dev → TestFlight Internal + Play Internal |
-| `prod` | Netlify prod site | prod project (`yabcfiuntwqjwvschnji`) | Codemagic prod → App Store + Play Store |
+| `prod` | Netlify prod site | `yabcfiuntwqjwvschnji` (prod) | Codemagic prod → App Store + Play Store |
 
-Lovable edits `main`. Nothing ever edits `prod` directly except the merge PR
-described below.
-
----
-
-## Standard promotion
-
-1. **Test on dev.** Verify the change in the Lovable preview, the Netlify dev
-   URL, and (if it touches native features) the TestFlight Internal /
-   Play Internal build.
-2. **Open a PR: `main` → `prod`.** Title it with what's shipping. Review the
-   diff — pay special attention to any new files under `supabase/migrations/`.
-   Those are the DB changes that will run against prod.
-3. **Merge the PR.** On merge, GitHub Actions
-   (`.github/workflows/promote-to-prod.yml`) runs automatically:
-   1. Links to prod Supabase
-   2. `supabase db push` — applies new migrations
-   3. `supabase functions deploy` — deploys edge functions
-   4. If both succeed, Netlify + Codemagic build the frontend against the
-      same commit
-4. **Watch the Action** (repo → Actions tab). If it goes green, prod is
-   consistent. If it goes red, see rollback below.
+**Key rule:** Lovable edits `main`. Nothing ever edits `prod` directly except the merge PR described below.
 
 ---
 
-## Rollback
+## Pre-Requisites
+
+Before you can promote, ensure the following are set up:
+
+### GitHub Repository
+- Two branches: `main` (default) and `prod`
+- GitHub Actions enabled
+
+### GitHub Actions Secrets (Settings → Secrets and variables → Actions)
+| Secret | Value | How to get it |
+|--------|-------|---------------|
+| `SUPABASE_ACCESS_TOKEN` | Personal access token | https://supabase.com/dashboard/account/tokens |
+| `SUPABASE_PROD_PROJECT_REF` | `yabcfiuntwqjwvschnji` | Supabase dashboard → prod project → Project Settings → General |
+| `SUPABASE_DB_PASSWORD` | Prod DB password | Supabase dashboard → prod project → Project Settings → Database → Connection string / Password |
+
+### Supabase Pro Plan (Prod only)
+- Point-in-Time Recovery (PITR) enabled: Supabase dashboard → prod project → Database → Backups → Point in Time Recovery
+- This is a one-time setup and is your safety net
+
+### Netlify
+- Two sites configured: one for dev (builds from `main`), one for prod (builds from `prod`)
+- The prod site only rebuilds when the GitHub Actions promotion workflow succeeds
+
+### Codemagic
+- Two workflows configured in `codemagic.yaml`: dev track and prod track
+- Dev track deploys to TestFlight Internal and Google Play Internal
+- Prod track deploys to App Store and Google Play Store
+- The prod track only triggers when the `prod` branch updates AND the GitHub Actions promotion succeeds
+
+---
+
+## The Promotion Process (Step by Step)
+
+### Step 1: Test on Dev
+
+Verify your changes thoroughly before opening a PR:
+
+1. **Lovable Preview:** Check the feature in the Lovable preview URL
+2. **Netlify Dev:** Visit the dev URL and verify frontend behavior
+3. **Supabase Dev:** If you made DB changes, verify them in the dev Supabase project
+4. **Mobile (if applicable):** If the change touches native features (push notifications, camera, etc.), install the latest TestFlight Internal or Play Internal build and test
+
+**Do not skip this step.** Once a PR is merged to `prod`, the automated pipeline runs immediately.
+
+---
+
+### Step 2: Open a Pull Request (main → prod)
+
+1. Go to your GitHub repository
+2. Click **Pull requests → New pull request**
+3. Set **base:** `prod`, **compare:** `main`
+4. Give the PR a clear title describing what is shipping (e.g., "Add write audit log and drop CLI marker table")
+5. In the PR description, list:
+   - What changed (high level)
+   - Any new Supabase migrations (check the diff — these will run against prod)
+   - Any new or updated edge functions
+   - Any frontend changes that need visual QA
+   - Any mobile-specific changes
+
+**Review the diff carefully.** Pay special attention to:
+- `supabase/migrations/` — these SQL files will execute on the live prod database
+- `supabase/functions/` — these will be redeployed to prod
+- Any destructive changes (DROP TABLE, ALTER COLUMN, etc.)
+
+---
+
+### Step 3: Get Approval and Merge
+
+1. Request review from the appropriate team member(s)
+2. Address any feedback
+3. Once approved, **merge the PR** (do not rebase — use a merge commit so `prod` has a clear history of what came from `main`)
+
+**What happens next is fully automated.**
+
+---
+
+### Step 4: Watch the GitHub Action
+
+On merge to `prod`, the `.github/workflows/promote-to-prod.yml` action runs automatically:
+
+| Step | What it does |
+|------|-------------|
+| 1. Verify secrets | Confirms `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROD_PROJECT_REF`, and `SUPABASE_DB_PASSWORD` are present |
+| 2. Link to prod | Links the Supabase CLI to the prod project |
+| 3. Backup prod | Runs `pg_dump` (schema, data, and roles) and uploads as a GitHub Actions artifact (retained 30 days) |
+| 4. Apply migrations | Runs `supabase db push` — applies any new migration files from `supabase/migrations/` |
+| 5. Deploy edge functions | Runs `supabase functions deploy` — redeploys all edge functions to prod |
+
+**Go to your repo → Actions tab → "Promote to Prod" workflow and watch it.**
+
+- **If it goes green (✅):** Backend is promoted. Netlify and Codemagic will now automatically build the frontend/mobile against the same commit.
+- **If it goes red (❌):** See "Rollback" below. The frontend has **not** been rebuilt — Netlify and Codemagic only trigger on a successful action.
+
+---
+
+### Step 5: Verify Production
+
+Once the GitHub Action is green:
+
+1. **Frontend:** Check the Netlify prod URL
+2. **Backend:** Verify migrations applied correctly in the prod Supabase dashboard (Database → Migrations)
+3. **Edge Functions:** Check the prod Supabase dashboard (Edge Functions) to confirm they deployed
+4. **Mobile:** Codemagic will have started a prod build. Monitor the Codemagic dashboard. Once complete, the build will be submitted to App Store / Play Store (or TestFlight / Play Internal depending on your Codemagic config).
+
+---
+
+## Rollback Procedures
 
 ### If the GitHub Action fails during migrations
 
-- The prod frontend has **not** been rebuilt yet — Netlify + Codemagic only
-  trigger on a successful Action. Users see no change.
-- The DB may be partially migrated. Open the Action logs, find the failing
-  SQL statement, and either:
-  - Fix forward: patch the migration file on `main`, merge to `prod` again,
-    re-run.
-  - Manually unwind the partial change in the Supabase SQL editor, then fix
-    forward.
+**The prod frontend has NOT been rebuilt.** Users see no change. But the DB may be partially migrated.
+
+1. Open the Action logs and find the failing SQL statement
+2. Choose one path:
+   - **Fix forward (recommended):** Patch the migration file on `main`, open a new PR to `prod`, merge again. The action will re-run from the backup step.
+   - **Manual unwind:** Use the Supabase SQL editor to undo the partial change, then fix forward.
 
 ### If prod is broken after a green promotion
 
-- **Frontend regression only:** revert the merge commit on `prod`
-  (`git revert -m 1 <sha>` locally, push, or use GitHub's "Revert" button).
-  Netlify + Codemagic will rebuild the previous version.
-- **DB regression:** write a *new* migration that undoes the change and
-  promote it the normal way. Never delete or rewrite a migration file that
-  has already run against prod — `supabase db push` tracks applied
-  migrations by filename.
+**Frontend regression only:**
+- Revert the merge commit on `prod`:
+  - Option A: Use GitHub's "Revert" button on the PR
+  - Option B: Locally: `git revert -m 1 <merge-commit-sha>`, then push to `prod`
+- Netlify and Codemagic will rebuild the previous version automatically
+
+**Database regression:**
+- Write a **new** migration that undoes the bad change and promote it the normal way
+- **Never** delete or rewrite a migration file that has already run against prod — `supabase db push` tracks applied migrations by filename
+
+### Disaster Recovery (in order of preference)
+
+1. **Forward reverse-migration** — write a new migration that undoes the bad change and promote it normally. Zero data loss. Best for schema mistakes caught after legitimate writes have landed.
+
+2. **Supabase PITR** — dashboard → Database → Backups → Point in Time. Restore prod to any exact second within the 7-day retention window. Covers `public` schema, `auth.users`, and `storage`. Best for bad migrations, accidental mass deletes, or corruption.
+
+3. **Pre-promotion artifact restore** — last resort:
+   - Go to Actions → Promote to Prod → the bad run → Artifacts → download `prod-backup-*.tar.gz`
+   - Set `SUPABASE_DB_URL` to the prod connection string
+   - Run `./scripts/restore-prod-backup.sh path/to/backup.tar.gz`
+   - **Warning:** This DESTROYS anything written since the backup and does NOT restore `auth.users` or `storage`
+   - After restore, revert the frontend by re-promoting the prior commit to `prod`
+   - Consider replaying the gap window using the write audit log (see PROMOTION.md "Gap-Data Recovery")
 
 ---
 
-## Disaster recovery stack (Supabase Pro — PITR enabled)
+## What NOT To Do
 
-Prod is on the Supabase **Pro plan with Point-in-Time Recovery (PITR)**
-enabled. Recovery options, in order of preference:
-
-1. **Forward reverse-migration** — write a new migration that undoes the bad
-   change and promote it normally. Zero data loss. Use for schema mistakes
-   caught after some legitimate writes have already landed.
-2. **Supabase PITR** (dashboard → Database → Backups → Point in Time) —
-   restore prod to any exact second within the retention window (7 days on
-   Pro by default). Covers everything: `public` schema, `auth.users`,
-   `storage`. Use for bad migrations, accidental mass deletes, corruption
-   caught within the window.
-3. **Pre-promotion artifact restore** (`scripts/restore-prod-backup.sh`) —
-   last-resort nuclear restore from the GitHub Actions tarball. Use only if
-   PITR is unavailable or the incident is older than the PITR window.
-   DESTROYS anything written since the backup and does NOT restore
-   `auth.users` or `storage`.
-
-**Enabling PITR:** Supabase dashboard → prod project → Database → Backups →
-Point in Time Recovery → enable. One-time setup.
+- ❌ **Don't edit `prod` directly.** Always merge from `main`.
+- ❌ **Don't run `supabase db push` from your laptop against prod.** Only the GitHub Action should touch prod.
+- ❌ **Don't copy data from prod → dev or vice versa via the promotion flow.** Data copies are manual: Supabase dashboard → Database → Backups → Restore to another project.
+- ❌ **Don't rename or delete migration files after they've been applied.** Supabase tracks applied migrations by filename.
 
 ---
 
-## What NOT to do
+## Codemagic Specifics
 
+The `codemagic.yaml` in the repo root defines two build tracks:
 
-- ❌ Don't edit `prod` directly. Always merge from `main`.
-- ❌ Don't run `supabase db push` from your laptop against prod. Only the
-  GitHub Action should touch prod.
-- ❌ Don't copy data from prod → dev or vice versa via the promotion flow.
-  Data is manual (Supabase → Database → Backups → Restore to another project).
-- ❌ Don't rename or delete migration files after they've been applied.
+| Workflow | Trigger | Destination |
+|----------|---------|-------------|
+| `android-debug-workflow` / `ios-debug-workflow` | `main` branch push or manual | TestFlight Internal / Google Play Internal |
+| `android-prod-workflow` / `ios-prod-workflow` | `prod` branch push (after GitHub Action succeeds) | App Store / Google Play Store |
 
-## Rolling back a bad promotion
+**Key points:**
+- The prod Codemagic workflows should be configured to only run after the GitHub Actions promotion succeeds, or they will build against a commit whose backend hasn't been promoted yet
+- Version codes are auto-generated (epoch-based) so every build is unique
+- The `.env` file committed to the repo points to dev Supabase. For prod builds, ensure Codemagic overrides `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` to the prod values (either via Codemagic environment variables or a build script)
 
-Every promotion runs `supabase db dump` against prod *before* applying
-migrations, and uploads the result as a GitHub Actions artifact
-(`prod-backup-<timestamp>-<sha>.tar.gz`, retained 30 days).
+---
 
-Options in order of preference:
+## PR Template (Copy into GitHub)
 
-1. **Forward reverse-migration** (safe, no data loss) — write a new migration
-   that undoes the bad change, PR → merge to `prod` as normal.
-2. **Supabase PITR** — dashboard → Database → Backups. Point-in-time restore.
-3. **Nuclear restore from the pre-promotion artifact** — DESTROYS anything
-   written to prod since the backup:
-   1. Actions → Promote to Prod → the bad run → Artifacts → download the tarball.
-   2. `export SUPABASE_DB_URL='postgresql://postgres:<PWD>@db.<REF>.supabase.co:5432/postgres'`
-   3. `./scripts/restore-prod-backup.sh prod-backup-*.tar.gz`
-   4. Revert the frontend by re-promoting the prior commit to `prod`.
-   5. **Replay the gap window** so no user writes are lost — see next section.
+```markdown
+## What's shipping
+[Describe the change in 1-2 sentences]
 
-## Gap-Data Recovery (Write Audit Log)
+## Backend changes
+- [ ] New migrations: [list files]
+- [ ] New edge functions: [list names]
+- [ ] Updated edge functions: [list names]
+- [ ] No backend changes
 
-Every write to ~40 user-facing tables is captured by a Postgres trigger into
-`public.write_audit_log`, and exported hourly to the private Storage bucket
-`audit-log-exports` (JSONL files at `YYYY/MM/DD/HH-<startId>-<endId>.jsonl`).
+## Frontend changes
+- [ ] New pages / components
+- [ ] Updated existing UI
+- [ ] No frontend changes
 
-The audit *table* is lost when the DB is restored; the Storage *files* are not.
-Use those files to replay every insert/update/delete that happened between the
-backup timestamp and the restore.
+## Mobile impact
+- [ ] Affects native features (camera, push, etc.)
+- [ ] No mobile impact
 
-### Replay procedure
+## Testing
+- [ ] Tested on dev (Lovable preview + Netlify dev)
+- [ ] Tested on mobile (TestFlight Internal / Play Internal) if applicable
+- [ ] DB migrations verified on dev
 
-1. Note two timestamps in UTC:
-   - `start` — the backup's `created_at` (or the moment just before the bad change).
-   - `end` — the moment you triggered the restore.
-2. Force an immediate audit export so the last partial hour is on Storage:
-   ```
-   curl -X POST https://<REF>.supabase.co/functions/v1/export-write-audit \
-     -H "apikey: <ANON_KEY>"
-   ```
-3. Dry-run the replay to review scope:
-   ```
-   SUPABASE_URL=https://<REF>.supabase.co \
-   SUPABASE_SERVICE_ROLE_KEY=<service_role> \
-   deno run --allow-env --allow-net --allow-read scripts/replay-audit-log.ts \
-     --start "2026-07-08T10:00:00Z" \
-     --end   "2026-07-08T14:30:00Z" \
-     --dry-run
-   ```
-4. Review the printed summary (rows per table, per op).
-5. Rerun without `--dry-run` to apply. Failures are logged per row; the script
-   continues so a single bad row doesn't halt recovery.
-6. Optional: pass `--tables events,rsvps` to scope the replay.
+## Risk assessment
+- [ ] Low risk (UI only, no DB changes)
+- [ ] Medium risk (DB migrations are additive only)
+- [ ] High risk (destructive DB changes, auth changes, payment changes)
+```
 
-### Retention & monitoring
+---
 
-- `public.prune_write_audit_log()` runs nightly at 03:15 UTC and deletes rows
-  older than 30 days from the DB (Storage files are kept indefinitely — set a
-  bucket lifecycle rule if cost matters).
-- Export cursor lives in `app_settings` under key `write_audit_export_cursor`.
-- If the hourly export starts failing, alerts land in edge function logs. Check
-  `/functions/export-write-audit/logs`.
+## Quick Reference Checklist
 
-### Not covered
+Before every promotion:
 
-- Storage file uploads (photos, vault files) — files are durable in their own
-  buckets and unaffected by a DB restore; only DB rows referencing them are
-  audited.
-- Schema changes — use reverse migrations.
-- `auth.users` — Supabase-managed, out of scope.
-
+- [ ] Feature tested on dev
+- [ ] PR opened: `main` → `prod`
+- [ ] Diff reviewed, especially `supabase/migrations/`
+- [ ] PR approved
+- [ ] PR merged (merge commit, not rebase)
+- [ ] GitHub Action "Promote to Prod" watched until completion
+- [ ] If green: verified on prod frontend, backend, and mobile
+- [ ] If red: followed rollback procedure, fixed forward, re-promoted
