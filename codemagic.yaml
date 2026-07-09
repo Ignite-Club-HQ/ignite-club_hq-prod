@@ -203,15 +203,23 @@ workflows:
     artifacts:
       - android/app/build/outputs/**/*.aab
   ios-debug-workflow:
-    name: iOS Debug Build
+    name: iOS Debug Build (DEV)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      vars:
+        # DEV track — builds against committed .env (dev Supabase +
+        # app.lovable.igniteteamhub.dev appId via capacitor.config.ts).
+        LOVABLE_ENV: "dev"
       xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
