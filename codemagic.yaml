@@ -209,8 +209,9 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       vars:
-        # DEV track — builds against committed .env (dev Supabase +
-        # app.lovable.igniteteamhub.dev appId via capacitor.config.ts).
+        # DEV track — builds against committed .env (dev Supabase).
+        # App ID is always the PROD bundle; use Google Play Internal testing
+        # track to separate DEV builds from Production.
         LOVABLE_ENV: "dev"
       xcode: latest
       node: 22
