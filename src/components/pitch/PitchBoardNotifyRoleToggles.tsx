@@ -74,7 +74,7 @@ export function PitchBoardNotifyRoleToggles({ teamId, readOnly }: Props) {
     try {
       const { error } = await supabase
         .from("team_subscriptions")
-        .upsert({ team_id: teamId, [COLS[key]]: next }, { onConflict: "team_id" });
+        .upsert({ team_id: teamId, [COLS[key]]: next } as never, { onConflict: "team_id" });
       if (error) throw error;
     } catch (e) {
       console.error("Failed to update pitch notify flag", e);
