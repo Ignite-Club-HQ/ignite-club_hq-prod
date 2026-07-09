@@ -175,6 +175,7 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 | R7 | Apple/Google signing certs expire | Low | High | Calendar reminders 60 days out; store in vault | Client |
 | R8 | Supabase project hits Free-tier / Pro-tier limits under growth | Medium | High | Monitor DB size, egress, MAU; upgrade before 80% | Vendor |
 | R9 | No PITR (cost decision) — RPO = 24h | Accepted | Medium | Nightly backups + pre-migration schema dump. Reconsider at scale. | Client |
+| R9a | Shared Firebase (FCM) project across dev & prod | Accepted | Low | **Target state (option 2):** FCM secrets (`FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT`) present in PROD Supabase only; removed from DEV Supabase so dev `push-fanout` cannot send. Single Firebase project retained (one Android package ID, one console). See §8. | Client |
 | R10 | Chat scale (virtualization, presence) at >500 DAU | Medium | High | See `mem://scaling/near-term`; plan work before hitting threshold | Vendor |
 | R11 | Third-party credential leak via chat/screenshots | Medium | Critical | Password manager only; rotate on any suspicion | Vendor |
 | R12 | Native app store rejection on next release | Low | Medium | Test flight/internal track before production track | Vendor |
