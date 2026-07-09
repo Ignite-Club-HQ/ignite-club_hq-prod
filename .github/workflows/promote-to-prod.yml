@@ -69,7 +69,11 @@ jobs:
 
       - name: Preview pending migration SQL
         run: |
-          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BEFORE="${{ github.event.pull_request.base.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+          fi
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             BEFORE="HEAD^"
           fi
