@@ -130,9 +130,10 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 - Recent migration touching `profiles`, `user_roles`, or triggers? Roll back via nightly backup.
 
 **Push notifications not delivered**
-- Confirm FCM credentials valid in Supabase secrets.
+- Confirm FCM credentials valid in **PROD** Supabase secrets (`FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT`). These must NOT be present in DEV — see R9a.
 - Check `push-fanout` edge function logs.
 - Verify device tokens in `device_tokens` table are fresh (<30 days).
+- One Firebase project serves both envs; the DEV/PROD split lives in Supabase secrets, not in Firebase.
 
 **Emails not sending**
 - Check Resend dashboard: bounces, domain verification.
