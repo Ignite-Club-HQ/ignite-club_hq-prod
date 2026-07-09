@@ -1713,7 +1713,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         formation_data: formationData,
         drawing_data: drawingData,
         created_by: user.id,
-      });
+      } as never);
       
       if (error) throw error;
     },
