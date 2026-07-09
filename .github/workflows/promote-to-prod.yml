@@ -166,6 +166,7 @@ jobs:
           if-no-files-found: error
 
       - name: Apply pending migrations
+        if: github.event_name == 'push'
         run: supabase db push --linked
 
       - name: Deploy edge functions
