@@ -40,6 +40,8 @@ jobs:
     steps:
       - name: Check out prod
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
@@ -59,6 +61,28 @@ jobs:
 
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: List pending migrations
+        run: supabase migration list --linked
+
+      - name: Preview pending migration SQL
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+          echo "=== Migration files changed since $BEFORE ==="
+          git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true
+
+          echo ""
+          echo "=== SQL content ==="
+          git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ | while read -r file; do
+            if [ -f "$file" ]; then
+              echo "--- $file ---"
+              cat "$file"
+              echo ""
+            fi
+          done
 
       - name: Backup PROD database (pre-migration)
         id: backup
