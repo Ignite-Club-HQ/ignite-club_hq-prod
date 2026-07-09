@@ -15,7 +15,7 @@
 // (yabcfiuntwqjwvschnji) is intentionally NOT here — anything not in this
 // list is treated as prod.
 const DEV_PROJECT_REFS: readonly string[] = [
-  "qwlskgrzpnrpzjkatsef", // ignite-dev (Ignite Club HQ DEV)
+  "ecsdwrarzfexssxtrymj", // Ignite Club HQ DEV
 ];
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
