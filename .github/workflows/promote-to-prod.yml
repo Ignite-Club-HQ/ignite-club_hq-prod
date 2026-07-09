@@ -140,6 +140,7 @@ jobs:
 
 
       - name: Backup PROD database (pre-migration)
+        if: github.event_name == 'push'
         id: backup
         run: |
           set -euo pipefail
