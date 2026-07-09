@@ -467,17 +467,44 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
+      groups:
+        # Codemagic UI → Environment variables → add group `supabase_prod`
+        # containing (secure):
+        #   VITE_SUPABASE_PUBLISHABLE_KEY = <prod anon key>
+        - supabase_prod
       vars:
         # Numeric App Store ID for this app — used to ask ASC for the latest
         # build number for this exact marketing version via the Codemagic-managed integration. Public value;
         # safe to commit. Find it in App Store Connect → My Apps → App
         # Information → "Apple ID". This may also be supplied as a Codemagic env var.
         APP_STORE_APPLE_ID: "6758928691"
+        # PROD track — switches capacitor.config.ts to the prod appId /
+        # display name and (see next step) rewrites .env to prod Supabase.
+        LOVABLE_ENV: "prod"
+        VITE_SUPABASE_URL: "https://yabcfiuntwqjwvschnji.supabase.co"
+        VITE_SUPABASE_PROJECT_ID: "yabcfiuntwqjwvschnji"
       xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Rewrite .env for PROD
+        # Overwrites the committed dev .env with prod values so Vite bakes
+        # the prod Supabase URL + anon key into the bundle. Fails fast if
+        # the anon key isn't set (missing supabase_prod group in Codemagic).
+        script: |
+          set -euo pipefail
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set — add 'supabase_prod' env group in Codemagic"
+            exit 1
+          fi
+          cat > .env <<EOF
+          VITE_SUPABASE_URL="${VITE_SUPABASE_URL}"
+          VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID}"
+          VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
+          EOF
+          echo "=== .env rewritten for PROD ==="
+          grep -v PUBLISHABLE_KEY .env
       - name: Build web app
         script: |
           npm run build
