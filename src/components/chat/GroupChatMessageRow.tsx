@@ -49,6 +49,7 @@ const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "👍": "👍",
   "😢": "😢",
   "🎉": "🎉",
+  "😮": "😮",
   like: "❤️",
   fire: "🔥",
   clap: "👏",
@@ -56,6 +57,7 @@ const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   thumbsup: "👍",
   sad: "😢",
   celebrate: "🎉",
+  wow: "😮",
 };
 
 const normalizeGroupReactionType = (reactionType?: string | null) => {
