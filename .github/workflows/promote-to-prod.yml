@@ -84,6 +84,51 @@ jobs:
             fi
           done
 
+      - name: Guard against destructive migrations
+        # Fails the job (before backup/apply) if any pending migration file
+        # contains DML/DDL that could nuke prod media rows or their URL columns.
+        # This is a safety net for accidental "fix dev images" queries that
+        # slip into supabase/migrations/ and would otherwise run against prod.
+        # Whitelist a specific migration by adding a line containing the exact
+        # marker:  -- promote-guard: allow  (only do this after human review).
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+
+          FILES=$(git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true)
+          if [ -z "$FILES" ]; then
+            echo "No pending migration files — guard passes."
+            exit 0
+          fi
+
+          # Case-insensitive, whitespace-tolerant patterns.
+          # Blocks writes/drops targeting media-bearing tables or their URL cols.
+          PATTERNS='(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url)\b'
+
+          failed=0
+          for file in $FILES; do
+            [ -f "$file" ] || continue
+            if grep -qiE -- '--[[:space:]]*promote-guard:[[:space:]]*allow' "$file"; then
+              echo "⚠️  $file has promote-guard allow marker — skipping."
+              continue
+            fi
+            if grep -niE -- "$PATTERNS" "$file"; then
+              echo "::error file=$file::Migration contains a statement that could destroy prod media data. Review and either remove the statement or add the marker '-- promote-guard: allow' after human review."
+              failed=1
+            fi
+          done
+
+          if [ "$failed" = "1" ]; then
+            echo ""
+            echo "❌ Promotion halted BEFORE backup/apply. No changes made to prod."
+            exit 1
+          fi
+          echo "✅ Guard passed — no destructive statements against media tables."
+
+
       - name: Backup PROD database (pre-migration)
         id: backup
         run: |
