@@ -170,6 +170,7 @@ jobs:
         run: supabase db push --linked
 
       - name: Deploy edge functions
+        if: github.event_name == 'push'
         # Deploys every function under supabase/functions/. Individual function
         # config (verify_jwt, import_map, etc.) still comes from
         # supabase/config.toml.
