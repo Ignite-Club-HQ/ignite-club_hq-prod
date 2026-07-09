@@ -139,21 +139,19 @@ jobs:
           echo "✅ Guard passed — no destructive statements against media tables."
 
 
-      - name: Backup PROD database (pre-migration)
+      - name: Backup PROD schema + roles (pre-migration)
         if: github.event_name == 'push'
         id: backup
         run: |
           set -euo pipefail
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-          FILE="prod-backup-${STAMP}-${GITHUB_SHA::7}.sql.gz"
+          FILE="prod-schema-backup-${STAMP}-${GITHUB_SHA::7}.tar.gz"
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
-          # `supabase db dump` uses the linked project + SUPABASE_DB_PASSWORD.
-          # --data-only=false (default) captures schema + data. Roles/auth
-          # schema come from separate flags.
+          # Schema + roles only — fast (~15s). Row data is captured by the
+          # nightly-backup workflow (.github/workflows/nightly-backup.yml).
           supabase db dump --linked -f prod-schema.sql
-          supabase db dump --linked --data-only -f prod-data.sql
           supabase db dump --linked --role-only -f prod-roles.sql
-          tar czf "$FILE" prod-schema.sql prod-data.sql prod-roles.sql
+          tar czf "$FILE" prod-schema.sql prod-roles.sql
           ls -lh "$FILE"
 
       - name: Upload backup artifact
@@ -164,6 +162,7 @@ jobs:
           path: ${{ steps.backup.outputs.file }}
           retention-days: 30
           if-no-files-found: error
+
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
