@@ -10,6 +10,8 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { isNotificationPrefetchEnabled } from './notificationPrefetchFlag';
+import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
 
 // Lazy load Capacitor core to prevent crashes if not available
 let Capacitor: any = null;
@@ -509,7 +511,22 @@ export function setupNativePushListeners(
           }));
           return;
         }
-        
+
+        // PERF: warm the target chat page's JS chunk NOW (on receive), not
+        // later when the user taps. Gated by the app-admin kill-switch
+        // `notification_prefetch_enabled` so we can disable remotely without
+        // shipping a new build. See the chat_open_perf audit — Android
+        // tap→chunk-loaded was p50 379ms / p95 1.2s because prefetch fired
+        // on the same tick as navigate.
+        try {
+          if (isNotificationPrefetchEnabled()) {
+            const rawUrl = data?.url || data?.link || data?.path;
+            if (rawUrl) prefetchChatChunkForUrl(rawUrl);
+          }
+        } catch {
+          // Never let a perf hint break notification delivery.
+        }
+
         onNotificationReceived?.(notification);
       }
     );
