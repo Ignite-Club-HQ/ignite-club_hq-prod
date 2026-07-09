@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -9733,39 +9733,6 @@ export type Database = {
         }
         Relationships: []
       }
-      write_audit_log: {
-        Row: {
-          actor_id: string | null
-          id: number
-          occurred_at: string
-          old_data: Json | null
-          operation: string
-          row_data: Json
-          row_id: string | null
-          table_name: string
-        }
-        Insert: {
-          actor_id?: string | null
-          id?: number
-          occurred_at?: string
-          old_data?: Json | null
-          operation: string
-          row_data: Json
-          row_id?: string | null
-          table_name: string
-        }
-        Update: {
-          actor_id?: string | null
-          id?: number
-          occurred_at?: string
-          old_data?: Json | null
-          operation?: string
-          row_data?: Json
-          row_id?: string | null
-          table_name?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       competition_ladder: {
@@ -9929,7 +9896,6 @@ export type Database = {
         Returns: undefined
       }
       archive_season: { Args: { _season_id: string }; Returns: undefined }
-      attach_write_audit: { Args: { p_table: string }; Returns: undefined }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -11215,7 +11181,6 @@ export type Database = {
           push_logs_deleted: number
         }[]
       }
-      prune_write_audit_log: { Args: never; Returns: number }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
       quick_rsvp_from_dm: {
