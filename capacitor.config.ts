@@ -5,20 +5,23 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * ================
  * Codemagic sets LOVABLE_ENV=prod in the prod workflow, and LOVABLE_ENV=dev
  * (or leaves it unset) in the dev workflow. That drives:
- *   - which bundle ID / appId the native app is built with, so dev + prod
- *     apps install side-by-side on the same phone
  *   - which display name shows under the icon
+ *   - which Supabase environment the app talks to (via .env)
  *
- * PROD  → app.lovable.igniteteamhub        "Ignite"
- * DEV   → app.lovable.igniteteamhub.dev    "Ignite DEV"
+ * App ID is always the PROD bundle so both DEV and PROD builds upload to the
+ * same Google Play Console app. Use release tracks (Internal testing vs
+ * Production) to separate test and live builds — do NOT use separate package
+ * names, which would require two app listings.
+ *
+ * PROD  → "Ignite"
+ * DEV   → "Ignite DEV"
  */
 const IS_PROD = process.env.LOVABLE_ENV === 'prod';
 
-const PROD_APP_ID = 'app.lovable.igniteteamhub';
-const DEV_APP_ID = 'app.lovable.igniteteamhub.dev';
+const APP_ID = 'app.lovable.igniteteamhub';
 
 const config: CapacitorConfig = {
-  appId: IS_PROD ? PROD_APP_ID : DEV_APP_ID,
+  appId: APP_ID,
   appName: IS_PROD ? 'Ignite' : 'Ignite DEV',
   webDir: 'dist',
   // Remove server.url to bundle web app locally for offline support
