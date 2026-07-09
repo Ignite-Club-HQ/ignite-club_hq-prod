@@ -14,21 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _lovable_cli_marker: {
-        Row: {
-          at: string | null
-          note: string | null
-        }
-        Insert: {
-          at?: string | null
-          note?: string | null
-        }
-        Update: {
-          at?: string | null
-          note?: string | null
-        }
-        Relationships: []
-      }
       active_games: {
         Row: {
           board_session_id: string
