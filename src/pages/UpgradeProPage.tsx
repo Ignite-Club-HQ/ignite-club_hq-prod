@@ -262,7 +262,7 @@ export default function UpgradeProPage() {
           promo_code_id: promoData.id,
           activated_at: new Date().toISOString(),
           expires_at: newExpiresAt.toISOString(),
-        }, { onConflict: "team_id" });
+        } as never, { onConflict: "team_id" });
 
       if (subError) throw subError;
 

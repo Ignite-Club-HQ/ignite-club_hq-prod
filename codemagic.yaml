@@ -1,16 +1,25 @@
 workflows:
   android-debug-workflow:
-    name: Android Debug Build
+    name: Android Debug Build (DEV)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
       groups:
         - android_signing
+      vars:
+        # DEV track — builds against committed .env (dev Supabase).
+        # App ID is always the PROD bundle; use Google Play Internal testing
+        # track to separate DEV builds from Production.
+        LOVABLE_ENV: "dev"
       java: 21
       node: 22
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
       - name: Build web app
         script: npm run build
       - name: Add Android platform
@@ -195,15 +204,24 @@ workflows:
     artifacts:
       - android/app/build/outputs/**/*.aab
   ios-debug-workflow:
-    name: iOS Debug Build
+    name: iOS Debug Build (DEV)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      vars:
+        # DEV track — builds against committed .env (dev Supabase).
+        # App ID is always the PROD bundle; use Google Play Internal testing
+        # track to separate DEV builds from Production.
+        LOVABLE_ENV: "dev"
       xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
@@ -451,17 +469,44 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
+      groups:
+        # Codemagic UI → Environment variables → add group `supabase_prod`
+        # containing (secure):
+        #   VITE_SUPABASE_PUBLISHABLE_KEY = <prod anon key>
+        - supabase_prod
       vars:
         # Numeric App Store ID for this app — used to ask ASC for the latest
         # build number for this exact marketing version via the Codemagic-managed integration. Public value;
         # safe to commit. Find it in App Store Connect → My Apps → App
         # Information → "Apple ID". This may also be supplied as a Codemagic env var.
         APP_STORE_APPLE_ID: "6758928691"
+        # PROD track — switches capacitor.config.ts to the prod appId /
+        # display name and (see next step) rewrites .env to prod Supabase.
+        LOVABLE_ENV: "prod"
+        VITE_SUPABASE_URL: "https://yabcfiuntwqjwvschnji.supabase.co"
+        VITE_SUPABASE_PROJECT_ID: "yabcfiuntwqjwvschnji"
       xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Rewrite .env for PROD
+        # Overwrites the committed dev .env with prod values so Vite bakes
+        # the prod Supabase URL + anon key into the bundle. Fails fast if
+        # the anon key isn't set (missing supabase_prod group in Codemagic).
+        script: |
+          set -euo pipefail
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set — add 'supabase_prod' env group in Codemagic"
+            exit 1
+          fi
+          cat > .env <<EOF
+          VITE_SUPABASE_URL="${VITE_SUPABASE_URL}"
+          VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID}"
+          VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
+          EOF
+          echo "=== .env rewritten for PROD ==="
+          grep -v PUBLISHABLE_KEY .env
       - name: Build web app
         script: |
           npm run build
@@ -907,3 +952,208 @@ workflows:
         auth: integration
         submit_to_testflight: true
         # Note: Internal testers are added directly in App Store Connect, not via beta_groups
+
+  android-workflow:
+    name: Android Build (PROD)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - android_signing
+        - supabase_prod
+      vars:
+        # PROD track — builds against prod Supabase.
+        # App ID is the PROD bundle; upload .aab to Google Play Production track.
+        LOVABLE_ENV: "prod"
+        VITE_SUPABASE_URL: "https://yabcfiuntwqjwvschnji.supabase.co"
+        VITE_SUPABASE_PROJECT_ID: "yabcfiuntwqjwvschnji"
+      java: 21
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Rewrite .env for PROD
+        script: |
+          set -euo pipefail
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set — add 'supabase_prod' env group in Codemagic"
+            exit 1
+          fi
+          cat > .env <<EOF
+          VITE_SUPABASE_URL="${VITE_SUPABASE_URL}"
+          VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID}"
+          VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
+          EOF
+          echo "=== .env rewritten for PROD ==="
+          grep -v PUBLISHABLE_KEY .env
+      - name: Confirm env
+        script: |
+          echo "LOVABLE_ENV=$LOVABLE_ENV"
+          grep VITE_SUPABASE_URL .env || true
+      - name: Build web app
+        script: npm run build
+      - name: Add Android platform
+        script: npx cap add android || true
+      - name: Copy Firebase config
+        script: |
+          mkdir -p android/app
+          cp firebase/google-services.json android/app/google-services.json
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Patch Firebase receiver for Android 12+
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "FirebaseInstanceIdReceiver" "$MANIFEST"; then
+            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter></receiver></application>|' "$MANIFEST"
+            echo "FirebaseInstanceIdReceiver injected into AndroidManifest.xml"
+          else
+            echo "FirebaseInstanceIdReceiver already present"
+          fi
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
+      - name: Add Crashlytics Gradle plugin
+        script: |
+          cd android
+          if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
+          fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
+          if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
+            echo "" >> app/build.gradle
+            echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
+          fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
+      - name: Copy app icons
+        script: |
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_notification.xml android/app/src/main/res/drawable/
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+          echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
+          echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
+      - name: Add custom URL scheme intent-filter
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:scheme="igniteclubhq"' "$MANIFEST"; then
+            sed -i '' '/<\/activity>/i\
+                <intent-filter>\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="igniteclubhq" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== igniteclubhq:// intent-filter injected ==="
+          else
+            echo "=== igniteclubhq:// intent-filter already present ==="
+          fi
+      - name: Add App Links intent-filter for igniteclubhq.app
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:host="igniteclubhq.app"' "$MANIFEST"; then
+            sed -i '' '/<\/activity>/i\
+                <intent-filter android:autoVerify="true">\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="https" android:host="igniteclubhq.app" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== App Links intent-filter for igniteclubhq.app injected ==="
+          else
+            echo "=== App Links intent-filter for igniteclubhq.app already present ==="
+          fi
+      - name: Configure notification icon
+        script: |
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+      - name: Disable lint abort for release
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              lintOptions {
+                  abortOnError false
+              }
+          }
+          GRADLE
+      - name: Set up keystore
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/ignite-upload.keystore
+          cat > android/key.properties << EOF
+          storeFile=/tmp/ignite-upload.keystore
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          keyPassword=$CM_KEY_PASSWORD
+          EOF
+      - name: Configure signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      def props = new Properties()
+                      props.load(new FileInputStream(rootProject.file("key.properties")))
+                      storeFile file(props['storeFile'])
+                      storePassword props['storePassword']
+                      keyAlias props['keyAlias']
+                      keyPassword props['keyPassword']
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+      - name: Increment version code
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          EPOCH_BASE=1704067200
+          NOW=$(date +%s)
+          NEW_VC=$(( NOW - EPOCH_BASE ))
+          echo "=== Target versionCode: $NEW_VC (epoch-seconds, timestamp: $NOW) ==="
+          echo "=== Before replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
+          sed -i '' -E "s/versionCode[ =]+[0-9]+/versionCode = $NEW_VC/" "$GRADLE_FILE"
+          echo "=== After replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE"
+      - name: Build Android Release
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab

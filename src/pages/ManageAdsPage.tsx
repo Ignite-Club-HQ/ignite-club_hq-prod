@@ -328,7 +328,7 @@ export default function ManageAdsPage() {
 
   const updateSettingMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: string; value: boolean }) => {
-      const { error } = await supabase.from("app_ad_settings").update({ [field]: value }).eq("id", id);
+      const { error } = await supabase.from("app_ad_settings").update({ [field]: value } as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

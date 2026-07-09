@@ -309,7 +309,7 @@ function ChatMessageInner({
             [messageIdField]: id,
             user_id: userId,
             reaction_type: reactionType,
-          })
+          } as never)
           .select("id, user_id, reaction_type")
           .single();
 

@@ -1,45 +1,119 @@
-# Per-group-chat row badges via `chat_group_unread`
+# Gap-Data Recovery: Write Audit Log
 
-## Goal
-Move per-row unread badges for **group chats** (both "League" and "Group" rows in MessagesPage) off the `get_unread_message_counts` RPC path and onto the denormalised `chat_group_unread` cache table. Other scopes (teams, clubs, DMs, broadcast) keep using the RPC unchanged. This is the payoff for the cache table we already shipped.
+Goal: after restoring the DB from a backup (daily or artifact), be able to replay every write that happened between the backup timestamp and the restore, so no user data is lost.
 
-## Why this is worth doing
-- Removes the group-messages JOIN + aggregate from the hottest inbox RPC.
-- Per-row badges update instantly via realtime on `chat_group_unread` (one row per user/group) instead of waiting for a full RPC refetch on every notification.
-- Cheap fallback: if the hook errors, rows fall back to the existing `unreadCounts.groups[id]` value, so nothing breaks.
+## How it works
 
-## Scope (what changes)
+```text
+user write ──> table (INSERT/UPDATE/DELETE)
+                │
+                └─> trigger ──> public.write_audit_log (row JSON + metadata)
+                                        │
+                                        └─> hourly edge function
+                                                    │
+                                                    └─> Supabase Storage
+                                                        (audit-log bucket, JSONL files)
 
-### 1. New hook: `useGroupChatUnreadCache`
-Reads the current user's rows from `chat_group_unread` and returns `Record<groupId, unread_count>`.
-- Single query keyed by `["chat-group-unread-cache", userId]`.
-- Realtime subscription on `chat_group_unread` filtered by `user_id=eq.${userId}` — INSERT/UPDATE/DELETE all patch the local cache (no refetch needed since payload contains `group_id` + `unread_count`).
-- Same `staleTime`/jitter defaults as `useUnreadMessageCounts`.
-- Cleanup removes the channel on unmount (per project realtime rule).
+restore day:
+  1. restore prod from backup (loses gap writes AND audit table)
+  2. download audit JSONL files from Storage covering [backup_ts, incident_ts]
+  3. run replay script → re-applies INSERTs/UPDATEs/DELETEs in order
+```
 
-### 2. MessagesPage wiring
-- Call `useGroupChatUnreadCache(user?.id)` alongside the existing `useUnreadMessageCounts` call.
-- At the two row-build sites (League rows ~L2255, Group rows ~L2289), use the cache value when defined and fall back to `unreadCounts?.groups[group.id] ?? 0`.
+The audit table lives in the DB (fast writes, no network in the hot path), but is **continuously exported to Storage** so it survives a full restore.
 
-### 3. Existing invalidation paths
-- `markChatScopeRead.ts` and other spots that currently mutate `unread-message-counts` cache should also invalidate `["chat-group-unread-cache", userId]` so opening a thread clears the row badge instantly (the DB trigger will follow via realtime, but the invalidation guarantees no flicker).
-- No change to `useAuth.tsx` realtime — its notification-driven invalidations still keep the RPC-sourced totals in sync for other scopes.
+## Critical tables to audit
 
-## Out of scope
-- No change to `get_unread_message_counts` RPC yet. Once this ships and is stable, we can revisit removing the `grps` CTE from the RPC as a follow-up.
-- No change to the global inbox pill (BottomNav / AppHeader) — it still totals via the RPC.
-- Team/club/DM row badges unchanged.
+User-generated writes only — skip logs, presence, analytics, caches.
 
-## Technical notes
-- `chat_group_unread` schema: `(group_id uuid, user_id uuid, unread_count int, last_read_message_id uuid, updated_at timestamptz)`.
-- RLS is already scoped to `user_id = auth.uid()`; the realtime filter is redundant server-side but reduces client-side event volume.
-- The cache covers both "personal" chat groups and club/team/mini-league groups (triggers fire on all `group_messages` inserts), so both League and Group rows are handled by the same hook.
-- Realtime payload for UPDATE gives us `new.unread_count` directly — no follow-up fetch.
+- events, rsvps, event_payments, event_guests, event_groups, event_group_players, event_group_duties
+- teams, clubs, team_memberships, club_players, children, child_guardians
+- messages: club_messages, team_messages, group_messages, direct_messages, chat_groups
+- photos, photo_albums, photo_comments, photo_reactions
+- competitions, competition_matches, competition_entries, game_results, game_player_stats
+- mini_leagues, mini_league_sessions, mini_league_players, mini_league_session_availability
+- class_enrolments, class_attendance
+- profiles, user_roles, notification_preferences
+- vault_folders, vault_files, vault_drive_links
+- polls, poll_options, poll_votes
+- eoi_submissions, member_referrals, member_subscription_payments, iap_transactions
+- drills, training_session_drills, event_session_drills
 
-## Rollback
-Delete the hook, remove the two fallback lookups. Rows revert to reading `unreadCounts.groups[id]` from the RPC. Zero DB changes required to roll back.
+~40 tables. Skip: *_log, *_perf, presence, unread caches, reminder_log, views, cron_locks.
 
-## Files touched
-- `src/hooks/useGroupChatUnreadCache.ts` (new, ~60 lines)
-- `src/pages/MessagesPage.tsx` (2 small edits at row-build sites)
-- `src/lib/markChatScopeRead.ts` (add one invalidation)
+## Build steps
+
+### 1. Audit table + generic trigger
+
+```sql
+CREATE TABLE public.write_audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  operation TEXT NOT NULL,      -- INSERT | UPDATE | DELETE
+  row_id TEXT,                  -- primary key as text
+  row_data JSONB NOT NULL,      -- NEW for INSERT/UPDATE, OLD for DELETE
+  old_data JSONB,               -- OLD for UPDATE (for reconstructing state)
+  actor_id UUID,                -- auth.uid() if available
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ON public.write_audit_log (occurred_at);
+CREATE INDEX ON public.write_audit_log (table_name, occurred_at);
+```
+
+Generic trigger function that captures NEW/OLD as JSONB, attaches actor, table name, operation.
+
+Attached to all critical tables via a helper: `SELECT attach_write_audit('events'); ...`
+
+### 2. Retention
+
+Nightly cron prunes rows older than 30 days from `write_audit_log` (after they've been exported). Keeps table small — writes stay fast.
+
+### 3. Hourly export to Storage
+
+New private bucket: `audit-log-exports`.
+
+Edge function `export-write-audit` (scheduled hourly via pg_cron):
+- Queries rows since last export cursor
+- Writes JSONL file: `audit-log-exports/YYYY/MM/DD/HH.jsonl`
+- Advances cursor stored in `app_settings`
+
+This is the critical piece — Storage survives DB restore.
+
+### 4. Replay script (documented, not automated)
+
+`scripts/replay-audit-log.ts` — takes a start and end timestamp, downloads the matching JSONL files from Storage, replays them via service-role client:
+- INSERT: upsert with original id + row_data
+- UPDATE: update by id with row_data
+- DELETE: delete by id
+
+Manual, run-once-during-incident tool. Documented in `PROMOTION.md`.
+
+### 5. Write-overhead check
+
+After deploying triggers, spot-check `chat_open_perf` and event RSVP timings. Expect ~5-10% overhead on writes; if worse, drop audit on the highest-volume tables (messages) and rely on chat's own retention for those.
+
+## What this does NOT cover
+
+- Storage file uploads (photos, vault files) — files themselves are already durable in Storage buckets and unaffected by DB restore. Only DB rows referencing them are audited.
+- Schema changes — reverse migrations still handle these.
+- Auth.users writes — Supabase-managed, out of scope.
+
+## Trade-offs vs PITR
+
+| | Audit Log | PITR |
+|---|---|---|
+| Cost | ~$0 | $100/mo |
+| Coverage | Only listed tables | Entire DB |
+| Restore granularity | Per-write | Per-second |
+| Replay effort | Manual script run | Automatic |
+| Build effort | 1–2 days | 0 |
+| Ongoing maintenance | Prune + monitor exports | None |
+
+Good enough for current scale. Revisit PITR when revenue justifies it or the audit list becomes unwieldy.
+
+## Deliverables
+
+1. Migration: `write_audit_log` table, `attach_write_audit` helper, triggers on ~40 tables, retention function
+2. Storage bucket `audit-log-exports` (private)
+3. Edge function `export-write-audit` + pg_cron hourly schedule
+4. Replay script + `PROMOTION.md` runbook section

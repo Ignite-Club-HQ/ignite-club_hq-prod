@@ -102,7 +102,7 @@ export function NativePushCard({ userId }: NativePushCardProps) {
           user_id: userId,
           [key]: value,
           updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" });
+        } as never, { onConflict: "user_id" });
       
       if (error) {
         console.error('[NativePushCard] Error updating preference:', error);

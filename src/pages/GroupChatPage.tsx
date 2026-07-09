@@ -879,6 +879,36 @@ export default function GroupChatPage() {
         reply_to: m.reply_to,
       })));
 
+      // Identity bail-out: if merged is structurally identical to prev
+      // (same IDs in same order, same reaction id-set per message, same
+      // text/image_url), return prev so Virtuoso doesn't see a new `data`
+      // reference and doesn't run a re-layout pass that flashes the
+      // viewport blank for a frame on cold-start push taps.
+      if (prev && prev.length === mergedMessages.length) {
+        let identical = true;
+        for (let i = 0; i < prev.length; i++) {
+          const a = prev[i] as any;
+          const b = mergedMessages[i] as any;
+          if (
+            a.id !== b.id ||
+            a.text !== b.text ||
+            a.image_url !== b.image_url ||
+            a.reply_to_id !== b.reply_to_id
+          ) { identical = false; break; }
+          const ar: any[] = a.reactions || [];
+          const br: any[] = b.reactions || [];
+          if (ar.length !== br.length) { identical = false; break; }
+          if (ar.length > 0) {
+            const aIds = new Set(ar.map((r) => r.id));
+            for (const r of br) {
+              if (!aIds.has(r.id)) { identical = false; break; }
+            }
+            if (!identical) break;
+          }
+        }
+        if (identical) return prev;
+      }
+
       return mergedMessages;
     });
   }, [messages, reactions, groupId]);
@@ -2102,7 +2132,11 @@ export default function GroupChatPage() {
     ((group as any).allowed_roles as string[]).some((r) =>
       ["coach", "team_admin", "committee_member", "club_admin"].includes(r),
     );
-  if (isClubRoleGroup && !groupClubProLoading && !groupClubHasPro) {
+  // Only show the Pro lock once the pro-access query has actually resolved.
+  // Before `chatReady` flips true the query is disabled, so isLoading=false and
+  // hasPro=false — without the chatReady + club_id guards the locked screen
+  // flashes for one frame on cold-start push taps into a Pro club chat.
+  if (isClubRoleGroup && chatReady && !!group?.club_id && !groupClubProLoading && !groupClubHasPro) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 p-4 border-b">

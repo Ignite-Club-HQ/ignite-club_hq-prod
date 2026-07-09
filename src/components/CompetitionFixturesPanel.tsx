@@ -1408,7 +1408,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
     }
     const { error } = await supabase
       .from("competition_matches")
-      .update(payload)
+      .update(payload as never)
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
