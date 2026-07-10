@@ -183,7 +183,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // that felt like excessive whitespace. 44 keeps a single-line frontier
   // + inline timestamp fully visible with a small breathing gap without
   // opening a large empty band above the composer.
-  const COMPOSER_GAP = 44;
+  // Bumped from 44 → 64: the composer background bar + typing/predictive-text
+  // toolbars measured on-device (Android/iOS) frequently exceed the composer's
+  // measured DOM height by 12–20px, and the read-frontier strip that hydrates
+  // AFTER the initial pin was landing under the composer with only 44px of
+  // clearance (report 2026-07-10: latest bubble body clipped behind composer
+  // in club committee group chat). 64 leaves a full comfortable gap on all
+  // chat surfaces without opening a large empty band.
+  const COMPOSER_GAP = 64;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -459,6 +466,48 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     });
     return () => cancelAnimationFrame(r1);
   }, [composerHeight, virtualReady, virtualHandleRef]);
+
+  // Belt-and-braces #2: when the keyboard opens OR a new last message arrives
+  // while near the bottom, force a re-pin using the CURRENT bottomPadding.
+  // Virtuoso's `followOutput` can miss the append if the atBottom check reads
+  // stale scrollTop the moment the visual viewport shrinks (keyboard opening
+  // and message arrival in the same frame on Android). This effect covers
+  // the case where the main pin effect updated its prev-refs during the
+  // mount-quiet window and no re-pin ever fires — the report symptom being
+  // the newest incoming bubble body sitting behind the composer after tap.
+  const lastKnownLastIdRef = useRef<string | null>(null);
+  const lastKnownKbRef = useRef(isKeyboardOpen);
+  useEffect(() => {
+    if (!virtualReady) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    const lastChanged = lastId !== lastKnownLastIdRef.current;
+    const kbChanged = lastKnownKbRef.current !== isKeyboardOpen;
+    lastKnownLastIdRef.current = lastId;
+    lastKnownKbRef.current = isKeyboardOpen;
+    if (!lastChanged && !kbChanged) return;
+    if (!handle.isNearBottom(360)) return;
+    const pin = () => {
+      if (isChatJumpActive()) return;
+      handle.scrollToBottom("auto", { force: true });
+      markChatScrollWrite();
+    };
+    // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
+    // braces at 120/280/520ms to cover reply-pill / typing-indicator growth.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(pin);
+    });
+    const timers = [120, 280, 520].map((delay) =>
+      window.setTimeout(() => {
+        if (handle.isNearBottom(360)) pin();
+      }, delay),
+    );
+    return () => {
+      cancelAnimationFrame(r1);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [messages, isKeyboardOpen, virtualReady, virtualHandleRef]);
 
 
   // Stable renderer identity — recreating it on every parent re-render
