@@ -136,6 +136,25 @@ function useSettledChatMountBox(quietMs: number = 240) {
   return { ref, settled };
 }
 
+function getActiveFixedChatComposers() {
+  if (typeof window === "undefined" || typeof document === "undefined") return [];
+
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-chat-chrome="true"]'))
+    .filter((element) => {
+      const style = window.getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      if (style.position !== "fixed") return false;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+
+      // ChatHeaderShell also uses data-chat-chrome for overscroll locking, but
+      // it is top chrome. Only bottom fixed chrome can cover the last message.
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.bottom;
+      return rect.top >= viewportHeight * 0.35;
+    });
+}
+
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
@@ -194,12 +213,9 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const parentRect = parent.getBoundingClientRect();
     let composerRect: DOMRect | null = null;
-    const composers = Array.from(document.querySelectorAll<HTMLElement>('[data-chat-chrome="true"]'));
+    const composers = getActiveFixedChatComposers();
     for (const composer of composers) {
-      const style = window.getComputedStyle(composer);
-      if (style.display === "none" || style.visibility === "hidden") continue;
       const rect = composer.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) continue;
       composerRect = rect;
       break;
     }
@@ -222,9 +238,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const host = mountBoxRef.current;
     const parent = host?.parentElement ?? host;
-    const composers = typeof document !== "undefined"
-      ? Array.from(document.querySelectorAll<HTMLElement>('[data-chat-chrome="true"]'))
-      : [];
+    const composers = getActiveFixedChatComposers();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncBottomClearance) : null;
     if (parent) observer?.observe(parent);
     composers.forEach((composer) => observer?.observe(composer));
