@@ -36,8 +36,8 @@ const SPORTS = Object.keys(SPORT_EMOJIS);
 const PRO_FEATURES = [
   "Club-wide announcements & chat",
   "DMs & custom groups",
-  "Unlimited photo & media uploads (Free: 20/month)",
-  "Unlimited file storage (Free: 10 files / 100 MB)",
+  "Unlimited photo & media uploads (Free: 10/month)",
+  "Unlimited file storage (Free: 10 files / 25 MB)",
   "Unlimited polls (Free: 2/month)",
   "Scheduled messages",
   "Pinned vault files in chat",
