@@ -294,14 +294,11 @@ export default function AuthPage() {
   const isSignInKeyboardOpen = isSignInMode && isFormKeyboardOpen;
   const isSignupKeyboardOpen = !isSignInMode && isFormKeyboardOpen;
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-  // Root cause of the Android auth clipping bug: with Capacitor 8 / modern
-  // Android WebView, `100vh` can ALREADY be the keyboard-reduced viewport even
-  // though Keyboard.resize is configured as `none`. Subtracting Capacitor's
-  // keyboardHeight from that value double-subtracts the IME and leaves a
-  // ~400px-tall shell, clipping the password/sign-in controls while the rest of
-  // the screen appears as blank background. For Android auth, keep the shell at
-  // `100vh`; the compact sign-in form sits above the keyboard whether the
-  // WebView resized or the IME overlays it. iOS still needs explicit subtraction.
+  // Android auth must not subtract the keyboard height from `100vh`: on modern
+  // WebViews the CSS viewport may already be keyboard-reduced even when
+  // Keyboard.resize is `none`, so subtracting again causes the huge blank-gap /
+  // clipped-button bug. Use the app's locked viewport var instead of raw `vh`
+  // so OEM resize drift doesn't collapse the shell mid-keyboard animation.
   const authViewportHeight = isFormKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
       ? 'var(--visual-vh, 100vh)'
@@ -573,7 +570,7 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-y-auto' : ''}`}
+        className={`flex-1 flex flex-col items-center overflow-y-auto px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
