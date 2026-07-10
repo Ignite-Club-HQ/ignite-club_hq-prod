@@ -1557,7 +1557,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef} data-chat-chrome="true"
+             ref={composerRef} data-chat-chrome="true" data-chat-composer="true"
              className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
@@ -1570,7 +1570,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef} data-chat-chrome="true"
+             ref={composerRef} data-chat-chrome="true" data-chat-composer="true"
              className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >

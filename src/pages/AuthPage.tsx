@@ -231,7 +231,7 @@ export default function AuthPage() {
   }, [isNativePlatform]);
 
   useEffect(() => {
-    if (authMode !== "signin" || !isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") {
+    if (!isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") {
       return;
     }
 
@@ -255,7 +255,7 @@ export default function AuthPage() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [authMode, isNativePlatform, nativeKeyboardVisible]);
+  }, [isNativePlatform, nativeKeyboardVisible]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -290,27 +290,26 @@ export default function AuthPage() {
   }, []);
 
   const isSignInMode = authMode === "signin";
-  const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
+  const isFormKeyboardOpen = isNativePlatform && nativeKeyboardVisible;
+  const isSignInKeyboardOpen = isSignInMode && isFormKeyboardOpen;
+  const isSignupKeyboardOpen = !isSignInMode && isFormKeyboardOpen;
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-  // Root cause of the Android auth clipping bug: with Capacitor 8 / modern
-  // Android WebView, `100vh` can ALREADY be the keyboard-reduced viewport even
-  // though Keyboard.resize is configured as `none`. Subtracting Capacitor's
-  // keyboardHeight from that value double-subtracts the IME and leaves a
-  // ~400px-tall shell, clipping the password/sign-in controls while the rest of
-  // the screen appears as blank background. For Android auth, keep the shell at
-  // `100vh`; the compact sign-in form sits above the keyboard whether the
-  // WebView resized or the IME overlays it. iOS still needs explicit subtraction.
-  const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
+  // Android auth must not subtract the keyboard height from `100vh`: on modern
+  // WebViews the CSS viewport may already be keyboard-reduced even when
+  // Keyboard.resize is `none`, so subtracting again causes the huge blank-gap /
+  // clipped-button bug. Use the app's locked viewport var instead of raw `vh`
+  // so OEM resize drift doesn't collapse the shell mid-keyboard animation.
+  const authViewportHeight = isFormKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
-      ? '100vh'
+      ? 'var(--visual-vh, 100vh)'
       : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
     : isAndroid
-      ? '100vh'
+      ? 'var(--visual-vh, 100vh)'
       : 'var(--stable-vh, 100dvh)';
   const authShellStyle = {
     height: authViewportHeight,
     paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',
-    paddingBottom: isSignInKeyboardOpen
+    paddingBottom: isFormKeyboardOpen
       ? '0px'
       : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
   };
@@ -539,10 +538,18 @@ export default function AuthPage() {
     ? isSignInKeyboardOpen
       ? 'space-y-4 py-2'
       : `${shouldLowerDefaultSignIn ? 'translate-y-4' : ''} space-y-8 py-6`
-    : 'space-y-8 py-8 my-auto';
+    : isSignupKeyboardOpen
+      ? 'space-y-4 py-2'
+      : 'space-y-8 py-8 my-auto';
   const signInCardContentClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFormClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFieldClassName = isSignInKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
+  const signupCardContentClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signupFormClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signupFieldClassName = isSignupKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
+  const authCardClassName = isAndroid && isFormKeyboardOpen
+    ? 'border-border/50 bg-card/95'
+    : 'border-border/50 bg-card/50 backdrop-blur-sm';
 
   return (
     <div
@@ -563,15 +570,15 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-y-auto' : ''}`}
+        className={`flex-1 flex flex-col items-center overflow-y-auto px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
-        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
-          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
-            <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
+        <div className={`flex flex-col items-center transition-all duration-200 ${isFormKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isFormKeyboardOpen ? 'p-2' : 'p-4'}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${isFormKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
-          {!isSignInKeyboardOpen && (
+          {!isFormKeyboardOpen && (
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           )}
         </div>
@@ -592,7 +599,7 @@ export default function AuthPage() {
           </div>
         )}
 
-        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+        <Card className={authCardClassName}>
           {authMode === "signin" ? (
             <>
               <CardHeader className={isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
@@ -749,15 +756,17 @@ export default function AuthPage() {
             </>
           ) : (
             <>
-              <CardHeader className="pb-2">
-                <h2 className="text-xl font-semibold text-center">Create Account</h2>
+              <CardHeader className={isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+                <h2 className={`font-semibold text-center ${isSignupKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Create Account</h2>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <CardDescription className="text-center">
-                  Create an account to get started.
-                </CardDescription>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+              <CardContent className={signupCardContentClassName}>
+                {!isSignupKeyboardOpen && (
+                  <CardDescription className="text-center">
+                    Create an account to get started.
+                  </CardDescription>
+                )}
+                <div className={signupFormClassName}>
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -771,7 +780,7 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -793,7 +802,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                     {password && (
-                      <div className="space-y-1 mt-2">
+                      <div className={`${isSignupKeyboardOpen ? 'space-y-0.5 mt-1' : 'space-y-1 mt-2'}`}>
                         {passwordRequirements.map((req, idx) => {
                           const met = req.test(password);
                           return (
@@ -825,7 +834,7 @@ export default function AuthPage() {
                       </div>
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-confirm-password">Confirm Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -918,7 +927,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign in link - only shown when NOT in invite flow */}
-                  {!isInInviteFlow && (
+                  {!isInInviteFlow && !isSignupKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
                       <button
@@ -944,7 +953,7 @@ export default function AuthPage() {
         />
 
         {/* Footer Links — hidden when keyboard is open on native sign-in */}
-        {!isSignInKeyboardOpen && (
+        {!isFormKeyboardOpen && (
           <div className="text-center text-xs text-muted-foreground space-y-2">
             <div className="flex justify-center gap-4">
               {Capacitor.isNativePlatform() ? (
