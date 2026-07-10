@@ -183,7 +183,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // that felt like excessive whitespace. 44 keeps a single-line frontier
   // + inline timestamp fully visible with a small breathing gap without
   // opening a large empty band above the composer.
-  const COMPOSER_GAP = 44;
+  // Bumped from 64 → 88 (2026-07-10 pm): after sending, the OWN-message row
+  // grows AFTER the pin as the read-frontier ("Sent / Read by") strip and
+  // the inline timestamp hydrate. At 64px of gap the newly-sent bubble body
+  // was still landing partially behind the fixed composer on Android (user
+  // report: "when I send a message I can't see what I have sent"). 88 leaves
+  // enough clearance for a two-line frontier + timestamp + reaction pill row
+  // without opening a large blank band above the composer.
+  const COMPOSER_GAP = 88;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -459,6 +466,59 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     });
     return () => cancelAnimationFrame(r1);
   }, [composerHeight, virtualReady, virtualHandleRef]);
+
+  // Belt-and-braces #2: when the keyboard opens OR a new last message arrives
+  // while near the bottom, force a re-pin using the CURRENT bottomPadding.
+  // Virtuoso's `followOutput` can miss the append if the atBottom check reads
+  // stale scrollTop the moment the visual viewport shrinks (keyboard opening
+  // and message arrival in the same frame on Android). This effect covers
+  // the case where the main pin effect updated its prev-refs during the
+  // mount-quiet window and no re-pin ever fires — the report symptom being
+  // the newest incoming bubble body sitting behind the composer after tap.
+  const lastKnownLastIdRef = useRef<string | null>(null);
+  const lastKnownKbRef = useRef(isKeyboardOpen);
+  useEffect(() => {
+    if (!virtualReady) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    const lastChanged = lastId !== lastKnownLastIdRef.current;
+    const kbChanged = lastKnownKbRef.current !== isKeyboardOpen;
+    lastKnownLastIdRef.current = lastId;
+    lastKnownKbRef.current = isKeyboardOpen;
+    if (!lastChanged && !kbChanged) return;
+    // When a new last message arrives (very often the user's own just-sent
+    // message via optimistic append), use a generous tolerance: the row
+    // grows AFTER the initial pin as the read-frontier + timestamp hydrate,
+    // which can push `isNearBottom` past the tight 360px threshold for a
+    // frame. Missing the pin in that window leaves the sent bubble behind
+    // the composer (user report 2026-07-10). A wider tolerance is safe:
+    // if the user was genuinely scrolled up reading history, they won't
+    // be within 800px of bottom.
+    const tolerance = lastChanged ? 800 : 360;
+    if (!handle.isNearBottom(tolerance)) return;
+    const pin = () => {
+      if (isChatJumpActive()) return;
+      handle.scrollToBottom("auto", { force: true });
+      markChatScrollWrite();
+    };
+    // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
+    // braces at 120/280/520/900ms to cover reply-pill / typing-indicator
+    // growth AND the read-frontier hydration that can trail 500–800ms behind
+    // the optimistic message append on slower Android devices.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(pin);
+    });
+    const timers = [120, 280, 520, 900].map((delay) =>
+      window.setTimeout(() => {
+        if (handle.isNearBottom(tolerance)) pin();
+      }, delay),
+    );
+    return () => {
+      cancelAnimationFrame(r1);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [messages, isKeyboardOpen, virtualReady, virtualHandleRef]);
 
 
   // Stable renderer identity — recreating it on every parent re-render

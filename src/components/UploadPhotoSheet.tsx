@@ -668,7 +668,7 @@ export function UploadPhotoSheet({
         const usedCount = Number(usage.photo_uploads_this_cycle ?? 0);
         if (usedCount + selectedPhotos.length > FREE_PHOTOS) {
           toast.error(
-            "You've used your 20 free photo uploads this cycle. Upgrade to Pro for unlimited uploads.",
+            "You've used your 10 free photo uploads this cycle. Upgrade to Pro for unlimited uploads.",
           );
           return;
         }

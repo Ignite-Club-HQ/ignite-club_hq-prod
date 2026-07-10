@@ -338,7 +338,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             return;
           }
           if (Number(usage.chat_file_storage_bytes ?? 0) + file.size > FREE_FILE_BYTES) {
-            toast.error("Your club has used its 100 MB free chat file storage this cycle. Upgrade to Pro for unlimited chat attachments.");
+            toast.error("Your club has used its 25 MB free chat file storage this cycle. Upgrade to Pro for unlimited chat attachments.");
             if (docInputRef.current) docInputRef.current.value = "";
             return;
           }
