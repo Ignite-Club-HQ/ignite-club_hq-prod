@@ -61,6 +61,7 @@ import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import { initWebNotificationLaunchHandler } from "./lib/webNotificationLaunchHandler";
+import { initNotificationPrefetchFlag } from "./lib/notificationPrefetchFlag";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
 import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
@@ -144,6 +145,11 @@ try {
   initNotificationLaunchHandler();
 } catch (e) {
   console.error('[Main] Notification launch handler init failed:', e);
+}
+try {
+  initNotificationPrefetchFlag();
+} catch (e) {
+  console.error('[Main] Notification prefetch flag init failed:', e);
 }
 
 // Register service worker - SKIP on native platforms (Capacitor bundles locally)

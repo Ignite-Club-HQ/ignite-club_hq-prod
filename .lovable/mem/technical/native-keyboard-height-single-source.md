@@ -1,14 +1,22 @@
 ---
 name: Native keyboard height single source of truth
-description: useNativeKeyboardHeight must NOT add a second vvShrink/baseline pass on top of useNativeAndroidKeyboardState
+description: useNativeKeyboardHeight passes through per-platform hooks. Android computeHeight must trust the Capacitor plugin height, not visualViewport-derived vvTotalInset (which can inflate when baseline drifts).
 type: constraint
 ---
-`useNativeAndroidKeyboardState` already does all keyboard-height reconciliation: raw-plugin → CSS px conversion, `visualViewport.height` cross-check, and 60%-of-innerHeight cap.
+`useNativeAndroidKeyboardState` reconciles Android IME height from two signals:
+1. Capacitor Keyboard plugin `keyboardHeight` (raw → CSS px if it looks like device px)
+2. `visualViewport.height` (as a fallback/augment signal, NEVER an inflator)
 
-`useNativeKeyboardHeight` MUST simply pass that value through. Any second pass (subtracting `androidBaselineHeight - vv.height` again, applying another ceiling) double-processes the inset and produces inverted/over-corrected values that float the fixed-position chat composer mid-screen on Samsung/Xiaomi/OEM Gboard configs where the WebView partially shrinks despite `Keyboard.resize: 'none'`.
+**HARD RULE: the Capacitor plugin value is the ground truth.** It comes from Android's `InputMethodManager` and reports the actual keyboard height in CSS px (after DPR conversion). `visualViewport` may only be used to:
+- Fill in when the plugin never fired (focus-in on an already-open IME).
+- Bump the value UP when the plugin under-reports vs the *current* WebView overlay (Gboard toolbar/predictive strip). Bounded by `window.innerHeight - vv.height` — never by `baselineH - vv.height`.
 
-Symptom of the bug: composer rendered halfway up the screen with chat messages bleeding visibly below it and above the keyboard.
+A previous version used `vvTotalInset = baselineH - vv.height` as the primary signal whenever it exceeded 24px. `baselineH` is the monotonic-max of `innerHeight` (locked via `--visual-vh`). If baseline had ever been inflated — rotation history, OEM WebView shrink then restore, split-screen leftover — but the current WebView hadn't shrunk, `vvTotalInset` returned hundreds of px MORE than the actual keyboard. Chat pages subtract this from AppLayout height, so the chat shell collapsed to composer-only and left a huge blank strip between the composer and the physical keyboard. Reported by users tapping Reply on Android (Damian, 2026-07-10).
 
-**Why:** Two stacked reconciliations of the same `vvShrink` quantity always cancel or invert. Only one place may reconcile.
+`useNativeKeyboardHeight` MUST stay a thin platform switch — do NOT layer another vvShrink/baseline pass on top.
 
-**How to apply:** Keep the per-platform hooks (`useNativeAndroidKeyboardState`, `useNativeIOSKeyboardState`) as the single source of truth. `useNativeKeyboardHeight` is a thin platform-switch only.
+`useNativeKeyboardBottomInset` (for fixed-position composers) is separate: it computes the *remaining* overlay after any OEM WebView resize.
+
+Symptom of the bug: composer floating at the top of the visible area with 300-500px of blank background between it and the keyboard, or floating mid-screen.
+
+**Why:** `baselineH` is intentionally monotonic-max to protect AppLayout from transient WebView shrinks (see mem://technical/android-visual-vh-lock). That same property makes it a bad denominator for keyboard-height inference. Always trust the plugin; use `layoutH - vv.height` as an upper bound.

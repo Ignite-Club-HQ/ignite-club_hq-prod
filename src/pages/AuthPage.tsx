@@ -281,19 +281,19 @@ export default function AuthPage() {
 
   const isSignInMode = authMode === "signin";
   const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
-  // On Android with adjustResize, window.innerHeight already excludes the keyboard,
-  // so --stable-vh shrinks when the keyboard opens. Using --stable-vh - keyboardHeight
-  // would double-subtract the keyboard. Instead, use innerHeight directly when keyboard
-  // is open on Android, or just use --stable-vh (which stays stable on iOS).
+  // The app runs Capacitor with `Keyboard.resize: 'none'`, so the WebView
+  // viewport (window.innerHeight / 100vh) does NOT shrink when the soft
+  // keyboard opens on Android. We must subtract the keyboard height manually
+  // — otherwise the shell stays full physical height, `justify-start` pins
+  // the form to the top of the screen, and a large blank gap appears
+  // between the form and the keyboard.
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
   // On Android, --stable-vh can be momentarily stale right after logout (e.g.
   // the previous screen had the soft keyboard open, so innerHeight was small).
-  // Using it here causes the auth shell to render short and then visibly grow
-  // — pulling the centered content upward. Use 100vh on Android so the shell
-  // is always full-screen; the WebView's adjustResize handles keyboard insets.
+  // Use 100vh as the closed-keyboard baseline; subtract keyboard height when open.
   const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
-      ? '100vh' // Android adjustResize already shrinks the viewport — don't subtract again
+      ? `calc(100vh - ${nativeKeyboardHeight}px)`
       : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
     : isAndroid
       ? '100vh'
