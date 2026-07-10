@@ -164,6 +164,56 @@ jobs:
           if-no-files-found: error
 
 
+      - name: Repair migration history drift
+        # Prod's supabase_migrations.schema_migrations table can contain
+        # historical migration versions that no longer exist as files in the
+        # repo (legacy Lovable-applied migrations from before the dev/prod
+        # split). `supabase db push` refuses to run when it sees remote-only
+        # versions. This step marks any prod-only version as "reverted" so
+        # the CLI ignores it, then `db push` applies only the local files
+        # that are genuinely pending.
+        #
+        # Safe because "reverted" does NOT run any SQL against prod — it
+        # only updates the history bookkeeping table so local ⇔ remote
+        # reconciles. The actual objects those old migrations created
+        # remain untouched.
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          echo "=== Fetching remote migration list ==="
+          REMOTE_RAW=$(supabase migration list --linked 2>&1 || true)
+          echo "$REMOTE_RAW"
+
+          # Extract timestamp-like versions (14 digits) from the "Remote" column.
+          # `supabase migration list` prints a table: | Local | Remote | Time |
+          REMOTE_VERSIONS=$(echo "$REMOTE_RAW" \
+            | awk -F'|' '{ gsub(/ /, "", $3); if ($3 ~ /^[0-9]{14}$/) print $3 }' \
+            | sort -u)
+
+          LOCAL_VERSIONS=$(ls supabase/migrations 2>/dev/null \
+            | grep -oE '^[0-9]{14}' \
+            | sort -u || true)
+
+          ORPHANS=$(comm -23 <(echo "$REMOTE_VERSIONS") <(echo "$LOCAL_VERSIONS") | tr -d ' ' | grep -E '^[0-9]{14}$' || true)
+
+          if [ -z "$ORPHANS" ]; then
+            echo "✅ No migration history drift — nothing to repair."
+            exit 0
+          fi
+
+          echo ""
+          echo "=== Prod-only migration versions (will be marked reverted in history) ==="
+          echo "$ORPHANS"
+          echo ""
+
+          # `supabase migration repair` accepts multiple versions in one call.
+          # Batch in groups of 50 to keep the command line sane.
+          echo "$ORPHANS" | xargs -n 50 supabase migration repair --linked --status reverted
+
+          echo ""
+          echo "=== Post-repair migration list ==="
+          supabase migration list --linked
+
       - name: Apply pending migrations
         if: github.event_name == 'push'
         run: supabase db push --linked
