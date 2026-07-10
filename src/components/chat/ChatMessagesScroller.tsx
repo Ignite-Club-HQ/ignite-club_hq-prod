@@ -8,6 +8,7 @@ import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 
 
 /**
@@ -176,7 +177,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
-  const scrollerBottomClearance = searchOpen ? 0 : safeComposer;
+  // The chat composer is `position: fixed` at `bottom: nativeKbHeight` (so it
+  // sits ABOVE the software keyboard on Android w/ `Keyboard.resize: 'none'`).
+  // The scroller's flex parent stretches the full viewport height, so we must
+  // reserve BOTH the composer height AND the keyboard height as bottom
+  // clearance — otherwise the last message renders in the region occluded by
+  // the keyboard (visible as "last message hidden behind keyboard").
+  const nativeKbHeight = useNativeKeyboardBottomInset();
+  const scrollerBottomClearance = searchOpen ? 0 : safeComposer + nativeKbHeight;
   const bottomPad = useMemo(
     () =>
       searchOpen
