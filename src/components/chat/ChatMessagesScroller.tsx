@@ -155,42 +155,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
-  // CRITICAL: the composer is `position: fixed` (NOT a flex sibling) and the
-  // chat container's `height` only subtracts the bottom-nav offset / native
-  // keyboard height — it does NOT subtract the composer's own height. That
-  // means the bottom `composerHeight` pixels of the scroller always sit
-  // behind the fixed composer. We must reserve that space inside the
-  // scroller, otherwise the latest messages (and replies, where the
-  // composer grows to ~100-140px with the reply pill) render off-screen
-  // behind the input. Add a small breathing gap so the newest bubble
-  // doesn't kiss the composer border.
-  // Matches WhatsApp / Messenger: the latest bubble sits comfortably above the
-  // composer. The latest own-message can render up to THREE stacked elements
-  // below the bubble baseline:
-  //   1. Reactions pill row (~30px when present: h-22 + mt-1 + mb-1)
-  //   2. Inline timestamp (~16px)
-  //   3. "Sent / Read by" frontier strip (~16px)
-  // Read-frontier and reactions both hydrate AFTER Virtuoso's initial bottom
-  // pin, so the row grows after pinning. We must reserve enough space below
-  // the bubble that the late-arriving rows (especially reactions added by the
-  // user on the latest message) stay clear of the fixed composer instead of
-  // disappearing behind it. 56px keeps metadata + a single-row reaction pill
-  // fully visible while still feeling tight (à la Messenger).
-  // Tuned to 44px: 24 was too tight — the read-frontier ("Sent / Read by")
-  // strip hydrates AFTER Virtuoso's initial bottom pin, and at 24px the
-  // frontier line ended up clipped behind the composer on freshly-sent
-  // messages (see screenshot report 2026-07-04). 80 was the earlier value
-  // that felt like excessive whitespace. 44 keeps a single-line frontier
-  // + inline timestamp fully visible with a small breathing gap without
-  // opening a large empty band above the composer.
-  // Bumped from 64 → 88 (2026-07-10 pm): after sending, the OWN-message row
-  // grows AFTER the pin as the read-frontier ("Sent / Read by") strip and
-  // the inline timestamp hydrate. At 64px of gap the newly-sent bubble body
-  // was still landing partially behind the fixed composer on Android (user
-  // report: "when I send a message I can't see what I have sent"). 88 leaves
-  // enough clearance for a two-line frontier + timestamp + reaction pill row
-  // without opening a large blank band above the composer.
-  const COMPOSER_GAP = 88;
+  // Root cause: the composer is `position: fixed`, so it is not a flex sibling
+  // and the message viewport previously extended underneath it. Increasing
+  // Virtuoso bottom padding only changed the scroll range; it did not change
+  // the actual visible viewport, so Android could still paint the latest row
+  // behind the composer while the keyboard/reply pill resized. The fix is to
+  // physically shrink the scroller by the measured fixed composer height and
+  // keep Virtuoso's footer as only a small visual breathing gap.
+  const LAST_MESSAGE_GAP = 32;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -204,19 +176,13 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
-  // The chat shell height already subtracts the bottom navigation / native
-  // keyboard offset. The fixed composer overlaps the bottom of that shell by
-  // exactly its own height in both states, so the virtual list should reserve
-  // only composer height + the same compact breathing gap whether the keyboard
-  // is open or closed. Adding `--bottom-nav-offset` here double-counts the nav
-  // when the keyboard is closed and creates the oversized blank area reported
-  // below the latest message metadata.
+  const scrollerBottomClearance = searchOpen ? 0 : safeComposer;
   const bottomPad = useMemo(
     () =>
       searchOpen
         ? 16
-        : safeComposer + COMPOSER_GAP,
-    [searchOpen, safeComposer],
+        : LAST_MESSAGE_GAP,
+    [searchOpen],
   );
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
@@ -555,6 +521,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       ref={mountBoxRef}
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
+      style={{ marginBottom: scrollerBottomClearance }}
     >
       {messages.length === 0 || virtualReady || hasMountedListRef.current ? (
         <VirtualizedChatMessageList
