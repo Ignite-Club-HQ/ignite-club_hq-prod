@@ -467,6 +467,48 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     return () => cancelAnimationFrame(r1);
   }, [composerHeight, virtualReady, virtualHandleRef]);
 
+  // Belt-and-braces #2: when the keyboard opens OR a new last message arrives
+  // while near the bottom, force a re-pin using the CURRENT bottomPadding.
+  // Virtuoso's `followOutput` can miss the append if the atBottom check reads
+  // stale scrollTop the moment the visual viewport shrinks (keyboard opening
+  // and message arrival in the same frame on Android). This effect covers
+  // the case where the main pin effect updated its prev-refs during the
+  // mount-quiet window and no re-pin ever fires — the report symptom being
+  // the newest incoming bubble body sitting behind the composer after tap.
+  const lastKnownLastIdRef = useRef<string | null>(null);
+  const lastKnownKbRef = useRef(isKeyboardOpen);
+  useEffect(() => {
+    if (!virtualReady) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    const lastChanged = lastId !== lastKnownLastIdRef.current;
+    const kbChanged = lastKnownKbRef.current !== isKeyboardOpen;
+    lastKnownLastIdRef.current = lastId;
+    lastKnownKbRef.current = isKeyboardOpen;
+    if (!lastChanged && !kbChanged) return;
+    if (!handle.isNearBottom(360)) return;
+    const pin = () => {
+      if (isChatJumpActive()) return;
+      handle.scrollToBottom("auto", { force: true });
+      markChatScrollWrite();
+    };
+    // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
+    // braces at 120/280/520ms to cover reply-pill / typing-indicator growth.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(pin);
+    });
+    const timers = [120, 280, 520].map((delay) =>
+      window.setTimeout(() => {
+        if (handle.isNearBottom(360)) pin();
+      }, delay),
+    );
+    return () => {
+      cancelAnimationFrame(r1);
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [messages, isKeyboardOpen, virtualReady, virtualHandleRef]);
+
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
