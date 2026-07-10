@@ -291,19 +291,18 @@ export default function AuthPage() {
 
   const isSignInMode = authMode === "signin";
   const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
-  // The app runs Capacitor with `Keyboard.resize: 'none'`, so the WebView
-  // viewport (window.innerHeight / 100vh) does NOT shrink when the soft
-  // keyboard opens on Android. We must subtract the keyboard height manually
-  // — otherwise the shell stays full physical height, `justify-start` pins
-  // the form to the top of the screen, and a large blank gap appears
-  // between the form and the keyboard.
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-  // On Android, --stable-vh can be momentarily stale right after logout (e.g.
-  // the previous screen had the soft keyboard open, so innerHeight was small).
-  // Use 100vh as the closed-keyboard baseline; subtract keyboard height when open.
+  // Root cause of the Android auth clipping bug: with Capacitor 8 / modern
+  // Android WebView, `100vh` can ALREADY be the keyboard-reduced viewport even
+  // though Keyboard.resize is configured as `none`. Subtracting Capacitor's
+  // keyboardHeight from that value double-subtracts the IME and leaves a
+  // ~400px-tall shell, clipping the password/sign-in controls while the rest of
+  // the screen appears as blank background. For Android auth, keep the shell at
+  // `100vh`; the compact sign-in form sits above the keyboard whether the
+  // WebView resized or the IME overlays it. iOS still needs explicit subtraction.
   const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
-      ? `calc(100vh - ${nativeKeyboardHeight}px)`
+      ? '100vh'
       : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
     : isAndroid
       ? '100vh'
