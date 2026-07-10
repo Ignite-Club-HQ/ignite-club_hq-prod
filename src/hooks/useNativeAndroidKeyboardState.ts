@@ -60,20 +60,44 @@ export function useNativeAndroidKeyboardState(): number {
       const baselineH = getLayoutBaseline();
       const raw = rawPluginHeight || 0;
       const looksLikeDevicePx = layoutH > 0 && raw > layoutH * 0.6;
-      let finalHeight = looksLikeDevicePx ? raw / dpr : raw;
+      const pluginCssPx = looksLikeDevicePx ? raw / dpr : raw;
 
-      // visualViewport-derived TOTAL inset is the source of truth whenever
-      // credible. Compare against the locked/pre-keyboard layout baseline, not
-      // current innerHeight: OEM WebViews can partially shrink innerHeight even
-      // with Keyboard.resize='none', and using current innerHeight returns only
-      // the overlay remainder. The chat shell needs the total hidden region.
+      // The Capacitor Keyboard plugin reports the actual IME height from
+      // Android's InputMethodManager — this is the ground truth. Prefer it
+      // whenever available.
+      //
+      // visualViewport may be used as a SECONDARY signal to detect keyboard
+      // presence when the plugin hasn't fired (e.g. focus-in on an already-open
+      // IME), but MUST NOT be used to inflate the height above the plugin's
+      // report. Historically we set `finalHeight = baselineH - vv.height`
+      // whenever that was > 24, which over-reported the keyboard by hundreds
+      // of pixels whenever `baselineH` (monotonic-max innerHeight) had been
+      // locked to a value larger than the current WebView (rotation history,
+      // OEM WebView shrink, split-screen leftover). That collapsed the chat
+      // shell to composer-only, leaving a huge blank strip between the
+      // composer and the actual keyboard.
+      let finalHeight = pluginCssPx;
+
       if (typeof window !== "undefined") {
         const vv = window.visualViewport;
-        const vvTotalInset = vv && baselineH > 0
-          ? Math.max(0, baselineH - vv.height)
-          : 0;
-        if (vvTotalInset > 24) {
-          finalHeight = vvTotalInset;
+        if (vv) {
+          // Current overlay = keyboard portion that actually covers the
+          // present WebView. This is the tightest upper bound we can trust,
+          // because it never over-reports even if baseline drifted.
+          const currentOverlay = layoutH > 0
+            ? Math.max(0, layoutH - vv.height)
+            : 0;
+
+          if (finalHeight <= 0 && currentOverlay > 24) {
+            // Plugin never reported (focus-in on already-open IME): fall back
+            // to current overlay only.
+            finalHeight = currentOverlay;
+          } else if (currentOverlay > finalHeight + 24 && currentOverlay < baselineH * 0.6) {
+            // Plugin under-reported vs actual overlay (Gboard toolbar,
+            // predictive strip). Bump up to current overlay — still bounded
+            // by the current WebView, so cannot inflate past reality.
+            finalHeight = currentOverlay;
+          }
         }
       }
 
