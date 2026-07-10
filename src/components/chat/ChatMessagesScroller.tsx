@@ -183,14 +183,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // that felt like excessive whitespace. 44 keeps a single-line frontier
   // + inline timestamp fully visible with a small breathing gap without
   // opening a large empty band above the composer.
-  // Bumped from 44 → 64: the composer background bar + typing/predictive-text
-  // toolbars measured on-device (Android/iOS) frequently exceed the composer's
-  // measured DOM height by 12–20px, and the read-frontier strip that hydrates
-  // AFTER the initial pin was landing under the composer with only 44px of
-  // clearance (report 2026-07-10: latest bubble body clipped behind composer
-  // in club committee group chat). 64 leaves a full comfortable gap on all
-  // chat surfaces without opening a large empty band.
-  const COMPOSER_GAP = 64;
+  // Bumped from 64 → 88 (2026-07-10 pm): after sending, the OWN-message row
+  // grows AFTER the pin as the read-frontier ("Sent / Read by") strip and
+  // the inline timestamp hydrate. At 64px of gap the newly-sent bubble body
+  // was still landing partially behind the fixed composer on Android (user
+  // report: "when I send a message I can't see what I have sent"). 88 leaves
+  // enough clearance for a two-line frontier + timestamp + reaction pill row
+  // without opening a large blank band above the composer.
+  const COMPOSER_GAP = 88;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
