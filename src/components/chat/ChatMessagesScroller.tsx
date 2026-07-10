@@ -8,7 +8,6 @@ import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
-import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 
 
 /**
@@ -137,6 +136,32 @@ function useSettledChatMountBox(quietMs: number = 240) {
   return { ref, settled };
 }
 
+function getChatComposerScope(host: HTMLElement | null) {
+  return host?.closest('[data-lock-keyboard-scroll="true"]') ?? document;
+}
+
+function getActiveFixedChatComposers(scope: ParentNode = document) {
+  if (typeof window === "undefined" || typeof document === "undefined") return [];
+
+  return Array.from(scope.querySelectorAll<HTMLElement>('[data-chat-composer="true"]'))
+    .filter((element) => {
+      const style = window.getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      if (style.position !== "fixed") return false;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+
+      // ChatHeaderShell also uses data-chat-chrome for overscroll locking, but
+      // it is top chrome. Only bottom fixed chrome can cover the last message.
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.bottom;
+      return rect.top >= viewportHeight * 0.35;
+    })
+    // If a stale/outgoing chat page briefly co-exists during route transitions,
+    // use the bottom-most composer inside this chat root rather than DOM order.
+    .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+}
+
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
@@ -157,12 +182,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   } = props;
 
   // Root cause: the composer is `position: fixed`, so it is not a flex sibling
-  // and the message viewport previously extended underneath it. Increasing
-  // Virtuoso bottom padding only changed the scroll range; it did not change
-  // the actual visible viewport, so Android could still paint the latest row
-  // behind the composer while the keyboard/reply pill resized. The fix is to
-  // physically shrink the scroller by the measured fixed composer height and
-  // keep Virtuoso's footer as only a small visual breathing gap.
+  // and the message viewport can extend underneath it. The correct clearance is
+  // NOT a guessed keyboard value: Android may resize the WebView, overlay the
+  // keyboard, or do a partial hybrid depending on OEM/WebView. The only stable
+  // source of truth is the rendered geometry: the distance from the message
+  // area's bottom edge to the actual fixed composer's top edge.
   const LAST_MESSAGE_GAP = 32;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
@@ -177,14 +201,74 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
-  // The chat composer is `position: fixed` at `bottom: nativeKbHeight` (so it
-  // sits ABOVE the software keyboard on Android w/ `Keyboard.resize: 'none'`).
-  // The scroller's flex parent stretches the full viewport height, so we must
-  // reserve BOTH the composer height AND the keyboard height as bottom
-  // clearance — otherwise the last message renders in the region occluded by
-  // the keyboard (visible as "last message hidden behind keyboard").
-  const nativeKbHeight = useNativeKeyboardBottomInset();
-  const scrollerBottomClearance = searchOpen ? 0 : safeComposer + nativeKbHeight;
+  const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
+  const [measuredBottomClearance, setMeasuredBottomClearance] = useState<number | null>(null);
+
+  const syncBottomClearance = useCallback(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    if (searchOpen) {
+      setMeasuredBottomClearance((current) => (current === 0 ? current : 0));
+      return;
+    }
+
+    const host = mountBoxRef.current;
+    const parent = host?.parentElement ?? host;
+    if (!parent) {
+      setMeasuredBottomClearance((current) => (current === safeComposer ? current : safeComposer));
+      return;
+    }
+
+    const parentRect = parent.getBoundingClientRect();
+    let composerRect: DOMRect | null = null;
+    const composers = getActiveFixedChatComposers(getChatComposerScope(host));
+    for (const composer of composers) {
+      const rect = composer.getBoundingClientRect();
+      composerRect = rect;
+      break;
+    }
+
+    const measured = composerRect
+      ? parentRect.bottom - composerRect.top
+      : safeComposer;
+    const maxUsefulClearance = Math.max(safeComposer, parentRect.height - 72);
+    const next = Math.round(
+      Math.min(
+        Math.max(safeComposer, measured),
+        maxUsefulClearance,
+      ),
+    );
+    setMeasuredBottomClearance((current) => (current === next ? current : next));
+  }, [mountBoxRef, safeComposer, searchOpen]);
+
+  useLayoutEffect(() => {
+    syncBottomClearance();
+
+    const host = mountBoxRef.current;
+    const parent = host?.parentElement ?? host;
+    const composers = getActiveFixedChatComposers(getChatComposerScope(host));
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncBottomClearance) : null;
+    if (parent) observer?.observe(parent);
+    composers.forEach((composer) => observer?.observe(composer));
+
+    window.addEventListener("resize", syncBottomClearance);
+    window.visualViewport?.addEventListener("resize", syncBottomClearance);
+    window.visualViewport?.addEventListener("scroll", syncBottomClearance);
+
+    // Android keyboard + reply-preview transitions can update fixed-position
+    // geometry after plugin events and ResizeObserver callbacks. Short trailing
+    // reads keep the clearance tied to the actual composer top, not stale state.
+    const timers = [80, 180, 360, 700].map((delay) => window.setTimeout(syncBottomClearance, delay));
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", syncBottomClearance);
+      window.visualViewport?.removeEventListener("resize", syncBottomClearance);
+      window.visualViewport?.removeEventListener("scroll", syncBottomClearance);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [composerHeight, isKeyboardOpen, mountBoxRef, syncBottomClearance]);
+
+  const scrollerBottomClearance = searchOpen ? 0 : (measuredBottomClearance ?? safeComposer);
   const bottomPad = useMemo(
     () =>
       searchOpen
@@ -195,12 +279,12 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
-  const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
+  const virtualScrollerElRef = useRef<HTMLElement | null>(null);
 
   // Virtuoso owns its own scroller; no external ref handover (legacy chat
   // hooks that mutated `scrollTop` directly are gone).
-  const setVirtualScrollerRef = useCallback((_element: HTMLElement | Window | null) => {
-    // intentional no-op
+  const setVirtualScrollerRef = useCallback((element: HTMLElement | Window | null) => {
+    virtualScrollerElRef.current = element instanceof HTMLElement ? element : null;
   }, []);
 
   // Wait for real data, visual viewport height, wrapper size, and composer
@@ -305,6 +389,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // changes — Virtuoso's `followOutput` covers new appends when at-bottom.
   const prevKeyboardOpenRef = useRef(isKeyboardOpen);
   const prevComposerHeightRef = useRef(composerHeight);
+  const prevBottomClearanceRef = useRef(scrollerBottomClearance);
   const wasNearBottomBeforeLayoutRef = useRef(initialBottomPinned);
   useEffect(() => {
     // NOTE: do NOT early-return on `!virtualReady` here. On Android the
@@ -337,11 +422,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const keyboardChanged = prevKeyboardOpenRef.current !== isKeyboardOpen;
     const previousComposerHeight = prevComposerHeightRef.current;
+    const previousBottomClearance = prevBottomClearanceRef.current;
     const composerGrew = composerHeight - previousComposerHeight > 4;
+    const bottomClearanceChanged = Math.abs(scrollerBottomClearance - previousBottomClearance) > 4;
+    const bottomClearanceGrew = scrollerBottomClearance - previousBottomClearance > 4;
     prevKeyboardOpenRef.current = isKeyboardOpen;
     prevComposerHeightRef.current = composerHeight;
+    prevBottomClearanceRef.current = scrollerBottomClearance;
 
-    if (!keyboardChanged && !composerGrew) return;
+    if (!keyboardChanged && !composerGrew && !bottomClearanceChanged) return;
 
     // When the user activates the composer (keyboard opens) or the composer
     // grows (reply pill, multi-line input), they have signalled intent to
@@ -367,11 +456,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // down by the same delta — the content the user was reading stays put
     // above the composer's new top edge. Don't do this when at/near bottom:
     // the pin-to-bottom branch below already handles that case.
-    if (composerGrew && previousComposerHeight > 0) {
-      const delta = composerHeight - previousComposerHeight;
+    if ((composerGrew || bottomClearanceGrew) && previousComposerHeight > 0) {
+      const delta = Math.max(
+        composerHeight - previousComposerHeight,
+        scrollerBottomClearance - previousBottomClearance,
+      );
       const handleNearBottom = handle.isNearBottom(180);
       if (!handleNearBottom) {
-        const viewport = resolveChatScrollViewport(mountBoxRef.current);
+        const viewport = virtualScrollerElRef.current ?? resolveChatScrollViewport(mountBoxRef.current);
         if (viewport) {
           viewport.scrollTop = viewport.scrollTop + delta;
           markChatScrollWrite();
@@ -389,12 +481,13 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       wasNearBottom ||
       wasNearBottomBeforeLayoutRef.current ||
       (keyboardChanged && handle.isNearBottom(720)) ||
+      (bottomClearanceChanged && handle.isNearBottom(720)) ||
       composerActivated;
     if (!composerGrew && !shouldPreserveBottom) return;
     // The scroll compensation above already keeps the visible content stable
     // for users scrolled up reading history; skip the pin-to-bottom branch in
     // that case so we don't yank them to the latest message.
-    if (composerGrew && !wasNearBottom && !wasNearBottomBeforeLayoutRef.current && !keyboardChanged) return;
+    if ((composerGrew || bottomClearanceGrew) && !wasNearBottom && !wasNearBottomBeforeLayoutRef.current && !keyboardChanged) return;
 
     const pin = () => {
       if (isChatJumpActive()) return;
@@ -412,7 +505,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
 
-  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef, initialBottomPinned]);
+  }, [virtualReady, isKeyboardOpen, composerHeight, scrollerBottomClearance, virtualHandleRef, initialBottomPinned]);
 
   // Belt-and-braces: re-pin to bottom on ANY composer height change (even
   // sub-4px growths) while the user is near the bottom. The main effect above
