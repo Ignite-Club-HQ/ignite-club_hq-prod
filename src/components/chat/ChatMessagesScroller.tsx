@@ -183,14 +183,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // that felt like excessive whitespace. 44 keeps a single-line frontier
   // + inline timestamp fully visible with a small breathing gap without
   // opening a large empty band above the composer.
-  // Bumped from 44 → 64: the composer background bar + typing/predictive-text
-  // toolbars measured on-device (Android/iOS) frequently exceed the composer's
-  // measured DOM height by 12–20px, and the read-frontier strip that hydrates
-  // AFTER the initial pin was landing under the composer with only 44px of
-  // clearance (report 2026-07-10: latest bubble body clipped behind composer
-  // in club committee group chat). 64 leaves a full comfortable gap on all
-  // chat surfaces without opening a large empty band.
-  const COMPOSER_GAP = 64;
+  // Bumped from 64 → 88 (2026-07-10 pm): after sending, the OWN-message row
+  // grows AFTER the pin as the read-frontier ("Sent / Read by") strip and
+  // the inline timestamp hydrate. At 64px of gap the newly-sent bubble body
+  // was still landing partially behind the fixed composer on Android (user
+  // report: "when I send a message I can't see what I have sent"). 88 leaves
+  // enough clearance for a two-line frontier + timestamp + reaction pill row
+  // without opening a large blank band above the composer.
+  const COMPOSER_GAP = 88;
   const mountedAtRef = useRef<number>(performance.now());
   const INITIAL_MOUNT_QUIET_MS = 600;
   const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
@@ -487,20 +487,31 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     lastKnownLastIdRef.current = lastId;
     lastKnownKbRef.current = isKeyboardOpen;
     if (!lastChanged && !kbChanged) return;
-    if (!handle.isNearBottom(360)) return;
+    // When a new last message arrives (very often the user's own just-sent
+    // message via optimistic append), use a generous tolerance: the row
+    // grows AFTER the initial pin as the read-frontier + timestamp hydrate,
+    // which can push `isNearBottom` past the tight 360px threshold for a
+    // frame. Missing the pin in that window leaves the sent bubble behind
+    // the composer (user report 2026-07-10). A wider tolerance is safe:
+    // if the user was genuinely scrolled up reading history, they won't
+    // be within 800px of bottom.
+    const tolerance = lastChanged ? 800 : 360;
+    if (!handle.isNearBottom(tolerance)) return;
     const pin = () => {
       if (isChatJumpActive()) return;
       handle.scrollToBottom("auto", { force: true });
       markChatScrollWrite();
     };
     // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
-    // braces at 120/280/520ms to cover reply-pill / typing-indicator growth.
+    // braces at 120/280/520/900ms to cover reply-pill / typing-indicator
+    // growth AND the read-frontier hydration that can trail 500–800ms behind
+    // the optimistic message append on slower Android devices.
     const r1 = requestAnimationFrame(() => {
       requestAnimationFrame(pin);
     });
-    const timers = [120, 280, 520].map((delay) =>
+    const timers = [120, 280, 520, 900].map((delay) =>
       window.setTimeout(() => {
-        if (handle.isNearBottom(360)) pin();
+        if (handle.isNearBottom(tolerance)) pin();
       }, delay),
     );
     return () => {
