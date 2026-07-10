@@ -1056,6 +1056,13 @@ export default function NotificationsPage() {
       case "player_of_match":
         navigate("/profile?section=points-history");
         break;
+      case "leaderboard_update":
+      case "streak_progress":
+      case "streak_bonus":
+      case "reward_proximity":
+      case "reward_unlocked":
+        navigate("/leaderboard");
+        break;
       case "fee_payment_request":
         if (relatedId) {
           navigate(`/pay-fees/${relatedId}`);

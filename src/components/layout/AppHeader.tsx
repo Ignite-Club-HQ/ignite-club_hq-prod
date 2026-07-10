@@ -1035,6 +1035,13 @@ export function AppHeader() {
         case "player_of_match":
           navigate("/profile?section=points-history");
           return;
+        case "leaderboard_update":
+        case "streak_progress":
+        case "streak_bonus":
+        case "reward_proximity":
+        case "reward_unlocked":
+          navigate("/leaderboard");
+          return;
       }
 
       navigate("/notifications");
