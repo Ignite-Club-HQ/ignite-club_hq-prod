@@ -541,7 +541,9 @@ export default function AuthPage() {
     ? isSignInKeyboardOpen
       ? 'space-y-4 py-2'
       : `${shouldLowerDefaultSignIn ? 'translate-y-4' : ''} space-y-8 py-6`
-    : 'space-y-8 py-8 my-auto';
+    : isSignupKeyboardOpen
+      ? 'space-y-4 py-2'
+      : 'space-y-8 py-8 my-auto';
   const signInCardContentClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFormClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFieldClassName = isSignInKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
@@ -575,11 +577,11 @@ export default function AuthPage() {
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
-        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
-          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
-            <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
+        <div className={`flex flex-col items-center transition-all duration-200 ${isFormKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isFormKeyboardOpen ? 'p-2' : 'p-4'}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${isFormKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
-          {!isSignInKeyboardOpen && (
+          {!isFormKeyboardOpen && (
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           )}
         </div>
