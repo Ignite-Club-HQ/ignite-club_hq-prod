@@ -139,7 +139,7 @@ function useSettledChatMountBox(quietMs: number = 240) {
 function getActiveFixedChatComposers() {
   if (typeof window === "undefined" || typeof document === "undefined") return [];
 
-  return Array.from(document.querySelectorAll<HTMLElement>('[data-chat-chrome="true"]'))
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-chat-composer="true"]'))
     .filter((element) => {
       const style = window.getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") return false;
