@@ -201,7 +201,19 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       if (!isAuthInputFocused()) return;
-      setNativeKeyboardHeight(keyboardHeight || 0);
+      // Clamp against visualViewport: on some Android OEM keyboards the raw
+      // `keyboardHeight` is reported in device pixels (or otherwise inflated),
+      // which collapses the auth shell to a sliver and clips the form just
+      // below the "Email" label. The true occluded area is
+      // `window.innerHeight - visualViewport.height`; also cap at 60% of the
+      // window height as a hard sanity ceiling.
+      const raw = keyboardHeight || 0;
+      const winH = typeof window !== 'undefined' ? window.innerHeight : raw;
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const occluded = vv ? Math.max(0, winH - vv.height) : raw;
+      const ceiling = Math.floor(winH * 0.6);
+      const safe = Math.min(raw || occluded, occluded || raw, ceiling);
+      setNativeKeyboardHeight(safe > 0 ? safe : Math.min(raw, ceiling));
       setNativeKeyboardVisible(true);
     }).then(handle => {
       keyboardShowListener = handle;
