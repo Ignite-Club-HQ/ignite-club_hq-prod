@@ -487,20 +487,31 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     lastKnownLastIdRef.current = lastId;
     lastKnownKbRef.current = isKeyboardOpen;
     if (!lastChanged && !kbChanged) return;
-    if (!handle.isNearBottom(360)) return;
+    // When a new last message arrives (very often the user's own just-sent
+    // message via optimistic append), use a generous tolerance: the row
+    // grows AFTER the initial pin as the read-frontier + timestamp hydrate,
+    // which can push `isNearBottom` past the tight 360px threshold for a
+    // frame. Missing the pin in that window leaves the sent bubble behind
+    // the composer (user report 2026-07-10). A wider tolerance is safe:
+    // if the user was genuinely scrolled up reading history, they won't
+    // be within 800px of bottom.
+    const tolerance = lastChanged ? 800 : 360;
+    if (!handle.isNearBottom(tolerance)) return;
     const pin = () => {
       if (isChatJumpActive()) return;
       handle.scrollToBottom("auto", { force: true });
       markChatScrollWrite();
     };
     // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
-    // braces at 120/280/520ms to cover reply-pill / typing-indicator growth.
+    // braces at 120/280/520/900ms to cover reply-pill / typing-indicator
+    // growth AND the read-frontier hydration that can trail 500–800ms behind
+    // the optimistic message append on slower Android devices.
     const r1 = requestAnimationFrame(() => {
       requestAnimationFrame(pin);
     });
-    const timers = [120, 280, 520].map((delay) =>
+    const timers = [120, 280, 520, 900].map((delay) =>
       window.setTimeout(() => {
-        if (handle.isNearBottom(360)) pin();
+        if (handle.isNearBottom(tolerance)) pin();
       }, delay),
     );
     return () => {
