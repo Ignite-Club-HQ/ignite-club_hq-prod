@@ -16,12 +16,12 @@ export function notifyClubFreeUsageChanged(clubId?: string | null) {
 }
 
 
-export const FREE_PHOTO_UPLOADS_PER_CYCLE = 20;
-export const FREE_CHAT_PHOTOS_PER_CYCLE = 20;
+export const FREE_PHOTO_UPLOADS_PER_CYCLE = 10;
+export const FREE_CHAT_PHOTOS_PER_CYCLE = 10;
 export const FREE_FILE_COUNT = 10;
-export const FREE_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const FREE_FILE_STORAGE_BYTES = 25 * 1024 * 1024; // 25 MB
 export const FREE_CHAT_FILE_COUNT = 10;
-export const FREE_CHAT_FILE_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const FREE_CHAT_FILE_STORAGE_BYTES = 25 * 1024 * 1024; // 25 MB
 export const FREE_POLLS_PER_CYCLE = 2;
 
 export interface ClubFreeUsage {
