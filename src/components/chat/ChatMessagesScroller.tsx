@@ -136,10 +136,14 @@ function useSettledChatMountBox(quietMs: number = 240) {
   return { ref, settled };
 }
 
-function getActiveFixedChatComposers() {
+function getChatComposerScope(host: HTMLElement | null) {
+  return host?.closest('[data-lock-keyboard-scroll="true"]') ?? document;
+}
+
+function getActiveFixedChatComposers(scope: ParentNode = document) {
   if (typeof window === "undefined" || typeof document === "undefined") return [];
 
-  return Array.from(document.querySelectorAll<HTMLElement>('[data-chat-composer="true"]'))
+  return Array.from(scope.querySelectorAll<HTMLElement>('[data-chat-composer="true"]'))
     .filter((element) => {
       const style = window.getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") return false;
@@ -152,7 +156,10 @@ function getActiveFixedChatComposers() {
       // it is top chrome. Only bottom fixed chrome can cover the last message.
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.bottom;
       return rect.top >= viewportHeight * 0.35;
-    });
+    })
+    // If a stale/outgoing chat page briefly co-exists during route transitions,
+    // use the bottom-most composer inside this chat root rather than DOM order.
+    .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
 }
 
 export function ChatMessagesScroller<TMessage extends { id: string }>(
@@ -213,7 +220,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const parentRect = parent.getBoundingClientRect();
     let composerRect: DOMRect | null = null;
-    const composers = getActiveFixedChatComposers();
+    const composers = getActiveFixedChatComposers(getChatComposerScope(host));
     for (const composer of composers) {
       const rect = composer.getBoundingClientRect();
       composerRect = rect;
@@ -238,7 +245,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
     const host = mountBoxRef.current;
     const parent = host?.parentElement ?? host;
-    const composers = getActiveFixedChatComposers();
+    const composers = getActiveFixedChatComposers(getChatComposerScope(host));
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncBottomClearance) : null;
     if (parent) observer?.observe(parent);
     composers.forEach((composer) => observer?.observe(composer));
