@@ -233,8 +233,40 @@ export default function ClubSetupWizardPage() {
       ),
     );
 
+    const isTeamRole =
+      invite.role === "team_admin" ||
+      invite.role === "coach" ||
+      invite.role === "player" ||
+      invite.role === "parent";
+
+    // Dedupe: skip inviting someone who's already in this club/team
+    if (invite.email.trim()) {
+      const match = await lookupInvitableUserByEmail({
+        email: invite.email.trim(),
+        clubId,
+        teamId: isTeamRole ? invite.teamId ?? null : null,
+      });
+      if (match && (match.already_in_club || (isTeamRole && match.already_in_team))) {
+        setList((prev) =>
+          prev.map((i) =>
+            i.tempId === invite.tempId
+              ? {
+                  ...i,
+                  status: "error",
+                  errorMsg: `${match.display_name ?? "This user"} is already a member — no invite sent.`,
+                }
+              : i,
+          ),
+        );
+        toast({
+          title: "Already a member",
+          description: `${match.display_name ?? invite.email} is already in this ${isTeamRole && match.already_in_team ? "team" : "club"}.`,
+        });
+        return;
+      }
+    }
+
     const inviteToken = crypto.randomUUID();
-    const isTeamRole = invite.role === "team_admin" || invite.role === "coach";
 
     const { error: insErr } = await supabase.from("pending_invites").insert({
       club_id: clubId,
