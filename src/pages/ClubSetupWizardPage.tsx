@@ -897,6 +897,30 @@ function TeamInvitesStep({
                 ))}
               </div>
             )}
+
+            <BulkPasteInvites
+              compact
+              onAdd={(rows) =>
+                setList((prev) => {
+                  const teamKeys = new Set(
+                    prev
+                      .filter((p) => p.teamId === team.createdTeamId)
+                      .map((p) => (p.email || p.name).trim().toLowerCase()),
+                  );
+                  const additions = rows
+                    .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
+                    .map((r) => ({
+                      tempId: crypto.randomUUID(),
+                      name: r.name,
+                      email: r.email,
+                      role: "player" as TeamRole,
+                      teamId: team.createdTeamId,
+                      status: "pending" as const,
+                    }));
+                  return [...prev, ...additions];
+                })
+              }
+            />
           </div>
         );
       })}
