@@ -71,6 +71,7 @@ function getBestContrastColor(
 }
 
 function LogoClubThemeDropdown() {
+  const navigate = useNavigate();
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
   const defaultLogo = igniteIcon;
   const { user, signOut } = useAuth();
