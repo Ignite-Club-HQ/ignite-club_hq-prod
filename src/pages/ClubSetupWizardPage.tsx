@@ -142,6 +142,16 @@ export default function ClubSetupWizardPage() {
     enabled: !!clubId,
   });
 
+  const isShellClub = (club as any)?.kind === "shell";
+  const STEPS = useMemo(
+    () => ALL_STEPS.filter((s) => (isShellClub ? SHELL_STEP_IDS.has(s.id) : true)),
+    [isShellClub],
+  );
+  const safeStepIndex = Math.min(stepIndex, STEPS.length - 1);
+  const step = STEPS[safeStepIndex];
+
+
+
   // Draft state across steps — persisted per club to survive refresh/back-nav
   const storageKey = clubId ? `ignite_wizard_draft_${clubId}` : null;
   const loadedDraft = useMemo(() => {
