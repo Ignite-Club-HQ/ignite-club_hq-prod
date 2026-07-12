@@ -997,3 +997,158 @@ function StepIntro({
     </div>
   );
 }
+
+// ---------- step: operational groups (sub-committees) ----------
+
+function OperationalGroupsStep({
+  clubId,
+  userId,
+  groups,
+  setGroups,
+}: {
+  clubId: string;
+  userId: string;
+  groups: DraftGroup[];
+  setGroups: React.Dispatch<React.SetStateAction<DraftGroup[]>>;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const addRow = () =>
+    setGroups((prev) => [
+      ...prev,
+      { tempId: crypto.randomUUID(), name: "", description: "", status: "pending" },
+    ]);
+  const remove = (id: string) =>
+    setGroups((prev) => prev.filter((g) => g.tempId !== id));
+  const update = (id: string, patch: Partial<DraftGroup>) =>
+    setGroups((prev) => prev.map((g) => (g.tempId === id ? { ...g, ...patch } : g)));
+
+  const suggestions = ["Fundraising", "Grounds & Facilities", "Events", "Sponsorship", "Registrations"];
+
+  const save = async (g: DraftGroup) => {
+    if (!g.name.trim()) {
+      toast({ title: "Add a group name first", variant: "destructive" });
+      return;
+    }
+    update(g.tempId, { status: "saving" });
+    const { data, error } = await supabase
+      .from("chat_groups")
+      .insert({
+        name: g.name.trim(),
+        club_id: clubId,
+        created_by: userId,
+        allowed_roles: ["committee_member", "club_admin"],
+        membership_mode: "role",
+        category: "subcommittee",
+        join_policy: "invite_only",
+      } as any)
+      .select("id")
+      .single();
+    if (error) {
+      update(g.tempId, { status: "error", errorMsg: error.message });
+      toast({ title: "Could not create group", description: error.message, variant: "destructive" });
+      return;
+    }
+    update(g.tempId, { status: "saved", createdId: data.id as string });
+    qc.invalidateQueries({ queryKey: ["chat-groups"] });
+    toast({ title: "Group created", description: g.name });
+  };
+
+  return (
+    <div className="space-y-4">
+      <StepIntro
+        icon={UserPlus}
+        title="Create operational groups"
+        subtitle="Sub-committees are just chat groups for how you organise work — Fundraising, Grounds, Events, etc. Everyone in them stays a Committee Member; these are not new roles."
+      />
+
+      {groups.length === 0 && (
+        <div className="rounded-xl border border-dashed p-4 space-y-3">
+          <p className="text-xs text-muted-foreground text-center">
+            Quick add — tap a suggestion or create your own.
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {suggestions.map((s) => (
+              <Button
+                key={s}
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setGroups((prev) => [
+                    ...prev,
+                    { tempId: crypto.randomUUID(), name: s, description: "", status: "pending" },
+                  ])
+                }
+              >
+                <Plus className="h-3 w-3 mr-1" /> {s}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {groups.map((g) => {
+          const saved = g.status === "saved";
+          const saving = g.status === "saving";
+          return (
+            <div
+              key={g.tempId}
+              className={cn(
+                "rounded-xl border p-3 space-y-2",
+                saved ? "bg-emerald-500/5 border-emerald-500/30" : "bg-card",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  value={g.name}
+                  onChange={(e) => update(g.tempId, { name: e.target.value })}
+                  placeholder="Group name (e.g. Fundraising)"
+                  disabled={saved || saving}
+                  className="h-9"
+                />
+                {saved ? (
+                  <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 shrink-0">
+                    <Check className="h-3 w-3 mr-1" /> Created
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => remove(g.tempId)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {!saved && (
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => save(g)}
+                  disabled={!g.name.trim() || saving}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create group"}
+                </Button>
+              )}
+              {g.errorMsg && !saved && (
+                <p className="text-xs text-destructive">{g.errorMsg}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <Button variant="outline" size="sm" onClick={addRow} className="w-full">
+        <Plus className="h-4 w-4 mr-1" /> Add group
+      </Button>
+
+      <p className="text-xs text-muted-foreground text-center">
+        You can add members to each group from the group's chat once people have joined the club.
+      </p>
+    </div>
+  );
+}
+
