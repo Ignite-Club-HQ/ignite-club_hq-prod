@@ -1555,7 +1555,7 @@ function ReviewStep({
         ))}
       </div>
 
-      <ShareClubCard clubId={clubId} clubName={clubName || "our club"} />
+      <InviteMembersCTA clubId={clubId} onJumpToStep={onJumpToStep} />
 
       <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
         <p className="text-sm font-semibold">Next steps after finish</p>
