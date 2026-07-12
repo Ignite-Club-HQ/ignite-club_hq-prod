@@ -174,6 +174,44 @@ export default function ClubSetupWizardPage() {
   const [groups, setGroups] = useState<DraftGroup[]>(loadedDraft?.groups ?? []);
   const [teamInvites, setTeamInvites] = useState<DraftInvite[]>(loadedDraft?.teamInvites ?? []);
 
+  // Hydrate from DB: if the club already has teams (e.g. user set them up on
+  // another device, or cleared local storage), seed them into the wizard so
+  // "Resume setup" doesn't show an empty list and skip team invites.
+  const { data: existingTeams } = useQuery({
+    queryKey: ["club-teams", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name, level_age")
+        .eq("club_id", clubId!)
+        .order("created_at", { ascending: true });
+      return data ?? [];
+    },
+    enabled: !!clubId,
+  });
+
+  const hydratedFromDbRef = useRef(false);
+  useEffect(() => {
+    if (hydratedFromDbRef.current) return;
+    if (!existingTeams || existingTeams.length === 0) return;
+    hydratedFromDbRef.current = true;
+    setTeams((prev) => {
+      const alreadySavedIds = new Set(prev.filter(t => t.createdTeamId).map(t => t.createdTeamId));
+      const missing = existingTeams
+        .filter((t: any) => !alreadySavedIds.has(t.id))
+        .map((t: any) => ({
+          tempId: crypto.randomUUID(),
+          name: t.name ?? "",
+          levelAge: t.level_age ?? "",
+          createdTeamId: t.id as string,
+        }));
+      if (missing.length === 0) return prev;
+      // Drop empty placeholder rows when we have real teams to show.
+      const kept = prev.filter(t => t.createdTeamId || t.name.trim() !== "");
+      return [...missing, ...kept];
+    });
+  }, [existingTeams]);
+
   useEffect(() => {
     if (!storageKey) return;
     try {
