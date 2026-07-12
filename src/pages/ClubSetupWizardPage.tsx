@@ -1555,7 +1555,7 @@ function ReviewStep({
         ))}
       </div>
 
-      <ShareClubCard clubId={clubId} clubName={clubName || "our club"} />
+      <InviteMembersCTA clubId={clubId} onJumpToStep={onJumpToStep} />
 
       <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
         <p className="text-sm font-semibold">Next steps after finish</p>
@@ -1575,81 +1575,49 @@ function ReviewStep({
   );
 }
 
-function ShareClubCard({ clubId, clubName }: { clubId: string; clubName: string }) {
-  const { toast } = useToast();
-  const url = `${window.location.origin}/clubs/${clubId}`;
-  const message = `We just set up ${clubName} on Ignite — join us here: ${url}`;
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: "Link copied", description: "Paste it anywhere to invite people." });
-    } catch {
-      toast({ title: "Copy failed", variant: "destructive" });
-    }
-  };
-
-  const share = async () => {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        await Share.share({ title: clubName, text: message, url });
-        return;
-      } catch {
-        /* user cancelled — fall through */
-        return;
-      }
-    }
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: clubName, text: message, url });
-        return;
-      } catch {
-        return;
-      }
-    }
-    copy();
-  };
-
-  const waHref = `https://wa.me/?text=${encodeURIComponent(message)}`;
-  const smsHref = `sms:?&body=${encodeURIComponent(message)}`;
+function InviteMembersCTA({
+  clubId,
+  onJumpToStep,
+}: {
+  clubId: string;
+  onJumpToStep: (id: string) => void;
+}) {
+  const navigate = useNavigate();
 
   return (
     <div className="rounded-xl border p-4 space-y-3 bg-card">
       <div className="flex items-start gap-3">
-        <Share2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <UserPlus className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <div className="min-w-0">
-          <p className="text-sm font-semibold">Share your club</p>
+          <p className="text-sm font-semibold">Invite members</p>
           <p className="text-xs text-muted-foreground">
-            Send the link to committee members and parents so they can join.
+            Send email invites so people join with the right team and role.
           </p>
         </div>
       </div>
-      <div className="rounded-lg bg-muted/60 px-3 py-2 text-xs font-mono truncate">{url}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={share}>
-          <Share2 className="h-4 w-4 mr-1.5" /> Share
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={copy}>
-          <Copy className="h-4 w-4 mr-1.5" /> Copy
-        </Button>
-        <a
-          href={waHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-md border h-9 text-sm hover:bg-muted transition-colors"
+      <div className="space-y-2">
+        <Button
+          type="button"
+          size="sm"
+          className="w-full"
+          onClick={() => onJumpToStep("teaminvites")}
         >
-          WhatsApp
-        </a>
-        <a
-          href={smsHref}
-          className="inline-flex items-center justify-center rounded-md border h-9 text-sm hover:bg-muted transition-colors"
+          <UserPlus className="h-4 w-4 mr-1.5" /> Invite more members
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => navigate(`/clubs/${clubId}`)}
         >
-          SMS
-        </a>
+          Finish and go to club
+        </Button>
       </div>
     </div>
   );
 }
+
 
 
 
