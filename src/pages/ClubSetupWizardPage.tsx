@@ -96,13 +96,12 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-// Free-tier essentials first (teams, committee, groups, invites), then Pro
-// upgrades (branding, sponsors), then review. This keeps the perceived effort
-// low for new clubs — they finish something useful before hitting any locks.
+// Minimal essentials first (teams, team invites), then optional Pro upgrades
+// (branding, sponsors), then review. Committee & Working Groups are admin
+// plumbing and are deferred — surfaced later via Club Admin + the setup
+// progress card on Home. Keeps day-one friction low for new clubs.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
-  { id: "committee", label: "Committee", icon: Shield },
-  { id: "subcommittee", label: "Working groups", icon: UserPlus },
   { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
@@ -600,29 +599,10 @@ export default function ClubSetupWizardPage() {
           )}
 
 
-          {step.id === "committee" && (
-            <InviteStep
-              title="Invite your committee"
-              subtitle="Add the people running the club with you — e.g. Treasurer, Secretary, Registrar. Club Admins can manage everything; Committee Members help with governance."
-              roleOptions={[
-                { value: "club_admin", label: "Club Admin" },
-                { value: "committee_member", label: "Committee Member" },
-              ]}
-              defaultRole="club_admin"
-              list={committee}
-              setList={setCommittee}
-              onSend={(inv) => sendInvite(inv, setCommittee)}
-            />
-          )}
+          {/* Committee & Working Groups intentionally removed from wizard —
+              surfaced later via Club Admin pages and the setup progress card. */}
 
-          {step.id === "subcommittee" && (
-            <OperationalGroupsStep
-              clubId={clubId!}
-              userId={user!.id}
-              groups={groups}
-              setGroups={setGroups}
-            />
-          )}
+
 
           {step.id === "teaminvites" && (
             <TeamInvitesStep
