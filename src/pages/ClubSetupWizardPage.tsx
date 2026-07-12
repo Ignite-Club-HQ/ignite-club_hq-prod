@@ -39,7 +39,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
+import { ClubThemeEditor } from "@/components/ClubThemeEditor";
+import { SponsorsManager } from "@/components/SponsorsManager";
 import { cn } from "@/lib/utils";
+
 
 // ---------- types ----------
 
