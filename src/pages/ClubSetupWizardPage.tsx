@@ -438,6 +438,23 @@ export default function ClubSetupWizardPage() {
     else setStepIndex((i) => i - 1);
   };
 
+  // Skip the current step without saving. Used for optional Pro steps
+  // (branding, sponsors) so users clearly see they can move on.
+  const goSkip = () => {
+    if (safeStepIndex < STEPS.length - 1) {
+      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
+        setStepIndex((i) => i + 2);
+        return;
+      }
+      setStepIndex((i) => i + 1);
+    } else {
+      finish();
+    }
+  };
+
+  const OPTIONAL_STEP_IDS = new Set(["branding", "sponsors"]);
+  const isOptionalStep = OPTIONAL_STEP_IDS.has(step.id);
+
   const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
 
   return (
@@ -467,7 +484,7 @@ export default function ClubSetupWizardPage() {
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={finish}>
-            Skip
+            Exit
           </Button>
         </div>
         {/* Step chips */}
@@ -637,20 +654,32 @@ export default function ClubSetupWizardPage() {
 
       {/* Footer */}
       <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex gap-2">
-          <Button variant="outline" onClick={goBack} className="flex-1">
-            Back
-          </Button>
-          <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
-            {savingTeams ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </>
-            )}
-          </Button>
+        <div className="max-w-2xl mx-auto space-y-2">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={goBack} className="flex-1">
+              Back
+            </Button>
+            <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+              {savingTeams ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </>
+              )}
+            </Button>
+          </div>
+          {isOptionalStep && safeStepIndex < STEPS.length - 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goSkip}
+              className="w-full text-muted-foreground"
+            >
+              Skip for now — you can add this later
+            </Button>
+          )}
         </div>
       </div>
     </div>
