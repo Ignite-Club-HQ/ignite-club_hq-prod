@@ -96,13 +96,12 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-// Free-tier essentials first (teams, committee, groups, invites), then Pro
-// upgrades (branding, sponsors), then review. This keeps the perceived effort
-// low for new clubs — they finish something useful before hitting any locks.
+// Minimal essentials first (teams, team invites), then optional Pro upgrades
+// (branding, sponsors), then review. Committee & Working Groups are admin
+// plumbing and are deferred — surfaced later via Club Admin + the setup
+// progress card on Home. Keeps day-one friction low for new clubs.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
-  { id: "committee", label: "Committee", icon: Shield },
-  { id: "subcommittee", label: "Working groups", icon: UserPlus },
   { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
