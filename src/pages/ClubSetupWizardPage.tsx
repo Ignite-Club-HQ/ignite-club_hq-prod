@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
+import { MonogramLogoGenerator } from "@/components/club/MonogramLogoGenerator";
 import { SponsorsManager } from "@/components/SponsorsManager";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
