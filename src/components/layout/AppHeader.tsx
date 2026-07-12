@@ -273,7 +273,7 @@ function LogoClubThemeDropdown() {
         </>
       )}
 
-      <div className="px-2 py-1.5"></div>
+      <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Club Themes</p>
         <p className="text-xs text-muted-foreground">Apply your club's colors</p>
       </div>
