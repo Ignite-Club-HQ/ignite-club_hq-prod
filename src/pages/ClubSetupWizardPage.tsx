@@ -654,20 +654,32 @@ export default function ClubSetupWizardPage() {
 
       {/* Footer */}
       <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex gap-2">
-          <Button variant="outline" onClick={goBack} className="flex-1">
-            Back
-          </Button>
-          <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
-            {savingTeams ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </>
-            )}
-          </Button>
+        <div className="max-w-2xl mx-auto space-y-2">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={goBack} className="flex-1">
+              Back
+            </Button>
+            <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+              {savingTeams ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </>
+              )}
+            </Button>
+          </div>
+          {isOptionalStep && safeStepIndex < STEPS.length - 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goSkip}
+              className="w-full text-muted-foreground"
+            >
+              Skip for now — you can add this later
+            </Button>
+          )}
         </div>
       </div>
     </div>
