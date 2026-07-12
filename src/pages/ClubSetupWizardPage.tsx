@@ -713,9 +713,9 @@ function InviteStep({
   );
 }
 
-// ---------- step: coaches (team-scoped) ----------
+// ---------- step: team invites (team-scoped: admins, coaches, players, parents) ----------
 
-function CoachesStep({
+function TeamInvitesStep({
   teams,
   list,
   setList,
@@ -730,11 +730,14 @@ function CoachesStep({
     () => [
       { value: "team_admin" as const, label: "Team Admin" },
       { value: "coach" as const, label: "Coach" },
+      { value: "player" as const, label: "Player" },
+      { value: "parent" as const, label: "Parent" },
     ],
     [],
   );
 
-  const addRow = (teamId: string) =>
+  const addRow = (teamId: string, role: TeamRole = "player") =>
+
     setList((prev) => [
       ...prev,
       {
