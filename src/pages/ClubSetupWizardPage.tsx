@@ -525,6 +525,15 @@ export default function ClubSetupWizardPage() {
                       qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
                     }
                   />
+                  {!(club as any)?.logo_url && (
+                    <MonogramLogoGenerator
+                      clubId={clubId!}
+                      clubName={(club as any)?.name || "Club"}
+                      onGenerated={() =>
+                        qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
+                      }
+                    />
+                  )}
                   <ClubThemeEditor
                     key={`${(club as any)?.theme_primary_h ?? "x"}-${(club as any)?.theme_secondary_h ?? "x"}-${(club as any)?.theme_accent_h ?? "x"}`}
                     clubId={clubId!}
