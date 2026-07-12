@@ -1240,8 +1240,8 @@ function OperationalGroupsStep({
     <div className="space-y-4">
       <StepIntro
         icon={UserPlus}
-        title="Create operational groups"
-        subtitle="Sub-committees are just chat groups for how you organise work — Fundraising, Grounds, Events, etc. Everyone in them stays a Committee Member; these are not new roles."
+        title="Create working groups (optional)"
+        subtitle="Sub-committees for how you organise work — e.g. Fundraising, Grounds, Events. Each one is just a private chat group for that committee. Skip this if you're not sure — you can add them anytime."
       />
 
       {groups.length === 0 && (
