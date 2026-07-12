@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,6 +19,8 @@ import {
   Sparkles,
   Palette,
   Building2,
+  ClipboardList,
+  ClipboardPaste,
 } from "lucide-react";
 
 import { Capacitor } from "@capacitor/core";
@@ -45,6 +47,9 @@ import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { cn } from "@/lib/utils";
 import { Crown } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
+import { lookupInvitableUserByEmail } from "@/lib/inviteEmailDedupe";
 
 
 // ---------- types ----------
@@ -97,6 +102,7 @@ const STEPS = [
   { id: "committee", label: "Committee", icon: Shield },
   { id: "subcommittee", label: "Groups", icon: UserPlus },
   { id: "teaminvites", label: "Team invites", icon: Trophy },
+  { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
 
@@ -129,13 +135,36 @@ export default function ClubSetupWizardPage() {
     enabled: !!clubId,
   });
 
-  // Draft state across steps
-  const [teams, setTeams] = useState<DraftTeam[]>([
-    { tempId: crypto.randomUUID(), name: "", levelAge: "" },
-  ]);
-  const [committee, setCommittee] = useState<DraftInvite[]>([]);
-  const [groups, setGroups] = useState<DraftGroup[]>([]);
-  const [teamInvites, setTeamInvites] = useState<DraftInvite[]>([]);
+  // Draft state across steps — persisted per club to survive refresh/back-nav
+  const storageKey = clubId ? `ignite_wizard_draft_${clubId}` : null;
+  const loadedDraft = useMemo(() => {
+    if (!storageKey) return null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [storageKey]);
+
+  const [teams, setTeams] = useState<DraftTeam[]>(
+    loadedDraft?.teams ?? [{ tempId: crypto.randomUUID(), name: "", levelAge: "" }],
+  );
+  const [committee, setCommittee] = useState<DraftInvite[]>(loadedDraft?.committee ?? []);
+  const [groups, setGroups] = useState<DraftGroup[]>(loadedDraft?.groups ?? []);
+  const [teamInvites, setTeamInvites] = useState<DraftInvite[]>(loadedDraft?.teamInvites ?? []);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ teams, committee, groups, teamInvites }),
+      );
+    } catch {
+      /* quota — ignore */
+    }
+  }, [storageKey, teams, committee, groups, teamInvites]);
 
   const savedTeams = teams.filter((t) => t.createdTeamId);
   const canDoTeamInvites = savedTeams.length > 0;
@@ -204,8 +233,40 @@ export default function ClubSetupWizardPage() {
       ),
     );
 
+    const isTeamRole =
+      invite.role === "team_admin" ||
+      invite.role === "coach" ||
+      invite.role === "player" ||
+      invite.role === "parent";
+
+    // Dedupe: skip inviting someone who's already in this club/team
+    if (invite.email.trim()) {
+      const match = await lookupInvitableUserByEmail({
+        email: invite.email.trim(),
+        clubId,
+        teamId: isTeamRole ? invite.teamId ?? null : null,
+      });
+      if (match && (match.already_in_club || (isTeamRole && match.already_in_team))) {
+        setList((prev) =>
+          prev.map((i) =>
+            i.tempId === invite.tempId
+              ? {
+                  ...i,
+                  status: "error",
+                  errorMsg: `${match.display_name ?? "This user"} is already a member — no invite sent.`,
+                }
+              : i,
+          ),
+        );
+        toast({
+          title: "Already a member",
+          description: `${match.display_name ?? invite.email} is already in this ${isTeamRole && match.already_in_team ? "team" : "club"}.`,
+        });
+        return;
+      }
+    }
+
     const inviteToken = crypto.randomUUID();
-    const isTeamRole = invite.role === "team_admin" || invite.role === "coach";
 
     const { error: insErr } = await supabase.from("pending_invites").insert({
       club_id: clubId,
@@ -311,6 +372,9 @@ export default function ClubSetupWizardPage() {
   // ---------- navigation ----------
 
   const finish = () => {
+    if (storageKey) {
+      try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+    }
     toast({ title: "Setup complete", description: "You can invite more anytime." });
     navigate(`/clubs/${clubId}`);
   };
@@ -330,13 +394,12 @@ export default function ClubSetupWizardPage() {
       }
     }
     if (stepIndex < STEPS.length - 1) {
-      // Skip team-invites step if no teams
+      // Skip team-invites step if no teams (jump straight to review)
       if (STEPS[stepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
-        finish();
+        setStepIndex((i) => i + 2);
         return;
       }
       setStepIndex((i) => i + 1);
-
     } else {
       finish();
     }
@@ -505,6 +568,19 @@ export default function ClubSetupWizardPage() {
             />
           )}
 
+          {step.id === "review" && (
+            <ReviewStep
+              clubName={club?.name}
+              teams={savedTeams}
+              committee={committee}
+              groups={groups}
+              teamInvites={teamInvites}
+              onJumpToStep={(id) =>
+                setStepIndex(STEPS.findIndex((s) => s.id === id))
+              }
+            />
+          )}
+
         </div>
       </div>
 
@@ -515,11 +591,7 @@ export default function ClubSetupWizardPage() {
             Back
           </Button>
           <Button onClick={goNext} className="flex-[2]">
-            {stepIndex === STEPS.length - 1 ||
-            (STEPS[stepIndex + 1]?.id === "teaminvites" && !canDoTeamInvites)
-              ? "Finish"
-
-              : "Continue"}
+            {stepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
@@ -709,6 +781,26 @@ function InviteStep({
       <Button variant="outline" size="sm" onClick={addRow} className="w-full">
         <Plus className="h-4 w-4 mr-1" /> Add invite
       </Button>
+
+      <BulkPasteInvites
+        onAdd={(rows) =>
+          setList((prev) => {
+            const existing = new Set(
+              prev.map((p) => (p.email || p.name).trim().toLowerCase()),
+            );
+            const additions = rows
+              .filter((r) => !existing.has((r.email || r.name).toLowerCase()))
+              .map((r) => ({
+                tempId: crypto.randomUUID(),
+                name: r.name,
+                email: r.email,
+                role: defaultRole,
+                status: "pending" as const,
+              }));
+            return [...prev, ...additions];
+          })
+        }
+      />
     </div>
   );
 }
@@ -805,6 +897,30 @@ function TeamInvitesStep({
                 ))}
               </div>
             )}
+
+            <BulkPasteInvites
+              compact
+              onAdd={(rows) =>
+                setList((prev) => {
+                  const teamKeys = new Set(
+                    prev
+                      .filter((p) => p.teamId === team.createdTeamId)
+                      .map((p) => (p.email || p.name).trim().toLowerCase()),
+                  );
+                  const additions = rows
+                    .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
+                    .map((r) => ({
+                      tempId: crypto.randomUUID(),
+                      name: r.name,
+                      email: r.email,
+                      role: "player" as TeamRole,
+                      teamId: team.createdTeamId,
+                      status: "pending" as const,
+                    }));
+                  return [...prev, ...additions];
+                })
+              }
+            />
           </div>
         );
       })}
@@ -1051,8 +1167,37 @@ function OperationalGroupsStep({
       return;
     }
     update(g.tempId, { status: "saved", createdId: data.id as string });
+
+    // Auto-seed existing club_admin + committee_member users into the group
+    // so they're members immediately (not just role-eligible).
+    try {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", clubId)
+        .in("role", ["club_admin", "committee_member"]);
+      const userIds = Array.from(
+        new Set([userId, ...(roleRows ?? []).map((r: any) => r.user_id)]),
+      );
+      if (userIds.length > 0) {
+        await supabase.from("group_members").upsert(
+          userIds.map((uid) => ({
+            group_id: data.id,
+            user_id: uid,
+            added_by: userId,
+          })) as any,
+          { onConflict: "group_id,user_id", ignoreDuplicates: true } as any,
+        );
+      }
+    } catch {
+      /* seeding failure is non-fatal — role-based access still applies */
+    }
+
     qc.invalidateQueries({ queryKey: ["chat-groups"] });
-    toast({ title: "Group created", description: g.name });
+    toast({
+      title: "Group created",
+      description: `${g.name} — existing committee auto-added.`,
+    });
   };
 
   return (
@@ -1147,6 +1292,184 @@ function OperationalGroupsStep({
 
       <p className="text-xs text-muted-foreground text-center">
         You can add members to each group from the group's chat once people have joined the club.
+      </p>
+    </div>
+  );
+}
+
+// ---------- shared: bulk-paste invites ----------
+
+function BulkPasteInvites({
+  onAdd,
+  compact,
+}: {
+  onAdd: (rows: { name: string; email: string }[]) => void;
+  compact?: boolean;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const parsed = useMemo(() => parseRecipients(text), [text]);
+  const showHint = text.length > 0 && !looksLikeMultiRecipient(text) && parsed.length < 2;
+
+  const submit = () => {
+    if (parsed.length === 0) {
+      toast({ title: "Nothing to add", description: "Paste a list of names or emails first.", variant: "destructive" });
+      return;
+    }
+    onAdd(parsed);
+    toast({ title: `Added ${parsed.length} to the list`, description: "Review, then Send." });
+    setText("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className={cn("w-full text-muted-foreground", compact && "h-8 text-xs")}
+      >
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Bulk paste names / emails
+      </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-3 space-y-2 bg-card">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Paste a list</p>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setOpen(false); setText(""); }}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        One per line — <code>Alex Smith &lt;alex@x.com&gt;</code>, <code>alex@x.com</code>, or just a name.
+        Duplicates are removed.
+      </p>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        placeholder={"Alex Smith <alex@x.com>\njordan@x.com\nSam Lee"}
+        className="text-sm"
+      />
+      {showHint && (
+        <p className="text-[11px] text-amber-600">
+          Only detected 1 recipient — separate multiple entries by new lines.
+        </p>
+      )}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {parsed.length} detected
+        </span>
+        <Button size="sm" onClick={submit} disabled={parsed.length === 0}>
+          Add {parsed.length || ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- step: review & finish ----------
+
+function ReviewStep({
+  clubName,
+  teams,
+  committee,
+  groups,
+  teamInvites,
+  onJumpToStep,
+}: {
+  clubName?: string | null;
+  teams: DraftTeam[];
+  committee: DraftInvite[];
+  groups: DraftGroup[];
+  teamInvites: DraftInvite[];
+  onJumpToStep: (id: string) => void;
+}) {
+  const sentCommittee = committee.filter((i) => i.status === "sent").length;
+  const pendingCommittee = committee.length - sentCommittee;
+  const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
+  const pendingTeamInv = teamInvites.length - sentTeamInv;
+  const savedGroups = groups.filter((g) => g.status === "saved").length;
+
+  const rows: {
+    id: string;
+    label: string;
+    detail: string;
+    warn?: boolean;
+  }[] = [
+    {
+      id: "teams",
+      label: "Teams created",
+      detail: teams.length === 0 ? "None yet" : `${teams.length} team${teams.length === 1 ? "" : "s"}`,
+      warn: teams.length === 0,
+    },
+    {
+      id: "committee",
+      label: "Committee invites",
+      detail:
+        committee.length === 0
+          ? "None yet"
+          : `${sentCommittee} sent${pendingCommittee ? `, ${pendingCommittee} not sent` : ""}`,
+      warn: pendingCommittee > 0,
+    },
+    {
+      id: "subcommittee",
+      label: "Operational groups",
+      detail: savedGroups === 0 ? "None yet" : `${savedGroups} group${savedGroups === 1 ? "" : "s"}`,
+    },
+    {
+      id: "teaminvites",
+      label: "Team invites",
+      detail:
+        teamInvites.length === 0
+          ? "None yet"
+          : `${sentTeamInv} sent${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
+      warn: pendingTeamInv > 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <StepIntro
+        icon={ClipboardList}
+        title={`${clubName || "Your club"} is nearly ready`}
+        subtitle="Review what's set up. Tap a row to jump back and finish anything."
+      />
+
+      <div className="rounded-xl border divide-y">
+        {rows.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onJumpToStep(r.id)}
+            className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium">{r.label}</p>
+              <p className={cn("text-xs", r.warn ? "text-amber-600" : "text-muted-foreground")}>
+                {r.detail}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
+        <p className="text-sm font-semibold">Next steps after finish</p>
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+          <li>Share pending invite links from the Members page.</li>
+          <li>Add your season schedule from the Schedule tab.</li>
+          <li>Post a welcome message in each team chat.</li>
+          <li>Review sponsors and branding in Club Settings anytime.</li>
+        </ul>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Draft is auto-saved — you can leave and come back anytime before finishing.
       </p>
     </div>
   );
