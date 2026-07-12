@@ -47,6 +47,9 @@ import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { cn } from "@/lib/utils";
 import { Crown } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
+import { lookupInvitableUserByEmail } from "@/lib/inviteEmailDedupe";
 
 
 // ---------- types ----------
