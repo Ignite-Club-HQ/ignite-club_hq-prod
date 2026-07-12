@@ -135,13 +135,36 @@ export default function ClubSetupWizardPage() {
     enabled: !!clubId,
   });
 
-  // Draft state across steps
-  const [teams, setTeams] = useState<DraftTeam[]>([
-    { tempId: crypto.randomUUID(), name: "", levelAge: "" },
-  ]);
-  const [committee, setCommittee] = useState<DraftInvite[]>([]);
-  const [groups, setGroups] = useState<DraftGroup[]>([]);
-  const [teamInvites, setTeamInvites] = useState<DraftInvite[]>([]);
+  // Draft state across steps — persisted per club to survive refresh/back-nav
+  const storageKey = clubId ? `ignite_wizard_draft_${clubId}` : null;
+  const loadedDraft = useMemo(() => {
+    if (!storageKey) return null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [storageKey]);
+
+  const [teams, setTeams] = useState<DraftTeam[]>(
+    loadedDraft?.teams ?? [{ tempId: crypto.randomUUID(), name: "", levelAge: "" }],
+  );
+  const [committee, setCommittee] = useState<DraftInvite[]>(loadedDraft?.committee ?? []);
+  const [groups, setGroups] = useState<DraftGroup[]>(loadedDraft?.groups ?? []);
+  const [teamInvites, setTeamInvites] = useState<DraftInvite[]>(loadedDraft?.teamInvites ?? []);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ teams, committee, groups, teamInvites }),
+      );
+    } catch {
+      /* quota — ignore */
+    }
+  }, [storageKey, teams, committee, groups, teamInvites]);
 
   const savedTeams = teams.filter((t) => t.createdTeamId);
   const canDoTeamInvites = savedTeams.length > 0;
