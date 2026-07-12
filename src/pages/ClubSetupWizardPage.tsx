@@ -102,6 +102,7 @@ const STEPS = [
   { id: "committee", label: "Committee", icon: Shield },
   { id: "subcommittee", label: "Groups", icon: UserPlus },
   { id: "teaminvites", label: "Team invites", icon: Trophy },
+  { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
 
