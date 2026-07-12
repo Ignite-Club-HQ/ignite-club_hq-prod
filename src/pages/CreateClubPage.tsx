@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock, ChevronDown, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Link } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -33,6 +35,7 @@ export default function CreateClubPage() {
   
   const [sport, setSport] = useState("");
   const [saving, setSaving] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
