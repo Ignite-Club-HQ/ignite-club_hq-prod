@@ -95,7 +95,7 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-const STEPS = [
+const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
@@ -104,6 +104,12 @@ const STEPS = [
   { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
+
+// Shell clubs (personal team organisers created via StartTeamPage) don't have
+// club-level branding, sponsors, committee or operational groups — show only
+// the team-focused steps so the wizard doesn't imply a full club.
+const SHELL_STEP_IDS = new Set(["teams", "teaminvites", "review"]);
+
 
 
 
