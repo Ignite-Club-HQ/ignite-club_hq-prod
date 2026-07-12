@@ -78,10 +78,13 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
 
 const STEPS = [
   { id: "teams", label: "Teams", icon: Users },
+  { id: "branding", label: "Branding", icon: Palette },
+  { id: "sponsors", label: "Sponsors", icon: Building2 },
   { id: "committee", label: "Committee", icon: Shield },
   { id: "subcommittee", label: "Sub-committee", icon: UserPlus },
   { id: "coaches", label: "Coaches", icon: Trophy },
 ] as const;
+
 
 // ---------- page ----------
 
