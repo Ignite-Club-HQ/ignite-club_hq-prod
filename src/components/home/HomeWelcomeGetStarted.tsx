@@ -52,24 +52,24 @@ export function HomeWelcomeGetStarted({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, club_id, team_id, token, role, clubs:club_id(name), teams:team_id(name)")
-        .eq("email", email!.toLowerCase())
+        .select("id, club_id, team_id, invite_token, role, clubs:club_id(name), teams:team_id(name)")
+        .eq("invited_email", email!.toLowerCase())
         .is("accepted_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) return null;
-      return data;
+      return data as any;
     },
   });
 
   if (pendingInvite) {
     const target =
-      (pendingInvite as any).clubs?.name ||
-      (pendingInvite as any).teams?.name ||
+      pendingInvite.clubs?.name ||
+      pendingInvite.teams?.name ||
       "a club";
-    const href = pendingInvite.token
-      ? `/join/${pendingInvite.token}`
+    const href = pendingInvite.invite_token
+      ? `/join/${pendingInvite.invite_token}`
       : pendingInvite.club_id
       ? `/clubs/${pendingInvite.club_id}`
       : "/notifications";
@@ -105,6 +105,7 @@ export function HomeWelcomeGetStarted({
       </Card>
     );
   }
+
 
   return (
     <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
