@@ -85,6 +85,8 @@ import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
+import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
+
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
@@ -2088,8 +2090,18 @@ export default function HomePage() {
 
       {/* New-user empty state — no clubs, no team memberships yet */}
       {initialized && !isLoading && userClubs.length === 0 && !userRoles?.some((r: any) => r.team_id) && (
-        <HomeWelcomeGetStarted firstName={firstName} />
+        <HomeWelcomeGetStarted firstName={firstName} email={user?.email} />
       )}
+
+      {/* Resume-setup card for club admins with incomplete wizard */}
+      {initialized && !isLoading && (() => {
+        const adminClubId = activeClubFilter && userRoles?.some((r: any) => r.club_id === activeClubFilter && r.role === "club_admin")
+          ? activeClubFilter
+          : userRoles?.find((r: any) => r.role === "club_admin" && r.club_id)?.club_id;
+        if (!adminClubId) return null;
+        return <ClubSetupProgressCard clubId={adminClubId} />;
+      })()}
+
 
       <div className="relative">
         {!showContent && <HomeInitialSkeleton />}

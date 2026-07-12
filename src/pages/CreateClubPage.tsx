@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock, ChevronDown, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
 import {
   Select,
   SelectContent,
@@ -33,6 +35,7 @@ export default function CreateClubPage() {
   
   const [sport, setSport] = useState("");
   const [saving, setSaving] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
@@ -359,52 +362,83 @@ export default function CreateClubPage() {
                   )}
                 </div>
 
-                {/* Sport Selection */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Sport</Label>
-                  <Select value={sport} onValueChange={setSport}>
-                    <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
-                      <SelectValue placeholder="Select a sport">
-                        {sport && (
-                          <span className="flex items-center gap-2">
-                            <span className="text-lg">{getSportEmoji(sport)}</span>
-                            <span>{sport}</span>
-                          </span>
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
-                      {SPORTS.map((s) => (
-                        <SelectItem key={s} value={s} className="py-3 text-base">
-                          <span className="flex items-center gap-3">
-                            <span className="text-lg">{getSportEmoji(s)}</span>
-                            <span>{s}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Optional details — collapsed to keep the initial form focused on Name. */}
+                <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between text-sm font-medium text-primary hover:opacity-80 transition-opacity py-2"
+                    >
+                      <span>{moreOpen ? "Hide" : "Add"} more details (optional)</span>
+                      <ChevronDown
+                        className={"h-4 w-4 transition-transform " + (moreOpen ? "rotate-180" : "")}
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-6 pt-2">
+                    {/* Sport Selection */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Sport</Label>
+                      <Select value={sport} onValueChange={setSport}>
+                        <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
+                          <SelectValue placeholder="Select a sport">
+                            {sport && (
+                              <span className="flex items-center gap-2">
+                                <span className="text-lg">{getSportEmoji(sport)}</span>
+                                <span>{sport}</span>
+                              </span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
+                          {SPORTS.map((s) => (
+                            <SelectItem key={s} value={s} className="py-3 text-base">
+                              <span className="flex items-center gap-3">
+                                <span className="text-lg">{getSportEmoji(s)}</span>
+                                <span>{s}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-sm font-medium">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    placeholder="e.g. Community football club for U8s–Seniors on the Northern Beaches."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    maxLength={500}
-                    rows={4}
-                    className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
-                  />
-                  <p className="text-xs text-muted-foreground text-right">
-                    {description.length}/500
-                  </p>
-                </div>
+                    {/* Description */}
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-sm font-medium">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        placeholder="e.g. Community football club for U8s–Seniors on the Northern Beaches."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        maxLength={500}
+                        rows={4}
+                        className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {description.length}/500
+                      </p>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
+
+              {/* Escape hatch — user might only need a single team, not a whole club. */}
+              <div className="rounded-xl border border-dashed p-3 flex items-center gap-3">
+                <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-xs text-muted-foreground flex-1">
+                  Only running one team?
+                </p>
+                <Link
+                  to="/teams/new"
+                  className="text-xs font-medium text-primary hover:underline shrink-0"
+                >
+                  Start a team instead →
+                </Link>
+              </div>
+
 
               {/* Info Card */}
               <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
