@@ -322,6 +322,20 @@ export default function HomePage() {
     if (!user?.id) return false;
     return localStorage.getItem(installCardDismissedKey) !== 'true';
   });
+
+  // One-time post-signup welcome toast (flag set by CompleteProfilePage).
+  useEffect(() => {
+    try {
+      const name = sessionStorage.getItem("ignite_show_welcome_toast");
+      if (!name) return;
+      sessionStorage.removeItem("ignite_show_welcome_toast");
+      toast({
+        title: `Welcome to Ignite, ${name}! 🎉`,
+        description: "Tap the + button to start a club, team or event — or check your notifications for pending invites.",
+      });
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   const dismissInstallCard = () => {
     setShowInstallCard(false);
