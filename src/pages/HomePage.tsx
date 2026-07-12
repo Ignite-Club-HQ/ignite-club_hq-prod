@@ -84,6 +84,7 @@ import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
+import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
@@ -2084,6 +2085,11 @@ export default function HomePage() {
         />
 
       </div>
+
+      {/* New-user empty state — no clubs, no team memberships yet */}
+      {initialized && !isLoading && userClubs.length === 0 && !userRoles?.some((r: any) => r.team_id) && (
+        <HomeWelcomeGetStarted firstName={firstName} />
+      )}
 
       <div className="relative">
         {!showContent && <HomeInitialSkeleton />}

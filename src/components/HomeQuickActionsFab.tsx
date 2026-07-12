@@ -82,6 +82,23 @@ export function HomeQuickActionsFab({
 
   // Primary — highest-frequency actions (weekly / monthly use)
   const primary: ActionItem[] = [
+    // New-user primary CTAs: if they have no teams yet, surface the setup entry points at the top.
+    ...(!hasTeams
+      ? [
+          {
+            label: "Start a Club",
+            description: "Multiple teams, committee & branding",
+            icon: Building2,
+            onClick: () => go("/clubs/new"),
+          } as ActionItem,
+          {
+            label: "Start a Team",
+            description: "One team — chat, schedule & RSVPs",
+            icon: Users2,
+            onClick: () => go("/teams/new"),
+          } as ActionItem,
+        ]
+      : []),
     {
       label: "Post Photo/Video",
       icon: ImagePlus,
@@ -155,7 +172,7 @@ export function HomeQuickActionsFab({
     ...(!activeClubFilter
       ? [
           {
-            label: "Create Organisation",
+            label: "Start an Association",
             icon: Building2,
             onClick: () => go("/associations/new"),
             proLocked,

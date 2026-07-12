@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
@@ -1111,6 +1112,11 @@ export default function ClubDetailPage() {
           </Card>
         );
       })()}
+
+      {/* Setup progress — resume the wizard for admins of incomplete clubs */}
+      {isAdmin && id && (
+        <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
+      )}
 
       {/* Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
