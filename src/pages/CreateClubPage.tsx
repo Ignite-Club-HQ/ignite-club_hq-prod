@@ -146,6 +146,15 @@ export default function CreateClubPage() {
       });
       return;
     }
+    if (!sport) {
+      toast({
+        title: "Please select a sport",
+        description: "Sport is required so we can tailor your club setup.",
+        variant: "destructive",
+      });
+      setMoreOpen(true);
+      return;
+    }
 
     setSaving(true);
 
