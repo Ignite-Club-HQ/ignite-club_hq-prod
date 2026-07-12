@@ -2088,7 +2088,7 @@ export default function HomePage() {
 
       {/* New-user empty state — no clubs, no team memberships yet */}
       {initialized && !isLoading && userClubs.length === 0 && !userRoles?.some((r: any) => r.team_id) && (
-        <HomeWelcomeGetStarted firstName={firstName} />
+        <HomeWelcomeGetStarted firstName={firstName} email={user?.email} />
       )}
 
       <div className="relative">
