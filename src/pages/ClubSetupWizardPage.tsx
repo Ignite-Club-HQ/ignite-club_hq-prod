@@ -17,7 +17,10 @@ import {
   Mail,
   CheckCircle2,
   Sparkles,
+  Palette,
+  Building2,
 } from "lucide-react";
+
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
