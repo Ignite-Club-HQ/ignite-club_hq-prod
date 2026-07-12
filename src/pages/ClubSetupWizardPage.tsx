@@ -675,7 +675,7 @@ function TeamsStep({
       <StepIntro
         icon={Users}
         title="Add your first team(s)"
-        subtitle="You can skip this and add teams later. Most clubs start with one."
+        subtitle="Most clubs start with one or two — e.g. U10 Girls, U12 Boys, Seniors. Just type them in and tap Continue; we'll save them automatically."
       />
 
       <div className="space-y-3">
