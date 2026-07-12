@@ -19,6 +19,8 @@ import {
   Sparkles,
   Palette,
   Building2,
+  ClipboardList,
+  ClipboardPaste,
 } from "lucide-react";
 
 import { Capacitor } from "@capacitor/core";
