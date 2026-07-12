@@ -953,10 +953,12 @@ function StepIntro({
   icon: Icon,
   title,
   subtitle,
+  proBadge,
 }: {
   icon: any;
   title: string;
   subtitle: string;
+  proBadge?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
@@ -964,7 +966,14 @@ function StepIntro({
         <Icon className="h-5 w-5 text-primary" />
       </div>
       <div className="min-w-0">
-        <p className="font-semibold text-sm">{title}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-semibold text-sm">{title}</p>
+          {proBadge && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
+              <Crown className="h-2.5 w-2.5" /> Pro
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
           {subtitle}
         </p>
