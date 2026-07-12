@@ -603,9 +603,10 @@ export default function ClubSetupWizardPage() {
               committee={committee}
               groups={groups}
               teamInvites={teamInvites}
-              onJumpToStep={(id) =>
-                setStepIndex(STEPS.findIndex((s) => s.id === id))
-              }
+              onJumpToStep={(id) => {
+                const idx = STEPS.findIndex((s) => s.id === id);
+                if (idx >= 0) setStepIndex(idx);
+              }}
             />
           )}
 
