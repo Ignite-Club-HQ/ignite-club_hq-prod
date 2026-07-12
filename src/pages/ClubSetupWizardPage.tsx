@@ -1592,6 +1592,9 @@ function ShareClubCard({ clubId, clubName }: { clubId: string; clubName: string 
       </div>
     </div>
   );
+}
+
+
 
 
 // ---------- brand preset picker (quick-apply palettes) ----------
