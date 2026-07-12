@@ -293,8 +293,11 @@ export default function CreateClubPage() {
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
                 <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
                   <AvatarImage src={logoPreview || undefined} className="object-cover" />
-                  <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
-                    {name.charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
+                  <AvatarFallback
+                    className="text-4xl font-semibold"
+                    style={name.trim() ? monogramStyle : undefined}
+                  >
+                    {name.trim().charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
                   </AvatarFallback>
                 </Avatar>
                 <label className="absolute bottom-1 right-1 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-all shadow-lg hover:scale-105 active:scale-95">
@@ -308,8 +311,12 @@ export default function CreateClubPage() {
                 </label>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Add your club logo</p>
-                <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
+                <p className="text-sm text-muted-foreground">
+                  {logoPreview ? "Your club logo" : "We'll use a monogram until you add a logo"}
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Tap the camera to upload — square, ~400×400px works best.
+                </p>
               </div>
             </div>
           )}
