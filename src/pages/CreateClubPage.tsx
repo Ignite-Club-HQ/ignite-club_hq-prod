@@ -432,7 +432,7 @@ export default function CreateClubPage() {
             <Button 
               className="w-full h-12 text-base font-semibold shadow-lg" 
               onClick={handleSubmit}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || nameTaken === true || nameChecking}
             >
               {saving ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
