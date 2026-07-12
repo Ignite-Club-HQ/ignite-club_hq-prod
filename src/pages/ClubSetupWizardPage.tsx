@@ -1123,8 +1123,37 @@ function OperationalGroupsStep({
       return;
     }
     update(g.tempId, { status: "saved", createdId: data.id as string });
+
+    // Auto-seed existing club_admin + committee_member users into the group
+    // so they're members immediately (not just role-eligible).
+    try {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", clubId)
+        .in("role", ["club_admin", "committee_member"]);
+      const userIds = Array.from(
+        new Set([userId, ...(roleRows ?? []).map((r: any) => r.user_id)]),
+      );
+      if (userIds.length > 0) {
+        await supabase.from("group_members").upsert(
+          userIds.map((uid) => ({
+            group_id: data.id,
+            user_id: uid,
+            added_by: userId,
+          })) as any,
+          { onConflict: "group_id,user_id", ignoreDuplicates: true } as any,
+        );
+      }
+    } catch {
+      /* seeding failure is non-fatal — role-based access still applies */
+    }
+
     qc.invalidateQueries({ queryKey: ["chat-groups"] });
-    toast({ title: "Group created", description: g.name });
+    toast({
+      title: "Group created",
+      description: `${g.name} — existing committee auto-added.`,
+    });
   };
 
   return (
