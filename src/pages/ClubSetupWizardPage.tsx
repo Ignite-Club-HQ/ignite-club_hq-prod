@@ -568,6 +568,19 @@ export default function ClubSetupWizardPage() {
             />
           )}
 
+          {step.id === "review" && (
+            <ReviewStep
+              clubName={club?.name}
+              teams={savedTeams}
+              committee={committee}
+              groups={groups}
+              teamInvites={teamInvites}
+              onJumpToStep={(id) =>
+                setStepIndex(STEPS.findIndex((s) => s.id === id))
+              }
+            />
+          )}
+
         </div>
       </div>
 
@@ -578,11 +591,7 @@ export default function ClubSetupWizardPage() {
             Back
           </Button>
           <Button onClick={goNext} className="flex-[2]">
-            {stepIndex === STEPS.length - 1 ||
-            (STEPS[stepIndex + 1]?.id === "teaminvites" && !canDoTeamInvites)
-              ? "Finish"
-
-              : "Continue"}
+            {stepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
