@@ -41,7 +41,10 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { SponsorsManager } from "@/components/SponsorsManager";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { cn } from "@/lib/utils";
+import { Crown } from "lucide-react";
 
 
 // ---------- types ----------
