@@ -629,9 +629,15 @@ export default function ClubSetupWizardPage() {
           <Button variant="outline" onClick={goBack} className="flex-1">
             Back
           </Button>
-          <Button onClick={goNext} className="flex-[2]">
-            {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
-            <ArrowRight className="h-4 w-4 ml-1" />
+          <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+            {savingTeams ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </>
+            )}
           </Button>
         </div>
       </div>
