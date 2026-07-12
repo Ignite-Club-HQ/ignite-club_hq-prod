@@ -332,12 +332,31 @@ export default function CreateClubPage() {
                   </Label>
                   <Input
                     id="name"
-                    placeholder="Enter your club name"
+                    placeholder="e.g. Ignite FC, Riverside Rovers"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     maxLength={100}
                     className="h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+                    aria-invalid={nameTaken === true}
                   />
+                  {name.trim().length >= 2 && (
+                    <p
+                      className={
+                        "text-xs " +
+                        (nameTaken
+                          ? "text-destructive"
+                          : nameChecking
+                            ? "text-muted-foreground"
+                            : "text-emerald-600")
+                      }
+                    >
+                      {nameChecking
+                        ? "Checking availability…"
+                        : nameTaken
+                          ? "A club with this name already exists — try another."
+                          : "This name is available."}
+                    </p>
+                  )}
                 </div>
 
                 {/* Sport Selection */}
