@@ -410,9 +410,9 @@ export default function ClubSetupWizardPage() {
         return;
       }
     }
-    if (stepIndex < STEPS.length - 1) {
+    if (safeStepIndex < STEPS.length - 1) {
       // Skip team-invites step if no teams (jump straight to review)
-      if (STEPS[stepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
+      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
         setStepIndex((i) => i + 2);
         return;
       }
@@ -423,11 +423,11 @@ export default function ClubSetupWizardPage() {
   };
 
   const goBack = () => {
-    if (stepIndex === 0) navigate(`/clubs/${clubId}`);
+    if (safeStepIndex === 0) navigate(`/clubs/${clubId}`);
     else setStepIndex((i) => i - 1);
   };
 
-  const progress = ((stepIndex + 1) / STEPS.length) * 100;
+  const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -463,8 +463,8 @@ export default function ClubSetupWizardPage() {
         <div className="px-4 pb-3 flex gap-2 overflow-x-auto max-w-2xl mx-auto w-full">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
-            const active = i === stepIndex;
-            const done = i < stepIndex;
+            const active = i === safeStepIndex;
+            const done = i < safeStepIndex;
             return (
               <button
                 key={s.id}
@@ -619,7 +619,7 @@ export default function ClubSetupWizardPage() {
             Back
           </Button>
           <Button onClick={goNext} className="flex-[2]">
-            {stepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+            {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
