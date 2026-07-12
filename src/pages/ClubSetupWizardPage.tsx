@@ -50,7 +50,7 @@ import { Crown } from "lucide-react";
 // ---------- types ----------
 
 type ClubRole = "club_admin" | "committee_member";
-type TeamRole = "team_admin" | "coach";
+type TeamRole = "team_admin" | "coach" | "player" | "parent";
 
 interface DraftTeam {
   tempId: string;
@@ -70,6 +70,15 @@ interface DraftInvite {
   errorMsg?: string;
 }
 
+interface DraftGroup {
+  tempId: string;
+  name: string;
+  description: string;
+  status: "pending" | "saving" | "saved" | "error";
+  createdId?: string;
+  errorMsg?: string;
+}
+
 const CLUB_ROLE_LABEL: Record<ClubRole, string> = {
   club_admin: "Club Admin",
   committee_member: "Committee Member",
@@ -77,6 +86,8 @@ const CLUB_ROLE_LABEL: Record<ClubRole, string> = {
 const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   team_admin: "Team Admin",
   coach: "Coach",
+  player: "Player",
+  parent: "Parent",
 };
 
 const STEPS = [
@@ -84,9 +95,10 @@ const STEPS = [
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
   { id: "committee", label: "Committee", icon: Shield },
-  { id: "subcommittee", label: "Sub-committee", icon: UserPlus },
-  { id: "coaches", label: "Coaches", icon: Trophy },
+  { id: "subcommittee", label: "Groups", icon: UserPlus },
+  { id: "teaminvites", label: "Team invites", icon: Trophy },
 ] as const;
+
 
 
 // ---------- page ----------
