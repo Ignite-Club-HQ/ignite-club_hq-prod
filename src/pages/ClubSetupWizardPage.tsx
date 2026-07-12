@@ -1498,6 +1498,8 @@ function ReviewStep({
         ))}
       </div>
 
+      <ShareClubCard clubId={clubId} clubName={clubName || "our club"} />
+
       <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
         <p className="text-sm font-semibold">Next steps after finish</p>
         <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
@@ -1507,6 +1509,7 @@ function ReviewStep({
           <li>Review sponsors and branding in Club Settings anytime.</li>
         </ul>
       </div>
+
 
       <p className="text-xs text-muted-foreground text-center">
         Draft is auto-saved — you can leave and come back anytime before finishing.
