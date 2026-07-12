@@ -608,6 +608,7 @@ export default function ClubSetupWizardPage() {
 
           {step.id === "review" && (
             <ReviewStep
+              clubId={clubId!}
               clubName={club?.name}
               teams={savedTeams}
               committee={committee}
@@ -619,6 +620,7 @@ export default function ClubSetupWizardPage() {
               }}
             />
           )}
+
 
         </div>
       </div>
@@ -1411,6 +1413,7 @@ function BulkPasteInvites({
 // ---------- step: review & finish ----------
 
 function ReviewStep({
+  clubId,
   clubName,
   teams,
   committee,
@@ -1418,6 +1421,7 @@ function ReviewStep({
   teamInvites,
   onJumpToStep,
 }: {
+  clubId: string;
   clubName?: string | null;
   teams: DraftTeam[];
   committee: DraftInvite[];
