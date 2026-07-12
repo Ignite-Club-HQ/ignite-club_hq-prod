@@ -372,7 +372,36 @@ export default function CreateClubPage() {
                   )}
                 </div>
 
-                {/* Optional details — collapsed to keep the initial form focused on Name. */}
+                {/* Sport — required, always visible */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Sport <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={sport} onValueChange={setSport}>
+                    <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
+                      <SelectValue placeholder="Select a sport">
+                        {sport && (
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{getSportEmoji(sport)}</span>
+                            <span>{sport}</span>
+                          </span>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
+                      {SPORTS.map((s) => (
+                        <SelectItem key={s} value={s} className="py-3 text-base">
+                          <span className="flex items-center gap-3">
+                            <span className="text-lg">{getSportEmoji(s)}</span>
+                            <span>{s}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Optional details — collapsed to keep the initial form focused. */}
                 <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
                   <CollapsibleTrigger asChild>
                     <button
@@ -386,32 +415,6 @@ export default function CreateClubPage() {
                     </button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-6 pt-2">
-                    {/* Sport Selection */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Sport</Label>
-                      <Select value={sport} onValueChange={setSport}>
-                        <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
-                          <SelectValue placeholder="Select a sport">
-                            {sport && (
-                              <span className="flex items-center gap-2">
-                                <span className="text-lg">{getSportEmoji(sport)}</span>
-                                <span>{sport}</span>
-                              </span>
-                            )}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
-                          {SPORTS.map((s) => (
-                            <SelectItem key={s} value={s} className="py-3 text-base">
-                              <span className="flex items-center gap-3">
-                                <span className="text-lg">{getSportEmoji(s)}</span>
-                                <span>{s}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
 
                     {/* Description */}
                     <div className="space-y-2">
