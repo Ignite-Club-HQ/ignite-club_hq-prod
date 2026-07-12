@@ -516,8 +516,9 @@ export default function ClubSetupWizardPage() {
           </Button>
           <Button onClick={goNext} className="flex-[2]">
             {stepIndex === STEPS.length - 1 ||
-            (STEPS[stepIndex + 1]?.id === "coaches" && !canDoCoaches)
+            (STEPS[stepIndex + 1]?.id === "teaminvites" && !canDoTeamInvites)
               ? "Finish"
+
               : "Continue"}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
