@@ -1297,3 +1297,181 @@ function OperationalGroupsStep({
   );
 }
 
+// ---------- shared: bulk-paste invites ----------
+
+function BulkPasteInvites({
+  onAdd,
+  compact,
+}: {
+  onAdd: (rows: { name: string; email: string }[]) => void;
+  compact?: boolean;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const parsed = useMemo(() => parseRecipients(text), [text]);
+  const showHint = text.length > 0 && !looksLikeMultiRecipient(text) && parsed.length < 2;
+
+  const submit = () => {
+    if (parsed.length === 0) {
+      toast({ title: "Nothing to add", description: "Paste a list of names or emails first.", variant: "destructive" });
+      return;
+    }
+    onAdd(parsed);
+    toast({ title: `Added ${parsed.length} to the list`, description: "Review, then Send." });
+    setText("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className={cn("w-full text-muted-foreground", compact && "h-8 text-xs")}
+      >
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Bulk paste names / emails
+      </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-3 space-y-2 bg-card">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Paste a list</p>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setOpen(false); setText(""); }}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        One per line — <code>Alex Smith &lt;alex@x.com&gt;</code>, <code>alex@x.com</code>, or just a name.
+        Duplicates are removed.
+      </p>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        placeholder={"Alex Smith <alex@x.com>\njordan@x.com\nSam Lee"}
+        className="text-sm"
+      />
+      {showHint && (
+        <p className="text-[11px] text-amber-600">
+          Only detected 1 recipient — separate multiple entries by new lines.
+        </p>
+      )}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {parsed.length} detected
+        </span>
+        <Button size="sm" onClick={submit} disabled={parsed.length === 0}>
+          Add {parsed.length || ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- step: review & finish ----------
+
+function ReviewStep({
+  clubName,
+  teams,
+  committee,
+  groups,
+  teamInvites,
+  onJumpToStep,
+}: {
+  clubName?: string | null;
+  teams: DraftTeam[];
+  committee: DraftInvite[];
+  groups: DraftGroup[];
+  teamInvites: DraftInvite[];
+  onJumpToStep: (id: string) => void;
+}) {
+  const sentCommittee = committee.filter((i) => i.status === "sent").length;
+  const pendingCommittee = committee.length - sentCommittee;
+  const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
+  const pendingTeamInv = teamInvites.length - sentTeamInv;
+  const savedGroups = groups.filter((g) => g.status === "saved").length;
+
+  const rows: {
+    id: string;
+    label: string;
+    detail: string;
+    warn?: boolean;
+  }[] = [
+    {
+      id: "teams",
+      label: "Teams created",
+      detail: teams.length === 0 ? "None yet" : `${teams.length} team${teams.length === 1 ? "" : "s"}`,
+      warn: teams.length === 0,
+    },
+    {
+      id: "committee",
+      label: "Committee invites",
+      detail:
+        committee.length === 0
+          ? "None yet"
+          : `${sentCommittee} sent${pendingCommittee ? `, ${pendingCommittee} not sent` : ""}`,
+      warn: pendingCommittee > 0,
+    },
+    {
+      id: "subcommittee",
+      label: "Operational groups",
+      detail: savedGroups === 0 ? "None yet" : `${savedGroups} group${savedGroups === 1 ? "" : "s"}`,
+    },
+    {
+      id: "teaminvites",
+      label: "Team invites",
+      detail:
+        teamInvites.length === 0
+          ? "None yet"
+          : `${sentTeamInv} sent${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
+      warn: pendingTeamInv > 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <StepIntro
+        icon={ClipboardList}
+        title={`${clubName || "Your club"} is nearly ready`}
+        subtitle="Review what's set up. Tap a row to jump back and finish anything."
+      />
+
+      <div className="rounded-xl border divide-y">
+        {rows.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onJumpToStep(r.id)}
+            className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium">{r.label}</p>
+              <p className={cn("text-xs", r.warn ? "text-amber-600" : "text-muted-foreground")}>
+                {r.detail}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
+        <p className="text-sm font-semibold">Next steps after finish</p>
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+          <li>Share pending invite links from the Members page.</li>
+          <li>Add your season schedule from the Schedule tab.</li>
+          <li>Post a welcome message in each team chat.</li>
+          <li>Review sponsors and branding in Club Settings anytime.</li>
+        </ul>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Draft is auto-saved — you can leave and come back anytime before finishing.
+      </p>
+    </div>
+  );
+}
+
