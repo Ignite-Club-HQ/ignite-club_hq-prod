@@ -399,22 +399,29 @@ export default function ClubSetupWizardPage() {
     navigate(`/clubs/${clubId}`);
   };
 
-  const goNext = () => {
-    // Auto-save unsaved teams on step 0
+  const [savingTeams, setSavingTeams] = useState(false);
+
+  const goNext = async () => {
+    // Auto-save any unsaved teams that have a name — no per-row Save needed.
     if (step.id === "teams") {
       const unsaved = teams.filter(
         (t) => t.name.trim() && !t.createdTeamId,
       );
       if (unsaved.length > 0) {
-        toast({
-          title: "Save your teams first",
-          description: "Tap ‘Save team’ on each row, or clear it.",
-        });
-        return;
+        setSavingTeams(true);
+        try {
+          for (const t of unsaved) {
+            await saveTeamMutation.mutateAsync(t);
+          }
+        } catch {
+          setSavingTeams(false);
+          return; // toast surfaced by mutation onError
+        }
+        setSavingTeams(false);
       }
     }
     if (safeStepIndex < STEPS.length - 1) {
-      // Skip team-invites step if no teams (jump straight to review)
+      // Skip team-invites step if no teams (jump straight to next step)
       if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
         setStepIndex((i) => i + 2);
         return;
