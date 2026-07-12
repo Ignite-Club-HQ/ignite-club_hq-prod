@@ -833,6 +833,10 @@ export default function CompleteProfilePage() {
       await refreshProfile();
       
       // Navigate to home - all invites were already processed above
+      // Flag a one-time welcome toast for HomePage to display.
+      try {
+        sessionStorage.setItem("ignite_show_welcome_toast", displayName.trim());
+      } catch { /* sessionStorage unavailable */ }
       navigate("/", { replace: true });
     } catch (err) {
       console.error("Profile update failed:", err);
