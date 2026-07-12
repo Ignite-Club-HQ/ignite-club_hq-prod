@@ -1484,3 +1484,97 @@ function ReviewStep({
   );
 }
 
+// ---------- brand preset picker (quick-apply palettes) ----------
+
+type Hsl = { h: number; s: number; l: number };
+interface BrandPreset {
+  id: string;
+  name: string;
+  primary: Hsl;
+  secondary: Hsl;
+  accent: Hsl;
+}
+
+const BRAND_PRESETS: BrandPreset[] = [
+  { id: "ignite",    name: "Ignite Orange", primary: { h: 20,  s: 90, l: 55 }, secondary: { h: 220, s: 30, l: 20 }, accent: { h: 40,  s: 95, l: 60 } },
+  { id: "royal",     name: "Royal Blue",    primary: { h: 220, s: 85, l: 45 }, secondary: { h: 220, s: 40, l: 20 }, accent: { h: 45,  s: 95, l: 55 } },
+  { id: "forest",    name: "Forest Green",  primary: { h: 145, s: 55, l: 32 }, secondary: { h: 30,  s: 25, l: 18 }, accent: { h: 40,  s: 90, l: 55 } },
+  { id: "crimson",   name: "Crimson",       primary: { h: 350, s: 75, l: 42 }, secondary: { h: 220, s: 20, l: 15 }, accent: { h: 45,  s: 90, l: 55 } },
+  { id: "navy-gold", name: "Navy & Gold",   primary: { h: 220, s: 70, l: 25 }, secondary: { h: 220, s: 50, l: 15 }, accent: { h: 45,  s: 85, l: 55 } },
+  { id: "purple",    name: "Deep Purple",   primary: { h: 265, s: 60, l: 42 }, secondary: { h: 260, s: 30, l: 18 }, accent: { h: 320, s: 75, l: 60 } },
+  { id: "teal",      name: "Teal",          primary: { h: 180, s: 65, l: 38 }, secondary: { h: 200, s: 40, l: 18 }, accent: { h: 15,  s: 85, l: 60 } },
+  { id: "mono",      name: "Mono Charcoal", primary: { h: 220, s: 10, l: 25 }, secondary: { h: 220, s: 8,  l: 15 }, accent: { h: 20,  s: 85, l: 55 } },
+];
+
+const hslCss = (c: Hsl) => `hsl(${c.h}, ${c.s}%, ${c.l}%)`;
+
+function BrandPresetPicker({
+  clubId,
+  onApplied,
+}: {
+  clubId: string;
+  onApplied: () => void;
+}) {
+  const { toast } = useToast();
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  const apply = async (p: BrandPreset) => {
+    setApplyingId(p.id);
+    const { error } = await supabase
+      .from("clubs")
+      .update({
+        theme_primary_h: p.primary.h,
+        theme_primary_s: p.primary.s,
+        theme_primary_l: p.primary.l,
+        theme_secondary_h: p.secondary.h,
+        theme_secondary_s: p.secondary.s,
+        theme_secondary_l: p.secondary.l,
+        theme_accent_h: p.accent.h,
+        theme_accent_s: p.accent.s,
+        theme_accent_l: p.accent.l,
+        theme_enabled: true,
+      } as any)
+      .eq("id", clubId);
+    setApplyingId(null);
+    if (error) {
+      toast({ title: "Could not apply preset", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `${p.name} applied`, description: "Tweak individual colours below if you like." });
+    onApplied();
+  };
+
+  return (
+    <div className="rounded-xl border p-3 space-y-3 bg-card">
+      <div>
+        <p className="text-sm font-semibold">Quick brand palettes</p>
+        <p className="text-xs text-muted-foreground">
+          Tap a palette to apply it — you can fine-tune each colour below.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {BRAND_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            disabled={applyingId !== null}
+            onClick={() => apply(p)}
+            className={cn(
+              "group rounded-lg border p-2 text-left transition-all hover:border-primary hover:shadow-sm active:scale-[0.98]",
+              applyingId === p.id && "opacity-60",
+            )}
+          >
+            <div className="flex gap-1 mb-1.5 h-6 rounded overflow-hidden">
+              <div className="flex-1" style={{ background: hslCss(p.primary) }} />
+              <div className="flex-1" style={{ background: hslCss(p.secondary) }} />
+              <div className="flex-1" style={{ background: hslCss(p.accent) }} />
+            </div>
+            <p className="text-[11px] font-medium truncate">{p.name}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
