@@ -36,6 +36,42 @@ export default function CreateClubPage() {
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
+  const [nameTaken, setNameTaken] = useState<boolean | null>(null);
+  const [nameChecking, setNameChecking] = useState(false);
+
+  // Debounced duplicate-name check — surfaces conflicts before user taps Create.
+  useEffect(() => {
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      setNameTaken(null);
+      setNameChecking(false);
+      return;
+    }
+    setNameChecking(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("id")
+        .ilike("name", trimmed)
+        .maybeSingle();
+      setNameTaken(!!data);
+      setNameChecking(false);
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [name]);
+
+  // Deterministic monogram colour from the club name so the placeholder logo
+  // looks intentional rather than empty. Falls back to a neutral hue.
+  const monogramHue = (() => {
+    const s = name.trim() || "Club";
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h % 360;
+  })();
+  const monogramStyle = {
+    background: `linear-gradient(135deg, hsl(${monogramHue} 70% 55%), hsl(${(monogramHue + 40) % 360} 70% 45%))`,
+    color: "white",
+  } as React.CSSProperties;
 
   // Check if user is app admin
   const cachedIsAppAdmin = isCachedAppAdmin();
