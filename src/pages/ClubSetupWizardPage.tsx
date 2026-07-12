@@ -95,13 +95,16 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
+// Free-tier essentials first (teams, committee, groups, invites), then Pro
+// upgrades (branding, sponsors), then review. This keeps the perceived effort
+// low for new clubs — they finish something useful before hitting any locks.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
+  { id: "committee", label: "Committee", icon: Shield },
+  { id: "subcommittee", label: "Working groups", icon: UserPlus },
+  { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
-  { id: "committee", label: "Committee", icon: Shield },
-  { id: "subcommittee", label: "Groups", icon: UserPlus },
-  { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
