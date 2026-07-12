@@ -393,7 +393,7 @@ export default function CreateClubPage() {
                   </Label>
                   <Textarea
                     id="description"
-                    placeholder="Tell members about your club..."
+                    placeholder="e.g. Community football club for U8s–Seniors on the Northern Beaches."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     maxLength={500}
