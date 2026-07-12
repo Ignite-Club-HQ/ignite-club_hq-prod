@@ -467,7 +467,7 @@ export default function ClubSetupWizardPage() {
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={finish}>
-            Skip
+            Exit
           </Button>
         </div>
         {/* Step chips */}
