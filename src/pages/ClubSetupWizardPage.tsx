@@ -576,7 +576,7 @@ export default function ClubSetupWizardPage() {
           {step.id === "committee" && (
             <InviteStep
               title="Invite your committee"
-              subtitle="Club admins can manage everything. Committee members help with governance."
+              subtitle="Add the people running the club with you — e.g. Treasurer, Secretary, Registrar. Club Admins can manage everything; Committee Members help with governance."
               roleOptions={[
                 { value: "club_admin", label: "Club Admin" },
                 { value: "committee_member", label: "Committee Member" },
