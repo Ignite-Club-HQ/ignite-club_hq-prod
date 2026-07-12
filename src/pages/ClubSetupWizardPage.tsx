@@ -733,19 +733,10 @@ function TeamsStep({
                 />
               </div>
             </div>
-            {!t.createdTeamId && (
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={() => onSave(t)}
-                disabled={!t.name.trim() || saving}
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Save team"
-                )}
-              </Button>
+            {!t.createdTeamId && t.name.trim() && (
+              <p className="text-[11px] text-muted-foreground">
+                Saves automatically when you tap Continue.
+              </p>
             )}
           </div>
         ))}
