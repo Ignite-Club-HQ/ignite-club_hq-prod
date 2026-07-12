@@ -330,12 +330,13 @@ export default function ClubSetupWizardPage() {
       }
     }
     if (stepIndex < STEPS.length - 1) {
-      // Skip coaches step if no teams
-      if (STEPS[stepIndex + 1].id === "coaches" && !canDoCoaches) {
+      // Skip team-invites step if no teams
+      if (STEPS[stepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
         finish();
         return;
       }
       setStepIndex((i) => i + 1);
+
     } else {
       finish();
     }
