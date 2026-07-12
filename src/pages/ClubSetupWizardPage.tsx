@@ -74,7 +74,7 @@ const STEPS = [
   { id: "teams", label: "Teams", icon: Users },
   { id: "committee", label: "Committee", icon: Shield },
   { id: "subcommittee", label: "Sub-committee", icon: UserPlus },
-  { id: "coaches", label: "Coaches", icon: Whistle },
+  { id: "coaches", label: "Coaches", icon: Trophy },
 ] as const;
 
 // ---------- page ----------
@@ -683,7 +683,7 @@ function CoachesStep({
   return (
     <div className="space-y-5">
       <StepIntro
-        icon={Whistle}
+        icon={Trophy}
         title="Invite coaches & managers"
         subtitle="Assign coaches and team admins to the teams you just created."
       />
