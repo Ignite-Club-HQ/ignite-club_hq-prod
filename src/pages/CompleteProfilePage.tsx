@@ -215,9 +215,11 @@ export default function CompleteProfilePage() {
     return <Navigate to="/" replace />;
   }
 
-  // If profile exists and already has display_name, redirect to home
-  // Also ensure the profileCompleted flag is set for this user
-  if (profile?.display_name) {
+  // If profile is complete (has display_name AND avatar, OR is not a fresh signup), redirect home.
+  // Fresh signups (< 10 min old) without an avatar stay on this page to add one.
+  const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+  const isFreshSignup = createdAt > 0 && (Date.now() - createdAt) < 10 * 60 * 1000;
+  if (profile?.display_name && (!isFreshSignup || profile?.avatar_url)) {
     // Mark this user's profile as completed - prevents dots from appearing for them
     markProfileCompleted(user.id);
     // Clear any stale invite flow context
