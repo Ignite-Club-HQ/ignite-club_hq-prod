@@ -408,19 +408,28 @@ export default function ClubSetupWizardPage() {
                 icon={Palette}
                 title="Make it yours"
                 subtitle="Upload your club logo and set colours. You can change these anytime from Club Settings."
+                proBadge
               />
-              <ClubThemeEditor
-                clubId={clubId!}
-                clubLogoUrl={(club as any)?.logo_url}
-                initialPrimary={(club as any)?.theme_primary_h != null ? { h: (club as any).theme_primary_h, s: (club as any).theme_primary_s, l: (club as any).theme_primary_l } : undefined}
-                initialSecondary={(club as any)?.theme_secondary_h != null ? { h: (club as any).theme_secondary_h, s: (club as any).theme_secondary_s, l: (club as any).theme_secondary_l } : undefined}
-                initialAccent={(club as any)?.theme_accent_h != null ? { h: (club as any).theme_accent_h, s: (club as any).theme_accent_s, l: (club as any).theme_accent_l } : undefined}
-                initialShowLogoInHeader={(club as any)?.show_logo_in_header ?? true}
-                initialShowNameInHeader={(club as any)?.show_name_in_header ?? true}
-                initialLogoOnlyMode={(club as any)?.logo_only_mode ?? false}
-                initialThemeEnabled={(club as any)?.theme_enabled ?? true}
-                onSave={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-              />
+              {proLoading ? null : hasPro ? (
+                <ClubThemeEditor
+                  clubId={clubId!}
+                  clubLogoUrl={(club as any)?.logo_url}
+                  initialPrimary={(club as any)?.theme_primary_h != null ? { h: (club as any).theme_primary_h, s: (club as any).theme_primary_s, l: (club as any).theme_primary_l } : undefined}
+                  initialSecondary={(club as any)?.theme_secondary_h != null ? { h: (club as any).theme_secondary_h, s: (club as any).theme_secondary_s, l: (club as any).theme_secondary_l } : undefined}
+                  initialAccent={(club as any)?.theme_accent_h != null ? { h: (club as any).theme_accent_h, s: (club as any).theme_accent_s, l: (club as any).theme_accent_l } : undefined}
+                  initialShowLogoInHeader={(club as any)?.show_logo_in_header ?? true}
+                  initialShowNameInHeader={(club as any)?.show_name_in_header ?? true}
+                  initialLogoOnlyMode={(club as any)?.logo_only_mode ?? false}
+                  initialThemeEnabled={(club as any)?.theme_enabled ?? true}
+                  onSave={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
+                />
+              ) : (
+                <ProFeatureLock
+                  title="Branding is a Pro feature"
+                  description="Custom logos, colours and header branding are available on Pro. You can skip this step and upgrade anytime."
+                  clubId={clubId}
+                />
+              )}
             </div>
           )}
 
@@ -430,12 +439,21 @@ export default function ClubSetupWizardPage() {
                 icon={Building2}
                 title="Add your sponsors"
                 subtitle="Add businesses that support your club. You can allocate them to teams and events later."
+                proBadge
               />
-              <SponsorsManager
-                clubId={clubId!}
-                currentPrimarySponsorId={(club as any)?.primary_sponsor_id ?? null}
-                onPrimaryChange={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-              />
+              {proLoading ? null : hasPro ? (
+                <SponsorsManager
+                  clubId={clubId!}
+                  currentPrimarySponsorId={(club as any)?.primary_sponsor_id ?? null}
+                  onPrimaryChange={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
+                />
+              ) : (
+                <ProFeatureLock
+                  title="Sponsors is a Pro feature"
+                  description="Adding sponsors, logos and allocations is available on Pro. You can skip this step and upgrade anytime."
+                  clubId={clubId}
+                />
+              )}
             </div>
           )}
 
