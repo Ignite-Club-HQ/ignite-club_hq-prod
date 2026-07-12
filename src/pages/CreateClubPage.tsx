@@ -119,7 +119,8 @@ export default function CreateClubPage() {
   });
 
   const isExemptUser = user?.email === "pbjcranwell@gmail.com" || isReviewerProfile;
-  const canCreateClub = isAppAdmin || isExemptUser || !isClubCreationLocked;
+  // Beta lock removed — club creation is open to all authenticated users.
+  const canCreateClub = true;
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
