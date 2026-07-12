@@ -744,7 +744,7 @@ function TeamInvitesStep({
         tempId: crypto.randomUUID(),
         name: "",
         email: "",
-        role: "coach",
+        role,
         teamId,
         status: "pending",
       },
@@ -768,8 +768,8 @@ function TeamInvitesStep({
     <div className="space-y-5">
       <StepIntro
         icon={Trophy}
-        title="Invite coaches & managers"
-        subtitle="Assign coaches and team admins to the teams you just created."
+        title="Invite people to your teams"
+        subtitle="Add team admins, coaches, players and parents to the teams you just created. Each person gets a personal join link."
       />
 
       {teams.map((team) => {
@@ -781,11 +781,12 @@ function TeamInvitesStep({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => addRow(team.createdTeamId!)}
+                onClick={() => addRow(team.createdTeamId!, "player")}
               >
                 <Plus className="h-4 w-4 mr-1" /> Add
               </Button>
             </div>
+
             {teamList.length === 0 ? (
               <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground text-center">
                 No invites for this team yet.
