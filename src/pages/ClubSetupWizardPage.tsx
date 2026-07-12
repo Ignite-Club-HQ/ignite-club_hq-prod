@@ -124,8 +124,7 @@ export default function ClubSetupWizardPage() {
   usePageTitle("Set up your club");
 
   const [stepIndex, setStepIndex] = useState(0);
-  const step = STEPS[stepIndex];
-  const { hasPro, isLoading: proLoading } = useClubProAccess(clubId);
+
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId, "setup"],
