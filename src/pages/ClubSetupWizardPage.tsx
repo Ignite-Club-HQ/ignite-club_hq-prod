@@ -104,10 +104,11 @@ export default function ClubSetupWizardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("id,name,logo_url,contact_email")
+        .select("*")
         .eq("id", clubId!)
         .maybeSingle();
       return data;
+
     },
     enabled: !!clubId,
   });
