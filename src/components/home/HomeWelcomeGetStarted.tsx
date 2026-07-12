@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Users, Building2, Trophy, Network, ChevronRight, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface Option {
@@ -9,18 +10,12 @@ interface Option {
   subtitle: string;
 }
 
-const OPTIONS: Option[] = [
+const SECONDARY_OPTIONS: Option[] = [
   {
     to: "/teams/new",
     icon: Users,
     title: "Start a Team",
     subtitle: "Quickest path — one team, chat, schedule and RSVPs.",
-  },
-  {
-    to: "/clubs/new",
-    icon: Building2,
-    title: "Start a Club",
-    subtitle: "Multiple teams, committee, branding and club-wide chat.",
   },
   {
     to: "/competitions/new",
@@ -38,7 +33,8 @@ const OPTIONS: Option[] = [
 
 /**
  * Empty-state welcome for signed-in users who have no clubs and no teams yet.
- * Sits at the top of the home feed and gives them the four canonical entry points.
+ * Sits at the top of the home feed and gives them a clear primary "Start a Club"
+ * CTA that links to /start, plus the other canonical entry points.
  */
 export function HomeWelcomeGetStarted({ firstName }: { firstName: string }) {
   return (
@@ -53,13 +49,23 @@ export function HomeWelcomeGetStarted({ firstName }: { firstName: string }) {
               Welcome to Ignite, {firstName}!
             </h2>
             <p className="text-sm text-muted-foreground leading-tight">
-              What would you like to set up first?
+              Ready to set up your club?
             </p>
           </div>
         </div>
 
+        <Button
+          asChild
+          className="w-full h-12 text-base font-semibold shadow-lg"
+        >
+          <Link to="/start" className="inline-flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Start a Club
+          </Link>
+        </Button>
+
         <div className="space-y-2">
-          {OPTIONS.map(({ to, icon: Icon, title, subtitle }) => (
+          {SECONDARY_OPTIONS.map(({ to, icon: Icon, title, subtitle }) => (
             <Link
               key={to}
               to={to}
