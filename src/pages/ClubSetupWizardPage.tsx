@@ -781,6 +781,26 @@ function InviteStep({
       <Button variant="outline" size="sm" onClick={addRow} className="w-full">
         <Plus className="h-4 w-4 mr-1" /> Add invite
       </Button>
+
+      <BulkPasteInvites
+        onAdd={(rows) =>
+          setList((prev) => {
+            const existing = new Set(
+              prev.map((p) => (p.email || p.name).trim().toLowerCase()),
+            );
+            const additions = rows
+              .filter((r) => !existing.has((r.email || r.name).toLowerCase()))
+              .map((r) => ({
+                tempId: crypto.randomUUID(),
+                name: r.name,
+                email: r.email,
+                role: defaultRole,
+                status: "pending" as const,
+              }));
+            return [...prev, ...additions];
+          })
+        }
+      />
     </div>
   );
 }
