@@ -440,10 +440,12 @@ export default function ClubSetupWizardPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
               <h1 className="text-base font-semibold truncate">
-                Set up {club?.name || "your club"}
+                {isShellClub
+                  ? "Set up your team"
+                  : `Set up ${club?.name || "your club"}`}
               </h1>
               <span className="text-xs text-muted-foreground shrink-0">
-                Step {stepIndex + 1}/{STEPS.length}
+                Step {safeStepIndex + 1}/{STEPS.length}
               </span>
             </div>
             <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
