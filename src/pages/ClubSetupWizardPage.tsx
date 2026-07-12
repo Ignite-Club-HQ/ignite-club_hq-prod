@@ -202,7 +202,7 @@ export default function ClubSetupWizardPage() {
           name: draft.name.trim(),
           club_id: clubId!,
           level_age: draft.levelAge.trim() || null,
-          team_type: "team",
+          team_type: "mixed",
           created_by: user!.id,
           default_rsvp_audience: defaultRsvpAudienceForTeam(
             draft.name,
