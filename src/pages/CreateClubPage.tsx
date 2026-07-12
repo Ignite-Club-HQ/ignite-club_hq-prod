@@ -206,7 +206,7 @@ export default function CreateClubPage() {
       description: `${name} has been created successfully.`,
     });
 
-    navigate(`/clubs/${club.id}`);
+    navigate(`/clubs/${club.id}/setup`);
   };
 
   return (
