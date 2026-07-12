@@ -372,6 +372,9 @@ export default function ClubSetupWizardPage() {
   // ---------- navigation ----------
 
   const finish = () => {
+    if (storageKey) {
+      try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+    }
     toast({ title: "Setup complete", description: "You can invite more anytime." });
     navigate(`/clubs/${clubId}`);
   };
@@ -391,13 +394,12 @@ export default function ClubSetupWizardPage() {
       }
     }
     if (stepIndex < STEPS.length - 1) {
-      // Skip team-invites step if no teams
+      // Skip team-invites step if no teams (jump straight to review)
       if (STEPS[stepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
-        finish();
+        setStepIndex((i) => i + 2);
         return;
       }
       setStepIndex((i) => i + 1);
-
     } else {
       finish();
     }
