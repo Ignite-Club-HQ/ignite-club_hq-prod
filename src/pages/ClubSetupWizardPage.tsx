@@ -95,7 +95,7 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-const STEPS = [
+const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
@@ -104,6 +104,12 @@ const STEPS = [
   { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
+
+// Shell clubs (personal team organisers created via StartTeamPage) don't have
+// club-level branding, sponsors, committee or operational groups — show only
+// the team-focused steps so the wizard doesn't imply a full club.
+const SHELL_STEP_IDS = new Set(["teams", "teaminvites", "review"]);
+
 
 
 
@@ -118,8 +124,9 @@ export default function ClubSetupWizardPage() {
   usePageTitle("Set up your club");
 
   const [stepIndex, setStepIndex] = useState(0);
-  const step = STEPS[stepIndex];
   const { hasPro, isLoading: proLoading } = useClubProAccess(clubId);
+
+
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId, "setup"],
@@ -134,6 +141,16 @@ export default function ClubSetupWizardPage() {
     },
     enabled: !!clubId,
   });
+
+  const isShellClub = (club as any)?.kind === "shell";
+  const STEPS = useMemo(
+    () => ALL_STEPS.filter((s) => (isShellClub ? SHELL_STEP_IDS.has(s.id) : true)),
+    [isShellClub],
+  );
+  const safeStepIndex = Math.min(stepIndex, STEPS.length - 1);
+  const step = STEPS[safeStepIndex];
+
+
 
   // Draft state across steps — persisted per club to survive refresh/back-nav
   const storageKey = clubId ? `ignite_wizard_draft_${clubId}` : null;
@@ -393,9 +410,9 @@ export default function ClubSetupWizardPage() {
         return;
       }
     }
-    if (stepIndex < STEPS.length - 1) {
+    if (safeStepIndex < STEPS.length - 1) {
       // Skip team-invites step if no teams (jump straight to review)
-      if (STEPS[stepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
+      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
         setStepIndex((i) => i + 2);
         return;
       }
@@ -406,11 +423,11 @@ export default function ClubSetupWizardPage() {
   };
 
   const goBack = () => {
-    if (stepIndex === 0) navigate(`/clubs/${clubId}`);
+    if (safeStepIndex === 0) navigate(`/clubs/${clubId}`);
     else setStepIndex((i) => i - 1);
   };
 
-  const progress = ((stepIndex + 1) / STEPS.length) * 100;
+  const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -423,10 +440,12 @@ export default function ClubSetupWizardPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
               <h1 className="text-base font-semibold truncate">
-                Set up {club?.name || "your club"}
+                {isShellClub
+                  ? "Set up your team"
+                  : `Set up ${club?.name || "your club"}`}
               </h1>
               <span className="text-xs text-muted-foreground shrink-0">
-                Step {stepIndex + 1}/{STEPS.length}
+                Step {safeStepIndex + 1}/{STEPS.length}
               </span>
             </div>
             <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
@@ -444,8 +463,8 @@ export default function ClubSetupWizardPage() {
         <div className="px-4 pb-3 flex gap-2 overflow-x-auto max-w-2xl mx-auto w-full">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
-            const active = i === stepIndex;
-            const done = i < stepIndex;
+            const active = i === safeStepIndex;
+            const done = i < safeStepIndex;
             return (
               <button
                 key={s.id}
@@ -584,9 +603,10 @@ export default function ClubSetupWizardPage() {
               committee={committee}
               groups={groups}
               teamInvites={teamInvites}
-              onJumpToStep={(id) =>
-                setStepIndex(STEPS.findIndex((s) => s.id === id))
-              }
+              onJumpToStep={(id) => {
+                const idx = STEPS.findIndex((s) => s.id === id);
+                if (idx >= 0) setStepIndex(idx);
+              }}
             />
           )}
 
@@ -600,7 +620,7 @@ export default function ClubSetupWizardPage() {
             Back
           </Button>
           <Button onClick={goNext} className="flex-[2]">
-            {stepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+            {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
