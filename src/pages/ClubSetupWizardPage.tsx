@@ -95,13 +95,16 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
+// Free-tier essentials first (teams, committee, groups, invites), then Pro
+// upgrades (branding, sponsors), then review. This keeps the perceived effort
+// low for new clubs — they finish something useful before hitting any locks.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
+  { id: "committee", label: "Committee", icon: Shield },
+  { id: "subcommittee", label: "Working groups", icon: UserPlus },
+  { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "branding", label: "Branding", icon: Palette },
   { id: "sponsors", label: "Sponsors", icon: Building2 },
-  { id: "committee", label: "Committee", icon: Shield },
-  { id: "subcommittee", label: "Groups", icon: UserPlus },
-  { id: "teaminvites", label: "Team invites", icon: Trophy },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
@@ -396,22 +399,29 @@ export default function ClubSetupWizardPage() {
     navigate(`/clubs/${clubId}`);
   };
 
-  const goNext = () => {
-    // Auto-save unsaved teams on step 0
+  const [savingTeams, setSavingTeams] = useState(false);
+
+  const goNext = async () => {
+    // Auto-save any unsaved teams that have a name — no per-row Save needed.
     if (step.id === "teams") {
       const unsaved = teams.filter(
         (t) => t.name.trim() && !t.createdTeamId,
       );
       if (unsaved.length > 0) {
-        toast({
-          title: "Save your teams first",
-          description: "Tap ‘Save team’ on each row, or clear it.",
-        });
-        return;
+        setSavingTeams(true);
+        try {
+          for (const t of unsaved) {
+            await saveTeamMutation.mutateAsync(t);
+          }
+        } catch {
+          setSavingTeams(false);
+          return; // toast surfaced by mutation onError
+        }
+        setSavingTeams(false);
       }
     }
     if (safeStepIndex < STEPS.length - 1) {
-      // Skip team-invites step if no teams (jump straight to review)
+      // Skip team-invites step if no teams (jump straight to next step)
       if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
         setStepIndex((i) => i + 2);
         return;
@@ -566,7 +576,7 @@ export default function ClubSetupWizardPage() {
           {step.id === "committee" && (
             <InviteStep
               title="Invite your committee"
-              subtitle="Club admins can manage everything. Committee members help with governance."
+              subtitle="Add the people running the club with you — e.g. Treasurer, Secretary, Registrar. Club Admins can manage everything; Committee Members help with governance."
               roleOptions={[
                 { value: "club_admin", label: "Club Admin" },
                 { value: "committee_member", label: "Committee Member" },
@@ -619,9 +629,15 @@ export default function ClubSetupWizardPage() {
           <Button variant="outline" onClick={goBack} className="flex-1">
             Back
           </Button>
-          <Button onClick={goNext} className="flex-[2]">
-            {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
-            <ArrowRight className="h-4 w-4 ml-1" />
+          <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+            {savingTeams ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -659,7 +675,7 @@ function TeamsStep({
       <StepIntro
         icon={Users}
         title="Add your first team(s)"
-        subtitle="You can skip this and add teams later. Most clubs start with one."
+        subtitle="Most clubs start with one or two — e.g. U10 Girls, U12 Boys, Seniors. Just type them in and tap Continue; we'll save them automatically."
       />
 
       <div className="space-y-3">
@@ -717,19 +733,10 @@ function TeamsStep({
                 />
               </div>
             </div>
-            {!t.createdTeamId && (
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={() => onSave(t)}
-                disabled={!t.name.trim() || saving}
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Save team"
-                )}
-              </Button>
+            {!t.createdTeamId && t.name.trim() && (
+              <p className="text-[11px] text-muted-foreground">
+                Saves automatically when you tap Continue.
+              </p>
             )}
           </div>
         ))}
@@ -1233,8 +1240,8 @@ function OperationalGroupsStep({
     <div className="space-y-4">
       <StepIntro
         icon={UserPlus}
-        title="Create operational groups"
-        subtitle="Sub-committees are just chat groups for how you organise work — Fundraising, Grounds, Events, etc. Everyone in them stays a Committee Member; these are not new roles."
+        title="Create working groups (optional)"
+        subtitle="Sub-committees for how you organise work — e.g. Fundraising, Grounds, Events. Each one is just a private chat group for that committee. Skip this if you're not sure — you can add them anytime."
       />
 
       {groups.length === 0 && (

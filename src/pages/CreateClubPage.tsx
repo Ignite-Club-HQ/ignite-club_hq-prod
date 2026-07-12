@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock } from "lucide-react";
@@ -36,6 +36,42 @@ export default function CreateClubPage() {
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
+  const [nameTaken, setNameTaken] = useState<boolean | null>(null);
+  const [nameChecking, setNameChecking] = useState(false);
+
+  // Debounced duplicate-name check — surfaces conflicts before user taps Create.
+  useEffect(() => {
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      setNameTaken(null);
+      setNameChecking(false);
+      return;
+    }
+    setNameChecking(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("id")
+        .ilike("name", trimmed)
+        .maybeSingle();
+      setNameTaken(!!data);
+      setNameChecking(false);
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [name]);
+
+  // Deterministic monogram colour from the club name so the placeholder logo
+  // looks intentional rather than empty. Falls back to a neutral hue.
+  const monogramHue = (() => {
+    const s = name.trim() || "Club";
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h % 360;
+  })();
+  const monogramStyle = {
+    background: `linear-gradient(135deg, hsl(${monogramHue} 70% 55%), hsl(${(monogramHue + 40) % 360} 70% 45%))`,
+    color: "white",
+  } as React.CSSProperties;
 
   // Check if user is app admin
   const cachedIsAppAdmin = isCachedAppAdmin();
@@ -257,8 +293,11 @@ export default function CreateClubPage() {
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
                 <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
                   <AvatarImage src={logoPreview || undefined} className="object-cover" />
-                  <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
-                    {name.charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
+                  <AvatarFallback
+                    className="text-4xl font-semibold"
+                    style={name.trim() ? monogramStyle : undefined}
+                  >
+                    {name.trim().charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
                   </AvatarFallback>
                 </Avatar>
                 <label className="absolute bottom-1 right-1 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-all shadow-lg hover:scale-105 active:scale-95">
@@ -272,8 +311,12 @@ export default function CreateClubPage() {
                 </label>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Add your club logo</p>
-                <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
+                <p className="text-sm text-muted-foreground">
+                  {logoPreview ? "Your club logo" : "We'll use a monogram until you add a logo"}
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Tap the camera to upload — square, ~400×400px works best.
+                </p>
               </div>
             </div>
           )}
@@ -289,12 +332,31 @@ export default function CreateClubPage() {
                   </Label>
                   <Input
                     id="name"
-                    placeholder="Enter your club name"
+                    placeholder="e.g. Ignite FC, Riverside Rovers"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     maxLength={100}
                     className="h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+                    aria-invalid={nameTaken === true}
                   />
+                  {name.trim().length >= 2 && (
+                    <p
+                      className={
+                        "text-xs " +
+                        (nameTaken
+                          ? "text-destructive"
+                          : nameChecking
+                            ? "text-muted-foreground"
+                            : "text-emerald-600")
+                      }
+                    >
+                      {nameChecking
+                        ? "Checking availability…"
+                        : nameTaken
+                          ? "A club with this name already exists — try another."
+                          : "This name is available."}
+                    </p>
+                  )}
                 </div>
 
                 {/* Sport Selection */}
@@ -331,7 +393,7 @@ export default function CreateClubPage() {
                   </Label>
                   <Textarea
                     id="description"
-                    placeholder="Tell members about your club..."
+                    placeholder="e.g. Community football club for U8s–Seniors on the Northern Beaches."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     maxLength={500}
@@ -370,7 +432,7 @@ export default function CreateClubPage() {
             <Button 
               className="w-full h-12 text-base font-semibold shadow-lg" 
               onClick={handleSubmit}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || nameTaken === true || nameChecking}
             >
               {saving ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
