@@ -134,11 +134,12 @@ export default function ClubSetupWizardPage() {
     { tempId: crypto.randomUUID(), name: "", levelAge: "" },
   ]);
   const [committee, setCommittee] = useState<DraftInvite[]>([]);
-  const [subcommittee, setSubcommittee] = useState<DraftInvite[]>([]);
-  const [coachInvites, setCoachInvites] = useState<DraftInvite[]>([]);
+  const [groups, setGroups] = useState<DraftGroup[]>([]);
+  const [teamInvites, setTeamInvites] = useState<DraftInvite[]>([]);
 
   const savedTeams = teams.filter((t) => t.createdTeamId);
-  const canDoCoaches = savedTeams.length > 0;
+  const canDoTeamInvites = savedTeams.length > 0;
+
 
   // ---------- team creation ----------
 
