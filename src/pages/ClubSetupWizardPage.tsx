@@ -7,7 +7,7 @@ import {
   Users,
   UserPlus,
   Shield,
-  Whistle,
+  Trophy,
   Check,
   Loader2,
   Plus,
@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { defaultRsvpAudienceForTeam } from "@/lib/rsvpAudience";
+import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 import { cn } from "@/lib/utils";
 
 // ---------- types ----------
