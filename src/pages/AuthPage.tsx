@@ -367,8 +367,14 @@ export default function AuthPage() {
       console.log('[AuthPage] Authenticated, redirecting to:', redirectPath);
       return <Navigate to={redirectPath} replace />;
     }
-    if (!profile?.display_name) {
-      console.log('[AuthPage] Authenticated, redirecting to complete-profile');
+    // Route to /complete-profile if display_name is missing (all users)
+    // OR if a brand-new signup (< 10 min old) still has no avatar — this
+    // catches Google OAuth users whose display_name auto-populates but who
+    // never picked an avatar, so invites they send have a friendly identity.
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isFreshSignup = createdAt > 0 && (Date.now() - createdAt) < 10 * 60 * 1000;
+    if (!profile?.display_name || (isFreshSignup && !profile?.avatar_url)) {
+      console.log('[AuthPage] Authenticated, redirecting to complete-profile', { hasName: !!profile?.display_name, hasAvatar: !!profile?.avatar_url, isFreshSignup });
       return <Navigate to="/complete-profile" replace />;
     }
     // Default to home - clear any stale invite flow context since we're not in a flow
