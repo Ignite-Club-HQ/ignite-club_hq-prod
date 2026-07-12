@@ -488,27 +488,23 @@ export default function ClubSetupWizardPage() {
           )}
 
           {step.id === "subcommittee" && (
-            <InviteStep
-              title="Invite sub-committee & role holders"
-              subtitle="Treasurer, registrar, coach coordinator, etc. Add a title in the name (e.g. ‘Jane — Treasurer’)."
-              roleOptions={[
-                { value: "committee_member", label: "Committee Member" },
-              ]}
-              defaultRole="committee_member"
-              list={subcommittee}
-              setList={setSubcommittee}
-              onSend={(inv) => sendInvite(inv, setSubcommittee)}
+            <OperationalGroupsStep
+              clubId={clubId!}
+              userId={user!.id}
+              groups={groups}
+              setGroups={setGroups}
             />
           )}
 
-          {step.id === "coaches" && (
-            <CoachesStep
+          {step.id === "teaminvites" && (
+            <TeamInvitesStep
               teams={savedTeams}
-              list={coachInvites}
-              setList={setCoachInvites}
-              onSend={(inv) => sendInvite(inv, setCoachInvites)}
+              list={teamInvites}
+              setList={setTeamInvites}
+              onSend={(inv) => sendInvite(inv, setTeamInvites)}
             />
           )}
+
         </div>
       </div>
 
