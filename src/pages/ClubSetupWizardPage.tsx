@@ -96,21 +96,16 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-// Minimal essentials first (teams, team invites), then optional Pro upgrades
-// (branding, sponsors), then review. Committee & Working Groups are admin
-// plumbing and are deferred — surfaced later via Club Admin + the setup
-// progress card on Home. Keeps day-one friction low for new clubs.
+// Core wizard: three steps only. Branding, Sponsors, Committee and Operational
+// Groups are deferred to the post-setup checklist / Club Settings so a new
+// club can become operational in the fastest possible flow.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
-  { id: "teaminvites", label: "Team invites", icon: Trophy },
-  { id: "branding", label: "Branding", icon: Palette },
-  { id: "sponsors", label: "Sponsors", icon: Building2 },
+  { id: "teaminvites", label: "Invite members", icon: UserPlus },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
-// Shell clubs (personal team organisers created via StartTeamPage) don't have
-// club-level branding, sponsors, committee or operational groups — show only
-// the team-focused steps so the wizard doesn't imply a full club.
+// Shell clubs (personal team organisers) use the same three steps.
 const SHELL_STEP_IDS = new Set(["teams", "teaminvites", "review"]);
 
 
