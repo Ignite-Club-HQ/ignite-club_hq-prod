@@ -1401,7 +1401,8 @@ export default function HomePage() {
       const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (id, name, sport)")
-        .in("id", coachAdminTeamIds);
+        .in("id", coachAdminTeamIds)
+        .is("deleted_at", null);
       
       if (teamsError) throw teamsError;
       
