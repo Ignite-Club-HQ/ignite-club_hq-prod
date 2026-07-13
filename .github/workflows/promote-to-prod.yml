@@ -321,15 +321,28 @@ jobs:
           supabase migration list --linked 2>&1 || true
           echo ""
 
+          # GitHub-hosted runners are IPv4-only; db.<ref>.supabase.co is IPv6-only,
+          # so `supabase db push --linked` silently dies after listing pending
+          # migrations (no "Applying migration…" ever prints). Force the IPv4
+          # session pooler (port 5432) via --db-url. URL-encode the password so
+          # symbols like @/#/? don't break the URI.
+          RAW_PW="${SUPABASE_DB_PASSWORD}"
+          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['RAW_PW'],safe=''))")
+          export RAW_PW ENC_PW
+          POOLER_HOST="aws-0-${SUPABASE_REGION:-us-east-1}.pooler.supabase.com"
+          DB_URL="postgresql://postgres.${PROJECT_REF}:${ENC_PW}@${POOLER_HOST}:5432/postgres?sslmode=require"
+          # Do NOT echo DB_URL — contains password.
+          echo "Using session pooler host: $POOLER_HOST (port 5432)"
+
           echo "=== Dry-run immediately before db push ==="
-          supabase db push --linked --dry-run --yes --debug 2>&1 | tee /tmp/supabase-db-push-dry-run.log || true
+          supabase db push --db-url "$DB_URL" --dry-run --yes --debug 2>&1 | tee /tmp/supabase-db-push-dry-run.log || true
           echo ""
 
           echo "=== Applying pending migrations ==="
           set +e
           # 2>&1 merges stderr into the pipe — Supabase CLI writes the actual
           # Postgres ERROR: line to stderr, which the previous version missed.
-          supabase db push --linked --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
+          supabase db push --db-url "$DB_URL" --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
           PUSH_STATUS=${PIPESTATUS[0]}
           set -e
 
