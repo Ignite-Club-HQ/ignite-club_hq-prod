@@ -484,7 +484,7 @@ export default function HomePage() {
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds)
+          ? supabase.from("teams").select("club_id").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
@@ -742,7 +742,7 @@ export default function HomePage() {
           ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
           : Promise.resolve({ data: [] }),
         teamIds.length > 0
-          ? supabase.from("teams").select("id, is_pro").in("id", teamIds)
+          ? supabase.from("teams").select("id, is_pro").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -1348,6 +1348,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (name, sport)")
+        .is("deleted_at", null)
         .order("name");
       if (error) throw error;
       return data as Team[];
@@ -1400,7 +1401,8 @@ export default function HomePage() {
       const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (id, name, sport)")
-        .in("id", coachAdminTeamIds);
+        .in("id", coachAdminTeamIds)
+        .is("deleted_at", null);
       
       if (teamsError) throw teamsError;
       
@@ -1478,7 +1480,8 @@ export default function HomePage() {
       // Build query based on roles
       let teamsQuery = supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (id, name, sport)");
+        .select("id, name, club_id, clubs!club_id (id, name, sport)")
+        .is("deleted_at", null);
       
       if (isAppAdmin) {
         // App admin can see all teams (read-only for teams they're not coach/team_admin of)

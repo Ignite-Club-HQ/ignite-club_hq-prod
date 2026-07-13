@@ -786,17 +786,28 @@ export default function ClubDetailPage() {
     }
 
     // Soft-delete: set deleted_at instead of hard delete
+    const deletedAt = new Date().toISOString();
     const { error } = await supabase.from("clubs").update({
-      deleted_at: new Date().toISOString(),
+      deleted_at: deletedAt,
       deleted_by: user?.id,
     } as any).eq("id", id!);
 
     // Also soft-delete all teams in the club
     if (!error && teamIds.length > 0) {
       await supabase.from("teams").update({
-        deleted_at: new Date().toISOString(),
+        deleted_at: deletedAt,
         deleted_by: user?.id,
       } as any).in("id", teamIds);
+    }
+
+    // Also soft-delete chat_groups scoped to this club or any of its teams
+    if (!error) {
+      const orClauses = [`club_id.eq.${id!}`];
+      if (teamIds.length > 0) orClauses.push(`team_id.in.(${teamIds.join(",")})`);
+      await supabase.from("chat_groups").update({
+        deleted_at: deletedAt,
+        deleted_by: user?.id,
+      } as any).or(orClauses.join(",")).is("deleted_at", null);
     }
 
     setIsDeleting(false);
@@ -826,6 +837,19 @@ export default function ClubDetailPage() {
         deleted_at: null,
         deleted_by: null,
       } as any).eq("club_id", id!);
+
+      // Restore chat_groups scoped to this club or any of its teams
+      const { data: teamRows } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", id!);
+      const teamIdList = (teamRows || []).map((t: any) => t.id);
+      const orClauses = [`club_id.eq.${id!}`];
+      if (teamIdList.length > 0) orClauses.push(`team_id.in.(${teamIdList.join(",")})`);
+      await supabase.from("chat_groups").update({
+        deleted_at: null,
+        deleted_by: null,
+      } as any).or(orClauses.join(","));
     }
 
     if (error) {

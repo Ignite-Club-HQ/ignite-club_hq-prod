@@ -231,7 +231,8 @@ function LogoClubThemeDropdown() {
         const { count } = await supabase
           .from("teams")
           .select("id", { count: "exact", head: true })
-          .eq("club_id", c.id);
+          .eq("club_id", c.id)
+          .is("deleted_at", null);
         const incomplete = (count ?? 0) === 0 || !c.logo_url;
         return incomplete ? { id: c.id, name: c.name, logoUrl: c.logo_url } : null;
       }));
