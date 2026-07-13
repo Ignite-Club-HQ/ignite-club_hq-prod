@@ -121,7 +121,7 @@ export function HomeWelcomeGetStarted({
 
             <button
               type="button"
-              onClick={() => setFindOpen(true)}
+              onClick={() => onFindOrJoin()}
               className="w-full text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
             >
               Looking for a different club?
@@ -146,7 +146,7 @@ export function HomeWelcomeGetStarted({
             </div>
 
             <Button
-              onClick={() => setFindOpen(true)}
+              onClick={() => onFindOrJoin()}
               className="w-full h-12 text-base font-semibold shadow-lg"
             >
               <Search className="h-5 w-5 mr-2" />
