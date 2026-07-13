@@ -256,7 +256,25 @@ jobs:
           TO_MARK=()
           for VERSION in "${!CHECKS[@]}"; do
             RESP=$(run_check "${CHECKS[$VERSION]}")
-            HIT=$(echo "$RESP" | jq -r 'if type=="array" then (.[0].hit // empty) else empty end')
+            if ! echo "$RESP" | jq empty >/dev/null 2>&1; then
+              echo "::error::Supabase Management API returned non-JSON while checking migration $VERSION: $RESP"
+              exit 1
+            fi
+
+            # Supabase's Management API has returned both shapes over time:
+            #   [{"hit":1}]
+            #   {"result":[{"hit":1}]}
+            # Be deliberately tolerant so a response-shape change does not
+            # silently skip the pre-mark step and let db push hit 42P07/42710.
+            HIT=$(echo "$RESP" | jq -r '
+              if type == "array" then
+                (.[0].hit // empty)
+              elif type == "object" then
+                (.result[0].hit? // .data[0].hit? // .rows[0].hit? // empty)
+              else
+                empty
+              end
+            ')
             if [ "$HIT" = "1" ]; then
               echo "🔧 $VERSION — signature object exists in prod, will mark applied"
               TO_MARK+=("$VERSION")
@@ -271,7 +289,9 @@ jobs:
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
-        run: supabase db push --linked
+        run: |
+          set -euo pipefail
+          supabase db push --linked 2>&1 | tee /tmp/supabase-db-push.log
 
       - name: Deploy edge functions
         if: github.event_name == 'push'
