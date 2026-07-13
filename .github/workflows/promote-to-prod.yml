@@ -246,6 +246,7 @@ jobs:
           # version : SQL existence check
           declare -A CHECKS=(
             ["20260701193827"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
+            ["20260701195506"]="SELECT 1 AS hit FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='chat_group_unread'"
             ["20260703024653"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
             ["20260703081313"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
             ["20260708013949"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
@@ -291,7 +292,38 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          supabase db push --linked 2>&1 | tee /tmp/supabase-db-push.log
+          echo "=== Supabase CLI version ==="
+          supabase --version
+          echo ""
+
+          echo "=== Migration state immediately before db push ==="
+          supabase migration list --linked || true
+          echo ""
+
+          echo "=== Dry-run immediately before db push ==="
+          supabase db push --linked --dry-run --yes --debug 2>&1 | tee /tmp/supabase-db-push-dry-run.log || true
+          echo ""
+
+          echo "=== Applying pending migrations ==="
+          set +e
+          supabase db push --linked --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
+          PUSH_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$PUSH_STATUS" -ne 0 ]; then
+            echo ""
+            echo "::error::supabase db push failed with exit code $PUSH_STATUS"
+            echo ""
+            echo "=== Last 200 lines from dry-run log ==="
+            tail -n 200 /tmp/supabase-db-push-dry-run.log || true
+            echo ""
+            echo "=== Last 300 lines from apply log ==="
+            tail -n 300 /tmp/supabase-db-push.log || true
+            echo ""
+            echo "=== Migration state after failed db push ==="
+            supabase migration list --linked || true
+            exit "$PUSH_STATUS"
+          fi
 
       - name: Deploy edge functions
         if: github.event_name == 'push'
