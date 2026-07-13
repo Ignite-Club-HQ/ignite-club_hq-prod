@@ -1753,6 +1753,25 @@ function ReviewStep({
         </div>
       </div>
 
+      {/* Free Pro trial CTA */}
+      <button
+        onClick={() => navigate(`/clubs/${clubId}/upgrade?trial=1`)}
+        className="w-full text-left rounded-xl border border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-4 hover:from-primary/15 transition-colors"
+      >
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+            <Crown className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Try Club Pro free for 30 days</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Unlock sponsors, branding, unlimited storage and more. Cancel anytime — no charge for 30 days.
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-primary shrink-0 mt-1" />
+        </div>
+      </button>
+
       <p className="text-xs text-muted-foreground text-center">
         Draft is auto-saved — you can leave and come back anytime before finishing.
       </p>
