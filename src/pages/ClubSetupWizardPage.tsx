@@ -588,6 +588,7 @@ export default function ClubSetupWizardPage() {
             <ReviewStep
               clubId={clubId!}
               clubName={club?.name}
+              club={club}
               teams={savedTeams}
               committee={committee}
               groups={groups}
@@ -597,6 +598,7 @@ export default function ClubSetupWizardPage() {
                 if (idx >= 0) setStepIndex(idx);
               }}
             />
+
           )}
 
 
@@ -1598,6 +1600,7 @@ function BulkPasteTeams({ onAdd }: { onAdd: (names: string[]) => void }) {
 function ReviewStep({
   clubId,
   clubName,
+  club,
   teams,
   committee,
   groups,
@@ -1606,6 +1609,7 @@ function ReviewStep({
 }: {
   clubId: string;
   clubName?: string | null;
+  club?: any;
   teams: DraftTeam[];
   committee: DraftInvite[];
   groups: DraftGroup[];
@@ -1613,8 +1617,12 @@ function ReviewStep({
   onJumpToStep: (id: string) => void;
 }) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [brandingOpen, setBrandingOpen] = useState(false);
+  const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
+
 
 
   // Section 1 — completed setup summary (only what the wizard actually asked for).
@@ -1725,31 +1733,79 @@ function ReviewStep({
           Optional next steps
         </p>
         <div className="rounded-xl border divide-y bg-card">
-          {optionalItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => navigate(item.to)}
-              className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
-                <p className="text-sm font-medium truncate">{item.label}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={cn(
-                    "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                    item.pro
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted text-muted-foreground",
-                  )}
+          {optionalItems.map((item) => {
+            const isBranding = item.id === "branding";
+            const handleClick = () => {
+              if (isBranding) {
+                setBrandingOpen((v) => !v);
+              } else {
+                navigate(item.to);
+              }
+            };
+            return (
+              <div key={item.id}>
+                <button
+                  onClick={handleClick}
+                  className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
                 >
-                  {item.hint}
-                </span>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                    <p className="text-sm font-medium truncate">{item.label}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                        item.pro
+                          ? "bg-primary/15 text-primary"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {item.hint}
+                    </span>
+                    <ArrowRight
+                      className={cn(
+                        "h-4 w-4 text-muted-foreground transition-transform",
+                        isBranding && brandingOpen && "rotate-90",
+                      )}
+                    />
+                  </div>
+                </button>
+                {isBranding && brandingOpen && (
+                  <div className="px-3 pb-4 pt-1 space-y-3 bg-muted/20">
+                    {!hasPro && (
+                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                        You can configure your colours and logo now — they'll be applied across the app automatically once your club is on the <strong>Pro</strong> plan.
+                      </div>
+                    )}
+                    {club ? (
+                      <ClubThemeEditor
+                        clubId={clubId}
+                        clubLogoUrl={club.logo_url}
+                        initialPrimary={club.theme_primary_h !== null && club.theme_primary_h !== undefined ? { h: club.theme_primary_h, s: club.theme_primary_s, l: club.theme_primary_l } : undefined}
+                        initialSecondary={club.theme_secondary_h !== null && club.theme_secondary_h !== undefined ? { h: club.theme_secondary_h, s: club.theme_secondary_s, l: club.theme_secondary_l } : undefined}
+                        initialAccent={club.theme_accent_h !== null && club.theme_accent_h !== undefined ? { h: club.theme_accent_h, s: club.theme_accent_s, l: club.theme_accent_l } : undefined}
+                        initialDarkPrimary={club.theme_dark_primary_h !== null && club.theme_dark_primary_h !== undefined ? { h: club.theme_dark_primary_h, s: club.theme_dark_primary_s, l: club.theme_dark_primary_l } : undefined}
+                        initialDarkSecondary={club.theme_dark_secondary_h !== null && club.theme_dark_secondary_h !== undefined ? { h: club.theme_dark_secondary_h, s: club.theme_dark_secondary_s, l: club.theme_dark_secondary_l } : undefined}
+                        initialDarkAccent={club.theme_dark_accent_h !== null && club.theme_dark_accent_h !== undefined ? { h: club.theme_dark_accent_h, s: club.theme_dark_accent_s, l: club.theme_dark_accent_l } : undefined}
+                        initialShowLogoInHeader={club.show_logo_in_header}
+                        initialShowNameInHeader={club.show_name_in_header ?? true}
+                        initialLogoOnlyMode={club.logo_only_mode ?? false}
+                        initialThemeEnabled={club.theme_enabled ?? true}
+                        onSave={() => {
+                          qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] });
+                          qc.invalidateQueries({ queryKey: ["club-themes"] });
+                        }}
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Loading club details…</p>
+                    )}
+                  </div>
+                )}
               </div>
-            </button>
-          ))}
+            );
+          })}
+
         </div>
       </div>
 
