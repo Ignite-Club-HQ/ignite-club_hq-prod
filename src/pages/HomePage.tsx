@@ -2109,18 +2109,20 @@ export default function HomePage() {
             Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
           </p>
         </div>
-        <HomeQuickActionsFab
-          onInvite={() => setMemberInviteOpen(true)}
-          onJoinTeam={() => setTeamDialogOpen(true)}
-          hasTeams={!!userRoles?.some(r => r.team_id)}
-          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          isAppAdmin={isAppAdmin}
-          activeClubFilter={activeClubFilter}
-          activeClubName={activeClubName}
-          hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
-        />
+        {!(initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0) && (
+          <HomeQuickActionsFab
+            onInvite={() => setMemberInviteOpen(true)}
+            onJoinTeam={() => setTeamDialogOpen(true)}
+            hasTeams={!!userRoles?.some(r => r.team_id)}
+            canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+            canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            isAppAdmin={isAppAdmin}
+            activeClubFilter={activeClubFilter}
+            activeClubName={activeClubName}
+            hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
+          />
+        )}
 
       </div>
 
