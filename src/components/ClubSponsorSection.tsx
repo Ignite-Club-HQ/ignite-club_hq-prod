@@ -30,6 +30,21 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
     queryFn: async () => {
       if (!clubId) return [];
 
+      // Pro-gate: free clubs can configure sponsors in the wizard/dashboard,
+      // but they must NOT be displayed on the Home page until the club is on
+      // an active Pro plan (or has an admin Pro override).
+      const { data: subs } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+        .eq("club_id", clubId)
+        .maybeSingle();
+      const now = Date.now();
+      const notExpired = !subs?.expires_at || new Date(subs.expires_at).getTime() > now;
+      const hasPro = !!subs && notExpired && (
+        subs.is_pro || subs.is_pro_football || subs.admin_pro_override || subs.admin_pro_football_override
+      );
+      if (!hasPro) return [];
+
       // Get club name
       const { data: club } = await supabase
         .from("clubs")
@@ -48,6 +63,7 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
         .order("name");
 
       if (!allSponsors || allSponsors.length === 0) return [];
+
 
       // Fetch team allocations with team names
       const { data: allocations } = await supabase
