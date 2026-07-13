@@ -600,36 +600,52 @@ export default function ClubSetupWizardPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3">
+      {/* Footer — sticky, always visible on mobile so Continue is reachable */}
+      <div
+        className="sticky bottom-0 border-t bg-background/95 backdrop-blur-none px-4 py-3"
+        style={{ paddingBottom: `max(0.75rem, env(safe-area-inset-bottom))` }}
+      >
         <div className="max-w-2xl mx-auto space-y-2">
           <div className="flex gap-2">
             <Button variant="outline" onClick={goBack} className="flex-1">
               Back
             </Button>
-            <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+            <Button
+              onClick={goNext}
+              disabled={savingTeams}
+              className={cn(
+                "flex-[2]",
+                safeStepIndex === STEPS.length - 1 &&
+                  "bg-emerald-600 hover:bg-emerald-700 text-white",
+              )}
+            >
               {savingTeams ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : safeStepIndex === STEPS.length - 1 ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" /> Finish setup
+                </>
               ) : (
                 <>
-                  {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                  Continue
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </>
               )}
             </Button>
           </div>
-          {isOptionalStep && safeStepIndex < STEPS.length - 1 && (
+          {step.id === "teaminvites" && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={goSkip}
+              onClick={goNext}
               className="w-full text-muted-foreground"
             >
-              Skip for now — you can add this later
+              I’ll invite people later
             </Button>
           )}
         </div>
       </div>
+
     </div>
   );
 }
