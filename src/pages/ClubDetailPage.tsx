@@ -822,6 +822,7 @@ export default function ClubDetailPage() {
     }
 
     setShowDeleteDialog(false);
+    clearClubSetupLocalState(id!);
     toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
     navigate("/clubs");
   };
