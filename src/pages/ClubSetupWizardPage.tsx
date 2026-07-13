@@ -21,6 +21,8 @@ import {
   Building2,
   ClipboardList,
   ClipboardPaste,
+  QrCode,
+  ChevronDown,
 } from "lucide-react";
 
 import { Capacitor } from "@capacitor/core";
@@ -51,6 +53,7 @@ import { Crown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { lookupInvitableUserByEmail } from "@/lib/inviteEmailDedupe";
+import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 
 
 // ---------- types ----------
@@ -945,73 +948,124 @@ function TeamInvitesStep({
       {teams.map((team) => {
         const teamList = list.filter((i) => i.teamId === team.createdTeamId);
         return (
-          <div
+          <TeamInviteBlock
             key={team.createdTeamId}
-            className="rounded-xl border bg-card p-3 space-y-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold truncate">{team.name}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {teamList.length === 0
-                    ? "0 people invited"
-                    : `${teamList.length} ${teamList.length === 1 ? "person" : "people"} invited`}
-                </p>
-              </div>
-            </div>
-
-            {teamList.length > 0 && (
-              <div className="space-y-2">
-                {teamList.map((inv) => (
-                  <InviteRow
-                    key={inv.tempId}
-                    invite={inv}
-                    roleOptions={roleOptions as any}
-                    onChange={(patch) => update(inv.tempId, patch)}
-                    onRemove={() => remove(inv.tempId)}
-                    onSend={() => onSend(inv)}
-                  />
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => addRow(team.createdTeamId!, "player")}
-              >
-                <UserPlus className="h-4 w-4 mr-1" /> Add members
-              </Button>
-              <BulkPasteInvites
-                compact
-                triggerLabel="Paste a member list"
-                onAdd={(rows) =>
-                  setList((prev) => {
-                    const teamKeys = new Set(
-                      prev
-                        .filter((p) => p.teamId === team.createdTeamId)
-                        .map((p) => (p.email || p.name).trim().toLowerCase()),
-                    );
-                    const additions = rows
-                      .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
-                      .map((r) => ({
-                        tempId: crypto.randomUUID(),
-                        name: r.name,
-                        email: r.email,
-                        role: "player" as TeamRole,
-                        teamId: team.createdTeamId,
-                        status: "pending" as const,
-                      }));
-                    return [...prev, ...additions];
-                  })
-                }
-              />
-            </div>
-          </div>
+            team={team}
+            teamList={teamList}
+            roleOptions={roleOptions as any}
+            onAddRow={() => addRow(team.createdTeamId!, "player")}
+            onUpdate={update}
+            onRemove={remove}
+            onSend={onSend}
+            onBulkAdd={(rows) =>
+              setList((prev) => {
+                const teamKeys = new Set(
+                  prev
+                    .filter((p) => p.teamId === team.createdTeamId)
+                    .map((p) => (p.email || p.name).trim().toLowerCase()),
+                );
+                const additions = rows
+                  .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
+                  .map((r) => ({
+                    tempId: crypto.randomUUID(),
+                    name: r.name,
+                    email: r.email,
+                    role: "player" as TeamRole,
+                    teamId: team.createdTeamId,
+                    status: "pending" as const,
+                  }));
+                return [...prev, ...additions];
+              })
+            }
+          />
         );
       })}
+    </div>
+  );
+}
+
+function TeamInviteBlock({
+  team,
+  teamList,
+  roleOptions,
+  onAddRow,
+  onUpdate,
+  onRemove,
+  onSend,
+  onBulkAdd,
+}: {
+  team: DraftTeam;
+  teamList: DraftInvite[];
+  roleOptions: { value: TeamRole; label: string }[];
+  onAddRow: () => void;
+  onUpdate: (id: string, patch: Partial<DraftInvite>) => void;
+  onRemove: (id: string) => void;
+  onSend: (inv: DraftInvite) => void;
+  onBulkAdd: (rows: { name: string; email: string }[]) => void;
+}) {
+  const [showJoinLink, setShowJoinLink] = useState(false);
+  return (
+    <div className="rounded-xl border bg-card p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{team.name}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {teamList.length === 0
+              ? "0 people invited"
+              : `${teamList.length} ${teamList.length === 1 ? "person" : "people"} invited`}
+          </p>
+        </div>
+        {team.createdTeamId && (
+          <Button
+            variant={showJoinLink ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setShowJoinLink((v) => !v)}
+            className="shrink-0 gap-1"
+          >
+            <QrCode className="h-4 w-4" />
+            <span className="hidden sm:inline">Share join link</span>
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform", showJoinLink && "rotate-180")}
+            />
+          </Button>
+        )}
+      </div>
+
+      {showJoinLink && team.createdTeamId && (
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <TeamJoinLinkCard
+            teamId={team.createdTeamId}
+            teamName={team.name}
+            teamType="mixed"
+          />
+        </div>
+      )}
+
+      {teamList.length > 0 && (
+        <div className="space-y-2">
+          {teamList.map((inv) => (
+            <InviteRow
+              key={inv.tempId}
+              invite={inv}
+              roleOptions={roleOptions as any}
+              onChange={(patch) => onUpdate(inv.tempId, patch)}
+              onRemove={() => onRemove(inv.tempId)}
+              onSend={() => onSend(inv)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Button variant="outline" size="sm" className="flex-1" onClick={onAddRow}>
+          <UserPlus className="h-4 w-4 mr-1" /> Add members
+        </Button>
+        <BulkPasteInvites
+          compact
+          triggerLabel="Paste a member list"
+          onAdd={onBulkAdd}
+        />
+      </div>
     </div>
   );
 }
