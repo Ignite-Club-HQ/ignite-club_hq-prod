@@ -1378,9 +1378,11 @@ function OperationalGroupsStep({
 function BulkPasteInvites({
   onAdd,
   compact,
+  triggerLabel,
 }: {
   onAdd: (rows: { name: string; email: string }[]) => void;
   compact?: boolean;
+  triggerLabel?: string;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1405,12 +1407,17 @@ function BulkPasteInvites({
         variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
-        className={cn("w-full text-muted-foreground", compact && "h-8 text-xs")}
+        className={cn(
+          "w-full text-muted-foreground",
+          compact && "flex-1 h-9 text-xs sm:text-sm",
+        )}
       >
-        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Bulk paste names / emails
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" />
+        {triggerLabel ?? "Bulk paste names / emails"}
       </Button>
     );
   }
+
 
   return (
     <div className="rounded-xl border p-3 space-y-2 bg-card">
