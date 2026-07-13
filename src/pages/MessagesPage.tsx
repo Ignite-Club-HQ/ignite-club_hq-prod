@@ -869,14 +869,19 @@ export default function MessagesPage() {
 
       let query = supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs!club_id(name, logo_url), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (accessibleIds) query = query.in("id", accessibleIds);
       const { data, error } = await query;
 
       
-      const groups = data || [];
+      const groups = ((data || []) as any[]).filter((group: any) => {
+        if (group.deleted_at) return false;
+        if (group.clubs?.deleted_at || group.clubs?.purged_at) return false;
+        if (group.teams?.deleted_at) return false;
+        return true;
+      });
       
       // M1 perf: batch profile lookups for all group last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
