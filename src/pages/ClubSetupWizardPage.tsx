@@ -478,10 +478,15 @@ export default function ClubSetupWizardPage() {
         setStepIndex((i) => i + 2);
         return;
       }
+      setStepIndex((i) => i + 1);
+    } else {
+      finish();
+    }
+  };
+
   // Skip is no longer used in the core wizard (no optional Pro steps remain)
   // but kept as a no-op alias in case any handler still references it.
   const goSkip = goNext;
-
   const isOptionalStep = false;
 
   const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
@@ -495,53 +500,72 @@ export default function ClubSetupWizardPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-base font-semibold truncate">
-                {isShellClub
-                  ? "Set up your team"
-                  : `Set up ${club?.name || "your club"}`}
-              </h1>
-              <span className="text-xs text-muted-foreground shrink-0">
-                Step {safeStepIndex + 1}/{STEPS.length}
-              </span>
-            </div>
-            <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            <h1 className="text-base font-semibold truncate">
+              {isShellClub
+                ? "Set up your team"
+                : `Set up ${club?.name || "your club"}`}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Step {safeStepIndex + 1} of {STEPS.length}
+            </p>
           </div>
           <Button variant="ghost" size="sm" onClick={finish}>
             Exit
           </Button>
         </div>
-        {/* Step chips */}
-        <div className="px-4 pb-3 flex gap-2 overflow-x-auto max-w-2xl mx-auto w-full">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const active = i === safeStepIndex;
-            const done = i < safeStepIndex;
-            return (
-              <button
-                key={s.id}
-                onClick={() => setStepIndex(i)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs whitespace-nowrap border transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : done
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                      : "bg-muted text-muted-foreground border-transparent",
-                )}
-              >
-                {done ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
-                {s.label}
-              </button>
-            );
-          })}
+        {/* Progress bar */}
+        <div className="px-4 max-w-2xl mx-auto w-full">
+          <div className="h-1 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+        {/* Compact 3-step indicator — always fits on screen, no scrollbar */}
+        <div className="px-4 pt-2.5 pb-3 max-w-2xl mx-auto w-full">
+          <div className="flex items-center justify-between gap-1">
+            {STEPS.map((s, i) => {
+              const active = i === safeStepIndex;
+              const done = i < safeStepIndex;
+              return (
+                <div key={s.id} className="flex items-center flex-1 min-w-0 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setStepIndex(i)}
+                    className={cn(
+                      "flex items-center gap-1.5 min-w-0 flex-1 px-2 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors",
+                      active
+                        ? "text-primary"
+                        : done
+                          ? "text-emerald-600"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold shrink-0",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : done
+                            ? "bg-emerald-500 text-white"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {done ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className="truncate">{s.label}</span>
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
