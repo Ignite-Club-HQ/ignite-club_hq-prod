@@ -1901,7 +1901,10 @@ export default function MessagesPage() {
   const displayTeams = teams || cachedData?.teams || [];
   const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
+  // Important: an empty fresh chat-group result is authoritative. Falling back
+  // to cached groups when `chatGroups.length === 0` kept soft-deleted/purged
+  // club chats visible forever after the server correctly returned no rows.
+  const allChatGroups = chatGroups ?? (cachedData?.chatGroups as any) ?? [];
   
   // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
