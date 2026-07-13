@@ -2153,15 +2153,8 @@ export default function HomePage() {
         />
       )}
 
-      {/* Resume-setup card for club admins with incomplete wizard */}
-      {initialized && !isLoading && (() => {
-        const liveClubIds = new Set((userClubs || []).map((c: any) => c.id));
-        const adminClubId = activeClubFilter && liveClubIds.has(activeClubFilter) && userRoles?.some((r: any) => r.club_id === activeClubFilter && r.role === "club_admin")
-          ? activeClubFilter
-          : userRoles?.find((r: any) => r.role === "club_admin" && r.club_id && liveClubIds.has(r.club_id))?.club_id;
-        if (!adminClubId) return null;
-        return <ClubSetupProgressCard clubId={adminClubId} />;
-      })()}
+      {/* Setup progress moved to Club page only — do not surface on Home once
+          a club exists (per product decision). */}
 
 
       <div className="relative">
