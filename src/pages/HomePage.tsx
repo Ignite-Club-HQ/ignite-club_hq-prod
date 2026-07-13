@@ -484,7 +484,7 @@ export default function HomePage() {
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds)
+          ? supabase.from("teams").select("club_id").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
