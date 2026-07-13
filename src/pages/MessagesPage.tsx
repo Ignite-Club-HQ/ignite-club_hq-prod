@@ -2706,34 +2706,19 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              if (hasAICatchUpClub) {
-                setShowGlobalRecap(true);
-              } else {
-                toast({
-                  title: "Chat Recap is a Pro feature",
-                  description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
-                });
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else if (effectiveClubFilter) {
-                  navigate(`/clubs/${effectiveClubFilter}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }
-            }}
-            className="h-10 w-10 relative"
-            aria-label="Recap all chats"
-            title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
+          {aiCatchUpResolved && hasAICatchUpClub && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowGlobalRecap(true)}
+              className="h-10 w-10 relative"
+              aria-label="Recap all chats"
+              title="Recap all unread chats"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          )}
+
 
           <Button
             variant="outline"
