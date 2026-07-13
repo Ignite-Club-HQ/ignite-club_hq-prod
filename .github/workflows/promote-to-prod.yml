@@ -181,20 +181,24 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== Fetching remote migration list ==="
-          REMOTE_RAW=$(supabase migration list --linked 2>&1 || true)
-          echo "$REMOTE_RAW"
+          supabase migration list --linked 2>&1 | tee /tmp/mig-list.txt
 
-          # Extract timestamp-like versions (14 digits) from the "Remote" column.
-          # `supabase migration list` prints a table: | Local | Remote | Time |
-          REMOTE_VERSIONS=$(echo "$REMOTE_RAW" \
-            | awk -F'|' '{ gsub(/ /, "", $3); if ($3 ~ /^[0-9]{14}$/) print $3 }' \
-            | sort -u)
+          # Do a dry `db push` — when there's drift the CLI prints the
+          # remote-only versions on stderr with a "supabase migration repair
+          # --status reverted <ver>" hint. That output is the source of truth
+          # regardless of how the table formatting evolves.
+          echo ""
+          echo "=== Probing for drift via db push (dry) ==="
+          supabase db push --linked --dry-run 2>&1 | tee /tmp/mig-push.txt || true
 
+          # Union both outputs, then subtract local files. Anything left is a
+          # remote-only version that must be marked reverted.
+          ALL_VERSIONS=$(cat /tmp/mig-list.txt /tmp/mig-push.txt \
+            | grep -oE '\b[0-9]{14}\b' | sort -u)
           LOCAL_VERSIONS=$(ls supabase/migrations 2>/dev/null \
-            | grep -oE '^[0-9]{14}' \
-            | sort -u || true)
-
-          ORPHANS=$(comm -23 <(echo "$REMOTE_VERSIONS") <(echo "$LOCAL_VERSIONS") | tr -d ' ' | grep -E '^[0-9]{14}$' || true)
+            | grep -oE '^[0-9]{14}' | sort -u || true)
+          ORPHANS=$(comm -23 <(echo "$ALL_VERSIONS") <(echo "$LOCAL_VERSIONS") \
+            | grep -E '^[0-9]{14}$' || true)
 
           if [ -z "$ORPHANS" ]; then
             echo "✅ No migration history drift — nothing to repair."
@@ -204,11 +208,13 @@ jobs:
           echo ""
           echo "=== Prod-only migration versions (will be marked reverted in history) ==="
           echo "$ORPHANS"
+          COUNT=$(echo "$ORPHANS" | wc -l)
+          echo "Total: $COUNT"
           echo ""
 
-          # `supabase migration repair` accepts multiple versions in one call.
-          # Batch in groups of 50 to keep the command line sane.
-          echo "$ORPHANS" | xargs -n 50 supabase migration repair --linked --status reverted
+          # `supabase migration repair` accepts multiple versions per call.
+          # Batch in groups of 20 to stay well under arg-length limits.
+          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status reverted
 
           echo ""
           echo "=== Post-repair migration list ==="
