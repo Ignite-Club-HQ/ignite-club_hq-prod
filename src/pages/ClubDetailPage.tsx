@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
@@ -113,8 +113,24 @@ export default function ClubDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [openSections, setOpenSections] = useState<string[]>([]);
+
+  // Deep-link to accordion section via hash (e.g. #branding)
+  useEffect(() => {
+    const hash = location.hash?.replace("#", "");
+    if (!hash) return;
+    setOpenSections((prev) => (prev.includes(hash) ? prev : [...prev, hash]));
+    // Wait for accordion to expand before scrolling
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-section-anchor="${hash}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [location.hash]);
+
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
@@ -1721,9 +1737,10 @@ export default function ClubDetailPage() {
       {/* Club Members and Admin Accordion */}
       <Accordion 
         type="multiple" 
-        defaultValue={[]} 
+        value={openSections}
         className="space-y-4"
         onValueChange={(value) => {
+          setOpenSections(value);
           if (value.includes("members")) {
             setMembersExpanded(true);
             // Auto-refresh members list when expanding if empty
@@ -2265,7 +2282,7 @@ export default function ClubDetailPage() {
 
       {/* Club Branding - Pro only */}
       {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-        <AccordionItem value="branding" className="border rounded-lg px-4">
+        <AccordionItem value="branding" data-section-anchor="branding" className="border rounded-lg px-4 scroll-mt-20">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />

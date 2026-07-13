@@ -1669,7 +1669,7 @@ function ReviewStep({
       id: "branding",
       label: "Add club branding",
       hint: "Optional",
-      to: `/clubs/${clubId}/edit`,
+      to: `/clubs/${clubId}#branding`,
     },
     {
       id: "sponsors",
