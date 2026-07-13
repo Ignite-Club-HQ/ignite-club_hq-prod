@@ -332,7 +332,7 @@ jobs:
           command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1 || true
           if command -v psql >/dev/null; then
             PGPASSWORD="${SUPABASE_DB_PASSWORD:-${PROD_DB_PASSWORD:-}}" \
-              psql "postgresql://postgres.${SUPABASE_PROJECT_ID}@aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com:6543/postgres?sslmode=require" \
+              psql "postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10" \
               -v ON_ERROR_STOP=1 -c "select 1 as ping;" 2>&1 | tee /tmp/supabase-ping.log || echo "(ping failed — likely auth/network, not SQL)"
           fi
           echo ""
