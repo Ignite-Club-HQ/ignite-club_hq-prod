@@ -61,9 +61,11 @@ const MORE_OPTIONS: SecondaryOption[] = [
 export function HomeWelcomeGetStarted({
   firstName,
   email,
+  onFindOrJoin,
 }: {
   firstName: string;
   email?: string | null;
+  onFindOrJoin: () => void;
 }) {
   const { data: pendingInvites = [] } = useQuery({
     queryKey: ["home-welcome-pending-invites", email],
@@ -91,7 +93,6 @@ export function HomeWelcomeGetStarted({
     ? `/clubs/${primaryInvite.club_id}`
     : "/notifications";
 
-  const [findOpen, setFindOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   return (
