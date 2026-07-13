@@ -1621,8 +1621,13 @@ export default function ClubDetailPage() {
         </Accordion>
       )}
 
-      {/* Competitions Section */}
-      <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} />
+      {/* Competitions Section - Pro only */}
+      {(() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
+          <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} hasProAccess={hasProAccess} />
+        );
+      })()}
 
       {/* Mini Leagues Section - Pro Football clubs only, hidden for class-mode clubs */}
       {isSoccerClub && hasProFootball && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
