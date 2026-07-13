@@ -217,6 +217,51 @@ jobs:
           echo "=== Post-repair migration list ==="
           supabase migration list --linked
 
+      - name: Pre-mark already-in-prod local migrations as applied
+        # Some local migration files describe objects (tables, indexes,
+        # triggers, policies) that already physically exist in prod from
+        # a previous partially-run promotion attempt. `db push` would try
+        # to re-run their CREATE statements and fail with 42P07 / 42710.
+        #
+        # For each version listed below, we check prod for a signature
+        # object; if it exists, we mark the local version `applied` so
+        # push skips it. Safe idempotent operation — only touches the
+        # bookkeeping table, never runs the migration SQL.
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+
+          # Build pooler connection string from existing secrets.
+          # Uses Supabase's transaction pooler on 6543 (IPv4-friendly, works from GH runners).
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          PROD_DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+
+          # version : SQL existence check (must return exactly one row when object exists)
+          declare -A CHECKS=(
+            ["20260701193827"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
+            ["20260703024653"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
+            ["20260703081313"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
+            ["20260708013949"]="SELECT 1 FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
+            ["20260708222650"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
+            ["20260713003316"]="SELECT 1 FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
+          )
+
+          TO_MARK=()
+          for VERSION in "${!CHECKS[@]}"; do
+            SQL="${CHECKS[$VERSION]}"
+            EXISTS=$(psql "$PROD_DB_URL" -tAc "$SQL" | head -n1 | tr -d '[:space:]')
+            if [ "$EXISTS" = "1" ]; then
+              echo "🔧 $VERSION — signature object exists in prod, will mark applied"
+              TO_MARK+=("$VERSION")
+            else
+              echo "✅ $VERSION — signature object NOT in prod, will run normally"
+            fi
+          done
+
+          if [ ${#TO_MARK[@]} -gt 0 ]; then
+            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
+          fi
+
       - name: Apply pending migrations
         if: github.event_name == 'push'
         run: supabase db push --linked
