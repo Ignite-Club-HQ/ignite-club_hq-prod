@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Users, Plus, Crown, ChevronRight, Filter, Search, X, Info } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Users, Plus, Crown, ChevronRight, Filter, Search, X, Info, RotateCcw, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -53,9 +54,48 @@ export default function ClubsPage() {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const location = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fromCreateTeam = (location.state as { fromCreateTeam?: boolean })?.fromCreateTeam === true;
   const [sportFilter, setSportFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  // Recently removed clubs (soft-deleted by this user, within 30 days)
+  const { data: removedClubs } = useQuery({
+    queryKey: ["removed-clubs", user?.id],
+    queryFn: async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url, sport, deleted_at")
+        .eq("deleted_by", user!.id)
+        .not("deleted_at", "is", null)
+        .gte("deleted_at", thirtyDaysAgo)
+        .order("deleted_at", { ascending: false });
+      if (error) throw error;
+      return data as { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at: string }[];
+    },
+    enabled: !!user,
+  });
+
+  const handleRestore = async (clubId: string) => {
+    setRestoringId(clubId);
+    const { error } = await supabase
+      .from("clubs")
+      .update({ deleted_at: null, deleted_by: null } as any)
+      .eq("id", clubId);
+    setRestoringId(null);
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Club restored", description: "Teams and chats have been restored too." });
+    queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
+    queryClient.invalidateQueries({ queryKey: ["clubs"] });
+    queryClient.invalidateQueries({ queryKey: ["user-roles", user?.id] });
+  };
+
 
   const { data: clubs, isLoading } = useQuery({
     queryKey: ["clubs"],
@@ -302,6 +342,58 @@ export default function ClubsPage() {
           </div>
         )}
       </section>
+
+      {/* Recently removed - clubs the user soft-deleted, restorable within 30 days */}
+      {removedClubs && removedClubs.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-muted-foreground" />
+              Recently removed
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Restore within 30 days. Restoring also brings back the club's teams and chats.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {removedClubs.map((club) => {
+              const daysLeft = Math.max(
+                0,
+                30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24))
+              );
+              return (
+                <Card key={club.id} className="border-dashed">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <Avatar className="h-10 w-10 opacity-60">
+                      <AvatarImage src={club.logo_url || undefined} />
+                      <AvatarFallback className="bg-muted text-muted-foreground">
+                        {club.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{club.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Removed {new Date(club.deleted_at).toLocaleDateString()} · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={restoringId === club.id}
+                      onClick={() => handleRestore(club.id)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                      {restoringId === club.id ? "Restoring..." : "Restore"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+
 
       {/* Search Results - Only show when searching */}
       {isSearching && (
