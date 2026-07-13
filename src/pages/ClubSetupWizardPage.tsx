@@ -1455,6 +1455,77 @@ function BulkPasteInvites({
   );
 }
 
+// ---------- shared: bulk-paste team names (one per line) ----------
+
+function BulkPasteTeams({ onAdd }: { onAdd: (names: string[]) => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const lines = useMemo(
+    () =>
+      text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean),
+    [text],
+  );
+
+  const submit = () => {
+    if (lines.length === 0) {
+      toast({ title: "Nothing to add", description: "Paste one team name per line.", variant: "destructive" });
+      return;
+    }
+    onAdd(lines);
+    toast({ title: `Added ${lines.length} team${lines.length === 1 ? "" : "s"}` });
+    setText("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="w-full text-muted-foreground"
+      >
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Paste a list of team names
+      </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-3 space-y-2 bg-card">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Paste team names</p>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setOpen(false); setText(""); }}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        One team name per line. Duplicates are removed automatically.
+      </p>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        placeholder={"U10 Lions\nU12 Girls\nSeniors"}
+        className="text-sm"
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {lines.length} detected
+        </span>
+        <Button size="sm" onClick={submit} disabled={lines.length === 0}>
+          Add {lines.length || ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+
 // ---------- step: review & finish ----------
 
 function ReviewStep({
