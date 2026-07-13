@@ -1605,28 +1605,40 @@ function ReviewStep({
   clubId,
   clubName,
   club,
+  userId,
   teams,
   committee,
+  setCommittee,
   groups,
+  setGroups,
   teamInvites,
+  onSendInvite,
   onJumpToStep,
 }: {
   clubId: string;
   clubName?: string | null;
   club?: any;
+  userId: string;
   teams: DraftTeam[];
   committee: DraftInvite[];
+  setCommittee: React.Dispatch<React.SetStateAction<DraftInvite[]>>;
   groups: DraftGroup[];
+  setGroups: React.Dispatch<React.SetStateAction<DraftGroup[]>>;
   teamInvites: DraftInvite[];
+  onSendInvite: (inv: DraftInvite) => void;
   onJumpToStep: (id: string) => void;
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [brandingOpen, setBrandingOpen] = useState(false);
   const [sponsorsOpen, setSponsorsOpen] = useState(false);
+  const [committeeOpen, setCommitteeOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
+  const sentCommittee = committee.filter((i) => i.status === "sent").length;
+  const savedGroups = groups.filter((g) => g.status === "saved").length;
 
 
 
