@@ -4,6 +4,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useSuppressedChatScopes } from "@/lib/pushTapSuppression";
 import { Capacitor } from "@capacitor/core";
