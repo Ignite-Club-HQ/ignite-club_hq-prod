@@ -589,10 +589,14 @@ export default function ClubSetupWizardPage() {
               clubId={clubId!}
               clubName={club?.name}
               club={club}
+              userId={user!.id}
               teams={savedTeams}
               committee={committee}
+              setCommittee={setCommittee}
               groups={groups}
+              setGroups={setGroups}
               teamInvites={teamInvites}
+              onSendInvite={(inv) => sendInvite(inv, setCommittee)}
               onJumpToStep={(id) => {
                 const idx = STEPS.findIndex((s) => s.id === id);
                 if (idx >= 0) setStepIndex(idx);
