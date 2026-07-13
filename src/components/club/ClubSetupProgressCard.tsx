@@ -175,12 +175,22 @@ export function ClubSetupProgressCard({
               <span
                 className={
                   s.done
-                    ? "text-muted-foreground line-through"
-                    : "text-foreground"
+                    ? "text-muted-foreground line-through flex-1"
+                    : "text-foreground flex-1"
                 }
               >
                 {s.label}
               </span>
+              {s.pro && !s.done && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 uppercase tracking-wide shrink-0">
+                  Pro
+                </span>
+              )}
+              {s.optional && !s.pro && !s.done && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide shrink-0">
+                  Optional
+                </span>
+              )}
             </li>
           ))}
         </ul>
