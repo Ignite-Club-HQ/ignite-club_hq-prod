@@ -837,6 +837,19 @@ export default function ClubDetailPage() {
         deleted_at: null,
         deleted_by: null,
       } as any).eq("club_id", id!);
+
+      // Restore chat_groups scoped to this club or any of its teams
+      const { data: teamRows } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", id!);
+      const teamIdList = (teamRows || []).map((t: any) => t.id);
+      const orClauses = [`club_id.eq.${id!}`];
+      if (teamIdList.length > 0) orClauses.push(`team_id.in.(${teamIdList.join(",")})`);
+      await supabase.from("chat_groups").update({
+        deleted_at: null,
+        deleted_by: null,
+      } as any).or(orClauses.join(","));
     }
 
     if (error) {
