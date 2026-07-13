@@ -231,30 +231,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Build pooler connection string from existing secrets.
-          # Uses Supabase's transaction pooler on 6543 (IPv4-friendly, works from GH runners).
-          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
-          PROD_DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          # Uses Supabase Management API — no direct DB connection needed,
+          # avoids IPv6-only db.<ref>.supabase.co issues from GH runners.
+          API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
 
-          # version : SQL existence check (must return exactly one row when object exists)
+          run_check() {
+            local sql="$1"
+            curl -sS -X POST "$API" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -cn --arg q "$sql" '{query:$q}')"
+          }
+
+          # version : SQL existence check
           declare -A CHECKS=(
-            ["20260701193827"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
-            ["20260703024653"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
-            ["20260703081313"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
-            ["20260708013949"]="SELECT 1 FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
-            ["20260708222650"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
-            ["20260713003316"]="SELECT 1 FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
+            ["20260701193827"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
+            ["20260703024653"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
+            ["20260703081313"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
+            ["20260708013949"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
+            ["20260708222650"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
+            ["20260713003316"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
           )
 
           TO_MARK=()
           for VERSION in "${!CHECKS[@]}"; do
-            SQL="${CHECKS[$VERSION]}"
-            EXISTS=$(psql "$PROD_DB_URL" -tAc "$SQL" | head -n1 | tr -d '[:space:]')
-            if [ "$EXISTS" = "1" ]; then
+            RESP=$(run_check "${CHECKS[$VERSION]}")
+            HIT=$(echo "$RESP" | jq -r 'if type=="array" then (.[0].hit // empty) else empty end')
+            if [ "$HIT" = "1" ]; then
               echo "🔧 $VERSION — signature object exists in prod, will mark applied"
               TO_MARK+=("$VERSION")
             else
-              echo "✅ $VERSION — signature object NOT in prod, will run normally"
+              echo "✅ $VERSION — signature object NOT in prod, will run normally (response: $RESP)"
             fi
           done
 
