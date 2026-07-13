@@ -607,9 +607,22 @@ export default function ClubSetupWizardPage() {
       >
         <div className="max-w-2xl mx-auto space-y-2">
           <div className="flex gap-2">
-            <Button variant="outline" onClick={goBack} className="flex-1">
-              Back
-            </Button>
+            {step.id === "review" ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const idx = STEPS.findIndex((s) => s.id === "teaminvites");
+                  if (idx >= 0) setStepIndex(idx);
+                }}
+                className="flex-1"
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> Invite more members
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={goBack} className="flex-1">
+                Back
+              </Button>
+            )}
             <Button
               onClick={goNext}
               disabled={savingTeams}
