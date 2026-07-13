@@ -1619,6 +1619,7 @@ function ReviewStep({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [brandingOpen, setBrandingOpen] = useState(false);
+  const [sponsorsOpen, setSponsorsOpen] = useState(false);
   const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
