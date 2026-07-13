@@ -290,14 +290,35 @@ jobs:
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
+        env:
+          # Force non-TTY / plain output so the CLI does not swallow the
+          # Postgres error behind a spinner or ANSI redraw. Without this,
+          # `supabase db push` can exit 1 with a completely empty log.
+          NO_COLOR: "1"
+          TERM: "dumb"
+          CI: "true"
         run: |
           set -euo pipefail
           echo "=== Supabase CLI version ==="
           supabase --version
           echo ""
 
+          echo "=== CONNECTION CHECK (auth / link / network) ==="
+          echo "-- Linked project:"
+          supabase projects list 2>&1 | tee /tmp/supabase-projects.log || true
+          echo ""
+          echo "-- Direct DB reachability (select 1):"
+          # Ensure psql is present; ignore if apt is slow.
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1 || true
+          if command -v psql >/dev/null; then
+            PGPASSWORD="${SUPABASE_DB_PASSWORD:-${PROD_DB_PASSWORD:-}}" \
+              psql "postgresql://postgres.${SUPABASE_PROJECT_ID}@aws-0-${SUPABASE_REGION:-us-east-1}.pooler.supabase.com:6543/postgres?sslmode=require" \
+              -v ON_ERROR_STOP=1 -c "select 1 as ping;" 2>&1 | tee /tmp/supabase-ping.log || echo "(ping failed — likely auth/network, not SQL)"
+          fi
+          echo ""
+
           echo "=== Migration state immediately before db push ==="
-          supabase migration list --linked || true
+          supabase migration list --linked 2>&1 || true
           echo ""
 
           echo "=== Dry-run immediately before db push ==="
@@ -306,9 +327,12 @@ jobs:
 
           echo "=== Applying pending migrations ==="
           set +e
+          # 2>&1 merges stderr into the pipe — Supabase CLI writes the actual
+          # Postgres ERROR: line to stderr, which the previous version missed.
           supabase db push --linked --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
           PUSH_STATUS=${PIPESTATUS[0]}
           set -e
+
 
           if [ "$PUSH_STATUS" -ne 0 ]; then
             # Print bulky context first (inside collapsible groups) so the
