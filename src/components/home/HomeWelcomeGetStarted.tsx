@@ -233,7 +233,7 @@ function FindOrJoinClubDialog({
   email?: string | null;
 }) {
   const navigate = useNavigate();
-  void toast;
+  
   const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
 
