@@ -974,9 +974,23 @@ export default function ClubChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, clubId, authReady]);
 
+  // Free-tier polling switch (behind app_settings.free_club_polling_enabled).
+  const { mode: clubRealtimeMode, intervalMs: clubPollIntervalMs } = useClubRealtimeMode(clubId ?? null);
+
+  // Polling fallback: when this club is on the polling path, periodically
+  // invalidate the messages cache instead of holding a realtime WebSocket.
+  useEffect(() => {
+    if (!clubId || clubRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+    }, clubPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [clubId, clubRealtimeMode, clubPollIntervalMs, queryClient]);
+
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!clubId) return;
+    if (clubRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`club-messages-${clubId}`)
