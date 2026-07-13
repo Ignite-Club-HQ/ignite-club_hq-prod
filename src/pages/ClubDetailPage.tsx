@@ -1156,8 +1156,8 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Setup progress — resume the wizard for admins of incomplete clubs */}
-      {isAdmin && id && (
+      {/* Setup progress — only visible to club admins of THIS club */}
+      {userRole === "club_admin" && id && (
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
