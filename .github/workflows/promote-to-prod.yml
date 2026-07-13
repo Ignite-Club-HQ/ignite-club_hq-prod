@@ -314,16 +314,33 @@ jobs:
             echo ""
             echo "::error::supabase db push failed with exit code $PUSH_STATUS"
             echo ""
+            echo "=== First likely failure lines from apply log ==="
+            grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|cannot|timeout|refused|exit code' /tmp/supabase-db-push.log | head -n 120 || true
+            echo ""
+            echo "=== First likely failure lines from dry-run log ==="
+            grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|cannot|timeout|refused|exit code' /tmp/supabase-db-push-dry-run.log | head -n 120 || true
+            echo ""
             echo "=== Last 200 lines from dry-run log ==="
             tail -n 200 /tmp/supabase-db-push-dry-run.log || true
             echo ""
-            echo "=== Last 300 lines from apply log ==="
-            tail -n 300 /tmp/supabase-db-push.log || true
+            echo "=== Last 500 lines from apply log ==="
+            tail -n 500 /tmp/supabase-db-push.log || true
             echo ""
             echo "=== Migration state after failed db push ==="
             supabase migration list --linked || true
             exit "$PUSH_STATUS"
           fi
+
+      - name: Upload Supabase migration logs on failure
+        if: failure() && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-promotion-logs-${{ github.run_id }}
+          path: |
+            /tmp/supabase-db-push.log
+            /tmp/supabase-db-push-dry-run.log
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Deploy edge functions
         if: github.event_name == 'push'
