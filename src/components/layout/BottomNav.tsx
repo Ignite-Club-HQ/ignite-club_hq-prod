@@ -362,7 +362,7 @@ export function BottomNav() {
         aria-hidden={shouldHideNav}
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
-          {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
+          {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -394,9 +394,6 @@ export function BottomNav() {
                       >
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                       </span>
-                    )}
-                    {requiresPro && showProLock && (
-                      <Lock className="h-3 w-3 text-muted-foreground absolute -top-1 -right-1" aria-label="Pro feature" />
                     )}
                   </div>
                   <span className="text-xs font-medium mt-0.5">{label}</span>
