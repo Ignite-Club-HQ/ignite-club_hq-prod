@@ -589,10 +589,14 @@ export default function ClubSetupWizardPage() {
               clubId={clubId!}
               clubName={club?.name}
               club={club}
+              userId={user!.id}
               teams={savedTeams}
               committee={committee}
+              setCommittee={setCommittee}
               groups={groups}
+              setGroups={setGroups}
               teamInvites={teamInvites}
+              onSendInvite={(inv) => sendInvite(inv, setCommittee)}
               onJumpToStep={(id) => {
                 const idx = STEPS.findIndex((s) => s.id === id);
                 if (idx >= 0) setStepIndex(idx);
@@ -1601,28 +1605,40 @@ function ReviewStep({
   clubId,
   clubName,
   club,
+  userId,
   teams,
   committee,
+  setCommittee,
   groups,
+  setGroups,
   teamInvites,
+  onSendInvite,
   onJumpToStep,
 }: {
   clubId: string;
   clubName?: string | null;
   club?: any;
+  userId: string;
   teams: DraftTeam[];
   committee: DraftInvite[];
+  setCommittee: React.Dispatch<React.SetStateAction<DraftInvite[]>>;
   groups: DraftGroup[];
+  setGroups: React.Dispatch<React.SetStateAction<DraftGroup[]>>;
   teamInvites: DraftInvite[];
+  onSendInvite: (inv: DraftInvite) => void;
   onJumpToStep: (id: string) => void;
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [brandingOpen, setBrandingOpen] = useState(false);
   const [sponsorsOpen, setSponsorsOpen] = useState(false);
+  const [committeeOpen, setCommitteeOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
+  const sentCommittee = committee.filter((i) => i.status === "sent").length;
+  const savedGroups = groups.filter((g) => g.status === "saved").length;
 
 
 
@@ -1654,37 +1670,31 @@ function ReviewStep({
     },
   ];
 
-  // Section 2 — optional next steps (not gated inside the wizard).
+  // Section 2 — optional next steps (all inline within the wizard).
   const optionalItems: {
     id: string;
     label: string;
     hint: string;
-    to: string;
-    pro?: boolean;
   }[] = [
     {
       id: "committee",
       label: "Invite committee members",
-      hint: "Optional",
-      to: `/clubs/${clubId}/roles`,
+      hint: sentCommittee > 0 ? `${sentCommittee} invited` : "Optional",
     },
     {
       id: "groups",
       label: "Create Subcommittees",
-      hint: "Set up later",
-      to: `/clubs/${clubId}`,
+      hint: savedGroups > 0 ? `${savedGroups} created` : "Optional",
     },
     {
       id: "branding",
       label: "Add club branding",
       hint: "Optional",
-      to: `/clubs/${clubId}#branding`,
     },
     {
       id: "sponsors",
       label: "Add sponsors",
       hint: "Optional",
-      to: `/clubs/${clubId}`,
     },
   ];
 
@@ -1736,16 +1746,18 @@ function ReviewStep({
           {optionalItems.map((item) => {
             const isBranding = item.id === "branding";
             const isSponsors = item.id === "sponsors";
-            const isInline = isBranding || isSponsors;
-            const isOpen = (isBranding && brandingOpen) || (isSponsors && sponsorsOpen);
+            const isCommittee = item.id === "committee";
+            const isGroups = item.id === "groups";
+            const isOpen =
+              (isBranding && brandingOpen) ||
+              (isSponsors && sponsorsOpen) ||
+              (isCommittee && committeeOpen) ||
+              (isGroups && groupsOpen);
             const handleClick = () => {
-              if (isBranding) {
-                setBrandingOpen((v) => !v);
-              } else if (isSponsors) {
-                setSponsorsOpen((v) => !v);
-              } else {
-                navigate(item.to);
-              }
+              if (isBranding) setBrandingOpen((v) => !v);
+              else if (isSponsors) setSponsorsOpen((v) => !v);
+              else if (isCommittee) setCommitteeOpen((v) => !v);
+              else if (isGroups) setGroupsOpen((v) => !v);
             };
             return (
               <div key={item.id}>
@@ -1758,24 +1770,40 @@ function ReviewStep({
                     <p className="text-sm font-medium truncate">{item.label}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={cn(
-                        "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                        item.pro
-                          ? "bg-primary/15 text-primary"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {item.hint}
                     </span>
                     <ArrowRight
                       className={cn(
                         "h-4 w-4 text-muted-foreground transition-transform",
-                        isInline && isOpen && "rotate-90",
+                        isOpen && "rotate-90",
                       )}
                     />
                   </div>
                 </button>
+                {isCommittee && committeeOpen && (
+                  <div className="px-3 pb-4 pt-1 bg-muted/20">
+                    <InviteStep
+                      title="Invite committee members"
+                      subtitle="Committee members can help run the club — they'll get admin access to committee chats and shared resources. Add as many as you like; you can invite more later."
+                      roleOptions={[{ value: "committee_member", label: "Committee Member" }]}
+                      defaultRole="committee_member"
+                      list={committee}
+                      setList={setCommittee}
+                      onSend={onSendInvite}
+                    />
+                  </div>
+                )}
+                {isGroups && groupsOpen && (
+                  <div className="px-3 pb-4 pt-1 bg-muted/20">
+                    <OperationalGroupsStep
+                      clubId={clubId}
+                      userId={userId}
+                      groups={groups}
+                      setGroups={setGroups}
+                    />
+                  </div>
+                )}
                 {isBranding && brandingOpen && (
                   <div className="px-3 pb-4 pt-1 space-y-3 bg-muted/20">
                     {!hasPro && (
