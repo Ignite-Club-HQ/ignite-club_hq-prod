@@ -100,7 +100,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
+
 
 type ClubRole = "club_admin";
 
@@ -1156,8 +1156,8 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Setup progress — resume the wizard for admins of incomplete clubs */}
-      {isAdmin && id && (
+      {/* Setup progress — only visible to club admins of THIS club */}
+      {userRole === "club_admin" && id && (
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
@@ -2284,7 +2284,7 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              <PlayHQClubSyncCard clubId={id!} />
+              
             </div>
 
           </AccordionContent>
