@@ -54,6 +54,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -1203,8 +1204,20 @@ export default function TeamChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, teamId, authReady]);
 
+  // Free-tier polling switch (based on parent club's Pro status).
+  const { mode: teamRealtimeMode, intervalMs: teamPollIntervalMs } = useClubRealtimeMode(team?.club_id ?? null);
+
+  useEffect(() => {
+    if (!teamId || teamRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    }, teamPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient]);
+
   useEffect(() => {
     if (!teamId) return;
+    if (teamRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`team-messages-${teamId}`)
@@ -1452,7 +1465,7 @@ export default function TeamChatPage() {
     return () => {
       supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient]);
+  }, [teamId, queryClient, teamRealtimeMode]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

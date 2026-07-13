@@ -70,6 +70,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -1231,9 +1232,21 @@ export default function GroupChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, groupId, authReady]);
 
+  // Free-tier polling switch (only applies to groups scoped to a club).
+  const { mode: groupRealtimeMode, intervalMs: groupPollIntervalMs } = useClubRealtimeMode(group?.club_id ?? null);
+
+  useEffect(() => {
+    if (!groupId || groupRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+    }, groupPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient]);
+
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!groupId) return;
+    if (groupRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`group-messages-${groupId}`)
@@ -1447,7 +1460,7 @@ export default function GroupChatPage() {
     return () => {
       supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient]);
+  }, [groupId, queryClient, groupRealtimeMode]);
 
 
   // Send message mutation
