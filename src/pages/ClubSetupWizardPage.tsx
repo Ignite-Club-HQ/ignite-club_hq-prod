@@ -1545,46 +1545,70 @@ function ReviewStep({
   teamInvites: DraftInvite[];
   onJumpToStep: (id: string) => void;
 }) {
-  const sentCommittee = committee.filter((i) => i.status === "sent").length;
-  const pendingCommittee = committee.length - sentCommittee;
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
-  const savedGroups = groups.filter((g) => g.status === "saved").length;
 
-  const rows: {
+  // Section 1 — completed setup summary (only what the wizard actually asked for).
+  const summaryRows: {
     id: string;
     label: string;
     detail: string;
-    warn?: boolean;
+    done: boolean;
   }[] = [
     {
       id: "teams",
-      label: "Teams created",
-      detail: teams.length === 0 ? "None yet" : `${teams.length} team${teams.length === 1 ? "" : "s"}`,
-      warn: teams.length === 0,
-    },
-    {
-      id: "committee",
-      label: "Committee invites",
+      label: "Teams",
       detail:
-        committee.length === 0
+        teams.length === 0
           ? "None yet"
-          : `${sentCommittee} sent${pendingCommittee ? `, ${pendingCommittee} not sent` : ""}`,
-      warn: pendingCommittee > 0,
-    },
-    {
-      id: "subcommittee",
-      label: "Operational groups",
-      detail: savedGroups === 0 ? "None yet" : `${savedGroups} group${savedGroups === 1 ? "" : "s"}`,
+          : `${teams.length} created`,
+      done: teams.length > 0,
     },
     {
       id: "teaminvites",
-      label: "Team invites",
+      label: "Member invitations",
       detail:
         teamInvites.length === 0
-          ? "None yet"
-          : `${sentTeamInv} sent${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
-      warn: pendingTeamInv > 0,
+          ? "Invite later"
+          : `${sentTeamInv} invited${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
+      // No green tick just for viewing — only when at least one was sent.
+      done: sentTeamInv > 0,
+    },
+  ];
+
+  // Section 2 — optional next steps (not gated inside the wizard).
+  const optionalItems: {
+    id: string;
+    label: string;
+    hint: string;
+    to: string;
+    pro?: boolean;
+  }[] = [
+    {
+      id: "committee",
+      label: "Invite committee members",
+      hint: "Optional",
+      to: `/clubs/${clubId}/settings`,
+    },
+    {
+      id: "groups",
+      label: "Create operational groups",
+      hint: "Set up later",
+      to: `/clubs/${clubId}/settings`,
+    },
+    {
+      id: "branding",
+      label: "Add club branding",
+      hint: "Pro",
+      to: `/clubs/${clubId}/settings`,
+      pro: true,
+    },
+    {
+      id: "sponsors",
+      label: "Add sponsors",
+      hint: "Pro",
+      to: `/clubs/${clubId}/settings`,
+      pro: true,
     },
   ];
 
@@ -1593,39 +1617,73 @@ function ReviewStep({
       <StepIntro
         icon={ClipboardList}
         title={`${clubName || "Your club"} is nearly ready`}
-        subtitle="Review what's set up. Tap a row to jump back and finish anything."
+        subtitle="Review what you've set up. Select an item to make changes, or finish setup and enter your club."
       />
 
-      <div className="rounded-xl border divide-y">
-        {rows.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => onJumpToStep(r.id)}
-            className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
-          >
-            <div>
-              <p className="text-sm font-medium">{r.label}</p>
-              <p className={cn("text-xs", r.warn ? "text-amber-600" : "text-muted-foreground")}>
-                {r.detail}
-              </p>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          </button>
-        ))}
+      {/* Section 1 — Setup summary */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Setup summary
+        </p>
+        <div className="rounded-xl border divide-y bg-card">
+          {summaryRows.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => onJumpToStep(r.id)}
+              className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {r.done ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                ) : (
+                  <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{r.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {r.detail}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <InviteMembersCTA clubId={clubId} onJumpToStep={onJumpToStep} />
-
-      <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
-        <p className="text-sm font-semibold">Next steps after finish</p>
-        <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
-          <li>Share pending invite links from the Members page.</li>
-          <li>Add your season schedule from the Schedule tab.</li>
-          <li>Post a welcome message in each team chat.</li>
-          <li>Review sponsors and branding in Club Settings anytime.</li>
-        </ul>
+      {/* Section 2 — Optional next steps */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Optional next steps
+        </p>
+        <div className="rounded-xl border divide-y bg-card">
+          {optionalItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => navigate(item.to)}
+              className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                <p className="text-sm font-medium truncate">{item.label}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                    item.pro
+                      ? "bg-primary/15 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {item.hint}
+                </span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-
 
       <p className="text-xs text-muted-foreground text-center">
         Draft is auto-saved — you can leave and come back anytime before finishing.
@@ -1634,48 +1692,6 @@ function ReviewStep({
   );
 }
 
-function InviteMembersCTA({
-  clubId,
-  onJumpToStep,
-}: {
-  clubId: string;
-  onJumpToStep: (id: string) => void;
-}) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="rounded-xl border p-4 space-y-3 bg-card">
-      <div className="flex items-start gap-3">
-        <UserPlus className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">Invite members</p>
-          <p className="text-xs text-muted-foreground">
-            Send email invites so people join with the right team and role.
-          </p>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
-          onClick={() => onJumpToStep("teaminvites")}
-        >
-          <UserPlus className="h-4 w-4 mr-1.5" /> Invite more members
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => navigate(`/clubs/${clubId}`)}
-        >
-          Finish and go to club
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 
 
