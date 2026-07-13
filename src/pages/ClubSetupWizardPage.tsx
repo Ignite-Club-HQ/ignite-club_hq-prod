@@ -756,6 +756,29 @@ function TeamsStep({
       >
         <Plus className="h-4 w-4 mr-1" /> Add another team
       </Button>
+
+      <BulkPasteTeams
+        onAdd={(names) =>
+          setTeams((prev) => {
+            const existing = new Set(
+              prev.map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+            );
+            const additions = names
+              .map((n) => n.trim())
+              .filter((n) => n && !existing.has(n.toLowerCase()))
+              .map((n) => ({
+                tempId: crypto.randomUUID(),
+                name: n,
+                levelAge: "",
+              }));
+            // Drop the trailing empty placeholder row if user is pasting.
+            const kept = prev.filter(
+              (t) => t.createdTeamId || t.name.trim() !== "",
+            );
+            return [...kept, ...additions];
+          })
+        }
+      />
     </div>
   );
 }
