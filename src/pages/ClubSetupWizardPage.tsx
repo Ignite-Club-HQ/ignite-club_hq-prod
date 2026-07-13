@@ -1670,37 +1670,31 @@ function ReviewStep({
     },
   ];
 
-  // Section 2 — optional next steps (not gated inside the wizard).
+  // Section 2 — optional next steps (all inline within the wizard).
   const optionalItems: {
     id: string;
     label: string;
     hint: string;
-    to: string;
-    pro?: boolean;
   }[] = [
     {
       id: "committee",
       label: "Invite committee members",
-      hint: "Optional",
-      to: `/clubs/${clubId}/roles`,
+      hint: sentCommittee > 0 ? `${sentCommittee} invited` : "Optional",
     },
     {
       id: "groups",
       label: "Create Subcommittees",
-      hint: "Set up later",
-      to: `/clubs/${clubId}`,
+      hint: savedGroups > 0 ? `${savedGroups} created` : "Optional",
     },
     {
       id: "branding",
       label: "Add club branding",
       hint: "Optional",
-      to: `/clubs/${clubId}#branding`,
     },
     {
       id: "sponsors",
       label: "Add sponsors",
       hint: "Optional",
-      to: `/clubs/${clubId}`,
     },
   ];
 
