@@ -60,21 +60,25 @@ export default function ClubsPage() {
   const [sportFilter, setSportFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<{ id: string; name: string } | null>(null);
+  const [purgeConfirmText, setPurgeConfirmText] = useState("");
+  const [purging, setPurging] = useState(false);
 
-  // Recently removed clubs (soft-deleted by this user, within 30 days)
+  // Recently removed clubs (soft-deleted by this user, within 30 days, not permanently hidden)
   const { data: removedClubs } = useQuery({
     queryKey: ["removed-clubs", user?.id],
     queryFn: async () => {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("clubs")
-        .select("id, name, logo_url, sport, deleted_at")
+        .select("id, name, logo_url, sport, deleted_at, created_by")
         .eq("deleted_by", user!.id)
         .not("deleted_at", "is", null)
+        .is("purged_at", null)
         .gte("deleted_at", thirtyDaysAgo)
         .order("deleted_at", { ascending: false });
       if (error) throw error;
-      return data as { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at: string }[];
+      return data as { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at: string; created_by: string | null }[];
     },
     enabled: !!user,
   });
@@ -94,6 +98,21 @@ export default function ClubsPage() {
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
     queryClient.invalidateQueries({ queryKey: ["clubs"] });
     queryClient.invalidateQueries({ queryKey: ["user-roles", user?.id] });
+  };
+
+  const handleHardDelete = async () => {
+    if (!purgeTarget || purgeConfirmText.trim() !== purgeTarget.name) return;
+    setPurging(true);
+    const { error } = await supabase.rpc("hard_delete_club" as any, { _club_id: purgeTarget.id });
+    setPurging(false);
+    if (error) {
+      toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Club permanently deleted", description: "Data is retained in the archive for recovery by an app admin." });
+    setPurgeTarget(null);
+    setPurgeConfirmText("");
+    queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
   };
 
 
