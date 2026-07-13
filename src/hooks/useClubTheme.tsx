@@ -1014,15 +1014,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
 
     if (!inThemed) {
-      // Club is not in themed list. Two possibilities:
-      // (a) user genuinely no longer has themed Pro access → drop cache.
-      // (b) transient refetch after reconnect returned a partial embed
-      //     (e.g. `club_subscriptions` join briefly empty right after token
-      //     rotation) → the club is still in `userClubs` (fetched fresh via
-      //     the same reconnect refetch) so we must NOT evict.
-      // Only evict when BOTH queries agree the club is gone.
-      const stillOwned = userClubs.some(c => c.id === activeClubTheme);
-      if (stillOwned) return;
+      // Club is not in the themed (Pro + theme_enabled) list. Even if the user
+      // still owns the club (free plan or theme disabled), we must evict any
+      // stale cached theme so free clubs don't keep Pro colours after a
+      // downgrade / trial expiry. The apply-effect above already refuses to
+      // fall back to cache once the themed query succeeded, but we also drop
+      // the persisted cache here to keep localStorage consistent.
+
 
       // Club is free/non-themed/inaccessible for theme rendering.
       // Evict any stale themed cache so the header drops the logo + colours
