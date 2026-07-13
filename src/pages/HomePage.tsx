@@ -742,7 +742,7 @@ export default function HomePage() {
           ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
           : Promise.resolve({ data: [] }),
         teamIds.length > 0
-          ? supabase.from("teams").select("id, is_pro").in("id", teamIds)
+          ? supabase.from("teams").select("id, is_pro").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
       ]);
 
