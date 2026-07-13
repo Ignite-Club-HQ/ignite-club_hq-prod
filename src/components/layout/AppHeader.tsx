@@ -201,6 +201,10 @@ function LogoClubThemeDropdown() {
   // setup-wizard entry point here confused users. Resume-setup lives on the Home
   // empty-state / ClubSetupProgressCard only.
 
+  return (
+    <DropdownMenuContent align="start" className="w-56">
+
+
 
 
       <div className="px-2 py-1.5">
