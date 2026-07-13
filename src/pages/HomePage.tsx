@@ -726,6 +726,24 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
+  // Get user's active (non-deleted) team memberships — used for empty-state gating
+  const { data: activeTeamIds = [] } = useQuery({
+    queryKey: ["user-active-team-ids", user?.id, userMemberships?.teamIds],
+    queryFn: async () => {
+      const teamIds = userMemberships?.teamIds || [];
+      if (teamIds.length === 0) return [];
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .in("id", teamIds)
+        .is("deleted_at", null);
+      return (data || []).map((t: any) => t.id as string);
+    },
+    enabled: !!user && !!userMemberships && (userMemberships?.teamIds?.length ?? 0) > 0,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
   // Check if user has Pro access - uses memberships data to avoid re-fetching user_roles
   const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
     queryKey: ["user-has-pro-access", user?.id, userMemberships?.clubIds, userMemberships?.teamIds],
