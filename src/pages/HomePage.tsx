@@ -2115,6 +2115,24 @@ export default function HomePage() {
   }, [user?.id, activeClubFilter]);
   const showContent = computedShowContent || hasRevealed;
 
+  // Empty-state gate: only show the "Find or Join a Club" welcome once we
+  // authoritatively know the user has zero clubs AND zero teams. The
+  // `userClubs` / `activeTeamIds` queries default to `[]` before their
+  // dependent membership fetch resolves, which caused the welcome card to
+  // flash for users who DO have clubs. Gate on `userMemberships` (from the
+  // primary membership+events query) so we wait for real data.
+  const hasResolvedMemberships = !!userMemberships;
+  const membershipClubCount = userMemberships?.clubIds?.length ?? 0;
+  const membershipTeamCount = userMemberships?.teamIds?.length ?? 0;
+  const isNewUserEmptyState =
+    initialized &&
+    !isLoading &&
+    hasResolvedMemberships &&
+    membershipClubCount === 0 &&
+    membershipTeamCount === 0 &&
+    userClubs.length === 0 &&
+    activeTeamIds.length === 0;
+
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
@@ -2127,7 +2145,7 @@ export default function HomePage() {
             Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
           </p>
         </div>
-        {!(initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0) && (
+        {!isNewUserEmptyState && (
           <HomeQuickActionsFab
             onInvite={() => setMemberInviteOpen(true)}
             onJoinTeam={() => setTeamDialogOpen(true)}
@@ -2145,7 +2163,7 @@ export default function HomePage() {
       </div>
 
       {/* New-user empty state — no clubs, no team memberships yet */}
-      {initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0 && (
+      {isNewUserEmptyState && (
         <HomeWelcomeGetStarted
           firstName={firstName}
           email={user?.email}
