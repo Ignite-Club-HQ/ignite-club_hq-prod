@@ -290,14 +290,35 @@ jobs:
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
+        env:
+          # Force non-TTY / plain output so the CLI does not swallow the
+          # Postgres error behind a spinner or ANSI redraw. Without this,
+          # `supabase db push` can exit 1 with a completely empty log.
+          NO_COLOR: "1"
+          TERM: "dumb"
+          CI: "true"
         run: |
           set -euo pipefail
           echo "=== Supabase CLI version ==="
           supabase --version
           echo ""
 
+          echo "=== CONNECTION CHECK (auth / link / network) ==="
+          echo "-- Linked project:"
+          supabase projects list 2>&1 | tee /tmp/supabase-projects.log || true
+          echo ""
+          echo "-- Direct DB reachability (select 1):"
+          # Ensure psql is present; ignore if apt is slow.
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1 || true
+          if command -v psql >/dev/null; then
+            PGPASSWORD="${SUPABASE_DB_PASSWORD:-${PROD_DB_PASSWORD:-}}" \
+              psql "postgresql://postgres.${SUPABASE_PROJECT_ID}@aws-0-${SUPABASE_REGION:-us-east-1}.pooler.supabase.com:6543/postgres?sslmode=require" \
+              -v ON_ERROR_STOP=1 -c "select 1 as ping;" 2>&1 | tee /tmp/supabase-ping.log || echo "(ping failed — likely auth/network, not SQL)"
+          fi
+          echo ""
+
           echo "=== Migration state immediately before db push ==="
-          supabase migration list --linked || true
+          supabase migration list --linked 2>&1 || true
           echo ""
 
           echo "=== Dry-run immediately before db push ==="
@@ -306,9 +327,12 @@ jobs:
 
           echo "=== Applying pending migrations ==="
           set +e
+          # 2>&1 merges stderr into the pipe — Supabase CLI writes the actual
+          # Postgres ERROR: line to stderr, which the previous version missed.
           supabase db push --linked --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
           PUSH_STATUS=${PIPESTATUS[0]}
           set -e
+
 
           if [ "$PUSH_STATUS" -ne 0 ]; then
             # Print bulky context first (inside collapsible groups) so the
@@ -326,10 +350,12 @@ jobs:
             supabase migration list --linked || true
             echo "::endgroup::"
 
-            # Extract the actual Postgres/CLI error lines. Keep this block
-            # last so it appears at the bottom of the step output.
-            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
-            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
+            # Extract likely Postgres/CLI error lines, but do NOT rely on grep
+            # alone: Supabase CLI sometimes exits 1 without a line containing
+            # "ERROR". The raw tail below is therefore printed ungrouped at the
+            # very bottom so the useful context is visible on mobile GitHub.
+            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
+            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
 
             echo ""
             echo "════════════════════════════════════════════════════════════"
@@ -352,6 +378,13 @@ jobs:
             echo ""
             echo "Full logs are uploaded as artifact:"
             echo "  supabase-promotion-logs-${GITHUB_RUN_ID}"
+            echo ""
+            echo "── RAW APPLY LOG TAIL (last 120 lines, ungrouped) ──"
+            tail -n 120 /tmp/supabase-db-push.log || true
+            echo ""
+            echo "── RAW DRY-RUN LOG TAIL (last 60 lines, ungrouped) ──"
+            tail -n 60 /tmp/supabase-db-push-dry-run.log || true
+            echo ""
             echo "════════════════════════════════════════════════════════════"
 
             # First real error line becomes the GitHub Actions annotation
