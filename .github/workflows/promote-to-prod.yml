@@ -326,10 +326,12 @@ jobs:
             supabase migration list --linked || true
             echo "::endgroup::"
 
-            # Extract the actual Postgres/CLI error lines. Keep this block
-            # last so it appears at the bottom of the step output.
-            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
-            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
+            # Extract likely Postgres/CLI error lines, but do NOT rely on grep
+            # alone: Supabase CLI sometimes exits 1 without a line containing
+            # "ERROR". The raw tail below is therefore printed ungrouped at the
+            # very bottom so the useful context is visible on mobile GitHub.
+            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
+            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
 
             echo ""
             echo "════════════════════════════════════════════════════════════"
@@ -352,6 +354,13 @@ jobs:
             echo ""
             echo "Full logs are uploaded as artifact:"
             echo "  supabase-promotion-logs-${GITHUB_RUN_ID}"
+            echo ""
+            echo "── RAW APPLY LOG TAIL (last 120 lines, ungrouped) ──"
+            tail -n 120 /tmp/supabase-db-push.log || true
+            echo ""
+            echo "── RAW DRY-RUN LOG TAIL (last 60 lines, ungrouped) ──"
+            tail -n 60 /tmp/supabase-db-push-dry-run.log || true
+            echo ""
             echo "════════════════════════════════════════════════════════════"
 
             # First real error line becomes the GitHub Actions annotation
