@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Trophy, Plus, ChevronRight } from "lucide-react";
+import { Trophy, Plus, ChevronRight, Lock } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,13 @@ interface Props {
   clubId: string;
   teamIds: string[];
   isAdmin: boolean;
+  hasProAccess?: boolean;
 }
 
-export default function ClubCompetitionsSection({ clubId, teamIds, isAdmin }: Props) {
+export default function ClubCompetitionsSection({ clubId, teamIds, isAdmin, hasProAccess = false }: Props) {
   const { data: organised = [] } = useQuery({
     queryKey: ["club-organised-competitions", clubId],
-    enabled: !!clubId,
+    enabled: !!clubId && hasProAccess,
     queryFn: async () => {
       const { data } = await supabase
         .from("competitions")
@@ -29,7 +30,7 @@ export default function ClubCompetitionsSection({ clubId, teamIds, isAdmin }: Pr
 
   const { data: entered = [] } = useQuery({
     queryKey: ["club-team-competition-entries", clubId, teamIds.join(",")],
-    enabled: teamIds.length > 0,
+    enabled: teamIds.length > 0 && hasProAccess,
     queryFn: async () => {
       const { data } = await supabase
         .from("competition_entries")
@@ -39,6 +40,24 @@ export default function ClubCompetitionsSection({ clubId, teamIds, isAdmin }: Pr
       return (data ?? []).filter((e: any) => e.competitions && e.competitions.organizer_club_id !== clubId);
     },
   });
+
+  if (!hasProAccess) {
+    return (
+      <Accordion type="multiple" defaultValue={[]} className="space-y-4">
+        <AccordionItem value="club-competitions" className="border rounded-lg px-4 opacity-60 pointer-events-none select-none">
+          <AccordionTrigger className="hover:no-underline" aria-disabled="true">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Competitions</span>
+              <Badge variant="outline" className="text-xs font-normal ml-2">
+                <Lock className="h-3 w-3 mr-1" /> Pro
+              </Badge>
+            </div>
+          </AccordionTrigger>
+        </AccordionItem>
+      </Accordion>
+    );
+  }
 
   if (organised.length === 0 && entered.length === 0 && !isAdmin) return null;
 
