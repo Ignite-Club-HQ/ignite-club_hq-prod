@@ -1232,9 +1232,21 @@ export default function GroupChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, groupId, authReady]);
 
+  // Free-tier polling switch (only applies to groups scoped to a club).
+  const { mode: groupRealtimeMode, intervalMs: groupPollIntervalMs } = useClubRealtimeMode(group?.club_id ?? null);
+
+  useEffect(() => {
+    if (!groupId || groupRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+    }, groupPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient]);
+
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!groupId) return;
+    if (groupRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`group-messages-${groupId}`)
