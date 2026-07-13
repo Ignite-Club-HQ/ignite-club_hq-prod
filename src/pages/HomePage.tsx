@@ -1375,6 +1375,12 @@ export default function HomePage() {
         .is("deleted_at", null)
         .is("clubs.deleted_at", null)
         .is("clubs.purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Team[];
