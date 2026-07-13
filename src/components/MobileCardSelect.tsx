@@ -179,7 +179,7 @@ export function MobileCardSelect({
           <SelectValue placeholder={options.length === 0 ? "No options available" : placeholder} />
         </SelectTrigger>
         <SelectContent
-          className="max-h-[40vh] w-[var(--radix-select-trigger-width)] min-w-[200px] z-[999999] bg-popover"
+          className="max-h-[40vh] w-[var(--radix-select-trigger-width)] min-w-[200px] z-[1000002] bg-popover"
           position="popper"
           sideOffset={4}
           align="start"
