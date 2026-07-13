@@ -53,6 +53,7 @@ import { Crown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { lookupInvitableUserByEmail } from "@/lib/inviteEmailDedupe";
+import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 
 
 // ---------- types ----------
