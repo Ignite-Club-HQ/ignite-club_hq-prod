@@ -170,7 +170,8 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { id: string; name: string; logo_url: string | null; sport: string | null };
+  deleted_at?: string | null;
+  clubs: { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
 }
 
 interface Club {
@@ -546,12 +547,20 @@ export default function MessagesPage() {
           id,
           name,
           logo_url,
-          clubs!club_id (id, name, logo_url, sport)
+          deleted_at,
+          clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
         `)
-        .in("id", teamIds);
+        .in("id", teamIds)
+        .is("deleted_at", null);
 
       if (error) throw error;
-      const teams = data as Team[];
+      const teams = ((data || []) as Team[]).filter((team: any) => {
+        if (team.deleted_at) return false;
+        if (team.clubs?.deleted_at || team.clubs?.purged_at) return false;
+        return true;
+      });
+      const activeTeamIds = teams.map((team) => team.id);
+      if (activeTeamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
       
       // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
@@ -560,7 +569,7 @@ export default function MessagesPage() {
       try {
         const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
           "get_inbox_latest_team_messages",
-          { _team_ids: teamIds }
+          { _team_ids: activeTeamIds }
         );
         if (rpcErr) throw rpcErr;
         for (const row of (rpcRows ?? []) as any[]) {
