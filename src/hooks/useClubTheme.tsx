@@ -995,7 +995,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     });
 
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme, isClubThemesSuccess]);
 
   // Validate theme data only. This must never change activeClubTheme: the club
   // filter is user-controlled and can only be changed through setActiveClubTheme.
