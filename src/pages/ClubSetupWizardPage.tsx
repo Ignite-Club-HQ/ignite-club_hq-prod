@@ -470,22 +470,8 @@ export default function ClubSetupWizardPage() {
     else setStepIndex((i) => i - 1);
   };
 
-  // Skip the current step without saving. Used for optional Pro steps
-  // (branding, sponsors) so users clearly see they can move on.
-  const goSkip = () => {
-    if (safeStepIndex < STEPS.length - 1) {
-      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
-        setStepIndex((i) => i + 2);
-        return;
-      }
-      setStepIndex((i) => i + 1);
-    } else {
-      finish();
-    }
-  };
-
-  // Skip is no longer used in the core wizard (no optional Pro steps remain)
-  // but kept as a no-op alias in case any handler still references it.
+  // No optional Pro steps remain in the core wizard — keep goSkip/isOptionalStep
+  // as no-op aliases so any remaining handlers still compile.
   const goSkip = goNext;
   const isOptionalStep = false;
 
