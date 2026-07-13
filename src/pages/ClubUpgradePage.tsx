@@ -1210,6 +1210,40 @@ export default function ClubUpgradePage() {
       {/* Expiry Banner for active subscriptions */}
       {(isProActive || isProFootballActive) && !isOnTrial && renderExpiryBanner()}
 
+      {/* Free Trial CTA — shown once per club, only if never trialed / never paid */}
+      {!isProActive && !isProFootballActive && !isOnTrial && !subscription?.trial_ends_at && (
+        <Card className="border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                <Crown className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-base">Try Club Pro free for 30 days</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Unlock sponsors, branding, unlimited storage, scheduled messages and more. No charge for 30 days — cancel anytime before the trial ends and you won't be billed.
+                </p>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              size="lg"
+              disabled={checkoutLoading}
+              onClick={() => handleStripeCheckout("pro", true)}
+            >
+              {checkoutLoading ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting trial…</>
+              ) : (
+                <>Start 30-day free trial</>
+              )}
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Card required. Auto-converts to a paid subscription after 30 days unless cancelled.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Info Card */}
       <Card className="bg-muted/50">
         <CardContent className="p-4">
