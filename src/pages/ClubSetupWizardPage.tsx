@@ -96,21 +96,16 @@ const TEAM_ROLE_LABEL: Record<TeamRole, string> = {
   parent: "Parent",
 };
 
-// Minimal essentials first (teams, team invites), then optional Pro upgrades
-// (branding, sponsors), then review. Committee & Working Groups are admin
-// plumbing and are deferred — surfaced later via Club Admin + the setup
-// progress card on Home. Keeps day-one friction low for new clubs.
+// Core wizard: three steps only. Branding, Sponsors, Committee and Operational
+// Groups are deferred to the post-setup checklist / Club Settings so a new
+// club can become operational in the fastest possible flow.
 const ALL_STEPS = [
   { id: "teams", label: "Teams", icon: Users },
-  { id: "teaminvites", label: "Team invites", icon: Trophy },
-  { id: "branding", label: "Branding", icon: Palette },
-  { id: "sponsors", label: "Sponsors", icon: Building2 },
+  { id: "teaminvites", label: "Invite members", icon: UserPlus },
   { id: "review", label: "Review", icon: ClipboardList },
 ] as const;
 
-// Shell clubs (personal team organisers created via StartTeamPage) don't have
-// club-level branding, sponsors, committee or operational groups — show only
-// the team-focused steps so the wizard doesn't imply a full club.
+// Shell clubs (personal team organisers) use the same three steps.
 const SHELL_STEP_IDS = new Set(["teams", "teaminvites", "review"]);
 
 
@@ -475,22 +470,10 @@ export default function ClubSetupWizardPage() {
     else setStepIndex((i) => i - 1);
   };
 
-  // Skip the current step without saving. Used for optional Pro steps
-  // (branding, sponsors) so users clearly see they can move on.
-  const goSkip = () => {
-    if (safeStepIndex < STEPS.length - 1) {
-      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
-        setStepIndex((i) => i + 2);
-        return;
-      }
-      setStepIndex((i) => i + 1);
-    } else {
-      finish();
-    }
-  };
-
-  const OPTIONAL_STEP_IDS = new Set(["branding", "sponsors"]);
-  const isOptionalStep = OPTIONAL_STEP_IDS.has(step.id);
+  // No optional Pro steps remain in the core wizard — keep goSkip/isOptionalStep
+  // as no-op aliases so any remaining handlers still compile.
+  const goSkip = goNext;
+  const isOptionalStep = false;
 
   const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
 
@@ -503,53 +486,72 @@ export default function ClubSetupWizardPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-base font-semibold truncate">
-                {isShellClub
-                  ? "Set up your team"
-                  : `Set up ${club?.name || "your club"}`}
-              </h1>
-              <span className="text-xs text-muted-foreground shrink-0">
-                Step {safeStepIndex + 1}/{STEPS.length}
-              </span>
-            </div>
-            <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            <h1 className="text-base font-semibold truncate">
+              {isShellClub
+                ? "Set up your team"
+                : `Set up ${club?.name || "your club"}`}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Step {safeStepIndex + 1} of {STEPS.length}
+            </p>
           </div>
           <Button variant="ghost" size="sm" onClick={finish}>
             Exit
           </Button>
         </div>
-        {/* Step chips */}
-        <div className="px-4 pb-3 flex gap-2 overflow-x-auto max-w-2xl mx-auto w-full">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            const active = i === safeStepIndex;
-            const done = i < safeStepIndex;
-            return (
-              <button
-                key={s.id}
-                onClick={() => setStepIndex(i)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs whitespace-nowrap border transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : done
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                      : "bg-muted text-muted-foreground border-transparent",
-                )}
-              >
-                {done ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
-                {s.label}
-              </button>
-            );
-          })}
+        {/* Progress bar */}
+        <div className="px-4 max-w-2xl mx-auto w-full">
+          <div className="h-1 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+        {/* Compact 3-step indicator — always fits on screen, no scrollbar */}
+        <div className="px-4 pt-2.5 pb-3 max-w-2xl mx-auto w-full">
+          <div className="flex items-center justify-between gap-1">
+            {STEPS.map((s, i) => {
+              const active = i === safeStepIndex;
+              const done = i < safeStepIndex;
+              return (
+                <div key={s.id} className="flex items-center flex-1 min-w-0 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setStepIndex(i)}
+                    className={cn(
+                      "flex items-center gap-1.5 min-w-0 flex-1 px-2 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors",
+                      active
+                        ? "text-primary"
+                        : done
+                          ? "text-emerald-600"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold shrink-0",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : done
+                            ? "bg-emerald-500 text-white"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {done ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className="truncate">{s.label}</span>
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
@@ -563,82 +565,10 @@ export default function ClubSetupWizardPage() {
             />
           )}
 
-          {step.id === "branding" && (
-            <div className="space-y-4">
-              <StepIntro
-                icon={Palette}
-                title="Make it yours"
-                subtitle="Upload your club logo and set colours. You can change these anytime from Club Settings."
-                proBadge
-              />
-              {proLoading ? null : hasPro ? (
-                <>
-                  <BrandPresetPicker
-                    clubId={clubId!}
-                    onApplied={() =>
-                      qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
-                    }
-                  />
-                  {!(club as any)?.logo_url && (
-                    <MonogramLogoGenerator
-                      clubId={clubId!}
-                      clubName={(club as any)?.name || "Club"}
-                      onGenerated={() =>
-                        qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
-                      }
-                    />
-                  )}
-                  <ClubThemeEditor
-                    key={`${(club as any)?.theme_primary_h ?? "x"}-${(club as any)?.theme_secondary_h ?? "x"}-${(club as any)?.theme_accent_h ?? "x"}`}
-                    clubId={clubId!}
-                    clubLogoUrl={(club as any)?.logo_url}
-                    initialPrimary={(club as any)?.theme_primary_h != null ? { h: (club as any).theme_primary_h, s: (club as any).theme_primary_s, l: (club as any).theme_primary_l } : undefined}
-                    initialSecondary={(club as any)?.theme_secondary_h != null ? { h: (club as any).theme_secondary_h, s: (club as any).theme_secondary_s, l: (club as any).theme_secondary_l } : undefined}
-                    initialAccent={(club as any)?.theme_accent_h != null ? { h: (club as any).theme_accent_h, s: (club as any).theme_accent_s, l: (club as any).theme_accent_l } : undefined}
-                    initialShowLogoInHeader={(club as any)?.show_logo_in_header ?? true}
-                    initialShowNameInHeader={(club as any)?.show_name_in_header ?? true}
-                    initialLogoOnlyMode={(club as any)?.logo_only_mode ?? false}
-                    initialThemeEnabled={(club as any)?.theme_enabled ?? true}
-                    onSave={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-                  />
-                </>
-              ) : (
-                <ProFeatureLock
-                  title="Branding is a Pro feature"
-                  description="Custom logos, colours and header branding are available on Pro. You can skip this step and upgrade anytime."
-                  clubId={clubId}
-                />
-              )}
-            </div>
-          )}
+          {/* Branding, Sponsors, Committee and Working Groups intentionally
+              removed from the core wizard — surfaced via the post-setup
+              checklist and Club Settings. */}
 
-          {step.id === "sponsors" && (
-            <div className="space-y-4">
-              <StepIntro
-                icon={Building2}
-                title="Add your sponsors"
-                subtitle="Add businesses that support your club. You can allocate them to teams and events later."
-                proBadge
-              />
-              {proLoading ? null : hasPro ? (
-                <SponsorsManager
-                  clubId={clubId!}
-                  currentPrimarySponsorId={(club as any)?.primary_sponsor_id ?? null}
-                  onPrimaryChange={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-                />
-              ) : (
-                <ProFeatureLock
-                  title="Sponsors is a Pro feature"
-                  description="Adding sponsors, logos and allocations is available on Pro. You can skip this step and upgrade anytime."
-                  clubId={clubId}
-                />
-              )}
-            </div>
-          )}
-
-
-          {/* Committee & Working Groups intentionally removed from wizard —
-              surfaced later via Club Admin pages and the setup progress card. */}
 
 
 
@@ -670,36 +600,65 @@ export default function ClubSetupWizardPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3">
+      {/* Footer — sticky, always visible on mobile so Continue is reachable */}
+      <div
+        className="sticky bottom-0 border-t bg-background/95 backdrop-blur-none px-4 py-3"
+        style={{ paddingBottom: `max(0.75rem, env(safe-area-inset-bottom))` }}
+      >
         <div className="max-w-2xl mx-auto space-y-2">
           <div className="flex gap-2">
-            <Button variant="outline" onClick={goBack} className="flex-1">
-              Back
-            </Button>
-            <Button onClick={goNext} className="flex-[2]" disabled={savingTeams}>
+            {step.id === "review" ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const idx = STEPS.findIndex((s) => s.id === "teaminvites");
+                  if (idx >= 0) setStepIndex(idx);
+                }}
+                className="flex-1"
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> Invite more members
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={goBack} className="flex-1">
+                Back
+              </Button>
+            )}
+            <Button
+              onClick={goNext}
+              disabled={savingTeams}
+              className={cn(
+                "flex-[2]",
+                safeStepIndex === STEPS.length - 1 &&
+                  "bg-emerald-600 hover:bg-emerald-700 text-white",
+              )}
+            >
               {savingTeams ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : safeStepIndex === STEPS.length - 1 ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" /> Finish setup
+                </>
               ) : (
                 <>
-                  {safeStepIndex === STEPS.length - 1 ? "Finish setup" : "Continue"}
+                  Continue
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </>
               )}
             </Button>
           </div>
-          {isOptionalStep && safeStepIndex < STEPS.length - 1 && (
+          {step.id === "teaminvites" && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={goSkip}
+              onClick={goNext}
               className="w-full text-muted-foreground"
             >
-              Skip for now — you can add this later
+              I’ll invite people later
             </Button>
           )}
         </div>
       </div>
+
     </div>
   );
 }
@@ -733,9 +692,10 @@ function TeamsStep({
     <div className="space-y-4">
       <StepIntro
         icon={Users}
-        title="Add your first team(s)"
-        subtitle="Most clubs start with one or two — e.g. U10 Girls, U12 Boys, Seniors. Just type them in and tap Continue; we'll save them automatically."
+        title="Create your teams"
+        subtitle="Most clubs start with one or two teams. Add the teams you want to set up now — you can add more anytime from Club Settings."
       />
+
 
       <div className="space-y-3">
         {teams.map((t, i) => (
@@ -781,7 +741,7 @@ function TeamsStep({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Age / level (optional)</Label>
+                <Label className="text-xs">Age group or level (optional)</Label>
                 <Input
                   value={t.levelAge}
                   onChange={(e) =>
@@ -809,6 +769,29 @@ function TeamsStep({
       >
         <Plus className="h-4 w-4 mr-1" /> Add another team
       </Button>
+
+      <BulkPasteTeams
+        onAdd={(names) =>
+          setTeams((prev) => {
+            const existing = new Set(
+              prev.map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+            );
+            const additions = names
+              .map((n) => n.trim())
+              .filter((n) => n && !existing.has(n.toLowerCase()))
+              .map((n) => ({
+                tempId: crypto.randomUUID(),
+                name: n,
+                levelAge: "",
+              }));
+            // Drop the trailing empty placeholder row if user is pasting.
+            const kept = prev.filter(
+              (t) => t.createdTeamId || t.name.trim() !== "",
+            );
+            return [...kept, ...additions];
+          })
+        }
+      />
     </div>
   );
 }
@@ -952,33 +935,32 @@ function TeamInvitesStep({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <StepIntro
-        icon={Trophy}
+        icon={UserPlus}
         title="Invite people to your teams"
-        subtitle="Add team admins, coaches, players and parents to the teams you just created. Each person gets a personal join link."
+        subtitle="Add coaches, team admins, players and parents to the teams you created. Each person will receive their own invitation link. You can also skip this and invite people later."
       />
 
       {teams.map((team) => {
         const teamList = list.filter((i) => i.teamId === team.createdTeamId);
         return (
-          <div key={team.createdTeamId} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">{team.name}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => addRow(team.createdTeamId!, "player")}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add
-              </Button>
+          <div
+            key={team.createdTeamId}
+            className="rounded-xl border bg-card p-3 space-y-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{team.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {teamList.length === 0
+                    ? "0 people invited"
+                    : `${teamList.length} ${teamList.length === 1 ? "person" : "people"} invited`}
+                </p>
+              </div>
             </div>
 
-            {teamList.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground text-center">
-                No invites for this team yet.
-              </div>
-            ) : (
+            {teamList.length > 0 && (
               <div className="space-y-2">
                 {teamList.map((inv) => (
                   <InviteRow
@@ -993,35 +975,47 @@ function TeamInvitesStep({
               </div>
             )}
 
-            <BulkPasteInvites
-              compact
-              onAdd={(rows) =>
-                setList((prev) => {
-                  const teamKeys = new Set(
-                    prev
-                      .filter((p) => p.teamId === team.createdTeamId)
-                      .map((p) => (p.email || p.name).trim().toLowerCase()),
-                  );
-                  const additions = rows
-                    .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
-                    .map((r) => ({
-                      tempId: crypto.randomUUID(),
-                      name: r.name,
-                      email: r.email,
-                      role: "player" as TeamRole,
-                      teamId: team.createdTeamId,
-                      status: "pending" as const,
-                    }));
-                  return [...prev, ...additions];
-                })
-              }
-            />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => addRow(team.createdTeamId!, "player")}
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> Add members
+              </Button>
+              <BulkPasteInvites
+                compact
+                triggerLabel="Paste a member list"
+                onAdd={(rows) =>
+                  setList((prev) => {
+                    const teamKeys = new Set(
+                      prev
+                        .filter((p) => p.teamId === team.createdTeamId)
+                        .map((p) => (p.email || p.name).trim().toLowerCase()),
+                    );
+                    const additions = rows
+                      .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
+                      .map((r) => ({
+                        tempId: crypto.randomUUID(),
+                        name: r.name,
+                        email: r.email,
+                        role: "player" as TeamRole,
+                        teamId: team.createdTeamId,
+                        status: "pending" as const,
+                      }));
+                    return [...prev, ...additions];
+                  })
+                }
+              />
+            </div>
           </div>
         );
       })}
     </div>
   );
 }
+
 
 // ---------- reusable invite row ----------
 
@@ -1397,9 +1391,11 @@ function OperationalGroupsStep({
 function BulkPasteInvites({
   onAdd,
   compact,
+  triggerLabel,
 }: {
   onAdd: (rows: { name: string; email: string }[]) => void;
   compact?: boolean;
+  triggerLabel?: string;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1424,12 +1420,17 @@ function BulkPasteInvites({
         variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
-        className={cn("w-full text-muted-foreground", compact && "h-8 text-xs")}
+        className={cn(
+          "w-full text-muted-foreground",
+          compact && "flex-1 h-9 text-xs sm:text-sm",
+        )}
       >
-        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Bulk paste names / emails
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" />
+        {triggerLabel ?? "Bulk paste names / emails"}
       </Button>
     );
   }
+
 
   return (
     <div className="rounded-xl border p-3 space-y-2 bg-card">
@@ -1467,6 +1468,77 @@ function BulkPasteInvites({
   );
 }
 
+// ---------- shared: bulk-paste team names (one per line) ----------
+
+function BulkPasteTeams({ onAdd }: { onAdd: (names: string[]) => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const lines = useMemo(
+    () =>
+      text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean),
+    [text],
+  );
+
+  const submit = () => {
+    if (lines.length === 0) {
+      toast({ title: "Nothing to add", description: "Paste one team name per line.", variant: "destructive" });
+      return;
+    }
+    onAdd(lines);
+    toast({ title: `Added ${lines.length} team${lines.length === 1 ? "" : "s"}` });
+    setText("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="w-full text-muted-foreground"
+      >
+        <ClipboardPaste className="h-3.5 w-3.5 mr-1" /> Paste a list of team names
+      </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-3 space-y-2 bg-card">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Paste team names</p>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setOpen(false); setText(""); }}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        One team name per line. Duplicates are removed automatically.
+      </p>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        placeholder={"U10 Lions\nU12 Girls\nSeniors"}
+        className="text-sm"
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {lines.length} detected
+        </span>
+        <Button size="sm" onClick={submit} disabled={lines.length === 0}>
+          Add {lines.length || ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+
 // ---------- step: review & finish ----------
 
 function ReviewStep({
@@ -1486,46 +1558,72 @@ function ReviewStep({
   teamInvites: DraftInvite[];
   onJumpToStep: (id: string) => void;
 }) {
-  const sentCommittee = committee.filter((i) => i.status === "sent").length;
-  const pendingCommittee = committee.length - sentCommittee;
+  const navigate = useNavigate();
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
-  const savedGroups = groups.filter((g) => g.status === "saved").length;
 
-  const rows: {
+
+  // Section 1 — completed setup summary (only what the wizard actually asked for).
+  const summaryRows: {
     id: string;
     label: string;
     detail: string;
-    warn?: boolean;
+    done: boolean;
   }[] = [
     {
       id: "teams",
-      label: "Teams created",
-      detail: teams.length === 0 ? "None yet" : `${teams.length} team${teams.length === 1 ? "" : "s"}`,
-      warn: teams.length === 0,
-    },
-    {
-      id: "committee",
-      label: "Committee invites",
+      label: "Teams",
       detail:
-        committee.length === 0
+        teams.length === 0
           ? "None yet"
-          : `${sentCommittee} sent${pendingCommittee ? `, ${pendingCommittee} not sent` : ""}`,
-      warn: pendingCommittee > 0,
-    },
-    {
-      id: "subcommittee",
-      label: "Operational groups",
-      detail: savedGroups === 0 ? "None yet" : `${savedGroups} group${savedGroups === 1 ? "" : "s"}`,
+          : `${teams.length} created`,
+      done: teams.length > 0,
     },
     {
       id: "teaminvites",
-      label: "Team invites",
+      label: "Member invitations",
       detail:
         teamInvites.length === 0
-          ? "None yet"
-          : `${sentTeamInv} sent${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
-      warn: pendingTeamInv > 0,
+          ? "Invite later"
+          : `${sentTeamInv} invited${pendingTeamInv ? `, ${pendingTeamInv} not sent` : ""}`,
+      // No green tick just for viewing — only when at least one was sent.
+      done: sentTeamInv > 0,
+    },
+  ];
+
+  // Section 2 — optional next steps (not gated inside the wizard).
+  const optionalItems: {
+    id: string;
+    label: string;
+    hint: string;
+    to: string;
+    pro?: boolean;
+  }[] = [
+    {
+      id: "committee",
+      label: "Invite committee members",
+      hint: "Optional",
+      to: `/clubs/${clubId}/settings`,
+    },
+    {
+      id: "groups",
+      label: "Create operational groups",
+      hint: "Set up later",
+      to: `/clubs/${clubId}/settings`,
+    },
+    {
+      id: "branding",
+      label: "Add club branding",
+      hint: "Pro",
+      to: `/clubs/${clubId}/settings`,
+      pro: true,
+    },
+    {
+      id: "sponsors",
+      label: "Add sponsors",
+      hint: "Pro",
+      to: `/clubs/${clubId}/settings`,
+      pro: true,
     },
   ];
 
@@ -1534,39 +1632,73 @@ function ReviewStep({
       <StepIntro
         icon={ClipboardList}
         title={`${clubName || "Your club"} is nearly ready`}
-        subtitle="Review what's set up. Tap a row to jump back and finish anything."
+        subtitle="Review what you've set up. Select an item to make changes, or finish setup and enter your club."
       />
 
-      <div className="rounded-xl border divide-y">
-        {rows.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => onJumpToStep(r.id)}
-            className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
-          >
-            <div>
-              <p className="text-sm font-medium">{r.label}</p>
-              <p className={cn("text-xs", r.warn ? "text-amber-600" : "text-muted-foreground")}>
-                {r.detail}
-              </p>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          </button>
-        ))}
+      {/* Section 1 — Setup summary */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Setup summary
+        </p>
+        <div className="rounded-xl border divide-y bg-card">
+          {summaryRows.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => onJumpToStep(r.id)}
+              className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {r.done ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                ) : (
+                  <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{r.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {r.detail}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <InviteMembersCTA clubId={clubId} onJumpToStep={onJumpToStep} />
-
-      <div className="rounded-xl border bg-primary/5 border-primary/15 p-4 space-y-2">
-        <p className="text-sm font-semibold">Next steps after finish</p>
-        <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
-          <li>Share pending invite links from the Members page.</li>
-          <li>Add your season schedule from the Schedule tab.</li>
-          <li>Post a welcome message in each team chat.</li>
-          <li>Review sponsors and branding in Club Settings anytime.</li>
-        </ul>
+      {/* Section 2 — Optional next steps */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Optional next steps
+        </p>
+        <div className="rounded-xl border divide-y bg-card">
+          {optionalItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => navigate(item.to)}
+              className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                <p className="text-sm font-medium truncate">{item.label}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                    item.pro
+                      ? "bg-primary/15 text-primary"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {item.hint}
+                </span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-
 
       <p className="text-xs text-muted-foreground text-center">
         Draft is auto-saved — you can leave and come back anytime before finishing.
@@ -1575,48 +1707,6 @@ function ReviewStep({
   );
 }
 
-function InviteMembersCTA({
-  clubId,
-  onJumpToStep,
-}: {
-  clubId: string;
-  onJumpToStep: (id: string) => void;
-}) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="rounded-xl border p-4 space-y-3 bg-card">
-      <div className="flex items-start gap-3">
-        <UserPlus className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">Invite members</p>
-          <p className="text-xs text-muted-foreground">
-            Send email invites so people join with the right team and role.
-          </p>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
-          onClick={() => onJumpToStep("teaminvites")}
-        >
-          <UserPlus className="h-4 w-4 mr-1.5" /> Invite more members
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => navigate(`/clubs/${clubId}`)}
-        >
-          Finish and go to club
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 
 
