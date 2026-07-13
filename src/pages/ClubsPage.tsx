@@ -54,9 +54,48 @@ export default function ClubsPage() {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const location = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fromCreateTeam = (location.state as { fromCreateTeam?: boolean })?.fromCreateTeam === true;
   const [sportFilter, setSportFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  // Recently removed clubs (soft-deleted by this user, within 30 days)
+  const { data: removedClubs } = useQuery({
+    queryKey: ["removed-clubs", user?.id],
+    queryFn: async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url, sport, deleted_at")
+        .eq("deleted_by", user!.id)
+        .not("deleted_at", "is", null)
+        .gte("deleted_at", thirtyDaysAgo)
+        .order("deleted_at", { ascending: false });
+      if (error) throw error;
+      return data as { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at: string }[];
+    },
+    enabled: !!user,
+  });
+
+  const handleRestore = async (clubId: string) => {
+    setRestoringId(clubId);
+    const { error } = await supabase
+      .from("clubs")
+      .update({ deleted_at: null, deleted_by: null } as any)
+      .eq("id", clubId);
+    setRestoringId(null);
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Club restored", description: "Teams and chats have been restored too." });
+    queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
+    queryClient.invalidateQueries({ queryKey: ["clubs"] });
+    queryClient.invalidateQueries({ queryKey: ["user-roles", user?.id] });
+  };
+
 
   const { data: clubs, isLoading } = useQuery({
     queryKey: ["clubs"],
