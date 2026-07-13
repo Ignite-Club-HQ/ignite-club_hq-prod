@@ -922,33 +922,32 @@ function TeamInvitesStep({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <StepIntro
-        icon={Trophy}
+        icon={UserPlus}
         title="Invite people to your teams"
-        subtitle="Add team admins, coaches, players and parents to the teams you just created. Each person gets a personal join link."
+        subtitle="Add coaches, team admins, players and parents to the teams you created. Each person will receive their own invitation link. You can also skip this and invite people later."
       />
 
       {teams.map((team) => {
         const teamList = list.filter((i) => i.teamId === team.createdTeamId);
         return (
-          <div key={team.createdTeamId} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">{team.name}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => addRow(team.createdTeamId!, "player")}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add
-              </Button>
+          <div
+            key={team.createdTeamId}
+            className="rounded-xl border bg-card p-3 space-y-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{team.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {teamList.length === 0
+                    ? "0 people invited"
+                    : `${teamList.length} ${teamList.length === 1 ? "person" : "people"} invited`}
+                </p>
+              </div>
             </div>
 
-            {teamList.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground text-center">
-                No invites for this team yet.
-              </div>
-            ) : (
+            {teamList.length > 0 && (
               <div className="space-y-2">
                 {teamList.map((inv) => (
                   <InviteRow
@@ -963,35 +962,47 @@ function TeamInvitesStep({
               </div>
             )}
 
-            <BulkPasteInvites
-              compact
-              onAdd={(rows) =>
-                setList((prev) => {
-                  const teamKeys = new Set(
-                    prev
-                      .filter((p) => p.teamId === team.createdTeamId)
-                      .map((p) => (p.email || p.name).trim().toLowerCase()),
-                  );
-                  const additions = rows
-                    .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
-                    .map((r) => ({
-                      tempId: crypto.randomUUID(),
-                      name: r.name,
-                      email: r.email,
-                      role: "player" as TeamRole,
-                      teamId: team.createdTeamId,
-                      status: "pending" as const,
-                    }));
-                  return [...prev, ...additions];
-                })
-              }
-            />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => addRow(team.createdTeamId!, "player")}
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> Add members
+              </Button>
+              <BulkPasteInvites
+                compact
+                triggerLabel="Paste a member list"
+                onAdd={(rows) =>
+                  setList((prev) => {
+                    const teamKeys = new Set(
+                      prev
+                        .filter((p) => p.teamId === team.createdTeamId)
+                        .map((p) => (p.email || p.name).trim().toLowerCase()),
+                    );
+                    const additions = rows
+                      .filter((r) => !teamKeys.has((r.email || r.name).toLowerCase()))
+                      .map((r) => ({
+                        tempId: crypto.randomUUID(),
+                        name: r.name,
+                        email: r.email,
+                        role: "player" as TeamRole,
+                        teamId: team.createdTeamId,
+                        status: "pending" as const,
+                      }));
+                    return [...prev, ...additions];
+                  })
+                }
+              />
+            </div>
           </div>
         );
       })}
     </div>
   );
 }
+
 
 // ---------- reusable invite row ----------
 
