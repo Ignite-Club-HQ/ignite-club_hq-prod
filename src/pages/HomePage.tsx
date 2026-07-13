@@ -1352,6 +1352,8 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport, class_mode_enabled")
+        .is("deleted_at", null)
+        .is("purged_at", null)
         .order("name");
       if (error) throw error;
       return data as Club[];
@@ -1366,8 +1368,10 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
         .is("deleted_at", null)
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
         .order("name");
       if (error) throw error;
       return data as Team[];
@@ -1382,7 +1386,9 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
         .order("name");
       if (error) throw error;
       return data as MiniLeague[];
