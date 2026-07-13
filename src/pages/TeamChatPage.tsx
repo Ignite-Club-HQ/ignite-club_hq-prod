@@ -1204,8 +1204,20 @@ export default function TeamChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, teamId, authReady]);
 
+  // Free-tier polling switch (based on parent club's Pro status).
+  const { mode: teamRealtimeMode, intervalMs: teamPollIntervalMs } = useClubRealtimeMode(team?.club_id ?? null);
+
+  useEffect(() => {
+    if (!teamId || teamRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    }, teamPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient]);
+
   useEffect(() => {
     if (!teamId) return;
+    if (teamRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`team-messages-${teamId}`)
