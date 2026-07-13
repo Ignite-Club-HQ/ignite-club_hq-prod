@@ -2282,7 +2282,7 @@ export default function ClubDetailPage() {
 
       {/* Club Branding - Pro only */}
       {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-        <AccordionItem value="branding" className="border rounded-lg px-4">
+        <AccordionItem value="branding" data-section-anchor="branding" className="border rounded-lg px-4 scroll-mt-20">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
