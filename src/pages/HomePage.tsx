@@ -2128,7 +2128,11 @@ export default function HomePage() {
 
       {/* New-user empty state — no clubs, no team memberships yet */}
       {initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0 && (
-        <HomeWelcomeGetStarted firstName={firstName} email={user?.email} />
+        <HomeWelcomeGetStarted
+          firstName={firstName}
+          email={user?.email}
+          onFindOrJoin={() => setTeamDialogOpen(true)}
+        />
       )}
 
       {/* Resume-setup card for club admins with incomplete wizard */}
