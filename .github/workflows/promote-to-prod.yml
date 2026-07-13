@@ -64,25 +64,25 @@ jobs:
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
 
-      - name: Preflight — pooler connectivity + auth check
+      - name: Preflight — direct PROD DB connectivity + auth check
         # Fail FAST (before backup, guard, repair, migrate) if the runner
-        # can't reach the prod DB via the IPv4 session pooler or the
-        # password is wrong. Otherwise we waste ~1 min on backup + drift
-        # repair only to die at `db push` with an empty log.
+        # can't reach the prod DB direct endpoint or the password is wrong.
+        # Supabase recommends direct connections for migrations/pg_dump. This
+        # requires the IPv4 add-on from GitHub-hosted runners.
         run: |
           set -euo pipefail
           command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
-          POOLER_HOST="aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com"
-          echo "Pinging $POOLER_HOST:5432 as postgres.${PROJECT_REF} …"
+          DB_HOST="db.${PROJECT_REF}.supabase.co"
+          echo "Pinging $DB_HOST:5432 as postgres …"
           if ! PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
-               "postgresql://postgres.${PROJECT_REF}@${POOLER_HOST}:5432/postgres?sslmode=require" \
+               "postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10" \
                -v ON_ERROR_STOP=1 -c "select 1 as ping, current_user, inet_server_addr();" ; then
             echo ""
-            echo "::error::Preflight failed — cannot reach prod DB via session pooler."
-            echo "Check: SUPABASE_DB_PASSWORD secret, SUPABASE_REGION secret (current default ap-southeast-2), pooler is enabled in Supabase Dashboard → Database → Connection pooling."
+            echo "::error::Preflight failed — cannot reach prod DB direct endpoint."
+            echo "Check: SUPABASE_PROD_PROJECT_REF is the PROD ref, SUPABASE_DB_PASSWORD is the PROD DB password, and the Supabase IPv4 add-on has finished provisioning."
             exit 1
           fi
-          echo "✅ Preflight passed — pooler reachable and password valid."
+          echo "✅ Preflight passed — direct PROD DB reachable and password valid."
 
       - name: List pending migrations
         run: supabase migration list --linked
@@ -341,18 +341,16 @@ jobs:
           supabase migration list --linked 2>&1 || true
           echo ""
 
-          # GitHub-hosted runners are IPv4-only; db.<ref>.supabase.co is IPv6-only,
-          # so `supabase db push --linked` silently dies after listing pending
-          # migrations (no "Applying migration…" ever prints). Force the IPv4
-          # session pooler (port 5432) via --db-url. URL-encode the password so
-          # symbols like @/#/? don't break the URI.
-          RAW_PW="${SUPABASE_DB_PASSWORD}"
-          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['RAW_PW'],safe=''))")
-          export RAW_PW ENC_PW
-          POOLER_HOST="aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com"
-          DB_URL="postgresql://postgres.${PROJECT_REF}:${ENC_PW}@${POOLER_HOST}:5432/postgres?sslmode=require"
+          # GitHub-hosted runners are IPv4-only. Now that PROD has the IPv4
+          # add-on, use Supabase's direct DB endpoint for migrations (the
+          # recommended path for pg_dump / db push) instead of the shared
+          # pooler, which can fail with "tenant/user ... not found" if the
+          # pooler username/ref is not recognised.
+          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'],safe=''))")
+          DB_HOST="db.${PROJECT_REF}.supabase.co"
+          DB_URL="postgresql://postgres:${ENC_PW}@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10"
           # Do NOT echo DB_URL — contains password.
-          echo "Using session pooler host: $POOLER_HOST (port 5432)"
+          echo "Using direct PROD DB host: $DB_HOST (port 5432)"
 
           echo "=== Dry-run immediately before db push ==="
           supabase db push --db-url "$DB_URL" --dry-run --yes --debug 2>&1 | tee /tmp/supabase-db-push-dry-run.log || true
