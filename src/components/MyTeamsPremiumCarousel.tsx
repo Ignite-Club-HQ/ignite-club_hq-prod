@@ -507,6 +507,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("teams")
               .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
+              .is("deleted_at", null)
           : Promise.resolve({ data: [] as TeamQueryRow[] }),
         supabase
           .from("mini_league_players")

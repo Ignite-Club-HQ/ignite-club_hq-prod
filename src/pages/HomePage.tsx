@@ -84,6 +84,9 @@ import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
+import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
+import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
+
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
@@ -319,6 +322,20 @@ export default function HomePage() {
     if (!user?.id) return false;
     return localStorage.getItem(installCardDismissedKey) !== 'true';
   });
+
+  // One-time post-signup welcome toast (flag set by CompleteProfilePage).
+  useEffect(() => {
+    try {
+      const name = sessionStorage.getItem("ignite_show_welcome_toast");
+      if (!name) return;
+      sessionStorage.removeItem("ignite_show_welcome_toast");
+      toast({
+        title: `Welcome to Ignite, ${name}! 🎉`,
+        description: "Tap the + button to start a club, team or event — or check your notifications for pending invites.",
+      });
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   const dismissInstallCard = () => {
     setShowInstallCard(false);
@@ -467,7 +484,7 @@ export default function HomePage() {
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds)
+          ? supabase.from("teams").select("club_id").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
@@ -699,11 +716,30 @@ export default function HomePage() {
         .from("clubs")
         .select("id, name, sport, points_display_name, points_icon_url")
         .in("id", clubIds)
+        .is("deleted_at", null)
         .order("name");
 
       return clubs || [];
     },
     enabled: !!user && !!userMemberships && (userMemberships?.clubIds?.length ?? 0) > 0,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  // Get user's active (non-deleted) team memberships — used for empty-state gating
+  const { data: activeTeamIds = [] } = useQuery({
+    queryKey: ["user-active-team-ids", user?.id, userMemberships?.teamIds],
+    queryFn: async () => {
+      const teamIds = userMemberships?.teamIds || [];
+      if (teamIds.length === 0) return [];
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .in("id", teamIds)
+        .is("deleted_at", null);
+      return (data || []).map((t: any) => t.id as string);
+    },
+    enabled: !!user && !!userMemberships && (userMemberships?.teamIds?.length ?? 0) > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -725,7 +761,7 @@ export default function HomePage() {
           ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
           : Promise.resolve({ data: [] }),
         teamIds.length > 0
-          ? supabase.from("teams").select("id, is_pro").in("id", teamIds)
+          ? supabase.from("teams").select("id, is_pro").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -1316,6 +1352,11 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport, class_mode_enabled")
+        .is("deleted_at", null)
+        .is("purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Club[];
@@ -1330,7 +1371,16 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
+        .is("deleted_at", null)
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Team[];
@@ -1345,7 +1395,12 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as MiniLeague[];
@@ -1383,7 +1438,8 @@ export default function HomePage() {
       const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (id, name, sport)")
-        .in("id", coachAdminTeamIds);
+        .in("id", coachAdminTeamIds)
+        .is("deleted_at", null);
       
       if (teamsError) throw teamsError;
       
@@ -1461,7 +1517,8 @@ export default function HomePage() {
       // Build query based on roles
       let teamsQuery = supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (id, name, sport)");
+        .select("id, name, club_id, clubs!club_id (id, name, sport)")
+        .is("deleted_at", null);
       
       if (isAppAdmin) {
         // App admin can see all teams (read-only for teams they're not coach/team_admin of)
@@ -2070,20 +2127,35 @@ export default function HomePage() {
             Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
           </p>
         </div>
-        <HomeQuickActionsFab
-          onInvite={() => setMemberInviteOpen(true)}
-          onJoinTeam={() => setTeamDialogOpen(true)}
-          hasTeams={!!userRoles?.some(r => r.team_id)}
-          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          isAppAdmin={isAppAdmin}
-          activeClubFilter={activeClubFilter}
-          activeClubName={activeClubName}
-          hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
-        />
+        {!(initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0) && (
+          <HomeQuickActionsFab
+            onInvite={() => setMemberInviteOpen(true)}
+            onJoinTeam={() => setTeamDialogOpen(true)}
+            hasTeams={!!userRoles?.some(r => r.team_id)}
+            canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+            canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            isAppAdmin={isAppAdmin}
+            activeClubFilter={activeClubFilter}
+            activeClubName={activeClubName}
+            hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
+          />
+        )}
 
       </div>
+
+      {/* New-user empty state — no clubs, no team memberships yet */}
+      {initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0 && (
+        <HomeWelcomeGetStarted
+          firstName={firstName}
+          email={user?.email}
+          onFindOrJoin={() => setTeamDialogOpen(true)}
+        />
+      )}
+
+      {/* Setup progress moved to Club page only — do not surface on Home once
+          a club exists (per product decision). */}
+
 
       <div className="relative">
         {!showContent && <HomeInitialSkeleton />}

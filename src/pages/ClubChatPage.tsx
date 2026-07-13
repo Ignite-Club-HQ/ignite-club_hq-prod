@@ -59,6 +59,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -974,9 +975,23 @@ export default function ClubChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, clubId, authReady]);
 
+  // Free-tier polling switch (behind app_settings.free_club_polling_enabled).
+  const { mode: clubRealtimeMode, intervalMs: clubPollIntervalMs } = useClubRealtimeMode(clubId ?? null);
+
+  // Polling fallback: when this club is on the polling path, periodically
+  // invalidate the messages cache instead of holding a realtime WebSocket.
+  useEffect(() => {
+    if (!clubId || clubRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+    }, clubPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [clubId, clubRealtimeMode, clubPollIntervalMs, queryClient]);
+
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!clubId) return;
+    if (clubRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`club-messages-${clubId}`)
@@ -1200,7 +1215,7 @@ export default function ClubChatPage() {
     return () => {
       supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient]);
+  }, [clubId, queryClient, clubRealtimeMode]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

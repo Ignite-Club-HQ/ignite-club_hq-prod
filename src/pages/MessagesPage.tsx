@@ -170,7 +170,8 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { id: string; name: string; logo_url: string | null; sport: string | null };
+  deleted_at?: string | null;
+  clubs: { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
 }
 
 interface Club {
@@ -229,7 +230,7 @@ export default function MessagesPage() {
 
   // Gate Chat Recap to the active club context so a free active club can't
   // borrow Pro access from another club the user belongs to.
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
+  const { hasAICatchUpClub, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -546,12 +547,20 @@ export default function MessagesPage() {
           id,
           name,
           logo_url,
-          clubs!club_id (id, name, logo_url, sport)
+          deleted_at,
+          clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
         `)
-        .in("id", teamIds);
+        .in("id", teamIds)
+        .is("deleted_at", null);
 
       if (error) throw error;
-      const teams = data as Team[];
+      const teams = ((data || []) as Team[]).filter((team: any) => {
+        if (team.deleted_at) return false;
+        if (team.clubs?.deleted_at || team.clubs?.purged_at) return false;
+        return true;
+      });
+      const activeTeamIds = teams.map((team) => team.id);
+      if (activeTeamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
       
       // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
@@ -560,7 +569,7 @@ export default function MessagesPage() {
       try {
         const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
           "get_inbox_latest_team_messages",
-          { _team_ids: teamIds }
+          { _team_ids: activeTeamIds }
         );
         if (rpcErr) throw rpcErr;
         for (const row of (rpcRows ?? []) as any[]) {
@@ -869,14 +878,19 @@ export default function MessagesPage() {
 
       let query = supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs!club_id(name, logo_url), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (accessibleIds) query = query.in("id", accessibleIds);
       const { data, error } = await query;
 
       
-      const groups = data || [];
+      const groups = ((data || []) as any[]).filter((group: any) => {
+        if (group.deleted_at) return false;
+        if (group.clubs?.deleted_at || group.clubs?.purged_at) return false;
+        if (group.teams?.deleted_at) return false;
+        return true;
+      });
       
       // M1 perf: batch profile lookups for all group last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
@@ -1901,7 +1915,10 @@ export default function MessagesPage() {
   const displayTeams = teams || cachedData?.teams || [];
   const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
+  // Important: an empty fresh chat-group result is authoritative. Falling back
+  // to cached groups when `chatGroups.length === 0` kept soft-deleted/purged
+  // club chats visible forever after the server correctly returned no rows.
+  const allChatGroups = chatGroups ?? (cachedData?.chatGroups as any) ?? [];
   
   // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
@@ -2689,34 +2706,19 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              if (hasAICatchUpClub) {
-                setShowGlobalRecap(true);
-              } else {
-                toast({
-                  title: "Chat Recap is a Pro feature",
-                  description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
-                });
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else if (effectiveClubFilter) {
-                  navigate(`/clubs/${effectiveClubFilter}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }
-            }}
-            className="h-10 w-10 relative"
-            aria-label="Recap all chats"
-            title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
+          {aiCatchUpResolved && hasAICatchUpClub && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowGlobalRecap(true)}
+              className="h-10 w-10 relative"
+              aria-label="Recap all chats"
+              title="Recap all unread chats"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          )}
+
 
           <Button
             variant="outline"

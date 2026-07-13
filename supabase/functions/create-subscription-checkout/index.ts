@@ -130,7 +130,7 @@ serve(async (req) => {
       tier, // 'pro' or 'pro_football'
       plan, // 'starter', 'standard', 'unlimited' (for club only)
       isAnnual,
-      withTrial, // boolean - whether to add 14-day trial
+      withTrial, // boolean - whether to add 30-day trial
       successUrl,
       cancelUrl,
     } = await req.json();
@@ -416,10 +416,10 @@ serve(async (req) => {
       cancel_url: cancelUrl || `${req.headers.get('origin')}/subscription-cancelled`,
     };
 
-    // Add 14-day trial period if requested
+    // Add 30-day trial period if requested
     if (withTrial) {
       sessionConfig.subscription_data = {
-        trial_period_days: 14,
+        trial_period_days: 30,
       };
     }
 

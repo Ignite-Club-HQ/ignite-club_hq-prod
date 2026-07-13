@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -71,6 +71,7 @@ function getBestContrastColor(
 }
 
 function LogoClubThemeDropdown() {
+  const navigate = useNavigate();
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
   const defaultLogo = igniteIcon;
   const { user, signOut } = useAuth();
@@ -195,8 +196,17 @@ function LogoClubThemeDropdown() {
     c => !c.isSelectable && !availableClubIds.has(c.clubId)
   );
 
+  // NOTE: The "Resume setup" shortcut was intentionally removed from the club-theme
+  // switcher. This dropdown is strictly for switching club themes — surfacing a
+  // setup-wizard entry point here confused users. Resume-setup lives on the Home
+  // empty-state / ClubSetupProgressCard only.
+
   return (
     <DropdownMenuContent align="start" className="w-56">
+
+
+
+
       <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Club Themes</p>
         <p className="text-xs text-muted-foreground">Apply your club's colors</p>
