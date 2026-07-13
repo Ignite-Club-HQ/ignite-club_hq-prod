@@ -1480,7 +1480,8 @@ export default function HomePage() {
       // Build query based on roles
       let teamsQuery = supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (id, name, sport)");
+        .select("id, name, club_id, clubs!club_id (id, name, sport)")
+        .is("deleted_at", null);
       
       if (isAppAdmin) {
         // App admin can see all teams (read-only for teams they're not coach/team_admin of)
