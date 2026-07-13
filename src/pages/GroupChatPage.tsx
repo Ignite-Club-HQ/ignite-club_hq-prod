@@ -1460,7 +1460,7 @@ export default function GroupChatPage() {
     return () => {
       supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient]);
+  }, [groupId, queryClient, groupRealtimeMode]);
 
 
   // Send message mutation
