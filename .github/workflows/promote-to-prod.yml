@@ -165,34 +165,31 @@ jobs:
 
 
       - name: Repair migration history drift
-        # Prod's supabase_migrations.schema_migrations table can contain
-        # historical migration versions that no longer exist as files in the
-        # repo (legacy Lovable-applied migrations from before the dev/prod
-        # split). `supabase db push` refuses to run when it sees remote-only
-        # versions. This step marks any prod-only version as "reverted" so
-        # the CLI ignores it, then `db push` applies only the local files
-        # that are genuinely pending.
+        # Prod's supabase_migrations.schema_migrations table contains legacy
+        # Lovable-applied migration versions from before the dev/prod split.
+        # Those SQL statements were physically run against prod (tables,
+        # functions, RLS all exist), but the corresponding files never made
+        # it into this repo. `supabase db push` refuses to run while local
+        # and remote histories diverge.
         #
-        # Safe because "reverted" does NOT run any SQL against prod — it
-        # only updates the history bookkeeping table so local ⇔ remote
-        # reconciles. The actual objects those old migrations created
-        # remain untouched.
+        # We mark every prod-only version as `applied` (NOT `reverted`).
+        # `applied` = "prod already ran this, skip on push" — correct because
+        # the objects really are there. `reverted` = "run it next push",
+        # which would try to CREATE TABLE on tables that already exist and
+        # fail with 42P07. `repair` never runs the migration SQL itself; it
+        # only writes to supabase_migrations.schema_migrations.
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           echo "=== Fetching remote migration list ==="
           supabase migration list --linked 2>&1 | tee /tmp/mig-list.txt
 
-          # Do a dry `db push` — when there's drift the CLI prints the
-          # remote-only versions on stderr with a "supabase migration repair
-          # --status reverted <ver>" hint. That output is the source of truth
-          # regardless of how the table formatting evolves.
           echo ""
           echo "=== Probing for drift via db push (dry) ==="
           supabase db push --linked --dry-run 2>&1 | tee /tmp/mig-push.txt || true
 
-          # Union both outputs, then subtract local files. Anything left is a
-          # remote-only version that must be marked reverted.
+          # Union both outputs, then subtract local files. Anything left is
+          # a remote-only version that must be marked applied.
           ALL_VERSIONS=$(cat /tmp/mig-list.txt /tmp/mig-push.txt \
             | grep -oE '\b[0-9]{14}\b' | sort -u)
           LOCAL_VERSIONS=$(ls supabase/migrations 2>/dev/null \
@@ -206,7 +203,7 @@ jobs:
           fi
 
           echo ""
-          echo "=== Prod-only migration versions (will be marked reverted in history) ==="
+          echo "=== Prod-only migration versions (will be marked applied in history) ==="
           echo "$ORPHANS"
           COUNT=$(echo "$ORPHANS" | wc -l)
           echo "Total: $COUNT"
@@ -214,7 +211,7 @@ jobs:
 
           # `supabase migration repair` accepts multiple versions per call.
           # Batch in groups of 20 to stay well under arg-length limits.
-          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status reverted
+          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status applied
 
           echo ""
           echo "=== Post-repair migration list ==="
