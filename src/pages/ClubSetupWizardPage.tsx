@@ -588,6 +588,7 @@ export default function ClubSetupWizardPage() {
             <ReviewStep
               clubId={clubId!}
               clubName={club?.name}
+              club={club}
               teams={savedTeams}
               committee={committee}
               groups={groups}
@@ -597,6 +598,7 @@ export default function ClubSetupWizardPage() {
                 if (idx >= 0) setStepIndex(idx);
               }}
             />
+
           )}
 
 
