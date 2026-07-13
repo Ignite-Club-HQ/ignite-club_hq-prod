@@ -1598,6 +1598,7 @@ function BulkPasteTeams({ onAdd }: { onAdd: (names: string[]) => void }) {
 function ReviewStep({
   clubId,
   clubName,
+  club,
   teams,
   committee,
   groups,
@@ -1606,6 +1607,7 @@ function ReviewStep({
 }: {
   clubId: string;
   clubName?: string | null;
+  club?: any;
   teams: DraftTeam[];
   committee: DraftInvite[];
   groups: DraftGroup[];
@@ -1613,8 +1615,12 @@ function ReviewStep({
   onJumpToStep: (id: string) => void;
 }) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [brandingOpen, setBrandingOpen] = useState(false);
+  const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
+
 
 
   // Section 1 — completed setup summary (only what the wizard actually asked for).
