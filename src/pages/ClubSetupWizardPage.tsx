@@ -728,7 +728,7 @@ function TeamsStep({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Age / level (optional)</Label>
+                <Label className="text-xs">Age group or level (optional)</Label>
                 <Input
                   value={t.levelAge}
                   onChange={(e) =>
