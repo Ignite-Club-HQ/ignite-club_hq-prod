@@ -2328,7 +2328,8 @@ export default function ClubDetailPage() {
             </div>
           </AccordionContent>
         </AccordionItem>
-      )}
+        );
+      })()}
 
       {/* App Admin Section */}
       {isAppAdmin && (
