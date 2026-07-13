@@ -478,14 +478,11 @@ export default function ClubSetupWizardPage() {
         setStepIndex((i) => i + 2);
         return;
       }
-      setStepIndex((i) => i + 1);
-    } else {
-      finish();
-    }
-  };
+  // Skip is no longer used in the core wizard (no optional Pro steps remain)
+  // but kept as a no-op alias in case any handler still references it.
+  const goSkip = goNext;
 
-  const OPTIONAL_STEP_IDS = new Set(["branding", "sponsors"]);
-  const isOptionalStep = OPTIONAL_STEP_IDS.has(step.id);
+  const isOptionalStep = false;
 
   const progress = ((safeStepIndex + 1) / STEPS.length) * 100;
 
