@@ -960,18 +960,23 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Try to find theme from server data first
     const theme = availableClubThemes.find(t => t.clubId === activeClubTheme);
-    
-    // CRITICAL FIX: If server data not loaded yet, use cached theme data
-    // This ensures theme applies immediately for new users before query completes
-    const themeToApply = theme || cachedThemeData;
-    
+
+    // Fall back to cached theme ONLY while the server query has not yet
+    // succeeded — this keeps the theme visible on cold-start before the query
+    // resolves. Once the query has succeeded and the club is not in the themed
+    // (Pro) list, we must NOT apply cached colours: doing so would let a free
+    // club keep Pro branding after a downgrade / trial expiry.
+    const canUseCache = !isClubThemesSuccess;
+    const themeToApply = theme || (canUseCache ? cachedThemeData : null);
+
     if (!themeToApply) {
-      // If user selected a free / non-themed club, clear overrides; otherwise wait for data.
-      if (availableClubThemes.length > 0 && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
+      // If server data is loaded and this club isn't themed, clear overrides.
+      if (isClubThemesSuccess && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
         clearAllThemeCSS();
       }
       return;
     }
+
 
     // Skip applying colors if logo-only mode is enabled
     if (themeToApply.logoOnlyMode) {
