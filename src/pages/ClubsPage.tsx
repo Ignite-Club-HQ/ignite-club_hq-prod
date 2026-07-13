@@ -404,6 +404,17 @@ export default function ClubsPage() {
                       <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
                       {restoringId === club.id ? "Restoring..." : "Restore"}
                     </Button>
+                    {club.created_by === user?.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => { setPurgeTarget({ id: club.id, name: club.name }); setPurgeConfirmText(""); }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Delete permanently
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -411,6 +422,16 @@ export default function ClubsPage() {
           </div>
         </section>
       )}
+
+      <ConfirmPurgeDialog
+        target={purgeTarget}
+        confirmText={purgeConfirmText}
+        onConfirmTextChange={setPurgeConfirmText}
+        purging={purging}
+        onCancel={() => { setPurgeTarget(null); setPurgeConfirmText(""); }}
+        onConfirm={handleHardDelete}
+      />
+
 
 
 
