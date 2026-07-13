@@ -1619,6 +1619,7 @@ function ReviewStep({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [brandingOpen, setBrandingOpen] = useState(false);
+  const [sponsorsOpen, setSponsorsOpen] = useState(false);
   const { hasPro } = useClubProAccess(clubId);
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
@@ -1682,9 +1683,8 @@ function ReviewStep({
     {
       id: "sponsors",
       label: "Add sponsors",
-      hint: "Pro",
+      hint: "Optional",
       to: `/clubs/${clubId}`,
-      pro: true,
     },
   ];
 
@@ -1735,9 +1735,14 @@ function ReviewStep({
         <div className="rounded-xl border divide-y bg-card">
           {optionalItems.map((item) => {
             const isBranding = item.id === "branding";
+            const isSponsors = item.id === "sponsors";
+            const isInline = isBranding || isSponsors;
+            const isOpen = (isBranding && brandingOpen) || (isSponsors && sponsorsOpen);
             const handleClick = () => {
               if (isBranding) {
                 setBrandingOpen((v) => !v);
+              } else if (isSponsors) {
+                setSponsorsOpen((v) => !v);
               } else {
                 navigate(item.to);
               }
@@ -1766,7 +1771,7 @@ function ReviewStep({
                     <ArrowRight
                       className={cn(
                         "h-4 w-4 text-muted-foreground transition-transform",
-                        isBranding && brandingOpen && "rotate-90",
+                        isInline && isOpen && "rotate-90",
                       )}
                     />
                   </div>
@@ -1800,6 +1805,20 @@ function ReviewStep({
                     ) : (
                       <p className="text-xs text-muted-foreground">Loading club details…</p>
                     )}
+                  </div>
+                )}
+                {isSponsors && sponsorsOpen && (
+                  <div className="px-3 pb-4 pt-1 space-y-3 bg-muted/20">
+                    {!hasPro && (
+                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                        You can add sponsors now — they'll appear across the app (club page, media, chat, events) automatically once your club is on the <strong>Pro</strong> plan.
+                      </div>
+                    )}
+                    <SponsorsManager
+                      clubId={clubId}
+                      currentPrimarySponsorId={club?.primary_sponsor_id || null}
+                      onPrimaryChange={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
+                    />
                   </div>
                 )}
               </div>
