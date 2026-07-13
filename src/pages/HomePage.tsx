@@ -1354,6 +1354,9 @@ export default function HomePage() {
         .select("id, name, sport, class_mode_enabled")
         .is("deleted_at", null)
         .is("purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Club[];
