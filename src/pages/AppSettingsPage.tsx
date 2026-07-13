@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff, ListOrdered, Sparkles, Rocket } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff, ListOrdered, Sparkles, Rocket, Radio } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
