@@ -1683,9 +1683,8 @@ function ReviewStep({
     {
       id: "sponsors",
       label: "Add sponsors",
-      hint: "Pro",
+      hint: "Optional",
       to: `/clubs/${clubId}`,
-      pro: true,
     },
   ];
 
