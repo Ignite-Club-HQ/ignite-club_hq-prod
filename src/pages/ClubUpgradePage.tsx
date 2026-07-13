@@ -1228,10 +1228,10 @@ export default function ClubUpgradePage() {
             <Button
               className="w-full"
               size="lg"
-              disabled={checkoutLoading}
+              disabled={isCheckingOut}
               onClick={() => handleStripeCheckout("pro", true)}
             >
-              {checkoutLoading ? (
+              {isCheckingOut ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting trial…</>
               ) : (
                 <>Start 30-day free trial</>
