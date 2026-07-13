@@ -359,6 +359,39 @@ export default function AppSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
+              <Radio className={`h-5 w-5 ${isFreePollingEnabled ? "text-amber-500" : "text-green-500"}`} />
+              Free-club polling mode
+            </CardTitle>
+            <CardDescription>
+              Scaling lever. When ON, Free-tier clubs switch their chat pages from Supabase Realtime WebSockets to periodic polling (~30s). Pro clubs are unaffected and keep instant realtime updates. Reduces concurrent WebSocket connections by roughly 80% at scale. Users on Free clubs may see new messages up to 30s later while the chat is open and idle; sent messages, push notifications, and refetch-on-resume are unchanged. Default OFF — turn ON as onboarding scales past ~200 clubs. May take up to 5 min to propagate to active sessions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="free-polling-toggle" className="text-base font-medium">
+                  Enable polling for Free clubs
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {isFreePollingEnabled
+                    ? "Free clubs poll every 30s. Pro clubs remain on realtime."
+                    : "All clubs (Free and Pro) use realtime — no scaling protection."}
+                </p>
+              </div>
+              <Switch
+                id="free-polling-toggle"
+                checked={isFreePollingEnabled}
+                onCheckedChange={() => handleToggle("free_club_polling_enabled", isFreePollingEnabled)}
+                disabled={updateSettingMutation.isPending}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               AI Chat Recap provider
             </CardTitle>
