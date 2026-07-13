@@ -2287,17 +2287,22 @@ export default function ClubDetailPage() {
       )}
 
       {/* Club Branding - configurable by all admins; colours only apply on Pro */}
-      {isAdmin && (
+      {isAdmin && (() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
         <AccordionItem value="branding" data-section-anchor="branding" className="border rounded-lg px-4 scroll-mt-20">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Club Branding</span>
+              {!hasProAccess && (
+                <Badge variant="outline" className="text-xs font-normal ml-2">Configure now, activates on Pro</Badge>
+              )}
             </div>
           </AccordionTrigger>
           <AccordionContent>
             <div className="pt-2 space-y-3">
-              {!(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
+              {!hasProAccess && (
                 <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
                   You can configure your club colours and logo now, but branding will only be applied across the app once your club is on the <strong>Pro</strong> plan. Your saved settings will activate automatically when you upgrade or start a trial.
                 </div>
@@ -2323,7 +2328,8 @@ export default function ClubDetailPage() {
             </div>
           </AccordionContent>
         </AccordionItem>
-      )}
+        );
+      })()}
 
       {/* App Admin Section */}
       {isAppAdmin && (
