@@ -716,6 +716,7 @@ export default function HomePage() {
         .from("clubs")
         .select("id, name, sport, points_display_name, points_icon_url")
         .in("id", clubIds)
+        .is("deleted_at", null)
         .order("name");
 
       return clubs || [];
