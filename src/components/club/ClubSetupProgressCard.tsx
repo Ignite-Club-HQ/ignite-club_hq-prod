@@ -115,9 +115,9 @@ export function ClubSetupProgressCard({
     : [
         { label: "Create teams", done: data.teamsCount > 0 },
         { label: "Invite members", done: data.teamMemberCount > 0 },
-        { label: "Invite committee members", done: data.committeeCount > 0, optional: true },
-        { label: "Create Subcommittees", done: data.groupsCount > 0, optional: true },
-        { label: "Add club branding", done: data.hasLogo, optional: true },
+        { label: "Invite committee members", done: data.committeeCount > 0, pro: true, optional: true },
+        { label: "Create Subcommittees", done: data.groupsCount > 0, pro: true, optional: true },
+        { label: "Add club branding", done: data.hasLogo, pro: true, optional: true },
         { label: "Add sponsors", done: data.sponsorsCount > 0, pro: true, optional: true },
       ];
 
