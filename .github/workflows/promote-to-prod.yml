@@ -165,34 +165,31 @@ jobs:
 
 
       - name: Repair migration history drift
-        # Prod's supabase_migrations.schema_migrations table can contain
-        # historical migration versions that no longer exist as files in the
-        # repo (legacy Lovable-applied migrations from before the dev/prod
-        # split). `supabase db push` refuses to run when it sees remote-only
-        # versions. This step marks any prod-only version as "reverted" so
-        # the CLI ignores it, then `db push` applies only the local files
-        # that are genuinely pending.
+        # Prod's supabase_migrations.schema_migrations table contains legacy
+        # Lovable-applied migration versions from before the dev/prod split.
+        # Those SQL statements were physically run against prod (tables,
+        # functions, RLS all exist), but the corresponding files never made
+        # it into this repo. `supabase db push` refuses to run while local
+        # and remote histories diverge.
         #
-        # Safe because "reverted" does NOT run any SQL against prod — it
-        # only updates the history bookkeeping table so local ⇔ remote
-        # reconciles. The actual objects those old migrations created
-        # remain untouched.
+        # We mark every prod-only version as `applied` (NOT `reverted`).
+        # `applied` = "prod already ran this, skip on push" — correct because
+        # the objects really are there. `reverted` = "run it next push",
+        # which would try to CREATE TABLE on tables that already exist and
+        # fail with 42P07. `repair` never runs the migration SQL itself; it
+        # only writes to supabase_migrations.schema_migrations.
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           echo "=== Fetching remote migration list ==="
           supabase migration list --linked 2>&1 | tee /tmp/mig-list.txt
 
-          # Do a dry `db push` — when there's drift the CLI prints the
-          # remote-only versions on stderr with a "supabase migration repair
-          # --status reverted <ver>" hint. That output is the source of truth
-          # regardless of how the table formatting evolves.
           echo ""
           echo "=== Probing for drift via db push (dry) ==="
           supabase db push --linked --dry-run 2>&1 | tee /tmp/mig-push.txt || true
 
-          # Union both outputs, then subtract local files. Anything left is a
-          # remote-only version that must be marked reverted.
+          # Union both outputs, then subtract local files. Anything left is
+          # a remote-only version that must be marked applied.
           ALL_VERSIONS=$(cat /tmp/mig-list.txt /tmp/mig-push.txt \
             | grep -oE '\b[0-9]{14}\b' | sort -u)
           LOCAL_VERSIONS=$(ls supabase/migrations 2>/dev/null \
@@ -206,7 +203,7 @@ jobs:
           fi
 
           echo ""
-          echo "=== Prod-only migration versions (will be marked reverted in history) ==="
+          echo "=== Prod-only migration versions (will be marked applied in history) ==="
           echo "$ORPHANS"
           COUNT=$(echo "$ORPHANS" | wc -l)
           echo "Total: $COUNT"
@@ -214,11 +211,56 @@ jobs:
 
           # `supabase migration repair` accepts multiple versions per call.
           # Batch in groups of 20 to stay well under arg-length limits.
-          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status reverted
+          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status applied
 
           echo ""
           echo "=== Post-repair migration list ==="
           supabase migration list --linked
+
+      - name: Pre-mark already-in-prod local migrations as applied
+        # Some local migration files describe objects (tables, indexes,
+        # triggers, policies) that already physically exist in prod from
+        # a previous partially-run promotion attempt. `db push` would try
+        # to re-run their CREATE statements and fail with 42P07 / 42710.
+        #
+        # For each version listed below, we check prod for a signature
+        # object; if it exists, we mark the local version `applied` so
+        # push skips it. Safe idempotent operation — only touches the
+        # bookkeeping table, never runs the migration SQL.
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+
+          # Build pooler connection string from existing secrets.
+          # Uses Supabase's transaction pooler on 6543 (IPv4-friendly, works from GH runners).
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          PROD_DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+
+          # version : SQL existence check (must return exactly one row when object exists)
+          declare -A CHECKS=(
+            ["20260701193827"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
+            ["20260703024653"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
+            ["20260703081313"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
+            ["20260708013949"]="SELECT 1 FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
+            ["20260708222650"]="SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
+            ["20260713003316"]="SELECT 1 FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
+          )
+
+          TO_MARK=()
+          for VERSION in "${!CHECKS[@]}"; do
+            SQL="${CHECKS[$VERSION]}"
+            EXISTS=$(psql "$PROD_DB_URL" -tAc "$SQL" | head -n1 | tr -d '[:space:]')
+            if [ "$EXISTS" = "1" ]; then
+              echo "🔧 $VERSION — signature object exists in prod, will mark applied"
+              TO_MARK+=("$VERSION")
+            else
+              echo "✅ $VERSION — signature object NOT in prod, will run normally"
+            fi
+          done
+
+          if [ ${#TO_MARK[@]} -gt 0 ]; then
+            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
+          fi
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
