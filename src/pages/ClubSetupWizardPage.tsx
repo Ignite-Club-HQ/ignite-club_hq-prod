@@ -1545,8 +1545,10 @@ function ReviewStep({
   teamInvites: DraftInvite[];
   onJumpToStep: (id: string) => void;
 }) {
+  const navigate = useNavigate();
   const sentTeamInv = teamInvites.filter((i) => i.status === "sent").length;
   const pendingTeamInv = teamInvites.length - sentTeamInv;
+
 
   // Section 1 — completed setup summary (only what the wizard actually asked for).
   const summaryRows: {
