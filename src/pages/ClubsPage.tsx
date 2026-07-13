@@ -343,6 +343,58 @@ export default function ClubsPage() {
         )}
       </section>
 
+      {/* Recently removed - clubs the user soft-deleted, restorable within 30 days */}
+      {removedClubs && removedClubs.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-muted-foreground" />
+              Recently removed
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Restore within 30 days. Restoring also brings back the club's teams and chats.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {removedClubs.map((club) => {
+              const daysLeft = Math.max(
+                0,
+                30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24))
+              );
+              return (
+                <Card key={club.id} className="border-dashed">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <Avatar className="h-10 w-10 opacity-60">
+                      <AvatarImage src={club.logo_url || undefined} />
+                      <AvatarFallback className="bg-muted text-muted-foreground">
+                        {club.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{club.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Removed {new Date(club.deleted_at).toLocaleDateString()} · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={restoringId === club.id}
+                      onClick={() => handleRestore(club.id)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                      {restoringId === club.id ? "Restoring..." : "Restore"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+
+
       {/* Search Results - Only show when searching */}
       {isSearching && (
         <section className="space-y-4">
