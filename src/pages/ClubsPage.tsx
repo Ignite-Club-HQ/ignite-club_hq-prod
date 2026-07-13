@@ -112,6 +112,7 @@ export default function ClubsPage() {
       return;
     }
     toast({ title: "Club permanently deleted", description: "Data is retained in the archive for recovery by an app admin." });
+    clearClubSetupLocalState(purgeTarget.id);
     setPurgeTarget(null);
     setPurgeConfirmText("");
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
