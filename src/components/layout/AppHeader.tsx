@@ -196,84 +196,12 @@ function LogoClubThemeDropdown() {
     c => !c.isSelectable && !availableClubIds.has(c.clubId)
   );
 
-  // Admin clubs with incomplete setup — surface a "Resume setup" section at the
-  // top of the switcher so club admins can jump back into the wizard from anywhere.
-  const { data: incompleteAdminClubs = [] } = useQuery({
-    queryKey: ["incomplete-admin-clubs", user?.id],
-    staleTime: 5 * 60_000,
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .eq("role", "club_admin")
-        .not("club_id", "is", null);
-      const adminIds = [...new Set((adminRoles || []).map(r => r.club_id).filter(Boolean) as string[])];
-      if (!adminIds.length) return [] as { id: string; name: string; logoUrl: string | null }[];
+  // NOTE: The "Resume setup" shortcut was intentionally removed from the club-theme
+  // switcher. This dropdown is strictly for switching club themes — surfacing a
+  // setup-wizard entry point here confused users. Resume-setup lives on the Home
+  // empty-state / ClubSetupProgressCard only.
 
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url")
-        .in("id", adminIds)
-        .is("deleted_at", null);
-      if (!clubs?.length) return [];
 
-      // Consider setup incomplete when the club has no teams yet OR no logo yet.
-      // Cheap: one head count per club (parallel). Skip any dismissed by the user
-      // via the same key used by ClubSetupProgressCard.
-      const results = await Promise.all(clubs.map(async (c) => {
-        const dismissed = (() => {
-          try { return localStorage.getItem(`ignite_club_setup_dismissed_${c.id}`) === "1"; }
-          catch { return false; }
-        })();
-        if (dismissed) return null;
-        const { count } = await supabase
-          .from("teams")
-          .select("id", { count: "exact", head: true })
-          .eq("club_id", c.id)
-          .is("deleted_at", null);
-        const incomplete = (count ?? 0) === 0 || !c.logo_url;
-        return incomplete ? { id: c.id, name: c.name, logoUrl: c.logo_url } : null;
-      }));
-      return results.filter(Boolean) as { id: string; name: string; logoUrl: string | null }[];
-    },
-  });
-
-  return (
-    <DropdownMenuContent align="start" className="w-56">
-      {/* Resume-setup shortcut for admins of clubs with incomplete wizards */}
-      {incompleteAdminClubs.length > 0 && (
-        <>
-          <div className="px-2 py-1.5">
-            <p className="text-sm font-medium flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Finish setting up
-            </p>
-            <p className="text-xs text-muted-foreground">Continue where you left off</p>
-          </div>
-          {incompleteAdminClubs.map((c) => (
-            <DropdownMenuItem
-              key={`resume-${c.id}`}
-              onClick={() => navigate(`/clubs/${c.id}/setup`)}
-              className="flex items-center gap-3 py-2"
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={c.logoUrl || undefined} />
-                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                  {c.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{c.name}</p>
-                <p className="text-xs text-muted-foreground">Resume setup</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-        </>
-      )}
 
       <div className="px-2 py-1.5">
         <p className="text-sm font-medium">Club Themes</p>
