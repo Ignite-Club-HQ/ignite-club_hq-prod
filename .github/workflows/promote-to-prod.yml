@@ -312,7 +312,7 @@ jobs:
           command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1 || true
           if command -v psql >/dev/null; then
             PGPASSWORD="${SUPABASE_DB_PASSWORD:-${PROD_DB_PASSWORD:-}}" \
-              psql "postgresql://postgres.${SUPABASE_PROJECT_ID}@aws-0-${SUPABASE_REGION:-us-east-1}.pooler.supabase.com:6543/postgres?sslmode=require" \
+              psql "postgresql://postgres.${SUPABASE_PROJECT_ID}@aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com:6543/postgres?sslmode=require" \
               -v ON_ERROR_STOP=1 -c "select 1 as ping;" 2>&1 | tee /tmp/supabase-ping.log || echo "(ping failed — likely auth/network, not SQL)"
           fi
           echo ""
@@ -329,7 +329,7 @@ jobs:
           RAW_PW="${SUPABASE_DB_PASSWORD}"
           ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['RAW_PW'],safe=''))")
           export RAW_PW ENC_PW
-          POOLER_HOST="aws-0-${SUPABASE_REGION:-us-east-1}.pooler.supabase.com"
+          POOLER_HOST="aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com"
           DB_URL="postgresql://postgres.${PROJECT_REF}:${ENC_PW}@${POOLER_HOST}:5432/postgres?sslmode=require"
           # Do NOT echo DB_URL — contains password.
           echo "Using session pooler host: $POOLER_HOST (port 5432)"
