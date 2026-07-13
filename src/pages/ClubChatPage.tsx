@@ -1215,7 +1215,7 @@ export default function ClubChatPage() {
     return () => {
       supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient]);
+  }, [clubId, queryClient, clubRealtimeMode]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
