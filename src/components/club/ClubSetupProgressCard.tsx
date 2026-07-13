@@ -37,7 +37,8 @@ export function ClubSetupProgressCard({
       const [
         teamsRes,
         clubRes,
-        committeeRes,
+        committeeRolesRes,
+        committeeInvitesRes,
         invitesRes,
         rolesRes,
         groupsRes,
@@ -49,7 +50,7 @@ export function ClubSetupProgressCard({
           .eq("club_id", clubId),
         supabase
           .from("clubs")
-          .select("logo_url")
+          .select("logo_url, theme_dark_primary_h, theme_dark_secondary_h, theme_dark_accent_h")
           .eq("id", clubId)
           .maybeSingle(),
         supabase
@@ -57,6 +58,12 @@ export function ClubSetupProgressCard({
           .select("user_id", { count: "exact", head: true })
           .eq("club_id", clubId)
           .eq("role", "committee_member"),
+        supabase
+          .from("pending_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", clubId)
+          .eq("role", "committee_member")
+          .eq("status", "pending"),
         supabase
           .from("pending_invites")
           .select("id", { count: "exact", head: true })
@@ -77,15 +84,22 @@ export function ClubSetupProgressCard({
           .select("id", { count: "exact", head: true })
           .eq("club_id", clubId),
       ]);
+      const clubRow = clubRes.data as any;
+      const hasBranding =
+        !!clubRow?.logo_url ||
+        clubRow?.theme_dark_primary_h != null ||
+        clubRow?.theme_dark_secondary_h != null ||
+        clubRow?.theme_dark_accent_h != null;
       return {
         teamsCount: teamsRes.count ?? 0,
-        hasLogo: !!(clubRes.data as any)?.logo_url,
-        committeeCount: committeeRes.count ?? 0,
+        hasLogo: hasBranding,
+        committeeCount: (committeeRolesRes.count ?? 0) + (committeeInvitesRes.count ?? 0),
         teamMemberCount:
           (invitesRes.count ?? 0) + (rolesRes.count ?? 0),
         groupsCount: groupsRes.count ?? 0,
         sponsorsCount: sponsorsRes.count ?? 0,
       };
+
     },
     enabled: !!clubId,
     staleTime: 60 * 1000,
