@@ -21,6 +21,8 @@ import {
   Building2,
   ClipboardList,
   ClipboardPaste,
+  QrCode,
+  ChevronDown,
 } from "lucide-react";
 
 import { Capacitor } from "@capacitor/core";
