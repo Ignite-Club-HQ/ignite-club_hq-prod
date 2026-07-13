@@ -1203,8 +1203,8 @@ export default function ClubDetailPage() {
       {/* Recent Games — basketball + netball only, hides itself if empty */}
       
 
-      {/* Primary Sponsor Display */}
-      {club?.primary_sponsor_id && (
+      {/* Primary Sponsor Display — only shown while club is on Pro */}
+      {club?.primary_sponsor_id && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
         <PrimarySponsorDisplay sponsorId={club.primary_sponsor_id} variant="full" context="club_page" />
       )}
 
