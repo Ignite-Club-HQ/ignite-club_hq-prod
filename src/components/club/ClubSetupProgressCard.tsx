@@ -34,39 +34,57 @@ export function ClubSetupProgressCard({
   const { data, isLoading } = useQuery({
     queryKey: ["club-setup-progress", clubId, isShellClub],
     queryFn: async () => {
-      const [teamsRes, clubRes, committeeRes, invitesRes, rolesRes] =
-        await Promise.all([
-          supabase
-            .from("teams")
-            .select("id", { count: "exact", head: true })
-            .eq("club_id", clubId),
-          supabase
-            .from("clubs")
-            .select("logo_url")
-            .eq("id", clubId)
-            .maybeSingle(),
-          supabase
-            .from("user_roles")
-            .select("user_id", { count: "exact", head: true })
-            .eq("club_id", clubId)
-            .eq("role", "committee_member"),
-          supabase
-            .from("pending_invites")
-            .select("id", { count: "exact", head: true })
-            .eq("club_id", clubId)
-            .eq("status", "pending"),
-          supabase
-            .from("user_roles")
-            .select("user_id", { count: "exact", head: true })
-            .eq("club_id", clubId)
-            .not("team_id", "is", null),
-        ]);
+      const [
+        teamsRes,
+        clubRes,
+        committeeRes,
+        invitesRes,
+        rolesRes,
+        groupsRes,
+        sponsorsRes,
+      ] = await Promise.all([
+        supabase
+          .from("teams")
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", clubId),
+        supabase
+          .from("clubs")
+          .select("logo_url")
+          .eq("id", clubId)
+          .maybeSingle(),
+        supabase
+          .from("user_roles")
+          .select("user_id", { count: "exact", head: true })
+          .eq("club_id", clubId)
+          .eq("role", "committee_member"),
+        supabase
+          .from("pending_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", clubId)
+          .eq("status", "pending"),
+        supabase
+          .from("user_roles")
+          .select("user_id", { count: "exact", head: true })
+          .eq("club_id", clubId)
+          .not("team_id", "is", null),
+        supabase
+          .from("chat_groups")
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", clubId)
+          .eq("category", "subcommittee"),
+        supabase
+          .from("sponsors" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", clubId),
+      ]);
       return {
         teamsCount: teamsRes.count ?? 0,
         hasLogo: !!(clubRes.data as any)?.logo_url,
         committeeCount: committeeRes.count ?? 0,
         teamMemberCount:
           (invitesRes.count ?? 0) + (rolesRes.count ?? 0),
+        groupsCount: groupsRes.count ?? 0,
+        sponsorsCount: sponsorsRes.count ?? 0,
       };
     },
     enabled: !!clubId,
@@ -75,21 +93,28 @@ export function ClubSetupProgressCard({
 
   if (isLoading || !data || dismissed) return null;
 
-  const steps: { label: string; done: boolean }[] = isShellClub
+  const steps: { label: string; done: boolean; pro?: boolean; optional?: boolean }[] = isShellClub
     ? [
-        { label: "Add teams", done: data.teamsCount > 0 },
+        { label: "Create teams", done: data.teamsCount > 0 },
         { label: "Invite members", done: data.teamMemberCount > 0 },
       ]
     : [
-        { label: "Add teams", done: data.teamsCount > 0 },
-        { label: "Set club branding & logo", done: data.hasLogo },
-        { label: "Assign committee members", done: data.committeeCount > 0 },
-        { label: "Invite players & coaches", done: data.teamMemberCount > 0 },
+        { label: "Create teams", done: data.teamsCount > 0 },
+        { label: "Invite members", done: data.teamMemberCount > 0 },
+        { label: "Invite committee members", done: data.committeeCount > 0, optional: true },
+        { label: "Create operational groups", done: data.groupsCount > 0, optional: true },
+        { label: "Add club branding", done: data.hasLogo, pro: true, optional: true },
+        { label: "Add sponsors", done: data.sponsorsCount > 0, pro: true, optional: true },
       ];
 
-  const completed = steps.filter((s) => s.done).length;
-  const total = steps.length;
-  if (completed === total) return null;
+  // Only the two core steps determine "complete" — optional/Pro items don't hide the card.
+  const requiredSteps = steps.filter((s) => !s.optional);
+  const completed = requiredSteps.filter((s) => s.done).length;
+  const total = requiredSteps.length;
+  if (completed === total && steps.every((s) => s.done || s.optional)) {
+    // Everything meaningful is done — hide.
+    if (steps.every((s) => s.done)) return null;
+  }
 
   const dismiss = () => {
     localStorage.setItem(dismissKey, "1");
