@@ -64,6 +64,26 @@ jobs:
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
 
+      - name: Preflight — pooler connectivity + auth check
+        # Fail FAST (before backup, guard, repair, migrate) if the runner
+        # can't reach the prod DB via the IPv4 session pooler or the
+        # password is wrong. Otherwise we waste ~1 min on backup + drift
+        # repair only to die at `db push` with an empty log.
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
+          POOLER_HOST="aws-0-${SUPABASE_REGION:-ap-southeast-2}.pooler.supabase.com"
+          echo "Pinging $POOLER_HOST:5432 as postgres.${PROJECT_REF} …"
+          if ! PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
+               "postgresql://postgres.${PROJECT_REF}@${POOLER_HOST}:5432/postgres?sslmode=require" \
+               -v ON_ERROR_STOP=1 -c "select 1 as ping, current_user, inet_server_addr();" ; then
+            echo ""
+            echo "::error::Preflight failed — cannot reach prod DB via session pooler."
+            echo "Check: SUPABASE_DB_PASSWORD secret, SUPABASE_REGION secret (current default ap-southeast-2), pooler is enabled in Supabase Dashboard → Database → Connection pooling."
+            exit 1
+          fi
+          echo "✅ Preflight passed — pooler reachable and password valid."
+
       - name: List pending migrations
         run: supabase migration list --linked
 
