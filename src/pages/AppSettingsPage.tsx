@@ -112,6 +112,11 @@ export default function AppSettingsPage() {
   const notifPrefetchRow = settings?.find(s => s.key === "notification_prefetch_enabled");
   const isNotifPrefetchEnabled = notifPrefetchRow?.value !== false && notifPrefetchRow?.value !== "false";
 
+  // Default Free-club polling to OFF (explicit opt-in). Only flips Free-tier
+  // clubs from realtime to periodic polling; Pro clubs are unaffected.
+  const freePollingRow = settings?.find(s => s.key === "free_club_polling_enabled");
+  const isFreePollingEnabled = freePollingRow?.value === true || freePollingRow?.value === "true";
+
   // Basic-mode chunk size — clamped 10–500, default 100.
   const chunkRow = settings?.find(s => s.key === "chat_basic_chunk_size");
   const savedChunkSize = (() => {
