@@ -565,82 +565,10 @@ export default function ClubSetupWizardPage() {
             />
           )}
 
-          {step.id === "branding" && (
-            <div className="space-y-4">
-              <StepIntro
-                icon={Palette}
-                title="Make it yours"
-                subtitle="Upload your club logo and set colours. You can change these anytime from Club Settings."
-                proBadge
-              />
-              {proLoading ? null : hasPro ? (
-                <>
-                  <BrandPresetPicker
-                    clubId={clubId!}
-                    onApplied={() =>
-                      qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
-                    }
-                  />
-                  {!(club as any)?.logo_url && (
-                    <MonogramLogoGenerator
-                      clubId={clubId!}
-                      clubName={(club as any)?.name || "Club"}
-                      onGenerated={() =>
-                        qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })
-                      }
-                    />
-                  )}
-                  <ClubThemeEditor
-                    key={`${(club as any)?.theme_primary_h ?? "x"}-${(club as any)?.theme_secondary_h ?? "x"}-${(club as any)?.theme_accent_h ?? "x"}`}
-                    clubId={clubId!}
-                    clubLogoUrl={(club as any)?.logo_url}
-                    initialPrimary={(club as any)?.theme_primary_h != null ? { h: (club as any).theme_primary_h, s: (club as any).theme_primary_s, l: (club as any).theme_primary_l } : undefined}
-                    initialSecondary={(club as any)?.theme_secondary_h != null ? { h: (club as any).theme_secondary_h, s: (club as any).theme_secondary_s, l: (club as any).theme_secondary_l } : undefined}
-                    initialAccent={(club as any)?.theme_accent_h != null ? { h: (club as any).theme_accent_h, s: (club as any).theme_accent_s, l: (club as any).theme_accent_l } : undefined}
-                    initialShowLogoInHeader={(club as any)?.show_logo_in_header ?? true}
-                    initialShowNameInHeader={(club as any)?.show_name_in_header ?? true}
-                    initialLogoOnlyMode={(club as any)?.logo_only_mode ?? false}
-                    initialThemeEnabled={(club as any)?.theme_enabled ?? true}
-                    onSave={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-                  />
-                </>
-              ) : (
-                <ProFeatureLock
-                  title="Branding is a Pro feature"
-                  description="Custom logos, colours and header branding are available on Pro. You can skip this step and upgrade anytime."
-                  clubId={clubId}
-                />
-              )}
-            </div>
-          )}
+          {/* Branding, Sponsors, Committee and Working Groups intentionally
+              removed from the core wizard — surfaced via the post-setup
+              checklist and Club Settings. */}
 
-          {step.id === "sponsors" && (
-            <div className="space-y-4">
-              <StepIntro
-                icon={Building2}
-                title="Add your sponsors"
-                subtitle="Add businesses that support your club. You can allocate them to teams and events later."
-                proBadge
-              />
-              {proLoading ? null : hasPro ? (
-                <SponsorsManager
-                  clubId={clubId!}
-                  currentPrimarySponsorId={(club as any)?.primary_sponsor_id ?? null}
-                  onPrimaryChange={() => qc.invalidateQueries({ queryKey: ["club", clubId, "setup"] })}
-                />
-              ) : (
-                <ProFeatureLock
-                  title="Sponsors is a Pro feature"
-                  description="Adding sponsors, logos and allocations is available on Pro. You can skip this step and upgrade anytime."
-                  clubId={clubId}
-                />
-              )}
-            </div>
-          )}
-
-
-          {/* Committee & Working Groups intentionally removed from wizard —
-              surfaced later via Club Admin pages and the setup progress card. */}
 
 
 
