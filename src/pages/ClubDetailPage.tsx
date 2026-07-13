@@ -113,8 +113,24 @@ export default function ClubDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [openSections, setOpenSections] = useState<string[]>([]);
+
+  // Deep-link to accordion section via hash (e.g. #branding)
+  useEffect(() => {
+    const hash = location.hash?.replace("#", "");
+    if (!hash) return;
+    setOpenSections((prev) => (prev.includes(hash) ? prev : [...prev, hash]));
+    // Wait for accordion to expand before scrolling
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-section-anchor="${hash}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [location.hash]);
+
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
