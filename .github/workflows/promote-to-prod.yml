@@ -228,8 +228,6 @@ jobs:
         # push skips it. Safe idempotent operation — only touches the
         # bookkeeping table, never runs the migration SQL.
         if: github.event_name == 'push'
-        env:
-          PROD_DB_URL: ${{ secrets.SUPABASE_PROD_DB_URL }}
         run: |
           set -euo pipefail
 
