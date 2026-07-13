@@ -23,6 +23,7 @@ import { getSportEmoji, SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { ConfirmPurgeDialog } from "@/components/club/ConfirmPurgeDialog";
+import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
 
 interface Club {
   id: string;
@@ -111,6 +112,7 @@ export default function ClubsPage() {
       return;
     }
     toast({ title: "Club permanently deleted", description: "Data is retained in the archive for recovery by an app admin." });
+    clearClubSetupLocalState(purgeTarget.id);
     setPurgeTarget(null);
     setPurgeConfirmText("");
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
