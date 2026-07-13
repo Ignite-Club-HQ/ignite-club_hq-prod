@@ -1398,6 +1398,9 @@ export default function HomePage() {
         .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
         .is("clubs.deleted_at", null)
         .is("clubs.purged_at", null)
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as MiniLeague[];
