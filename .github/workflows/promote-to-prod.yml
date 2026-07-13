@@ -311,19 +311,71 @@ jobs:
           set -e
 
           if [ "$PUSH_STATUS" -ne 0 ]; then
-            echo ""
-            echo "::error::supabase db push failed with exit code $PUSH_STATUS"
-            echo ""
-            echo "=== Last 200 lines from dry-run log ==="
+            # Print bulky context first (inside collapsible groups) so the
+            # short error summary is the LAST thing in the step log — no
+            # scrolling through thousands of lines to find the failure.
+            echo "::group::Dry-run log (last 200 lines)"
             tail -n 200 /tmp/supabase-db-push-dry-run.log || true
-            echo ""
-            echo "=== Last 300 lines from apply log ==="
-            tail -n 300 /tmp/supabase-db-push.log || true
-            echo ""
-            echo "=== Migration state after failed db push ==="
+            echo "::endgroup::"
+
+            echo "::group::Apply log (last 500 lines)"
+            tail -n 500 /tmp/supabase-db-push.log || true
+            echo "::endgroup::"
+
+            echo "::group::Migration state after failed db push"
             supabase migration list --linked || true
+            echo "::endgroup::"
+
+            # Extract the actual Postgres/CLI error lines. Keep this block
+            # last so it appears at the bottom of the step output.
+            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
+            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
+
+            echo ""
+            echo "════════════════════════════════════════════════════════════"
+            echo "  ❌ SUPABASE DB PUSH FAILED — exit code $PUSH_STATUS"
+            echo "════════════════════════════════════════════════════════════"
+            echo ""
+            echo "── Error lines from APPLY log (most recent 40) ──"
+            if [ -n "$ERR_LINES" ]; then
+              echo "$ERR_LINES"
+            else
+              echo "(no matching error lines found — see Apply log group above)"
+            fi
+            echo ""
+            echo "── Error lines from DRY-RUN log (most recent 20) ──"
+            if [ -n "$DRY_ERR_LINES" ]; then
+              echo "$DRY_ERR_LINES"
+            else
+              echo "(none)"
+            fi
+            echo ""
+            echo "Full logs are uploaded as artifact:"
+            echo "  supabase-promotion-logs-${GITHUB_RUN_ID}"
+            echo "════════════════════════════════════════════════════════════"
+
+            # First real error line becomes the GitHub Actions annotation
+            # shown at the top of the run summary page.
+            FIRST_ERR=$(echo "$ERR_LINES" | head -n 1)
+            if [ -n "$FIRST_ERR" ]; then
+              echo "::error::db push failed — $FIRST_ERR"
+            else
+              echo "::error::supabase db push failed with exit code $PUSH_STATUS (no error line matched — check Apply log group)"
+            fi
+
             exit "$PUSH_STATUS"
           fi
+
+      - name: Upload Supabase migration logs on failure
+        if: failure() && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-promotion-logs-${{ github.run_id }}
+          path: |
+            /tmp/supabase-db-push.log
+            /tmp/supabase-db-push-dry-run.log
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Deploy edge functions
         if: github.event_name == 'push'
