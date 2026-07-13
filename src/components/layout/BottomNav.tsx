@@ -1,11 +1,9 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
+import { Home, Calendar, MessageCircle, Image } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useSuppressedChatScopes } from "@/lib/pushTapSuppression";
 import { Capacitor } from "@capacitor/core";
@@ -19,10 +17,10 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { prefetchRoute } from "@/lib/routePrefetch";
 
 const navItems = [
-  { to: "/", icon: Home, label: "Home", requiresPro: false },
-  { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
-  { to: "/events", icon: Calendar, label: "Schedule", requiresPro: false },
-  { to: "/media", icon: Image, label: "Media", requiresPro: true },
+  { to: "/", icon: Home, label: "Home" },
+  { to: "/messages", icon: MessageCircle, label: "Messages" },
+  { to: "/events", icon: Calendar, label: "Schedule" },
+  { to: "/media", icon: Image, label: "Media" },
 ];
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
