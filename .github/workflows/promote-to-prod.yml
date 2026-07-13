@@ -231,6 +231,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Build pooler connection string from existing secrets.
+          # Uses Supabase's transaction pooler on 6543 (IPv4-friendly, works from GH runners).
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          PROD_DB_URL="postgresql://postgres.${PROJECT_REF}@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require"
+
           # version : SQL existence check (must return exactly one row when object exists)
           declare -A CHECKS=(
             ["20260701193827"]="SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
