@@ -1746,16 +1746,18 @@ function ReviewStep({
           {optionalItems.map((item) => {
             const isBranding = item.id === "branding";
             const isSponsors = item.id === "sponsors";
-            const isInline = isBranding || isSponsors;
-            const isOpen = (isBranding && brandingOpen) || (isSponsors && sponsorsOpen);
+            const isCommittee = item.id === "committee";
+            const isGroups = item.id === "groups";
+            const isOpen =
+              (isBranding && brandingOpen) ||
+              (isSponsors && sponsorsOpen) ||
+              (isCommittee && committeeOpen) ||
+              (isGroups && groupsOpen);
             const handleClick = () => {
-              if (isBranding) {
-                setBrandingOpen((v) => !v);
-              } else if (isSponsors) {
-                setSponsorsOpen((v) => !v);
-              } else {
-                navigate(item.to);
-              }
+              if (isBranding) setBrandingOpen((v) => !v);
+              else if (isSponsors) setSponsorsOpen((v) => !v);
+              else if (isCommittee) setCommitteeOpen((v) => !v);
+              else if (isGroups) setGroupsOpen((v) => !v);
             };
             return (
               <div key={item.id}>
@@ -1768,24 +1770,40 @@ function ReviewStep({
                     <p className="text-sm font-medium truncate">{item.label}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={cn(
-                        "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                        item.pro
-                          ? "bg-primary/15 text-primary"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {item.hint}
                     </span>
                     <ArrowRight
                       className={cn(
                         "h-4 w-4 text-muted-foreground transition-transform",
-                        isInline && isOpen && "rotate-90",
+                        isOpen && "rotate-90",
                       )}
                     />
                   </div>
                 </button>
+                {isCommittee && committeeOpen && (
+                  <div className="px-3 pb-4 pt-1 bg-muted/20">
+                    <InviteStep
+                      title="Invite committee members"
+                      subtitle="Committee members can help run the club — they'll get admin access to committee chats and shared resources. Add as many as you like; you can invite more later."
+                      roleOptions={[{ value: "committee_member", label: "Committee Member" }]}
+                      defaultRole="committee_member"
+                      list={committee}
+                      setList={setCommittee}
+                      onSend={onSendInvite}
+                    />
+                  </div>
+                )}
+                {isGroups && groupsOpen && (
+                  <div className="px-3 pb-4 pt-1 bg-muted/20">
+                    <OperationalGroupsStep
+                      clubId={clubId}
+                      userId={userId}
+                      groups={groups}
+                      setGroups={setGroups}
+                    />
+                  </div>
+                )}
                 {isBranding && brandingOpen && (
                   <div className="px-3 pb-4 pt-1 space-y-3 bg-muted/20">
                     {!hasPro && (
