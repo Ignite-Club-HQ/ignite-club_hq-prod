@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
+import { Home, Calendar, MessageCircle, Image } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,10 +19,10 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { prefetchRoute } from "@/lib/routePrefetch";
 
 const navItems = [
-  { to: "/", icon: Home, label: "Home", requiresPro: false },
-  { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
-  { to: "/events", icon: Calendar, label: "Schedule", requiresPro: false },
-  { to: "/media", icon: Image, label: "Media", requiresPro: true },
+  { to: "/", icon: Home, label: "Home" },
+  { to: "/messages", icon: MessageCircle, label: "Messages" },
+  { to: "/events", icon: Calendar, label: "Schedule" },
+  { to: "/media", icon: Image, label: "Media" },
 ];
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
@@ -158,101 +158,6 @@ export function BottomNav() {
   }, [location.pathname]);
 
   const shouldHideNav = (isKeyboardOpen || nativeKbHeight > 0) && hasEditableFocus;
-
-  const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
-    queryKey: ["user-roles-nav", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-    retry: 3,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const isAppAdmin = userRoles?.some((r) => r.role === "app_admin");
-
-  const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
-    queryKey: ["user-has-pro-access-nav", user?.id],
-    queryFn: async () => {
-      const clubIds = (userRoles?.filter((r) => r.club_id).map((r) => r.club_id) as string[] | undefined) || [];
-      const teamIds = (userRoles?.filter((r) => r.team_id).map((r) => r.team_id) as string[] | undefined) || [];
-
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-
-        teamsData?.forEach((team) => {
-          if (team.club_id && !clubIds.includes(team.club_id)) {
-            clubIds.push(team.club_id);
-          }
-        });
-      }
-
-      if (clubIds.length === 0 && teamIds.length === 0) return false;
-
-      if (clubIds.length > 0) {
-        const { data: clubSubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("club_id", clubIds);
-
-        const hasClubPro = clubSubs?.some(
-          (subscription) =>
-            subscription.is_pro ||
-            subscription.is_pro_football ||
-            subscription.admin_pro_override ||
-            subscription.admin_pro_football_override,
-        );
-
-        if (hasClubPro) return true;
-      }
-
-      if (teamIds.length > 0) {
-        const { data: teamSubs } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", teamIds);
-
-        const hasTeamPro = teamSubs?.some(
-          (subscription) =>
-            subscription.is_pro ||
-            subscription.is_pro_football ||
-            subscription.admin_pro_override ||
-            subscription.admin_pro_football_override,
-        );
-
-        if (hasTeamPro) return true;
-      }
-
-      return false;
-    },
-    enabled: !!user && !!userRoles && userRoles.length > 0,
-    staleTime: 5 * 60 * 1000,
-    retry: 3,
-    placeholderData: (prev) => prev,
-  });
-
-  // Sticky Pro access: once we've confirmed Pro within this session, never
-  // downgrade to locked on a transient refetch (auth token expiring during
-  // app resume after inactivity can briefly cause RLS to return zero
-  // subscription rows → false → lock flashes on the Media tab).
-  const stickyProRef = useRef(false);
-  useEffect(() => {
-    if (hasProAccess === true) stickyProRef.current = true;
-  }, [hasProAccess]);
-  const effectiveHasProAccess = stickyProRef.current ? true : hasProAccess;
-
-  // Don't show lock while roles or pro access are still loading — assume unlocked to prevent flash
-  const isLoadingAccess = isLoadingRoles || (!!userRoles && userRoles.length > 0 && isLoadingProAccess);
-  const showProLock = !isLoadingAccess && effectiveHasProAccess === false && !isAppAdmin;
-
 
   const isNativePlatform = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
@@ -457,7 +362,7 @@ export function BottomNav() {
         aria-hidden={shouldHideNav}
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
-          {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
+          {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -489,9 +394,6 @@ export function BottomNav() {
                       >
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                       </span>
-                    )}
-                    {requiresPro && showProLock && (
-                      <Lock className="h-3 w-3 text-muted-foreground absolute -top-1 -right-1" aria-label="Pro feature" />
                     )}
                   </div>
                   <span className="text-xs font-medium mt-0.5">{label}</span>
