@@ -1737,9 +1737,10 @@ export default function ClubDetailPage() {
       {/* Club Members and Admin Accordion */}
       <Accordion 
         type="multiple" 
-        defaultValue={[]} 
+        value={openSections}
         className="space-y-4"
         onValueChange={(value) => {
+          setOpenSections(value);
           if (value.includes("members")) {
             setMembersExpanded(true);
             // Auto-refresh members list when expanding if empty
