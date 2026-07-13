@@ -1917,31 +1917,34 @@ export default function ClubDetailPage() {
           </AccordionItem>
         )}
 
-      {/* Sponsors - Pro only, Admin only, hidden for class-mode clubs */}
-      {isAdmin && !club?.class_mode_enabled && (
+      {/* Sponsors — Admin only, hidden for class-mode clubs.
+          Configuration is available on the free plan; display surfaces only
+          light up once the club is on Pro (see the amber note + disabled toggles below). */}
+      {isAdmin && !club?.class_mode_enabled && (() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
         <AccordionItem 
           value="sponsors" 
           className="border rounded-lg px-4"
-          disabled={!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override)}
         >
-          <AccordionTrigger 
-            className="hover:no-underline"
-            disabled={!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override)}
-          >
+          <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Sponsors</span>
-              {!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-                <div className="flex items-center gap-1.5 ml-2">
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
-                </div>
+              {!hasProAccess && (
+                <Badge variant="outline" className="text-xs font-normal ml-2">Configure now, activates on Pro</Badge>
               )}
             </div>
           </AccordionTrigger>
-          {(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-            <AccordionContent>
-              <div className="pt-2 space-y-4">
+          <AccordionContent>
+            <div className="pt-2 space-y-4">
+              {!hasProAccess && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                  You can add sponsors and assign them to teams now — they'll appear across the app (club page, media, chat, events) automatically once your club is on the <strong>Pro</strong> plan.
+                </div>
+              )}
+              {/* Display-surface toggles — only functional on Pro */}
+              <fieldset disabled={!hasProAccess} className={cn("space-y-4", !hasProAccess && "opacity-60")}>
                 {/* Media sponsors toggle — defaults to OFF */}
                 <div className="flex items-start justify-between gap-3 rounded-md border p-3">
                   <div className="space-y-0.5">
@@ -2042,17 +2045,19 @@ export default function ClubDetailPage() {
                     }}
                   />
                 </div>
-                <SponsorsManager 
-                  clubId={id!} 
-                  currentPrimarySponsorId={club?.primary_sponsor_id || null}
-                  onPrimaryChange={() => queryClient.invalidateQueries({ queryKey: ["club", id] })}
-                />
-                <ClubTeamSponsorAllocator clubId={id!} />
-              </div>
-            </AccordionContent>
-          )}
+              </fieldset>
+              <SponsorsManager 
+                clubId={id!} 
+                currentPrimarySponsorId={club?.primary_sponsor_id || null}
+                onPrimaryChange={() => queryClient.invalidateQueries({ queryKey: ["club", id] })}
+              />
+              <ClubTeamSponsorAllocator clubId={id!} />
+            </div>
+          </AccordionContent>
         </AccordionItem>
-      )}
+        );
+      })()}
+
 
       {/* Rewards - Pro only, Admin only */}
       {isAdmin && (
