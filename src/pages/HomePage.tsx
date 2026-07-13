@@ -1348,6 +1348,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (name, sport)")
+        .is("deleted_at", null)
         .order("name");
       if (error) throw error;
       return data as Team[];
