@@ -2125,7 +2125,7 @@ export default function HomePage() {
       </div>
 
       {/* New-user empty state — no clubs, no team memberships yet */}
-      {initialized && !isLoading && userClubs.length === 0 && !userRoles?.some((r: any) => r.team_id) && (
+      {initialized && !isLoading && userClubs.length === 0 && activeTeamIds.length === 0 && (
         <HomeWelcomeGetStarted firstName={firstName} email={user?.email} />
       )}
 
