@@ -488,6 +488,62 @@ jobs:
             exit "$PUSH_STATUS"
           fi
 
+      - name: Post-failure diagnostics (always runs on failure)
+        # Runs even if the previous step exited before printing its own
+        # diagnostic tail (e.g. CLI killed the shell, pipefail on grep,
+        # output stuck inside a collapsed ::group::). Everything here is
+        # ungrouped and printed at the very top level.
+        if: failure() && github.event_name == 'push'
+        env:
+          NO_COLOR: "1"
+          TERM: "dumb"
+        run: |
+          set +e
+          echo ""
+          echo "############################################################"
+          echo "#  POST-FAILURE DIAGNOSTICS — Apply pending migrations     #"
+          echo "############################################################"
+          echo ""
+          echo "── /tmp/supabase-db-push.log exists? ──"
+          ls -lh /tmp/supabase-db-push.log /tmp/supabase-db-push-dry-run.log 2>&1
+          echo ""
+          echo "── RAW APPLY LOG TAIL (last 200 lines) ──"
+          tail -n 200 /tmp/supabase-db-push.log 2>&1 || echo "(no apply log — step failed before db push ran)"
+          echo ""
+          echo "── RAW DRY-RUN LOG TAIL (last 100 lines) ──"
+          tail -n 100 /tmp/supabase-db-push-dry-run.log 2>&1 || echo "(no dry-run log)"
+          echo ""
+          echo "── Remote migration state (via Management API) ──"
+          API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
+          curl -sS -X POST "$API" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"select version from supabase_migrations.schema_migrations order by version"}' \
+            > /tmp/remote-applied.json 2>&1
+          cat /tmp/remote-applied.json
+          echo ""
+          echo "── Local migration files ──"
+          ls supabase/migrations 2>&1 | grep -oE '^[0-9]{14}' | sort -u > /tmp/local-versions.txt
+          cat /tmp/local-versions.txt
+          echo ""
+          echo "── FIRST LOCAL MIGRATION NOT IN REMOTE ──"
+          jq -r '(if type=="array" then . else (.result // .data // .rows // []) end)[].version' \
+            /tmp/remote-applied.json 2>/dev/null | sort -u > /tmp/remote-versions.txt
+          NEXT=$(comm -23 /tmp/local-versions.txt /tmp/remote-versions.txt | head -n 1)
+          if [ -n "$NEXT" ]; then
+            NEXT_FILE=$(ls supabase/migrations/${NEXT}_*.sql 2>/dev/null | head -n 1)
+            echo "Next pending version: $NEXT"
+            echo "File: ${NEXT_FILE:-unknown}"
+            echo ""
+            echo "── FIRST 200 LINES OF THAT FILE ──"
+            [ -n "$NEXT_FILE" ] && head -n 200 "$NEXT_FILE"
+          else
+            echo "(no local versions missing from remote — failure is elsewhere)"
+          fi
+          echo ""
+          echo "############################################################"
+          exit 0
+
       - name: Upload Supabase migration logs on failure
         if: failure() && github.event_name == 'push'
         uses: actions/upload-artifact@v4
@@ -496,6 +552,9 @@ jobs:
           path: |
             /tmp/supabase-db-push.log
             /tmp/supabase-db-push-dry-run.log
+            /tmp/remote-applied.json
+            /tmp/local-versions.txt
+            /tmp/remote-versions.txt
           retention-days: 7
           if-no-files-found: warn
 
