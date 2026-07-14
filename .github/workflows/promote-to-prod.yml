@@ -1,24 +1,21 @@
 name: Promote to Prod
 
-# When a merge lands on the `prod` branch, run any pending Supabase migrations
-# and deploy edge functions to Supabase PROD *before* Netlify / Codemagic
-# rebuild the frontend against the same commit. If migrations or function
-# deploys fail, the frontend never ships → no schema/UI mismatch possible.
+# When a merge lands on `prod`, apply any pending Supabase migrations and
+# deploy edge functions BEFORE Netlify / Codemagic rebuild the frontend
+# against the same commit. If migrations or function deploys fail, the
+# frontend never ships → no schema/UI mismatch possible.
+#
+# History context (2026-07-14): prod was one-time baselined by running
+# scripts/generate-baseline.sql in the prod SQL editor. Every local
+# migration file with version <= 20260712224730 was inserted into
+# supabase_migrations.schema_migrations (metadata only, no SQL executed).
+# From that point forward, only NEW dev-authored migrations run in prod
+# and `supabase db push` works with zero special handling.
 #
 # Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN      — personal access token from
-#                                https://supabase.com/dashboard/account/tokens
+#   SUPABASE_ACCESS_TOKEN      — https://supabase.com/dashboard/account/tokens
 #   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
-#   SUPABASE_DB_PASSWORD       — the prod DB password (Project Settings →
-#                                Database → Connection string). Required by
-#                                `supabase db push` and `pg_dump` for a
-#                                non-interactive run.
-#
-# Pre-promotion backup:
-#   Before applying any migrations we run `pg_dump` against prod and upload the
-#   dump as a workflow artifact (retained 30 days). To roll back, download the
-#   artifact and follow scripts/restore-prod-backup.sh.
-
+#   SUPABASE_DB_PASSWORD       — prod DB password (Project Settings → Database)
 
 on:
   push:
@@ -64,25 +61,18 @@ jobs:
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
 
-      - name: Preflight — direct PROD DB connectivity + auth check
-        # Fail FAST (before backup, guard, repair, migrate) if the runner
-        # can't reach the prod DB direct endpoint or the password is wrong.
-        # Supabase recommends direct connections for migrations/pg_dump. This
-        # requires the IPv4 add-on from GitHub-hosted runners.
+      - name: Preflight — direct PROD DB connectivity + auth
+        # Fail fast if the runner can't reach prod's direct DB endpoint
+        # (requires Supabase IPv4 add-on) or the password is wrong.
         run: |
           set -euo pipefail
           command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
           DB_HOST="db.${PROJECT_REF}.supabase.co"
           echo "Pinging $DB_HOST:5432 as postgres …"
-          if ! PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
-               "postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10" \
-               -v ON_ERROR_STOP=1 -c "select 1 as ping, current_user, inet_server_addr();" ; then
-            echo ""
-            echo "::error::Preflight failed — cannot reach prod DB direct endpoint."
-            echo "Check: SUPABASE_PROD_PROJECT_REF is the PROD ref, SUPABASE_DB_PASSWORD is the PROD DB password, and the Supabase IPv4 add-on has finished provisioning."
-            exit 1
-          fi
-          echo "✅ Preflight passed — direct PROD DB reachable and password valid."
+          PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
+            "postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10" \
+            -v ON_ERROR_STOP=1 -c "select 1 as ping, current_user;"
+          echo "✅ Preflight passed."
 
       - name: List pending migrations
         run: supabase migration list --linked
@@ -99,7 +89,6 @@ jobs:
           fi
           echo "=== Migration files changed since $BEFORE ==="
           git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true
-
           echo ""
           echo "=== SQL content ==="
           git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ | while read -r file; do
@@ -111,13 +100,10 @@ jobs:
           done
 
       - name: Guard against destructive migrations
-        # Fails the job (before backup/apply) if any NEWLY-added migration file
-        # (changed since the previous prod SHA) contains DML/DDL that could
-        # nuke prod rows on high-value tables. Historical clone-era migrations
-        # are handled by the auto pre-mark step and are intentionally NOT
-        # re-scanned here — they already ran against prod before the clone.
-        # Whitelist a specific new migration by adding a line containing the
-        # exact marker:  -- promote-guard: allow  (only after human review).
+        # Fails the job (before backup/apply) if any NEW migration file in
+        # this promotion contains DML/DDL that could nuke prod rows on a
+        # high-value table. Whitelist a specific file by adding a line:
+        #   -- promote-guard: allow   (only after human review).
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -131,10 +117,10 @@ jobs:
 
           FILES=$(git diff --name-only --diff-filter=AM "$BEFORE" HEAD -- supabase/migrations/ | sed '/^$/d' || true)
           if [ -z "$FILES" ]; then
-            echo "No new/modified migration files in this promotion — guard passes."
+            echo "No new/modified migration files — guard passes."
             exit 0
           fi
-          echo "Scanning $(echo "$FILES" | wc -l) new/modified migration file(s) for destructive statements."
+          echo "Scanning $(echo "$FILES" | wc -l) new/modified migration file(s)."
 
           TABLES='photos|vault_files|vault_folders|vault_drive_links|group_messages|club_messages|team_messages|direct_messages|match_messages|gallery_chat_cards|chat_groups|profiles|clubs|teams|user_roles|events|rsvps|children|club_subscriptions|team_subscriptions|member_subscription_payments|iap_transactions|notifications|fcm_tokens|push_subscriptions'
           PATTERNS="(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url|avatar_url|logo_url)\\b"
@@ -147,19 +133,41 @@ jobs:
               continue
             fi
             if grep -niE -- "$PATTERNS" "$file"; then
-              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table. Review and either remove the statement or add the marker '-- promote-guard: allow' after human review."
+              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table. Remove it or add '-- promote-guard: allow' after human review."
               failed=1
             fi
           done
 
           if [ "$failed" = "1" ]; then
-            echo ""
             echo "❌ Promotion halted BEFORE backup/apply. No changes made to prod."
             exit 1
           fi
-          echo "✅ Guard passed — no destructive statements against protected tables in new migrations."
+          echo "✅ Guard passed."
 
-
+      - name: Skip dev-only migrations in PROD
+        # Files whose first 5 lines contain:  -- prod-skip: dev-only
+        # are marked applied in prod history without running their SQL.
+        # Use for dev-only fixtures (synthetic accounts, collation refresh, etc.).
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          SKIP_VERSIONS=()
+          for f in supabase/migrations/*.sql; do
+            [ -f "$f" ] || continue
+            if head -5 "$f" | grep -qiE -- '--[[:space:]]*prod-skip:[[:space:]]*dev-only'; then
+              v=$(basename "$f" | grep -oE '^[0-9]{14}' || true)
+              [ -n "$v" ] || continue
+              SKIP_VERSIONS+=("$v")
+              echo "  - $v  ($(basename "$f"))"
+            fi
+          done
+          if [ ${#SKIP_VERSIONS[@]} -eq 0 ]; then
+            echo "✅ No files carry '-- prod-skip: dev-only'."
+          else
+            echo "Marking ${#SKIP_VERSIONS[@]} dev-only migration(s) as applied in PROD."
+            printf '%s\n' "${SKIP_VERSIONS[@]}" \
+              | xargs -n 20 supabase migration repair --linked --status applied || true
+          fi
 
       - name: Backup PROD schema + roles (pre-migration)
         if: github.event_name == 'push'
@@ -169,8 +177,7 @@ jobs:
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
           FILE="prod-schema-backup-${STAMP}-${GITHUB_SHA::7}.tar.gz"
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
-          # Schema + roles only — fast (~15s). Row data is captured by the
-          # nightly-backup workflow (.github/workflows/nightly-backup.yml).
+          # Schema + roles only. Row data is captured by nightly-backup.yml.
           supabase db dump --linked -f prod-schema.sql
           supabase db dump --linked --role-only -f prod-roles.sql
           tar czf "$FILE" prod-schema.sql prod-roles.sql
@@ -185,719 +192,14 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-
-      - name: Repair migration history drift
-        # Prod's supabase_migrations.schema_migrations table contains legacy
-        # Lovable-applied migration versions from before the dev/prod split.
-        # Those SQL statements were physically run against prod (tables,
-        # functions, RLS all exist), but the corresponding files never made
-        # it into this repo. `supabase db push` refuses to run while local
-        # and remote histories diverge.
-        #
-        # We mark every prod-only version as `applied` (NOT `reverted`).
-        # `applied` = "prod already ran this, skip on push" — correct because
-        # the objects really are there. `reverted` = "run it next push",
-        # which would try to CREATE TABLE on tables that already exist and
-        # fail with 42P07. `repair` never runs the migration SQL itself; it
-        # only writes to supabase_migrations.schema_migrations.
+      - name: Apply migrations to PROD
         if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          echo "=== Fetching remote migration list ==="
-          supabase migration list --linked 2>&1 | tee /tmp/mig-list.txt
+        run: supabase db push --linked
 
-          echo ""
-          echo "=== Probing for drift via db push (dry) ==="
-          supabase db push --linked --dry-run 2>&1 | tee /tmp/mig-push.txt || true
-
-          # Union both outputs, then subtract local files. Anything left is
-          # a remote-only version that must be marked applied.
-          ALL_VERSIONS=$(cat /tmp/mig-list.txt /tmp/mig-push.txt \
-            | grep -oE '\b[0-9]{14}\b' | sort -u)
-          LOCAL_VERSIONS=$(ls supabase/migrations 2>/dev/null \
-            | grep -oE '^[0-9]{14}' | sort -u || true)
-          ORPHANS=$(comm -23 <(echo "$ALL_VERSIONS") <(echo "$LOCAL_VERSIONS") \
-            | grep -E '^[0-9]{14}$' || true)
-
-          if [ -z "$ORPHANS" ]; then
-            echo "✅ No migration history drift — nothing to repair."
-            exit 0
-          fi
-
-          echo ""
-          echo "=== Prod-only migration versions (will be marked applied in history) ==="
-          echo "$ORPHANS"
-          COUNT=$(echo "$ORPHANS" | wc -l)
-          echo "Total: $COUNT"
-          echo ""
-
-          # `supabase migration repair` accepts multiple versions per call.
-          # Batch in groups of 20 to stay well under arg-length limits.
-          echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status applied
-
-          echo ""
-          echo "=== Post-repair migration list ==="
-          supabase migration list --linked
-
-      - name: Skip dev-only / Supabase-incompatible local migrations in PROD
-        # Any migration file whose FIRST line contains the marker
-        #     -- prod-skip: dev-only
-        # will be marked `applied` in prod without running its SQL. Use this
-        # for files that are only meaningful in dev (e.g. `ALTER DATABASE`
-        # collation refresh, synthetic reviewer accounts) or that Supabase
-        # refuses to run on managed prod. The marker lives in the SQL file
-        # itself so the intent is discoverable at review time and cannot
-        # silently drift out of sync with a hardcoded list in this workflow.
+      - name: Deploy edge functions to PROD
         if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          SKIP_VERSIONS=()
-          for f in supabase/migrations/*.sql; do
-            [ -f "$f" ] || continue
-            # Scan just the top of the file — marker MUST be in first 5 lines.
-            if head -5 "$f" | grep -qiE -- '--[[:space:]]*prod-skip:[[:space:]]*dev-only'; then
-              v=$(basename "$f" | grep -oE '^[0-9]{14}' || true)
-              [ -n "$v" ] || continue
-              SKIP_VERSIONS+=("$v")
-              echo "  - $v  ($(basename "$f"))"
-            fi
-          done
-
-          if [ ${#SKIP_VERSIONS[@]} -eq 0 ]; then
-            echo "✅ No files carry the '-- prod-skip: dev-only' marker."
-          else
-            echo "Marking ${#SKIP_VERSIONS[@]} dev-only migration(s) as applied in PROD history."
-            printf '%s\n' "${SKIP_VERSIONS[@]}" \
-              | xargs -n 20 supabase migration repair --linked --status applied || true
-          fi
-
-          echo "=== Migration state after PROD skip marks ==="
-          supabase migration list --linked
-
-
-      - name: Pre-mark already-in-prod local migrations as applied
-        # Some local migration files describe objects (tables, indexes,
-        # triggers, policies) that already physically exist in prod from
-        # a previous partially-run promotion attempt. `db push` would try
-        # to re-run their CREATE statements and fail with 42P07 / 42710.
-        #
-        # For each version listed below, we check prod for a signature
-        # object; if it exists, we mark the local version `applied` so
-        # push skips it. Safe idempotent operation — only touches the
-        # bookkeeping table, never runs the migration SQL.
-        if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-
-          # Uses Supabase Management API — no direct DB connection needed,
-          # avoids IPv6-only db.<ref>.supabase.co issues from GH runners.
-          API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
-
-          run_check() {
-            local sql="$1"
-            curl -sS -X POST "$API" \
-              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -cn --arg q "$sql" '{query:$q}')"
-          }
-
-          # version : SQL existence check
-          declare -A CHECKS=(
-            ["20260701193827"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='chat_group_unread'"
-            ["20260701195506"]="SELECT 1 AS hit FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='chat_group_unread'"
-            ["20260703024653"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='child_team_assignments' AND policyname='Guardians can view assignments for linked children'"
-            ["20260703081313"]="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='inbox_open_perf'"
-            ["20260708013949"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='team_messages_update_parent_preview'"
-            ["20260708222650"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
-            ["20260713003316"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
-            ["20260117093213"]="SELECT 1 AS hit FROM pg_proc WHERE proname='is_child_guardian' AND pronamespace='public'::regnamespace"
-            ["20260118094002"]="SELECT 1 AS hit FROM pg_proc WHERE proname='get_or_create_dm_conversation' AND pronamespace='public'::regnamespace"
-            ["20260108060016"]="SELECT 1 AS hit WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='sponsors' AND column_name='is_team_only') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='reward_redemptions' AND column_name='status') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='reward_redemptions' AND column_name='club_id') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='promo_codes' AND column_name='storage_gb') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='promo_codes' AND column_name='uses_count') AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='team_folders') AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='team_folders' AND policyname='Team members can view folders') AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='team_folders' AND policyname='Team admins can manage folders') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_player_positions' AND column_name='preferred_positions') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_player_positions' AND column_name='jersey_number')"
-          )
-
-          TO_MARK=()
-          for VERSION in "${!CHECKS[@]}"; do
-            RESP=$(run_check "${CHECKS[$VERSION]}")
-            if ! echo "$RESP" | jq empty >/dev/null 2>&1; then
-              echo "::error::Supabase Management API returned non-JSON while checking migration $VERSION: $RESP"
-              exit 1
-            fi
-
-            # Supabase's Management API has returned both shapes over time:
-            #   [{"hit":1}]
-            #   {"result":[{"hit":1}]}
-            # Be deliberately tolerant so a response-shape change does not
-            # silently skip the pre-mark step and let db push hit 42P07/42710.
-            HIT=$(echo "$RESP" | jq -r '
-              if type == "array" then
-                (.[0].hit // empty)
-              elif type == "object" then
-                (.result[0].hit? // .data[0].hit? // .rows[0].hit? // empty)
-              else
-                empty
-              end
-            ')
-            if [ "$HIT" = "1" ]; then
-              echo "🔧 $VERSION — signature object exists in prod, will mark applied"
-              TO_MARK+=("$VERSION")
-            else
-              echo "✅ $VERSION — signature object NOT in prod, will run normally (response: $RESP)"
-            fi
-          done
-
-          if [ ${#TO_MARK[@]} -gt 0 ]; then
-            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
-          fi
-
-      - name: Auto pre-mark pre-clone migrations whose objects exist in prod
-        # Dev was cloned from prod, so many pre-clone local migration files
-        # describe tables that already physically exist in prod but were
-        # never recorded in prod's supabase_migrations.schema_migrations.
-        # For every local version NOT yet applied in prod, parse ALL
-        # `CREATE TABLE public.<name>` statements and check prod. If EVERY
-        # created table already exists, mark the version `applied` (metadata-only,
-        # does NOT run the SQL). If only SOME exist, fail loudly — the migration
-        # is in a partial state that needs manual review.
-        if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
-
-          APPLIED_JSON=$(curl -sS -X POST "$API" \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"select version from supabase_migrations.schema_migrations"}')
-          APPLIED=$(echo "$APPLIED_JSON" | jq -r '
-            (if type=="array" then . else (.result // .data // .rows // []) end)
-            | .[].version' | sort -u)
-
-          table_exists() {
-            local TABLE="$1"
-            local SQL="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='${TABLE}'"
-            local RESP=$(curl -sS -X POST "$API" \
-              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -cn --arg q "$SQL" '{query:$q}')")
-            echo "$RESP" | jq -r '
-              if type=="array" then (.[0].hit // empty)
-              elif type=="object" then (.result[0].hit? // .data[0].hit? // .rows[0].hit? // empty)
-              else empty end'
-          }
-
-          TO_MARK=()
-          for FILE in supabase/migrations/*.sql; do
-            [ -f "$FILE" ] || continue
-            VERSION=$(basename "$FILE" | grep -oE '^[0-9]{14}')
-            [ -n "$VERSION" ] || continue
-            if echo "$APPLIED" | grep -qx "$VERSION"; then continue; fi
-
-            # Extract all tables this migration creates. If there are no CREATE TABLE
-            # statements (e.g., pure ALTER/INSERT/DROP), we cannot verify it safely, so
-            # we run it normally and let the CLI succeed or fail as written.
-            # Strip SQL line-comments before scanning so "-- Create table for X" doesn't
-            # get parsed as a CREATE TABLE statement targeting a table named "for".
-            TABLES=$(sed 's|--.*$||' "$FILE" \
-              | grep -iEo 'CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(public\.)?[a-zA-Z_][a-zA-Z0-9_]*' \
-              | awk '{print $NF}' | sed 's/^public\.//' | sort -u || true)
-            [ -n "$TABLES" ] || { echo "▶  $VERSION — no CREATE TABLE found, will run normally"; continue; }
-
-            # If any statement uses IF NOT EXISTS, the migration is idempotent and can
-            # safely run even when tables already exist.
-            IF_NOT_EXISTS=$(grep -ic 'CREATE[[:space:]]\+TABLE[[:space:]]\+IF[[:space:]]\+NOT[[:space:]]\+EXISTS' "$FILE" || true)
-            if [ "$IF_NOT_EXISTS" -gt 0 ]; then
-              echo "▶  $VERSION — uses CREATE TABLE IF NOT EXISTS, will run normally"
-              continue
-            fi
-
-            EXISTS_COUNT=0
-            MISSING_COUNT=0
-            MISSING_TABLES=""
-            for TABLE in $TABLES; do
-              if [ "$(table_exists "$TABLE")" = "1" ]; then
-                EXISTS_COUNT=$((EXISTS_COUNT + 1))
-              else
-                MISSING_COUNT=$((MISSING_COUNT + 1))
-                MISSING_TABLES="${MISSING_TABLES:+,} ${TABLE}"
-              fi
-            done
-
-            if [ "$MISSING_COUNT" -eq 0 ]; then
-              # Every CREATE TABLE target exists in prod. But the migration may
-              # ALSO contain schema/data changes (ALTER, indexes, policies,
-              # functions, seed INSERTs) that were NOT captured on the initial
-              # dev-from-prod clone. Auto-marking would silently skip those
-              # statements and leave prod in a subtly drifted state — this is
-              # exactly the class of bug that let `purged_at` slip past. Refuse
-              # and demand human review whenever those constructs are present.
-              #
-              # We scan the whole file (case-insensitive) for statements beyond
-              # the CREATE TABLE block. If any are found, fail the step with a
-              # pointer to the file so a human can either:
-              #   a) mark it applied manually after verifying prod matches, or
-              #   b) split the migration into (already-in-prod DDL) + (new
-              #      changes to run) and re-promote.
-              # Statements considered SAFE when every CREATE TABLE target already
-              # exists in prod (they describe state that came with the cloned tables):
-              #   - CREATE POLICY ...                          (policies cloned with the table)
-              #   - ALTER TABLE ... ENABLE ROW LEVEL SECURITY  (RLS state cloned)
-              #   - ALTER TABLE ... ADD COLUMN IF NOT EXISTS   (idempotent)
-              # We strip those lines, then flag anything else that could drift schema
-              # (plain ALTER TABLE, indexes, triggers, functions, views, types, seed
-              # INSERTs, GRANT/REVOKE). This lets clone-era migrations pre-mark cleanly
-              # while still catching genuinely new DDL/DML that must run.
-              STRIPPED=$(mktemp)
-              # Strip whole safe statements, not just single lines. Many SQL files
-              # format safe ALTERs across multiple lines, e.g.:
-              #   ALTER TABLE public.foo
-              #   ADD COLUMN IF NOT EXISTS bar text;
-              # A line-based grep leaves the first ALTER TABLE line behind and
-              # falsely reports it as non-idempotent.
-              PY_SCRIPT=$(mktemp --suffix=.py)
-              cat > "$PY_SCRIPT" <<'PY'
-          import os, re
-          text = open(os.environ['FILE'], encoding='utf-8').read()
-          for pattern in (
-              r'^\s*CREATE\s+POLICY\b.*?;\s*',
-              r'^\s*ALTER\s+TABLE\b.*?ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;\s*',
-              r'^\s*ALTER\s+TABLE\b.*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b.*?;\s*',
-          ):
-              text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
-          print(text)
-          PY
-              FILE="$FILE" python3 "$PY_SCRIPT" > "$STRIPPED"
-              rm -f "$PY_SCRIPT"
-              EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$STRIPPED" || true)
-              rm -f "$STRIPPED"
-              if [ -n "$EXTRA_HITS" ]; then
-                # Do NOT fail here. The next step ("Backlog scanner") verifies
-                # that any CREATE FUNCTION / INSERT targets also already exist
-                # in prod, and safely pre-marks the version if so. Failing hard
-                # here would block promotion on every pre-clone migration that
-                # carries a function/trigger alongside its CREATE TABLE — which
-                # is exactly the class this whole pipeline is designed to auto-heal.
-                echo "⏭  $VERSION — every CREATE TABLE target exists in prod, but file has extra DDL/DML. Deferring to the backlog scanner (next step) to verify functions/other objects also exist before marking applied."
-                echo "── Statements deferred to backlog scanner ──"
-                echo "$EXTRA_HITS" | head -n 10
-                continue
-              fi
-              echo "🔧 $VERSION — all tables exist in prod ($TABLES) and no extra DDL/DML, will mark applied"
-              TO_MARK+=("$VERSION")
-            elif [ "$EXISTS_COUNT" -eq 0 ]; then
-              echo "▶  $VERSION — no tables in prod yet, will run normally"
-            else
-              echo "::error::$VERSION — PARTIAL state: some tables exist in prod ($EXISTS_COUNT) but others are missing ($MISSING_COUNT: $MISSING_TABLES)."
-              echo "::error::This migration cannot be safely auto-skipped or auto-run. Review $FILE and either:"
-              echo "::error::  a) Add the missing tables manually, then re-run the workflow, or"
-              echo "::error::  b) Split the migration so each CREATE TABLE is in its own file."
-              exit 1
-            fi
-          done
-
-          if [ ${#TO_MARK[@]} -gt 0 ]; then
-            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
-          else
-            echo "✅ Nothing to auto pre-mark."
-          fi
-
-
-      - name: Backlog scanner — pre-mark pre-clone migrations (tables + functions)
-        # Broader companion to "Auto pre-mark pre-clone migrations":
-        # For every local migration not yet applied in prod, checks whether
-        # EVERY object it creates (tables AND functions) already exists in
-        # prod AND the file contains no genuinely destructive ops
-        # (UPDATE/DELETE/DROP/TRUNCATE). If so, marks it applied.
-        # Handles the class of pre-clone files that carry INSERTs or
-        # CREATE FUNCTION alongside CREATE TABLE — which the stricter
-        # auto pre-mark step (above) intentionally refuses to touch.
-        #
-        # WHEN IT IS SAFE TO DISABLE THIS STEP:
-        # Set the repo variable AUTO_PREMARK_BACKLOG=false once the backlog
-        # scanner prints "Backlog scanner: nothing to mark." for at least
-        # 2-3 consecutive successful promotions. At that point every
-        # historical pre-clone migration has been recorded in prod's
-        # schema_migrations table and new migrations will flow through
-        # db push normally. Disabling removes the direct prod DB query
-        # from every future promotion run.
-        #
-        # How to disable: GitHub repo → Settings → Secrets and variables
-        # → Actions → Variables → New variable → Name: AUTO_PREMARK_BACKLOG
-        # Value: false.
-        #
-        # Default is enabled; this step only runs on prod-branch pushes.
-        if: github.event_name == 'push' && vars.AUTO_PREMARK_BACKLOG != 'false'
-        run: |
-          set -euo pipefail
-          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
-
-          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'],safe=''))")
-          DB_URL="postgresql://postgres:${ENC_PW}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
-
-          TMP=$(mktemp -d)
-          trap 'rm -rf "$TMP"' EXIT
-
-          psql "$DB_URL" -Atc "SELECT version FROM supabase_migrations.schema_migrations" | sort -u > "$TMP/applied.txt"
-          psql "$DB_URL" -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | sort -u > "$TMP/tables.txt"
-          psql "$DB_URL" -Atc "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'" | sort -u > "$TMP/functions.txt"
-          psql "$DB_URL" -Atc "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema='public'" | sort -u > "$TMP/columns.txt"
-          psql "$DB_URL" -Atc "SELECT lower(policyname) || '|' || tablename FROM pg_policies WHERE schemaname='public'" | sort -u > "$TMP/policies.txt"
-          psql "$DB_URL" -Atc "SELECT lower(indexname) FROM pg_indexes WHERE schemaname='public'" | sort -u > "$TMP/indexes.txt"
-          psql "$DB_URL" -Atc "SELECT lower(t.tgname) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal" | sort -u > "$TMP/triggers.txt"
-
-          echo "Prod: $(wc -l < "$TMP/applied.txt") applied migrations, $(wc -l < "$TMP/tables.txt") public tables, $(wc -l < "$TMP/functions.txt") public functions"
-
-          TO_MARK=()
-          PARTIAL_REVIEW=()
-          BLOCKED_REVIEW=()
-          for FILE in supabase/migrations/*.sql; do
-            [ -f "$FILE" ] || continue
-            VERSION=$(basename "$FILE" | grep -oE '^[0-9]{14}' || true)
-            [ -n "$VERSION" ] || continue
-            grep -qx "$VERSION" "$TMP/applied.txt" && continue
-
-            # Extract created/altered objects (best-effort) after stripping SQL
-            # line comments, so prose such as "-- Create table for ..." cannot
-            # invent phantom object names. Include ADD COLUMN IF NOT EXISTS and
-            # CREATE POLICY because those are the common non-table statements
-            # that make an already-cloned historical migration fail on replay.
-            PY_EXTRACT="$TMP/extract_objects.py"
-            cat > "$PY_EXTRACT" <<'PY'
-          import os, re
-          text = open(os.environ['FILE'], encoding='utf-8').read()
-          text = re.sub(r'--.*$', '', text, flags=re.MULTILINE)
-          out = []
-          def emit(kind, value):
-              value = value.strip().strip('"').lower()
-              if value:
-                  out.append(f"{kind}:{value}")
-          for m in re.finditer(r'\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
-              emit('table', m.group(1))
-          for m in re.finditer(r'\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
-              emit('func', m.group(1))
-          for m in re.finditer(r'\bcreate\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
-              emit('index', m.group(1))
-          for m in re.finditer(r'\bcreate\s+trigger\s+([a-z_][a-z0-9_]*)', text, re.I):
-              emit('trigger', m.group(1))
-          for m in re.finditer(r'\bcreate\s+policy\s+(?:"([^"]+)"|([a-z_][a-z0-9_]*))\s+on\s+(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
-              emit('policy', f"{(m.group(1) or m.group(2))}|{m.group(3)}")
-          for stmt in re.finditer(r'\balter\s+table\s+(?:public\.)?([a-z_][a-z0-9_]*)\b(.*?);', text, re.I | re.S):
-              table = stmt.group(1).lower()
-              body = stmt.group(2)
-              for col in re.finditer(r'\badd\s+column\s+if\s+not\s+exists\s+([a-z_][a-z0-9_]*)', body, re.I):
-                  emit('column', f"{table}.{col.group(1)}")
-          print('\n'.join(sorted(set(out))))
-          PY
-            sed -i 's/^          //' "$PY_EXTRACT"
-            EXTRACTED=$(FILE="$FILE" python3 "$PY_EXTRACT")
-
-            # Reject if ANY genuinely destructive op present (schema drift / data mutation
-            # on existing rows). INSERT / CREATE FUNCTION are OK because we verify prod
-            # already has the resulting objects.
-            DESTRUCTIVE=$(grep -icE '^[[:space:]]*(update|delete[[:space:]]+from|truncate|drop[[:space:]]+(table|column|function|policy|trigger|index))' "$FILE" || true)
-            if [ "$DESTRUCTIVE" != "0" ]; then
-              BLOCKED_REVIEW+=("$VERSION (destructive statements present)")
-              continue
-            fi
-
-            [ -z "$EXTRACTED" ] && continue
-
-            missing=""
-            existing_count=0
-            total_count=0
-            while IFS= read -r obj; do
-              [ -n "$obj" ] || continue
-              total_count=$((total_count + 1))
-              kind=${obj%%:*}
-              name=${obj#*:}
-              case "$kind" in
-                table) file="$TMP/tables.txt" ;;
-                func) file="$TMP/functions.txt" ;;
-                column) file="$TMP/columns.txt" ;;
-                policy) file="$TMP/policies.txt" ;;
-                index) file="$TMP/indexes.txt" ;;
-                trigger) file="$TMP/triggers.txt" ;;
-                *) continue ;;
-              esac
-              if grep -qx "$name" "$file"; then
-                existing_count=$((existing_count + 1))
-              else
-                missing="$missing $kind:$name"
-              fi
-            done <<< "$EXTRACTED"
-
-            if [ -z "$missing" ]; then
-              echo "🔧 $VERSION — all objects exist in prod, will mark applied"
-              TO_MARK+=("$VERSION")
-            elif [ "$existing_count" -eq 0 ]; then
-              echo "▶  $VERSION — none of its created objects exist in prod yet, will run normally"
-            else
-              PARTIAL_REVIEW+=("$VERSION (has $existing_count/$total_count objects already in prod; missing:$missing)")
-            fi
-          done
-
-          if [ ${#TO_MARK[@]} -gt 0 ]; then
-            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
-            echo "✅ Marked ${#TO_MARK[@]} pre-clone migration(s) applied."
-          else
-            echo "✅ Backlog scanner: nothing to mark. If this stays empty across runs, set repo variable AUTO_PREMARK_BACKLOG=false to skip this step."
-          fi
-
-          if [ ${#BLOCKED_REVIEW[@]} -gt 0 ]; then
-            echo ""
-            echo "❌ Unapplied historical migrations contain destructive statements and will not be auto-run against prod:"
-            printf '   - %s\n' "${BLOCKED_REVIEW[@]}"
-            exit 1
-          fi
-
-          if [ ${#PARTIAL_REVIEW[@]} -gt 0 ]; then
-            echo ""
-            echo "❌ Unapplied historical migrations are in a partial prod state. They cannot be safely auto-marked or re-run:"
-            printf '   - %s\n' "${PARTIAL_REVIEW[@]}"
-            exit 1
-          fi
-
-      - name: Apply pending migrations
-        if: github.event_name == 'push'
-        env:
-          # Force non-TTY / plain output so the CLI does not swallow the
-          # Postgres error behind a spinner or ANSI redraw. Without this,
-          # `supabase db push` can exit 1 with a completely empty log.
-          NO_COLOR: "1"
-          TERM: "dumb"
-          CI: "true"
-        run: |
-          set -euo pipefail
-          # GH Actions runners set stdout/stderr non-blocking; a large burst of
-          # output from `supabase db push` (thousands of migration filenames)
-          # can then fail with EAGAIN ("Resource temporarily unavailable"),
-          # killing the step with `echo: write error` / `tail: error writing
-          # standard output`. Force blocking mode so every line drains cleanly.
-          python3 - <<'PY' || true
-          import fcntl, os
-          for fd in (1, 2):
-              fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-              fcntl.fcntl(fd, fcntl.F_SETFL, fl & ~os.O_NONBLOCK)
-          PY
-          echo "=== Supabase CLI version ==="
-          supabase --version
-          echo ""
-
-          echo "=== CONNECTION CHECK (auth / link / network) ==="
-          echo "-- Linked project:"
-          supabase projects list 2>&1 | tee /tmp/supabase-projects.log || true
-          echo ""
-          echo "-- Direct DB reachability (select 1):"
-          # Ensure psql is present; ignore if apt is slow.
-          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1 || true
-          if command -v psql >/dev/null; then
-            PGPASSWORD="${SUPABASE_DB_PASSWORD:-${PROD_DB_PASSWORD:-}}" \
-              psql "postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10" \
-              -v ON_ERROR_STOP=1 -c "select 1 as ping;" 2>&1 | tee /tmp/supabase-ping.log || echo "(ping failed — likely auth/network, not SQL)"
-          fi
-          echo ""
-
-          echo "=== Migration state immediately before db push ==="
-          supabase migration list --linked 2>&1 || true
-          echo ""
-
-          # GitHub-hosted runners are IPv4-only. Now that PROD has the IPv4
-          # add-on, use Supabase's direct DB endpoint for migrations (the
-          # recommended path for pg_dump / db push) instead of the shared
-          # pooler, which can fail with "tenant/user ... not found" if the
-          # pooler username/ref is not recognised.
-          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'],safe=''))")
-          DB_HOST="db.${PROJECT_REF}.supabase.co"
-          DB_URL="postgresql://postgres:${ENC_PW}@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10"
-          # Do NOT echo DB_URL — contains password.
-          echo "Using direct PROD DB host: $DB_HOST (port 5432)"
-
-          echo "=== Dry-run immediately before db push ==="
-          supabase db push --db-url "$DB_URL" --dry-run --yes --debug 2>&1 | tee /tmp/supabase-db-push-dry-run.log || true
-          echo ""
-
-          echo "=== Applying pending migrations ==="
-          set +e
-          # 2>&1 merges stderr into the pipe — Supabase CLI writes the actual
-          # Postgres ERROR: line to stderr, which the previous version missed.
-          supabase db push --db-url "$DB_URL" --yes --debug 2>&1 | tee /tmp/supabase-db-push.log
-          PUSH_STATUS=${PIPESTATUS[0]}
-          set -e
-
-
-          if [ "$PUSH_STATUS" -ne 0 ]; then
-            # Print bulky context first (inside collapsible groups) so the
-            # short error summary is the LAST thing in the step log — no
-            # scrolling through thousands of lines to find the failure.
-            echo "::group::Dry-run log (last 200 lines)"
-            tail -n 200 /tmp/supabase-db-push-dry-run.log || true
-            echo "::endgroup::"
-
-            echo "::group::Apply log (last 500 lines)"
-            tail -n 500 /tmp/supabase-db-push.log || true
-            echo "::endgroup::"
-
-            echo "::group::Migration state after failed db push"
-            supabase migration list --linked || true
-            echo "::endgroup::"
-
-            # Extract likely Postgres/CLI error lines, but do NOT rely on grep
-            # alone: Supabase CLI sometimes exits 1 without a line containing
-            # "ERROR". The raw tail below is therefore printed ungrouped at the
-            # very bottom so the useful context is visible on mobile GitHub.
-            ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push.log | grep -viE 'no such|^\s*$' | tail -n 40 || true)
-            DRY_ERR_LINES=$(grep -nEi 'error|failed|fatal|panic|duplicate|already exists|does not exist|violates|permission denied|syntax error|exit status|exit code|returned non-zero|migration .* failed|failed to apply' /tmp/supabase-db-push-dry-run.log | grep -viE 'no such|^\s*$' | tail -n 20 || true)
-
-            echo ""
-            echo "════════════════════════════════════════════════════════════"
-            echo "  ❌ SUPABASE DB PUSH FAILED — exit code $PUSH_STATUS"
-            echo "════════════════════════════════════════════════════════════"
-            echo ""
-            echo "── Error lines from APPLY log (most recent 40) ──"
-            if [ -n "$ERR_LINES" ]; then
-              echo "$ERR_LINES"
-            else
-              echo "(no matching error lines found — see Apply log group above)"
-            fi
-            echo ""
-            echo "── Error lines from DRY-RUN log (most recent 20) ──"
-            if [ -n "$DRY_ERR_LINES" ]; then
-              echo "$DRY_ERR_LINES"
-            else
-              echo "(none)"
-            fi
-            echo ""
-            echo "Full logs are uploaded as artifact:"
-            echo "  supabase-promotion-logs-${GITHUB_RUN_ID}"
-            echo ""
-            echo "── RAW APPLY LOG TAIL (last 120 lines, ungrouped) ──"
-            tail -n 120 /tmp/supabase-db-push.log || true
-            echo ""
-            echo "── RAW DRY-RUN LOG TAIL (last 60 lines, ungrouped) ──"
-            tail -n 60 /tmp/supabase-db-push-dry-run.log || true
-            echo ""
-
-            echo "── FIRST LOCAL MIGRATION STILL NOT APPLIED ──"
-            if command -v psql >/dev/null; then
-              REMOTE_APPLIED=/tmp/prod-applied-versions.txt
-              LOCAL_VERSIONS=/tmp/local-migration-versions.txt
-              psql "$DB_URL" -Atc "select version from supabase_migrations.schema_migrations order by version" \
-                > "$REMOTE_APPLIED" 2>/tmp/prod-applied-versions.err || true
-              ls supabase/migrations 2>/dev/null | grep -oE '^[0-9]{14}' | sort -u > "$LOCAL_VERSIONS" || true
-              NEXT_VERSION=$(comm -23 "$LOCAL_VERSIONS" "$REMOTE_APPLIED" | sed -n '1p' || true)
-              if [ -n "$NEXT_VERSION" ]; then
-                NEXT_FILE=$(ls supabase/migrations/${NEXT_VERSION}_*.sql 2>/dev/null | head -n 1 || true)
-                echo "Next not-applied local version: $NEXT_VERSION"
-                echo "File: ${NEXT_FILE:-unknown}"
-                if [ -n "$NEXT_FILE" ]; then
-                  if grep -qiE '^\s*ALTER\s+DATABASE' "$NEXT_FILE"; then
-                    echo "Classification: contains ALTER DATABASE — not suitable for Supabase managed prod migrations."
-                  elif grep -qiE '\bINSERT\s+INTO\s+auth\.|\bUPDATE\s+auth\.|\bDELETE\s+FROM\s+auth\.' "$NEXT_FILE"; then
-                    echo "Classification: touches Supabase auth schema — likely dev-only data migration and unsafe for prod."
-                  elif grep -qiE '\bCREATE\s+(TABLE|TYPE|TRIGGER|POLICY|INDEX)\b' "$NEXT_FILE"; then
-                    echo "Classification: creates database objects — check for an already-exists collision in prod."
-                  else
-                    echo "Classification: general SQL migration — inspect artifact logs for the exact statement."
-                  fi
-                fi
-              else
-                echo "Could not identify a remaining local pending migration from supabase_migrations."
-              fi
-            else
-              echo "psql unavailable, cannot query prod migration history."
-            fi
-            echo ""
-            echo "════════════════════════════════════════════════════════════"
-
-            # First real error line becomes the GitHub Actions annotation
-            # shown at the top of the run summary page.
-            FIRST_ERR=$(echo "$ERR_LINES" | head -n 1)
-            if [ -n "$FIRST_ERR" ]; then
-              echo "::error::db push failed — $FIRST_ERR"
-            else
-              echo "::error::supabase db push failed with exit code $PUSH_STATUS (no error line matched — check Apply log group)"
-            fi
-
-            exit "$PUSH_STATUS"
-          fi
-
-      - name: Post-failure diagnostics (always runs on failure)
-        # Runs even if the previous step exited before printing its own
-        # diagnostic tail (e.g. CLI killed the shell, pipefail on grep,
-        # output stuck inside a collapsed ::group::). Everything here is
-        # ungrouped and printed at the very top level.
-        if: failure() && github.event_name == 'push'
-        env:
-          NO_COLOR: "1"
-          TERM: "dumb"
-        run: |
-          set +e
-          echo ""
-          echo "############################################################"
-          echo "#  POST-FAILURE DIAGNOSTICS — Apply pending migrations     #"
-          echo "############################################################"
-          echo ""
-          echo "── /tmp/supabase-db-push.log exists? ──"
-          ls -lh /tmp/supabase-db-push.log /tmp/supabase-db-push-dry-run.log 2>&1
-          echo ""
-          echo "── RAW APPLY LOG TAIL (last 200 lines) ──"
-          tail -n 200 /tmp/supabase-db-push.log 2>&1 || echo "(no apply log — step failed before db push ran)"
-          echo ""
-          echo "── RAW DRY-RUN LOG TAIL (last 100 lines) ──"
-          tail -n 100 /tmp/supabase-db-push-dry-run.log 2>&1 || echo "(no dry-run log)"
-          echo ""
-          echo "── Remote migration state (via Management API) ──"
-          API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
-          curl -sS -X POST "$API" \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"select version from supabase_migrations.schema_migrations order by version"}' \
-            > /tmp/remote-applied.json 2>&1
-          cat /tmp/remote-applied.json
-          echo ""
-          echo "── Local migration files ──"
-          ls supabase/migrations 2>&1 | grep -oE '^[0-9]{14}' | sort -u > /tmp/local-versions.txt
-          cat /tmp/local-versions.txt
-          echo ""
-          echo "── FIRST LOCAL MIGRATION NOT IN REMOTE ──"
-          jq -r '(if type=="array" then . else (.result // .data // .rows // []) end)[].version' \
-            /tmp/remote-applied.json 2>/dev/null | sort -u > /tmp/remote-versions.txt
-          NEXT=$(comm -23 /tmp/local-versions.txt /tmp/remote-versions.txt | sed -n '1p')
-          if [ -n "$NEXT" ]; then
-            NEXT_FILE=$(ls supabase/migrations/${NEXT}_*.sql 2>/dev/null | head -n 1)
-            echo "Next pending version: $NEXT"
-            echo "File: ${NEXT_FILE:-unknown}"
-            echo ""
-            echo "── FIRST 200 LINES OF THAT FILE ──"
-            [ -n "$NEXT_FILE" ] && head -n 200 "$NEXT_FILE"
-          else
-            echo "(no local versions missing from remote — failure is elsewhere)"
-          fi
-          echo ""
-          echo "############################################################"
-          exit 0
-
-      - name: Upload Supabase migration logs on failure
-        if: failure() && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: supabase-promotion-logs-${{ github.run_id }}
-          path: |
-            /tmp/supabase-db-push.log
-            /tmp/supabase-db-push-dry-run.log
-            /tmp/remote-applied.json
-            /tmp/local-versions.txt
-            /tmp/remote-versions.txt
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: Deploy edge functions
-        if: github.event_name == 'push'
-        # Deploys every function under supabase/functions/. Individual function
-        # config (verify_jwt, import_map, etc.) still comes from
-        # supabase/config.toml.
         run: supabase functions deploy --project-ref "$PROJECT_REF"
 
-
-      - name: Success
-        run: |
-          echo "✅ Backend promoted. Netlify + Codemagic will now build the"
-          echo "   frontend against commit $GITHUB_SHA."
+      - name: Post-migration state
+        if: github.event_name == 'push'
+        run: supabase migration list --linked
