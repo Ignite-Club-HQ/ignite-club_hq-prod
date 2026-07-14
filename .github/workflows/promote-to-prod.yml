@@ -269,31 +269,40 @@ jobs:
           supabase migration list --linked
 
       - name: Skip dev-only / Supabase-incompatible local migrations in PROD
-        # These local migration files were useful in dev but must never execute
-        # against prod:
-        # - 20260709095105 refreshes database collation metadata. Supabase does
-        #   not allow app migrations to alter the managed `postgres` database.
-        # - 20260712224730 seeds a synthetic no-club auth user for reviewer QA.
-        #   Prod auth users are real customer accounts and must not be seeded by
-        #   the promotion pipeline.
-        #
-        # Marking them `applied` is metadata-only: it tells db push to skip the
-        # files and does not run their SQL.
+        # Any migration file whose FIRST line contains the marker
+        #     -- prod-skip: dev-only
+        # will be marked `applied` in prod without running its SQL. Use this
+        # for files that are only meaningful in dev (e.g. `ALTER DATABASE`
+        # collation refresh, synthetic reviewer accounts) or that Supabase
+        # refuses to run on managed prod. The marker lives in the SQL file
+        # itself so the intent is discoverable at review time and cannot
+        # silently drift out of sync with a hardcoded list in this workflow.
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          SKIP_VERSIONS=(
-            20260709095105
-            20260712224730
-          )
+          SKIP_VERSIONS=()
+          for f in supabase/migrations/*.sql; do
+            [ -f "$f" ] || continue
+            # Scan just the top of the file — marker MUST be in first 5 lines.
+            if head -5 "$f" | grep -qiE -- '--[[:space:]]*prod-skip:[[:space:]]*dev-only'; then
+              v=$(basename "$f" | grep -oE '^[0-9]{14}' || true)
+              [ -n "$v" ] || continue
+              SKIP_VERSIONS+=("$v")
+              echo "  - $v  ($(basename "$f"))"
+            fi
+          done
 
-          echo "Marking known dev-only / incompatible migrations as applied in PROD history:"
-          printf '  - %s\n' "${SKIP_VERSIONS[@]}"
-          printf '%s\n' "${SKIP_VERSIONS[@]}" \
-            | xargs -n 20 supabase migration repair --linked --status applied || true
+          if [ ${#SKIP_VERSIONS[@]} -eq 0 ]; then
+            echo "✅ No files carry the '-- prod-skip: dev-only' marker."
+          else
+            echo "Marking ${#SKIP_VERSIONS[@]} dev-only migration(s) as applied in PROD history."
+            printf '%s\n' "${SKIP_VERSIONS[@]}" \
+              | xargs -n 20 supabase migration repair --linked --status applied || true
+          fi
 
           echo "=== Migration state after PROD skip marks ==="
           supabase migration list --linked
+
 
       - name: Pre-mark already-in-prod local migrations as applied
         # Some local migration files describe objects (tables, indexes,
