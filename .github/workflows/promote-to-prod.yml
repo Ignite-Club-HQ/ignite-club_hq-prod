@@ -440,7 +440,25 @@ jobs:
               # INSERTs, GRANT/REVOKE). This lets clone-era migrations pre-mark cleanly
               # while still catching genuinely new DDL/DML that must run.
               STRIPPED=$(mktemp)
-              grep -viE '^[[:space:]]*(CREATE[[:space:]]+POLICY|ALTER[[:space:]]+TABLE[[:space:]]+[^;]*ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY|ALTER[[:space:]]+TABLE[[:space:]]+[^;]*ADD[[:space:]]+COLUMN[[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)' "$FILE" > "$STRIPPED" || true
+              # Strip whole safe statements, not just single lines. Many SQL files
+              # format safe ALTERs across multiple lines, e.g.:
+              #   ALTER TABLE public.foo
+              #   ADD COLUMN IF NOT EXISTS bar text;
+              # A line-based grep leaves the first ALTER TABLE line behind and
+              # falsely reports it as non-idempotent.
+              python3 - "$FILE" > "$STRIPPED" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+for pattern in (
+    r"^\s*CREATE\s+POLICY\b.*?;\s*",
+    r"^\s*ALTER\s+TABLE\b.*?ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;\s*",
+    r"^\s*ALTER\s+TABLE\b.*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b.*?;\s*",
+):
+    text = re.sub(pattern, "", text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
+print(text)
+PY
               EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$STRIPPED" || true)
               rm -f "$STRIPPED"
               if [ -n "$EXTRA_HITS" ]; then
