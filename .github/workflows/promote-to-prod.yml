@@ -446,17 +446,20 @@ jobs:
               #   ADD COLUMN IF NOT EXISTS bar text;
               # A line-based grep leaves the first ALTER TABLE line behind and
               # falsely reports it as non-idempotent.
-              FILE="$FILE" python3 <(sed 's/^              //' <<'PY') > "$STRIPPED"
-              import os, re
-              text = open(os.environ['FILE'], encoding='utf-8').read()
-              for pattern in (
-                  r'^\s*CREATE\s+POLICY\b.*?;\s*',
-                  r'^\s*ALTER\s+TABLE\b.*?ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;\s*',
-                  r'^\s*ALTER\s+TABLE\b.*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b.*?;\s*',
-              ):
-                  text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
-              print(text)
-              PY
+              PY_SCRIPT=$(mktemp --suffix=.py)
+              cat > "$PY_SCRIPT" <<'PY'
+          import os, re
+          text = open(os.environ['FILE'], encoding='utf-8').read()
+          for pattern in (
+              r'^\s*CREATE\s+POLICY\b.*?;\s*',
+              r'^\s*ALTER\s+TABLE\b.*?ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;\s*',
+              r'^\s*ALTER\s+TABLE\b.*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b.*?;\s*',
+          ):
+              text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
+          print(text)
+          PY
+              FILE="$FILE" python3 "$PY_SCRIPT" > "$STRIPPED"
+              rm -f "$PY_SCRIPT"
               EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$STRIPPED" || true)
               rm -f "$STRIPPED"
               if [ -n "$EXTRA_HITS" ]; then
