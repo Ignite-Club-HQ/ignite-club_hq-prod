@@ -312,6 +312,7 @@ jobs:
             ["20260713003316"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
             ["20260117093213"]="SELECT 1 AS hit FROM pg_proc WHERE proname='is_child_guardian' AND pronamespace='public'::regnamespace"
             ["20260118094002"]="SELECT 1 AS hit FROM pg_proc WHERE proname='get_or_create_dm_conversation' AND pronamespace='public'::regnamespace"
+            ["20260108060016"]="SELECT 1 AS hit WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='sponsors' AND column_name='is_team_only') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='reward_redemptions' AND column_name='status') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='reward_redemptions' AND column_name='club_id') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='promo_codes' AND column_name='storage_gb') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='promo_codes' AND column_name='uses_count') AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='team_folders') AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='team_folders' AND policyname='Team members can view folders') AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='team_folders' AND policyname='Team admins can manage folders') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_player_positions' AND column_name='preferred_positions') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_player_positions' AND column_name='jersey_number')"
           )
 
           TO_MARK=()
@@ -537,43 +538,97 @@ jobs:
           psql "$DB_URL" -Atc "SELECT version FROM supabase_migrations.schema_migrations" | sort -u > "$TMP/applied.txt"
           psql "$DB_URL" -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | sort -u > "$TMP/tables.txt"
           psql "$DB_URL" -Atc "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'" | sort -u > "$TMP/functions.txt"
+          psql "$DB_URL" -Atc "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema='public'" | sort -u > "$TMP/columns.txt"
+          psql "$DB_URL" -Atc "SELECT lower(policyname) || '|' || tablename FROM pg_policies WHERE schemaname='public'" | sort -u > "$TMP/policies.txt"
+          psql "$DB_URL" -Atc "SELECT lower(indexname) FROM pg_indexes WHERE schemaname='public'" | sort -u > "$TMP/indexes.txt"
+          psql "$DB_URL" -Atc "SELECT lower(t.tgname) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal" | sort -u > "$TMP/triggers.txt"
 
           echo "Prod: $(wc -l < "$TMP/applied.txt") applied migrations, $(wc -l < "$TMP/tables.txt") public tables, $(wc -l < "$TMP/functions.txt") public functions"
 
           TO_MARK=()
-          NEEDS_REVIEW=()
+          PARTIAL_REVIEW=()
+          BLOCKED_REVIEW=()
           for FILE in supabase/migrations/*.sql; do
             [ -f "$FILE" ] || continue
             VERSION=$(basename "$FILE" | grep -oE '^[0-9]{14}' || true)
             [ -n "$VERSION" ] || continue
             grep -qx "$VERSION" "$TMP/applied.txt" && continue
 
-            # Extract created tables/functions (best-effort)
-            TABLES=$(grep -oiE 'create[[:space:]]+table[[:space:]]+(if[[:space:]]+not[[:space:]]+exists[[:space:]]+)?(public\.)?[a-z_][a-z0-9_]*' "$FILE" \
-              | awk '{print tolower($NF)}' | sed 's/^public\.//' | sort -u || true)
-            FUNCS=$(grep -oiE 'create[[:space:]]+(or[[:space:]]+replace[[:space:]]+)?function[[:space:]]+(public\.)?[a-z_][a-z0-9_]*' "$FILE" \
-              | awk '{print tolower($NF)}' | sed 's/^public\.//;s/(.*//' | sort -u || true)
+            # Extract created/altered objects (best-effort) after stripping SQL
+            # line comments, so prose such as "-- Create table for ..." cannot
+            # invent phantom object names. Include ADD COLUMN IF NOT EXISTS and
+            # CREATE POLICY because those are the common non-table statements
+            # that make an already-cloned historical migration fail on replay.
+            EXTRACTED=$(FILE="$FILE" python3 - <<'PY'
+          import os, re
+          text = open(os.environ['FILE'], encoding='utf-8').read()
+          text = re.sub(r'--.*$', '', text, flags=re.MULTILINE)
+          out = []
+          def emit(kind, value):
+              value = value.strip().strip('"').lower()
+              if value:
+                  out.append(f"{kind}:{value}")
+          for m in re.finditer(r'\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
+              emit('table', m.group(1))
+          for m in re.finditer(r'\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
+              emit('func', m.group(1))
+          for m in re.finditer(r'\bcreate\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
+              emit('index', m.group(1))
+          for m in re.finditer(r'\bcreate\s+trigger\s+([a-z_][a-z0-9_]*)', text, re.I):
+              emit('trigger', m.group(1))
+          for m in re.finditer(r'\bcreate\s+policy\s+(?:"([^"]+)"|([a-z_][a-z0-9_]*))\s+on\s+(?:public\.)?([a-z_][a-z0-9_]*)', text, re.I):
+              emit('policy', f"{(m.group(1) or m.group(2))}|{m.group(3)}")
+          for stmt in re.finditer(r'\balter\s+table\s+(?:public\.)?([a-z_][a-z0-9_]*)\b(.*?);', text, re.I | re.S):
+              table = stmt.group(1).lower()
+              body = stmt.group(2)
+              for col in re.finditer(r'\badd\s+column\s+if\s+not\s+exists\s+([a-z_][a-z0-9_]*)', body, re.I):
+                  emit('column', f"{table}.{col.group(1)}")
+          print('\n'.join(sorted(set(out))))
+          PY
+            )
 
             # Reject if ANY genuinely destructive op present (schema drift / data mutation
             # on existing rows). INSERT / CREATE FUNCTION are OK because we verify prod
             # already has the resulting objects.
             DESTRUCTIVE=$(grep -icE '^[[:space:]]*(update|delete[[:space:]]+from|truncate|drop[[:space:]]+(table|column|function|policy|trigger|index))' "$FILE" || true)
             if [ "$DESTRUCTIVE" != "0" ]; then
-              NEEDS_REVIEW+=("$VERSION (destructive statements present)")
+              BLOCKED_REVIEW+=("$VERSION (destructive statements present)")
               continue
             fi
 
-            [ -z "$TABLES" ] && [ -z "$FUNCS" ] && continue
+            [ -z "$EXTRACTED" ] && continue
 
             missing=""
-            for t in $TABLES; do grep -qx "$t" "$TMP/tables.txt" || missing="$missing table:$t"; done
-            for fn in $FUNCS; do grep -qx "$fn" "$TMP/functions.txt" || missing="$missing fn:$fn"; done
+            existing_count=0
+            total_count=0
+            while IFS= read -r obj; do
+              [ -n "$obj" ] || continue
+              total_count=$((total_count + 1))
+              kind=${obj%%:*}
+              name=${obj#*:}
+              case "$kind" in
+                table) file="$TMP/tables.txt" ;;
+                func) file="$TMP/functions.txt" ;;
+                column) file="$TMP/columns.txt" ;;
+                policy) file="$TMP/policies.txt" ;;
+                index) file="$TMP/indexes.txt" ;;
+                trigger) file="$TMP/triggers.txt" ;;
+                *) continue ;;
+              esac
+              if grep -qx "$name" "$file"; then
+                existing_count=$((existing_count + 1))
+              else
+                missing="$missing $kind:$name"
+              fi
+            done <<< "$EXTRACTED"
 
             if [ -z "$missing" ]; then
               echo "🔧 $VERSION — all objects exist in prod, will mark applied"
               TO_MARK+=("$VERSION")
+            elif [ "$existing_count" -eq 0 ]; then
+              echo "▶  $VERSION — none of its created objects exist in prod yet, will run normally"
             else
-              NEEDS_REVIEW+=("$VERSION (missing:$missing)")
+              PARTIAL_REVIEW+=("$VERSION (has $existing_count/$total_count objects already in prod; missing:$missing)")
             fi
           done
 
@@ -584,10 +639,18 @@ jobs:
             echo "✅ Backlog scanner: nothing to mark. If this stays empty across runs, set repo variable AUTO_PREMARK_BACKLOG=false to skip this step."
           fi
 
-          if [ ${#NEEDS_REVIEW[@]} -gt 0 ]; then
+          if [ ${#BLOCKED_REVIEW[@]} -gt 0 ]; then
             echo ""
-            echo "ℹ️  Unapplied migrations the scanner did NOT auto-mark (will run via db push or need manual review):"
-            printf '   - %s\n' "${NEEDS_REVIEW[@]}"
+            echo "❌ Unapplied historical migrations contain destructive statements and will not be auto-run against prod:"
+            printf '   - %s\n' "${BLOCKED_REVIEW[@]}"
+            exit 1
+          fi
+
+          if [ ${#PARTIAL_REVIEW[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ Unapplied historical migrations are in a partial prod state. They cannot be safely auto-marked or re-run:"
+            printf '   - %s\n' "${PARTIAL_REVIEW[@]}"
+            exit 1
           fi
 
       - name: Apply pending migrations
@@ -717,7 +780,7 @@ jobs:
               psql "$DB_URL" -Atc "select version from supabase_migrations.schema_migrations order by version" \
                 > "$REMOTE_APPLIED" 2>/tmp/prod-applied-versions.err || true
               ls supabase/migrations 2>/dev/null | grep -oE '^[0-9]{14}' | sort -u > "$LOCAL_VERSIONS" || true
-              NEXT_VERSION=$(comm -23 "$LOCAL_VERSIONS" "$REMOTE_APPLIED" | head -n 1 || true)
+              NEXT_VERSION=$(comm -23 "$LOCAL_VERSIONS" "$REMOTE_APPLIED" | sed -n '1p' || true)
               if [ -n "$NEXT_VERSION" ]; then
                 NEXT_FILE=$(ls supabase/migrations/${NEXT_VERSION}_*.sql 2>/dev/null | head -n 1 || true)
                 echo "Next not-applied local version: $NEXT_VERSION"
@@ -795,7 +858,7 @@ jobs:
           echo "── FIRST LOCAL MIGRATION NOT IN REMOTE ──"
           jq -r '(if type=="array" then . else (.result // .data // .rows // []) end)[].version' \
             /tmp/remote-applied.json 2>/dev/null | sort -u > /tmp/remote-versions.txt
-          NEXT=$(comm -23 /tmp/local-versions.txt /tmp/remote-versions.txt | head -n 1)
+          NEXT=$(comm -23 /tmp/local-versions.txt /tmp/remote-versions.txt | sed -n '1p')
           if [ -n "$NEXT" ]; then
             NEXT_FILE=$(ls supabase/migrations/${NEXT}_*.sql 2>/dev/null | head -n 1)
             echo "Next pending version: $NEXT"
