@@ -446,9 +446,9 @@ jobs:
               #   ADD COLUMN IF NOT EXISTS bar text;
               # A line-based grep leaves the first ALTER TABLE line behind and
               # falsely reports it as non-idempotent.
-              python3 -c "
-              import re, sys
-              text = open(sys.argv[1], encoding='utf-8').read()
+              FILE="$FILE" python3 - > "$STRIPPED" <<'PY'
+              import os, re
+              text = open(os.environ['FILE'], encoding='utf-8').read()
               for pattern in (
                   r'^\s*CREATE\s+POLICY\b.*?;\s*',
                   r'^\s*ALTER\s+TABLE\b.*?ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;\s*',
@@ -456,7 +456,7 @@ jobs:
               ):
                   text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
               print(text)
-              " "$FILE" > "$STRIPPED"
+              PY
               EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$STRIPPED" || true)
               rm -f "$STRIPPED"
               if [ -n "$EXTRA_HITS" ]; then
