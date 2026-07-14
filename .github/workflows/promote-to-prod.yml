@@ -489,6 +489,88 @@ jobs:
           fi
 
 
+      - name: Backlog scanner — pre-mark pre-clone migrations (tables + functions)
+        # Broader companion to "Auto pre-mark pre-clone migrations":
+        # For every local migration not yet applied in prod, checks whether
+        # EVERY object it creates (tables AND functions) already exists in
+        # prod AND the file contains no genuinely destructive ops
+        # (UPDATE/DELETE/DROP/TRUNCATE). If so, marks it applied.
+        # Handles the class of pre-clone files that carry INSERTs or
+        # CREATE FUNCTION alongside CREATE TABLE — which the stricter
+        # auto pre-mark step (above) intentionally refuses to touch.
+        #
+        # DISABLE AFTER BACKLOG IS CLEARED:
+        # Set repo variable AUTO_PREMARK_BACKLOG=false (Settings → Secrets
+        # and variables → Actions → Variables). Default is enabled.
+        # Once every historical pre-clone migration is marked applied,
+        # this step is no longer needed — new migrations should flow
+        # through db push unchanged.
+        if: github.event_name == 'push' && vars.AUTO_PREMARK_BACKLOG != 'false'
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
+
+          ENC_PW=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'],safe=''))")
+          DB_URL="postgresql://postgres:${ENC_PW}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+
+          TMP=$(mktemp -d)
+          trap 'rm -rf "$TMP"' EXIT
+
+          psql "$DB_URL" -Atc "SELECT version FROM supabase_migrations.schema_migrations" | sort -u > "$TMP/applied.txt"
+          psql "$DB_URL" -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | sort -u > "$TMP/tables.txt"
+          psql "$DB_URL" -Atc "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'" | sort -u > "$TMP/functions.txt"
+
+          echo "Prod: $(wc -l < "$TMP/applied.txt") applied migrations, $(wc -l < "$TMP/tables.txt") public tables, $(wc -l < "$TMP/functions.txt") public functions"
+
+          TO_MARK=()
+          NEEDS_REVIEW=()
+          for FILE in supabase/migrations/*.sql; do
+            [ -f "$FILE" ] || continue
+            VERSION=$(basename "$FILE" | grep -oE '^[0-9]{14}' || true)
+            [ -n "$VERSION" ] || continue
+            grep -qx "$VERSION" "$TMP/applied.txt" && continue
+
+            # Extract created tables/functions (best-effort)
+            TABLES=$(grep -oiE 'create[[:space:]]+table[[:space:]]+(if[[:space:]]+not[[:space:]]+exists[[:space:]]+)?(public\.)?[a-z_][a-z0-9_]*' "$FILE" \
+              | awk '{print tolower($NF)}' | sed 's/^public\.//' | sort -u || true)
+            FUNCS=$(grep -oiE 'create[[:space:]]+(or[[:space:]]+replace[[:space:]]+)?function[[:space:]]+(public\.)?[a-z_][a-z0-9_]*' "$FILE" \
+              | awk '{print tolower($NF)}' | sed 's/^public\.//;s/(.*//' | sort -u || true)
+
+            # Reject if ANY genuinely destructive op present (schema drift / data mutation
+            # on existing rows). INSERT / CREATE FUNCTION are OK because we verify prod
+            # already has the resulting objects.
+            DESTRUCTIVE=$(grep -icE '^[[:space:]]*(update|delete[[:space:]]+from|truncate|drop[[:space:]]+(table|column|function|policy|trigger|index))' "$FILE" || true)
+            if [ "$DESTRUCTIVE" != "0" ]; then
+              NEEDS_REVIEW+=("$VERSION (destructive statements present)")
+              continue
+            fi
+
+            [ -z "$TABLES" ] && [ -z "$FUNCS" ] && continue
+
+            missing=""
+            for t in $TABLES; do grep -qx "$t" "$TMP/tables.txt" || missing="$missing table:$t"; done
+            for fn in $FUNCS; do grep -qx "$fn" "$TMP/functions.txt" || missing="$missing fn:$fn"; done
+
+            if [ -z "$missing" ]; then
+              echo "🔧 $VERSION — all objects exist in prod, will mark applied"
+              TO_MARK+=("$VERSION")
+            else
+              NEEDS_REVIEW+=("$VERSION (missing:$missing)")
+            fi
+          done
+
+          if [ ${#TO_MARK[@]} -gt 0 ]; then
+            printf '%s\n' "${TO_MARK[@]}" | xargs -n 20 supabase migration repair --linked --status applied
+            echo "✅ Marked ${#TO_MARK[@]} pre-clone migration(s) applied."
+          else
+            echo "✅ Backlog scanner: nothing to mark. If this stays empty across runs, set repo variable AUTO_PREMARK_BACKLOG=false to skip this step."
+          fi
+
+          if [ ${#NEEDS_REVIEW[@]} -gt 0 ]; then
+            echo ""
+            echo "ℹ️  Unapplied migrations the scanner did NOT auto-mark (will run via db push or need manual review):"
+            printf '   - %s\n' "${NEEDS_REVIEW[@]}"
+          fi
 
       - name: Apply pending migrations
         if: github.event_name == 'push'
