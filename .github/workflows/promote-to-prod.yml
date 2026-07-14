@@ -524,7 +524,16 @@ jobs:
         # Value: false.
         #
         # Default is enabled; this step only runs on prod-branch pushes.
+        #
+        # PRECLONE_BASELINE_VERSION defaults to 20260701000000. Any older,
+        # still-unapplied local migration is treated as part of the original
+        # prod→dev clone backlog and is marked applied metadata-only. This is
+        # safer than letting old cleanup/policy migrations re-run against prod.
+        # Set repo variable PRECLONE_BASELINE_VERSION=false to disable this
+        # baseline shortcut, or set it to a different 14-digit cutoff.
         if: github.event_name == 'push' && vars.AUTO_PREMARK_BACKLOG != 'false'
+        env:
+          PRECLONE_BASELINE_VERSION: ${{ vars.PRECLONE_BASELINE_VERSION || '20260701000000' }}
         run: |
           set -euo pipefail
           command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
@@ -545,6 +554,17 @@ jobs:
 
           echo "Prod: $(wc -l < "$TMP/applied.txt") applied migrations, $(wc -l < "$TMP/tables.txt") public tables, $(wc -l < "$TMP/functions.txt") public functions"
 
+          BASELINE_CUTOFF="$PRECLONE_BASELINE_VERSION"
+          if [[ "$BASELINE_CUTOFF" =~ ^(false|off|none|disable|disabled)$ ]]; then
+            BASELINE_CUTOFF=""
+            echo "Pre-clone baseline shortcut disabled."
+          elif [[ ! "$BASELINE_CUTOFF" =~ ^[0-9]{14}$ ]]; then
+            echo "::error::PRECLONE_BASELINE_VERSION must be a 14-digit migration timestamp or 'false' to disable. Got: $BASELINE_CUTOFF"
+            exit 1
+          else
+            echo "Pre-clone baseline shortcut enabled: unapplied local migrations before $BASELINE_CUTOFF will be marked applied metadata-only."
+          fi
+
           TO_MARK=()
           PARTIAL_REVIEW=()
           BLOCKED_REVIEW=()
@@ -553,6 +573,12 @@ jobs:
             VERSION=$(basename "$FILE" | grep -oE '^[0-9]{14}' || true)
             [ -n "$VERSION" ] || continue
             grep -qx "$VERSION" "$TMP/applied.txt" && continue
+
+            if [ -n "$BASELINE_CUTOFF" ] && [[ "$VERSION" < "$BASELINE_CUTOFF" ]]; then
+              echo "🔧 $VERSION — older than pre-clone baseline ($BASELINE_CUTOFF), will mark applied metadata-only"
+              TO_MARK+=("$VERSION")
+              continue
+            fi
 
             # Extract created/altered objects (best-effort) after stripping SQL
             # line comments, so prose such as "-- Create table for ..." cannot
