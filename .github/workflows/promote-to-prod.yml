@@ -459,9 +459,21 @@ jobs:
               #   a) mark it applied manually after verifying prod matches, or
               #   b) split the migration into (already-in-prod DDL) + (new
               #      changes to run) and re-promote.
-              EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+POLICY|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$FILE" || true)
+              # Statements considered SAFE when every CREATE TABLE target already
+              # exists in prod (they describe state that came with the cloned tables):
+              #   - CREATE POLICY ...                          (policies cloned with the table)
+              #   - ALTER TABLE ... ENABLE ROW LEVEL SECURITY  (RLS state cloned)
+              #   - ALTER TABLE ... ADD COLUMN IF NOT EXISTS   (idempotent)
+              # We strip those lines, then flag anything else that could drift schema
+              # (plain ALTER TABLE, indexes, triggers, functions, views, types, seed
+              # INSERTs, GRANT/REVOKE). This lets clone-era migrations pre-mark cleanly
+              # while still catching genuinely new DDL/DML that must run.
+              STRIPPED=$(mktemp)
+              grep -viE '^[[:space:]]*(CREATE[[:space:]]+POLICY|ALTER[[:space:]]+TABLE[[:space:]]+[^;]*ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY|ALTER[[:space:]]+TABLE[[:space:]]+[^;]*ADD[[:space:]]+COLUMN[[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)' "$FILE" > "$STRIPPED" || true
+              EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$STRIPPED" || true)
+              rm -f "$STRIPPED"
               if [ -n "$EXTRA_HITS" ]; then
-                echo "::error file=$FILE::$VERSION — every CREATE TABLE target already exists in prod, but the file also contains ALTER/INDEX/TRIGGER/POLICY/FUNCTION/VIEW/TYPE/INSERT/GRANT statements. Auto-marking would silently skip these and drift prod schema. Review manually and either mark applied after verifying prod matches, or split the migration."
+                echo "::error file=$FILE::$VERSION — every CREATE TABLE target already exists in prod, but the file also contains non-idempotent ALTER/INDEX/TRIGGER/FUNCTION/VIEW/TYPE/INSERT/GRANT statements. Auto-marking would silently skip these and drift prod schema. Review manually and either mark applied after verifying prod matches, or split the migration."
                 echo "── Statements that blocked auto pre-mark ──"
                 echo "$EXTRA_HITS" | head -n 30
                 exit 1
