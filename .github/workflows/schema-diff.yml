@@ -1,0 +1,68 @@
+name: Schema Diff (dev vs prod)
+
+# Manual workflow: dumps the LIVE prod schema and uploads it as an artifact,
+# alongside prod's applied-migration list. Compare against dev by running
+# the same workflow (or `supabase db dump`) against dev and diffing the
+# two files locally.
+#
+# Why not `supabase db diff --linked`?
+#   `db diff --linked` provisions an empty shadow DB and replays every
+#   local migration from scratch. Because we baselined prod (929 pre-clone
+#   migrations marked applied without executing), the local migration
+#   files reference tables (e.g. `public.teams`) that only exist in the
+#   pre-clone baseline — the shadow replay fails on the first file.
+#   Dumping the live schema sidesteps the shadow DB entirely.
+#
+# Trigger: Actions tab → "Schema Diff (dev vs prod)" → Run workflow.
+#
+# Required secrets:
+#   SUPABASE_ACCESS_TOKEN
+#   SUPABASE_PROD_PROJECT_REF
+#   SUPABASE_DB_PASSWORD
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  dump:
+    name: Dump PROD schema + migration list
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to PROD
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Migration list (PROD)
+        run: supabase migration list --linked | tee migration-list-prod.txt
+
+      - name: Dump PROD schema (public)
+        run: |
+          set -euo pipefail
+          echo "=== supabase db dump --linked --schema public ==="
+          supabase db dump --linked --schema public -f schema-prod.sql
+          wc -l schema-prod.sql
+          echo "✅ Prod schema dumped to schema-prod.sql"
+
+      - name: Dump PROD roles
+        run: supabase db dump --linked --role-only -f roles-prod.sql || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-dump-${{ github.run_id }}
+          path: |
+            schema-prod.sql
+            roles-prod.sql
+            migration-list-prod.txt
+          retention-days: 14
+          if-no-files-found: warn
