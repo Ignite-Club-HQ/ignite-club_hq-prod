@@ -1,3 +1,4 @@
+-- prod-skip: dev-only
 DO $$
 DECLARE
   new_user_id uuid := gen_random_uuid();
