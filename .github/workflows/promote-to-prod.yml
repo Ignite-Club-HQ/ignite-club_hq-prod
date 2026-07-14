@@ -392,7 +392,7 @@ jobs:
             # statements (e.g., pure ALTER/INSERT/DROP), we cannot verify it safely, so
             # we run it normally and let the CLI succeed or fail as written.
             TABLES=$(grep -iEo 'CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(public\.)?[a-zA-Z_][a-zA-Z0-9_]*' "$FILE" \
-              | awk '{print $NF}' | sed 's/^public\.//' | sort -u)
+              | awk '{print $NF}' | sed 's/^public\.//' | sort -u || true)
             [ -n "$TABLES" ] || { echo "▶  $VERSION — no CREATE TABLE found, will run normally"; continue; }
 
             # If any statement uses IF NOT EXISTS, the migration is idempotent and can
