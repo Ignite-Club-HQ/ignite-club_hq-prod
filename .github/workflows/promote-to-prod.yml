@@ -339,9 +339,11 @@ jobs:
         # Dev was cloned from prod, so many pre-clone local migration files
         # describe tables that already physically exist in prod but were
         # never recorded in prod's supabase_migrations.schema_migrations.
-        # For every local version NOT yet applied in prod, parse the FIRST
-        # `CREATE TABLE public.<name>` and check prod. If the table exists,
-        # mark the version `applied` (metadata-only, does NOT run the SQL).
+        # For every local version NOT yet applied in prod, parse ALL
+        # `CREATE TABLE public.<name>` statements and check prod. If EVERY
+        # created table already exists, mark the version `applied` (metadata-only,
+        # does NOT run the SQL). If only SOME exist, fail loudly — the migration
+        # is in a partial state that needs manual review.
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
@@ -355,6 +357,19 @@ jobs:
             (if type=="array" then . else (.result // .data // .rows // []) end)
             | .[].version' | sort -u)
 
+          table_exists() {
+            local TABLE="$1"
+            local SQL="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='${TABLE}'"
+            local RESP=$(curl -sS -X POST "$API" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -cn --arg q "$SQL" '{query:$q}')")
+            echo "$RESP" | jq -r '
+              if type=="array" then (.[0].hit // empty)
+              elif type=="object" then (.result[0].hit? // .data[0].hit? // .rows[0].hit? // empty)
+              else empty end'
+          }
+
           TO_MARK=()
           for FILE in supabase/migrations/*.sql; do
             [ -f "$FILE" ] || continue
@@ -362,24 +377,44 @@ jobs:
             [ -n "$VERSION" ] || continue
             if echo "$APPLIED" | grep -qx "$VERSION"; then continue; fi
 
-            TABLE=$(grep -iEo 'CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(public\.)?[a-zA-Z_][a-zA-Z0-9_]*' "$FILE" \
-              | head -n1 | awk '{print $NF}' | sed 's/^public\.//')
-            [ -n "$TABLE" ] || continue
+            # Extract all tables this migration creates. If there are no CREATE TABLE
+            # statements (e.g., pure ALTER/INSERT/DROP), we cannot verify it safely, so
+            # we run it normally and let the CLI succeed or fail as written.
+            TABLES=$(grep -iEo 'CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(public\.)?[a-zA-Z_][a-zA-Z0-9_]*' "$FILE" \
+              | awk '{print $NF}' | sed 's/^public\.//' | sort -u)
+            [ -n "$TABLES" ] || { echo "▶  $VERSION — no CREATE TABLE found, will run normally"; continue; }
 
-            SQL="SELECT 1 AS hit FROM pg_tables WHERE schemaname='public' AND tablename='${TABLE}'"
-            RESP=$(curl -sS -X POST "$API" \
-              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -cn --arg q "$SQL" '{query:$q}')")
-            HIT=$(echo "$RESP" | jq -r '
-              if type=="array" then (.[0].hit // empty)
-              elif type=="object" then (.result[0].hit? // .data[0].hit? // .rows[0].hit? // empty)
-              else empty end')
-            if [ "$HIT" = "1" ]; then
-              echo "🔧 $VERSION — public.$TABLE exists in prod, will mark applied"
+            # If any statement uses IF NOT EXISTS, the migration is idempotent and can
+            # safely run even when tables already exist.
+            IF_NOT_EXISTS=$(grep -ic 'CREATE[[:space:]]\+TABLE[[:space:]]\+IF[[:space:]]\+NOT[[:space:]]\+EXISTS' "$FILE" || true)
+            if [ "$IF_NOT_EXISTS" -gt 0 ]; then
+              echo "▶  $VERSION — uses CREATE TABLE IF NOT EXISTS, will run normally"
+              continue
+            fi
+
+            EXISTS_COUNT=0
+            MISSING_COUNT=0
+            MISSING_TABLES=""
+            for TABLE in $TABLES; do
+              if [ "$(table_exists "$TABLE")" = "1" ]; then
+                EXISTS_COUNT=$((EXISTS_COUNT + 1))
+              else
+                MISSING_COUNT=$((MISSING_COUNT + 1))
+                MISSING_TABLES="${MISSING_TABLES:+,} ${TABLE}"
+              fi
+            done
+
+            if [ "$MISSING_COUNT" -eq 0 ]; then
+              echo "🔧 $VERSION — all tables exist in prod ($TABLES), will mark applied"
               TO_MARK+=("$VERSION")
+            elif [ "$EXISTS_COUNT" -eq 0 ]; then
+              echo "▶  $VERSION — no tables in prod yet, will run normally"
             else
-              echo "▶  $VERSION — public.$TABLE not in prod, will run normally"
+              echo "::error::$VERSION — PARTIAL state: some tables exist in prod ($EXISTS_COUNT) but others are missing ($MISSING_COUNT: $MISSING_TABLES)."
+              echo "::error::This migration cannot be safely auto-skipped or auto-run. Review $FILE and either:"
+              echo "::error::  a) Add the missing tables manually, then re-run the workflow, or"
+              echo "::error::  b) Split the migration so each CREATE TABLE is in its own file."
+              exit 1
             fi
           done
 
