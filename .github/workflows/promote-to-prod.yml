@@ -499,12 +499,20 @@ jobs:
         # CREATE FUNCTION alongside CREATE TABLE — which the stricter
         # auto pre-mark step (above) intentionally refuses to touch.
         #
-        # DISABLE AFTER BACKLOG IS CLEARED:
-        # Set repo variable AUTO_PREMARK_BACKLOG=false (Settings → Secrets
-        # and variables → Actions → Variables). Default is enabled.
-        # Once every historical pre-clone migration is marked applied,
-        # this step is no longer needed — new migrations should flow
-        # through db push unchanged.
+        # WHEN IT IS SAFE TO DISABLE THIS STEP:
+        # Set the repo variable AUTO_PREMARK_BACKLOG=false once the backlog
+        # scanner prints "Backlog scanner: nothing to mark." for at least
+        # 2-3 consecutive successful promotions. At that point every
+        # historical pre-clone migration has been recorded in prod's
+        # schema_migrations table and new migrations will flow through
+        # db push normally. Disabling removes the direct prod DB query
+        # from every future promotion run.
+        #
+        # How to disable: GitHub repo → Settings → Secrets and variables
+        # → Actions → Variables → New variable → Name: AUTO_PREMARK_BACKLOG
+        # Value: false.
+        #
+        # Default is enabled; this step only runs on prod-branch pushes.
         if: github.event_name == 'push' && vars.AUTO_PREMARK_BACKLOG != 'false'
         run: |
           set -euo pipefail
