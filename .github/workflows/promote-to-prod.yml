@@ -112,9 +112,12 @@ jobs:
 
       - name: Guard against destructive migrations
         # Fails the job (before backup/apply) if any pending migration file
-        # contains DML/DDL that could nuke prod media rows or their URL columns.
-        # This is a safety net for accidental "fix dev images" queries that
-        # slip into supabase/migrations/ and would otherwise run against prod.
+        # contains DML/DDL that could nuke prod rows on high-value tables or
+        # their URL columns. Scans BOTH:
+        #   (a) files changed since the previous prod SHA, and
+        #   (b) every local migration file that is not yet applied in prod
+        #       (via Management API) — catches files that landed via an
+        #       earlier merge whose promotion never completed.
         # Whitelist a specific migration by adding a line containing the exact
         # marker:  -- promote-guard: allow  (only do this after human review).
         run: |
@@ -128,15 +131,42 @@ jobs:
             BEFORE="HEAD^"
           fi
 
-          FILES=$(git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true)
+          CHANGED=$(git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true)
+
+          # Fetch prod's applied versions so we can also scan un-applied files
+          # that landed in an earlier merge but never promoted successfully.
+          UNAPPLIED=""
+          if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -n "${PROJECT_REF:-}" ]; then
+            API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
+            APPLIED_JSON=$(curl -sS -X POST "$API" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"query":"select version from supabase_migrations.schema_migrations"}' || echo '[]')
+            APPLIED=$(echo "$APPLIED_JSON" | jq -r '
+              (if type=="array" then . else (.result // .data // .rows // []) end)
+              | .[].version' 2>/dev/null | sort -u || true)
+            for f in supabase/migrations/*.sql; do
+              [ -f "$f" ] || continue
+              v=$(basename "$f" | grep -oE '^[0-9]{14}' || true)
+              [ -n "$v" ] || continue
+              if ! echo "$APPLIED" | grep -qx "$v"; then
+                UNAPPLIED="$UNAPPLIED $f"
+              fi
+            done
+          fi
+
+          FILES=$(printf '%s\n%s\n' "$CHANGED" "$UNAPPLIED" | tr ' ' '\n' | sort -u | sed '/^$/d')
           if [ -z "$FILES" ]; then
             echo "No pending migration files — guard passes."
             exit 0
           fi
+          echo "Scanning $(echo "$FILES" | wc -l) migration file(s) for destructive statements."
 
-          # Case-insensitive, whitespace-tolerant patterns.
-          # Blocks writes/drops targeting media-bearing tables or their URL cols.
-          PATTERNS='(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url)\b'
+          # Case-insensitive, whitespace-tolerant patterns. Covers high-value
+          # tables across chat/media/identity/scheduling/billing domains. Also
+          # flags DROP COLUMN on URL fields.
+          TABLES='photos|vault_files|vault_folders|vault_drive_links|group_messages|club_messages|team_messages|direct_messages|match_messages|gallery_chat_cards|chat_groups|profiles|clubs|teams|user_roles|events|rsvps|children|club_subscriptions|team_subscriptions|member_subscription_payments|iap_transactions|notifications|fcm_tokens|push_subscriptions'
+          PATTERNS="(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url|avatar_url|logo_url)\\b"
 
           failed=0
           for file in $FILES; do
@@ -146,7 +176,7 @@ jobs:
               continue
             fi
             if grep -niE -- "$PATTERNS" "$file"; then
-              echo "::error file=$file::Migration contains a statement that could destroy prod media data. Review and either remove the statement or add the marker '-- promote-guard: allow' after human review."
+              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table. Review and either remove the statement or add the marker '-- promote-guard: allow' after human review."
               failed=1
             fi
           done
@@ -156,7 +186,8 @@ jobs:
             echo "❌ Promotion halted BEFORE backup/apply. No changes made to prod."
             exit 1
           fi
-          echo "✅ Guard passed — no destructive statements against media tables."
+          echo "✅ Guard passed — no destructive statements against protected tables."
+
 
 
       - name: Backup PROD schema + roles (pre-migration)
