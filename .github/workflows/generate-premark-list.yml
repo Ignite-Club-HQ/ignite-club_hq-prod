@@ -1,0 +1,33 @@
+name: Generate pre-mark list (one-off)
+
+# Manually triggered. Runs the read-only scanner against prod and prints
+# the safe-to-pre-mark YAML block into the Actions log. Copy it from the
+# log into .github/workflows/promote-to-prod.yml.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run scanner against prod
+        env:
+          PROD_DB_URL: postgresql://postgres.${{ secrets.SUPABASE_PROD_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+        run: |
+          chmod +x scripts/generate-premark-list.sh
+          bash scripts/generate-premark-list.sh | tee premark-output.txt
+
+      - name: Upload output as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: premark-output
+          path: premark-output.txt
+          retention-days: 30
