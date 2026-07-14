@@ -1,0 +1,58 @@
+name: Schema Diff (dev vs prod)
+
+# Manual workflow: runs `supabase db diff --linked` against PROD and uploads
+# the result as an artifact. Compare the linked schema against local
+# migrations to detect drift between dev and prod.
+#
+# Trigger: Actions tab → "Schema Diff (dev vs prod)" → Run workflow.
+#
+# Required secrets (same as promote-to-prod.yml):
+#   SUPABASE_ACCESS_TOKEN
+#   SUPABASE_PROD_PROJECT_REF
+#   SUPABASE_DB_PASSWORD
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diff:
+    name: Diff PROD schema vs local migrations
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to PROD
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Migration list (PROD)
+        run: supabase migration list --linked | tee migration-list-prod.txt
+
+      - name: Schema diff (PROD vs local)
+        run: |
+          set -euo pipefail
+          echo "=== supabase db diff --linked ==="
+          supabase db diff --linked --schema public | tee schema-diff-prod.sql
+          if [ -s schema-diff-prod.sql ]; then
+            echo "⚠️  Drift detected — see schema-diff-prod.sql artifact."
+          else
+            echo "✅ No drift: PROD schema matches local migrations."
+          fi
+
+      - name: Upload diff artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-diff-${{ github.run_id }}
+          path: |
+            schema-diff-prod.sql
+            migration-list-prod.txt
+          retention-days: 14
+          if-no-files-found: warn
