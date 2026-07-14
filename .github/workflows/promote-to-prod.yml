@@ -445,7 +445,28 @@ jobs:
             done
 
             if [ "$MISSING_COUNT" -eq 0 ]; then
-              echo "🔧 $VERSION — all tables exist in prod ($TABLES), will mark applied"
+              # Every CREATE TABLE target exists in prod. But the migration may
+              # ALSO contain schema/data changes (ALTER, indexes, policies,
+              # functions, seed INSERTs) that were NOT captured on the initial
+              # dev-from-prod clone. Auto-marking would silently skip those
+              # statements and leave prod in a subtly drifted state — this is
+              # exactly the class of bug that let `purged_at` slip past. Refuse
+              # and demand human review whenever those constructs are present.
+              #
+              # We scan the whole file (case-insensitive) for statements beyond
+              # the CREATE TABLE block. If any are found, fail the step with a
+              # pointer to the file so a human can either:
+              #   a) mark it applied manually after verifying prod matches, or
+              #   b) split the migration into (already-in-prod DDL) + (new
+              #      changes to run) and re-promote.
+              EXTRA_HITS=$(grep -niE '\b(ALTER[[:space:]]+TABLE|CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX|CREATE[[:space:]]+TRIGGER|CREATE[[:space:]]+POLICY|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION|CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?VIEW|CREATE[[:space:]]+TYPE|INSERT[[:space:]]+INTO|GRANT[[:space:]]|REVOKE[[:space:]])\b' "$FILE" || true)
+              if [ -n "$EXTRA_HITS" ]; then
+                echo "::error file=$FILE::$VERSION — every CREATE TABLE target already exists in prod, but the file also contains ALTER/INDEX/TRIGGER/POLICY/FUNCTION/VIEW/TYPE/INSERT/GRANT statements. Auto-marking would silently skip these and drift prod schema. Review manually and either mark applied after verifying prod matches, or split the migration."
+                echo "── Statements that blocked auto pre-mark ──"
+                echo "$EXTRA_HITS" | head -n 30
+                exit 1
+              fi
+              echo "🔧 $VERSION — all tables exist in prod ($TABLES) and no extra DDL/DML, will mark applied"
               TO_MARK+=("$VERSION")
             elif [ "$EXISTS_COUNT" -eq 0 ]; then
               echo "▶  $VERSION — no tables in prod yet, will run normally"
