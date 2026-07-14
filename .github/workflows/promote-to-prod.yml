@@ -559,7 +559,8 @@ jobs:
             # invent phantom object names. Include ADD COLUMN IF NOT EXISTS and
             # CREATE POLICY because those are the common non-table statements
             # that make an already-cloned historical migration fail on replay.
-            EXTRACTED=$(FILE="$FILE" python3 - <<'PY'
+            PY_EXTRACT="$TMP/extract_objects.py"
+            cat > "$PY_EXTRACT" <<'PY'
           import os, re
           text = open(os.environ['FILE'], encoding='utf-8').read()
           text = re.sub(r'--.*$', '', text, flags=re.MULTILINE)
@@ -585,7 +586,8 @@ jobs:
                   emit('column', f"{table}.{col.group(1)}")
           print('\n'.join(sorted(set(out))))
           PY
-            )
+            sed -i 's/^          //' "$PY_EXTRACT"
+            EXTRACTED=$(FILE="$FILE" python3 "$PY_EXTRACT")
 
             # Reject if ANY genuinely destructive op present (schema drift / data mutation
             # on existing rows). INSERT / CREATE FUNCTION are OK because we verify prod
