@@ -311,6 +311,7 @@ jobs:
             ["20260708222650"]="SELECT 1 AS hit FROM pg_policies WHERE schemaname='public' AND tablename='active_games_write_log' AND policyname='App admins can view write audit log'"
             ["20260713003316"]="SELECT 1 AS hit FROM pg_trigger WHERE tgname='trg_cascade_club_soft_delete'"
             ["20260117093213"]="SELECT 1 AS hit FROM pg_proc WHERE proname='is_child_guardian' AND pronamespace='public'::regnamespace"
+            ["20260118094002"]="SELECT 1 AS hit FROM pg_proc WHERE proname='get_or_create_dm_conversation' AND pronamespace='public'::regnamespace"
           )
 
           TO_MARK=()
