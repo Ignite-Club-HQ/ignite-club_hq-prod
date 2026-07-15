@@ -27,7 +27,13 @@ export type ColdStartStage =
   | "chat_render"       // chat page painted its first message
   | "inbox_mount"       // MessagesPage component mounted
   | "inbox_bootstrap_return" // messages-page bootstrap RPC resolved
-  | "inbox_first_paint";     // MessagesPage rendered first conversation row
+  | "inbox_first_paint"      // MessagesPage rendered first conversation row
+  | "home_mount"             // HomePage component mounted
+  | "home_query_return"      // HomePage primary memberships+events query resolved
+  | "home_first_paint"       // HomePage revealed content (unified skeleton hidden)
+  | "schedule_mount"         // EventsPage (Schedule) component mounted
+  | "schedule_query_return"  // EventsPage primary events query resolved
+  | "schedule_first_paint";  // EventsPage rendered first events row / empty state
 
 /**
  * Cumulative main-thread longtask blocking time (ms) between two stages.
