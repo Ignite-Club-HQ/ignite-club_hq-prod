@@ -1,6 +1,8 @@
 project_id = "ecsdwrarzfexssxtrymj"
 
 [functions]
+  [functions.send-new-club-alert]
+    verify_jwt = false
   [functions.export-write-audit]
     verify_jwt = false
   [functions.auth-email-hook]
