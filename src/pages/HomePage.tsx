@@ -2146,6 +2146,46 @@ export default function HomePage() {
     userClubs.length === 0 &&
     activeTeamIds.length === 0;
 
+  // Home perf: log once first paint occurs (unified skeleton has been
+  // replaced by real content OR the authoritative empty state).
+  useEffect(() => {
+    if (membershipAndEvents) coldMark("home_query_return");
+  }, [membershipAndEvents]);
+  useEffect(() => {
+    if (homePerfLoggedRef.current) return;
+    if (!user?.id) return;
+    if (!(showContent || isNewUserEmptyState)) return;
+    homePerfLoggedRef.current = true;
+    let source: "warm_nav" | "cold_open" | "notification" =
+      nextUpCachedSnapshot ? "warm_nav" : "cold_open";
+    try {
+      const snap = snapshotStages();
+      const notifTap = snap.deltas.notif_tap;
+      const homeMount = snap.deltas.home_mount;
+      if (
+        typeof notifTap === "number" &&
+        typeof homeMount === "number" &&
+        homeMount >= notifTap &&
+        homeMount - notifTap < 10_000
+      ) {
+        source = "notification";
+      }
+    } catch {}
+    void logHomeOpenLatency({
+      userId: user.id,
+      source,
+      startTs: homeOpenStartRef.current,
+      cacheHit: !!nextUpCachedSnapshot,
+      context: {
+        clubCount: membershipClubCount,
+        teamCount: membershipTeamCount,
+        upcomingEvents: events.length,
+        activeClubFilter: activeClubFilter ?? null,
+        isNewUserEmptyState,
+      },
+    });
+  }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
+
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
