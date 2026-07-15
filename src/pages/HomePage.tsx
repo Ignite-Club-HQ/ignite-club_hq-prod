@@ -61,6 +61,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
+import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
@@ -390,6 +392,17 @@ export default function HomePage() {
     () => getCachedNextUp<{ memberships: any; events: Event[]; cachedAt: number }>(user?.id),
     [user?.id],
   );
+
+  // Home perf: mark mount + track primary-query return + first paint. See
+  // src/lib/homeOpenLatency.ts. Best-effort; one sample per open.
+  const homeOpenStartRef = useRef<number>(Date.now());
+  const homePerfLoggedRef = useRef(false);
+  useEffect(() => {
+    homeOpenStartRef.current = Date.now();
+    homePerfLoggedRef.current = false;
+    coldMark("home_mount");
+    return () => { resetHomeOpenLog(); };
+  }, []);
 
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
@@ -2132,6 +2145,46 @@ export default function HomePage() {
     membershipTeamCount === 0 &&
     userClubs.length === 0 &&
     activeTeamIds.length === 0;
+
+  // Home perf: log once first paint occurs (unified skeleton has been
+  // replaced by real content OR the authoritative empty state).
+  useEffect(() => {
+    if (membershipAndEvents) coldMark("home_query_return");
+  }, [membershipAndEvents]);
+  useEffect(() => {
+    if (homePerfLoggedRef.current) return;
+    if (!user?.id) return;
+    if (!(showContent || isNewUserEmptyState)) return;
+    homePerfLoggedRef.current = true;
+    let source: "warm_nav" | "cold_open" | "notification" =
+      nextUpCachedSnapshot ? "warm_nav" : "cold_open";
+    try {
+      const snap = snapshotStages();
+      const notifTap = snap.deltas.notif_tap;
+      const homeMount = snap.deltas.home_mount;
+      if (
+        typeof notifTap === "number" &&
+        typeof homeMount === "number" &&
+        homeMount >= notifTap &&
+        homeMount - notifTap < 10_000
+      ) {
+        source = "notification";
+      }
+    } catch {}
+    void logHomeOpenLatency({
+      userId: user.id,
+      source,
+      startTs: homeOpenStartRef.current,
+      cacheHit: !!nextUpCachedSnapshot,
+      context: {
+        clubCount: membershipClubCount,
+        teamCount: membershipTeamCount,
+        upcomingEvents: events.length,
+        activeClubFilter: activeClubFilter ?? null,
+        isNewUserEmptyState,
+      },
+    });
+  }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
 
   return (
     <div className="py-6 space-y-5">

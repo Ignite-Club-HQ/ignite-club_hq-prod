@@ -40,6 +40,8 @@ import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
+import { logScheduleOpenLatency, resetScheduleOpenLog } from "@/lib/scheduleOpenLatency";
 import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -104,6 +106,18 @@ export default function EventsPage() {
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
+
+  // Schedule perf: mark mount + track primary-query return + first paint. See
+  // src/lib/scheduleOpenLatency.ts. Best-effort; one sample per open.
+  const scheduleOpenStartRef = useRef<number>(Date.now());
+  const schedulePerfLoggedRef = useRef(false);
+  const scheduleCacheHitRef = useRef(false);
+  useEffect(() => {
+    scheduleOpenStartRef.current = Date.now();
+    schedulePerfLoggedRef.current = false;
+    coldMark("schedule_mount");
+    return () => { resetScheduleOpenLog(); };
+  }, []);
 
   // Update view mode when profile loads
   useEffect(() => {
@@ -675,9 +689,57 @@ export default function EventsPage() {
     return () => clearTimeout(timer);
   }, [isStuckOnSpinner, queryClient, user?.id, membershipsLoading, isLoading, userMemberships]);
 
+  // Schedule perf: mark query return + log first paint. "First paint" = the
+  // primary events query has resolved (rows or empty state) AND memberships
+  // have loaded, so the list/calendar area is no longer showing a skeleton.
+  useEffect(() => {
+    if (events !== undefined) coldMark("schedule_query_return");
+  }, [events]);
+  useEffect(() => {
+    if (schedulePerfLoggedRef.current) return;
+    if (!user?.id) return;
+    const ready = !membershipsLoading && !isLoading && events !== undefined && !!userMemberships;
+    if (!ready) return;
+    schedulePerfLoggedRef.current = true;
+    let source: "warm_nav" | "cold_open" | "notification" =
+      scheduleCacheHitRef.current ? "warm_nav" : "cold_open";
+    try {
+      const cached = getCachedEventsList(eventsScopeKey, user?.id);
+      if (cached) source = "warm_nav";
+      scheduleCacheHitRef.current = !!cached;
+    } catch {}
+    try {
+      const snap = snapshotStages();
+      const notifTap = snap.deltas.notif_tap;
+      const schedMount = snap.deltas.schedule_mount;
+      if (
+        typeof notifTap === "number" &&
+        typeof schedMount === "number" &&
+        schedMount >= notifTap &&
+        schedMount - notifTap < 10_000
+      ) {
+        source = "notification";
+      }
+    } catch {}
+    void logScheduleOpenLatency({
+      userId: user.id,
+      source,
+      startTs: scheduleOpenStartRef.current,
+      cacheHit: scheduleCacheHitRef.current,
+      context: {
+        viewMode,
+        filter,
+        clubFilter: clubFilter ?? null,
+        teamFilter: teamFilter ?? null,
+        eventCount: events?.length ?? 0,
+      },
+    });
+  }, [events, membershipsLoading, isLoading, userMemberships, user?.id, viewMode, filter, clubFilter, teamFilter, eventsScopeKey]);
+
   if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;
   }
+
 
   return (
     <div className="py-6 space-y-6">

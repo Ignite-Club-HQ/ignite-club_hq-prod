@@ -19,14 +19,21 @@ export type ColdStartStage =
   | "boot"              // main.tsx module evaluated (Capacitor + JS runtime ready)
   | "notif_tap"         // notification tap dispatched (native or web)
   | "auth_ready"        // useAuth `initialized` flipped true
+  | "route_navigate"    // router navigate(path) invoked for the chat route (warm tap or drained cold-start)
   | "chat_chunk_loaded" // lazy chat page dynamic import resolved
   | "chat_mount"        // chat page component mounted
-  | "chat_fetch"        // chat page kicked off its messages fetch
+  | "chat_fetch"        // chat page queryFn began executing (RPC in flight)
   | "chat_query_return" // first messages RPC returned
   | "chat_render"       // chat page painted its first message
   | "inbox_mount"       // MessagesPage component mounted
   | "inbox_bootstrap_return" // messages-page bootstrap RPC resolved
-  | "inbox_first_paint";     // MessagesPage rendered first conversation row
+  | "inbox_first_paint"      // MessagesPage rendered first conversation row
+  | "home_mount"             // HomePage component mounted
+  | "home_query_return"      // HomePage primary memberships+events query resolved
+  | "home_first_paint"       // HomePage revealed content (unified skeleton hidden)
+  | "schedule_mount"         // EventsPage (Schedule) component mounted
+  | "schedule_query_return"  // EventsPage primary events query resolved
+  | "schedule_first_paint";  // EventsPage rendered first events row / empty state
 
 /**
  * Cumulative main-thread longtask blocking time (ms) between two stages.

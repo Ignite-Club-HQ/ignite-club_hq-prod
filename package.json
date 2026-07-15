@@ -22,7 +22,8 @@
     "ios:check-build:strict": "node scripts/check-asc-build-number.cjs --check-only",
     "ios:prebuild": "node scripts/bump-ios-version.cjs && node scripts/check-asc-build-number.cjs",
     "version": "node scripts/bump-ios-version.cjs $npm_package_version && git add package.json ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj",
-    "install:hooks": "node scripts/install-git-hooks.cjs"
+    "install:hooks": "node scripts/install-git-hooks.cjs",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
@@ -133,7 +134,9 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.11",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.6",
+    "postinstall-postinstall": "^2.1.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
