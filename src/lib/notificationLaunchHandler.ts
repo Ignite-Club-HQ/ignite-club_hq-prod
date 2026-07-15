@@ -291,6 +291,7 @@ export function processPendingNotificationNavigation(navigate: (path: string) =>
     return false;
   }
   try {
+    coldMark("route_navigate");
     navigate(path);
     return true;
   } catch (err) {
