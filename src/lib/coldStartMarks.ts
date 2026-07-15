@@ -19,9 +19,10 @@ export type ColdStartStage =
   | "boot"              // main.tsx module evaluated (Capacitor + JS runtime ready)
   | "notif_tap"         // notification tap dispatched (native or web)
   | "auth_ready"        // useAuth `initialized` flipped true
+  | "route_navigate"    // router navigate(path) invoked for the chat route (warm tap or drained cold-start)
   | "chat_chunk_loaded" // lazy chat page dynamic import resolved
   | "chat_mount"        // chat page component mounted
-  | "chat_fetch"        // chat page kicked off its messages fetch
+  | "chat_fetch"        // chat page queryFn began executing (RPC in flight)
   | "chat_query_return" // first messages RPC returned
   | "chat_render"       // chat page painted its first message
   | "inbox_mount"       // MessagesPage component mounted
