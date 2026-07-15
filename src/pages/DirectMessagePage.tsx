@@ -475,6 +475,7 @@ export default function DirectMessagePage() {
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: dmQueryKey,
     queryFn: async () => {
+      markChatFetch();
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
         .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
