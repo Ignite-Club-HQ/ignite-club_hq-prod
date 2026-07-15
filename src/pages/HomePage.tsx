@@ -393,6 +393,17 @@ export default function HomePage() {
     [user?.id],
   );
 
+  // Home perf: mark mount + track primary-query return + first paint. See
+  // src/lib/homeOpenLatency.ts. Best-effort; one sample per open.
+  const homeOpenStartRef = useRef<number>(Date.now());
+  const homePerfLoggedRef = useRef(false);
+  useEffect(() => {
+    homeOpenStartRef.current = Date.now();
+    homePerfLoggedRef.current = false;
+    coldMark("home_mount");
+    return () => { resetHomeOpenLog(); };
+  }, []);
+
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
