@@ -824,27 +824,11 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <NotificationToggle
-              icon={MessageSquare}
-              label="Messages"
-              description="Direct messages & chat notifications"
-              checked={emailPreferences.email_messages_enabled}
-              onCheckedChange={(v) => handleEmailPreferenceChange("email_messages_enabled", v)}
-              disabled={emailPrefsLoading}
-            />
-            <NotificationToggle
               icon={Calendar}
               label="Events & Reminders"
               description="Event invites, reminders & duty assignments"
               checked={emailPreferences.email_events_enabled}
               onCheckedChange={(v) => handleEmailPreferenceChange("email_events_enabled", v)}
-              disabled={emailPrefsLoading}
-            />
-            <NotificationToggle
-              icon={Image}
-              label="Media"
-              description="Photo uploads & comments"
-              checked={emailPreferences.email_media_enabled}
-              onCheckedChange={(v) => handleEmailPreferenceChange("email_media_enabled", v)}
               disabled={emailPrefsLoading}
             />
             <NotificationToggle
