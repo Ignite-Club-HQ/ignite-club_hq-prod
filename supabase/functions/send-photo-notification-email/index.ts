@@ -200,7 +200,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`Photo notification email sent successfully to ${recipientAuth.user.email}`);
+    console.log(`Photo notification email sent successfully to ${recipientEmail}`);
 
     return new Response(
       JSON.stringify({ success: true }),
