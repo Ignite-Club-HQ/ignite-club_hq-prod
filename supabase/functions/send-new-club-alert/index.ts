@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
 
     const resend = new Resend(resendApiKey);
     const { error: emailError } = await resend.emails.send({
-      from: "Ignite Club HQ <alerts@igniteclubhq.app>",
+      from: "Ignite Club HQ <support@igniteclubhq.app>",
       to: ["contact@igniteclubhq.app"],
       subject: `🎉 New club: ${club.name ?? club.id}`,
       html,
