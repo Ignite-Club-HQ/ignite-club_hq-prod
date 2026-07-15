@@ -4928,6 +4928,48 @@ export type Database = {
           },
         ]
       }
+      home_open_perf: {
+        Row: {
+          cache_hit: boolean
+          context: Json | null
+          created_at: string
+          first_paint_ms: number | null
+          id: string
+          platform: string | null
+          query_ms: number | null
+          source: string
+          stages: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          query_ms?: number | null
+          source: string
+          stages?: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          query_ms?: number | null
+          source?: string
+          stages?: Json | null
+          tap_to_paint_ms?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       iap_transactions: {
         Row: {
           created_at: string
@@ -7898,6 +7940,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      schedule_open_perf: {
+        Row: {
+          cache_hit: boolean
+          context: Json | null
+          created_at: string
+          first_paint_ms: number | null
+          id: string
+          platform: string | null
+          query_ms: number | null
+          source: string
+          stages: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          query_ms?: number | null
+          source: string
+          stages?: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          query_ms?: number | null
+          source?: string
+          stages?: Json | null
+          tap_to_paint_ms?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       scheduled_messages: {
         Row: {
