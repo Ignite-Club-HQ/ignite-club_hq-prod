@@ -107,6 +107,18 @@ export default function EventsPage() {
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
 
+  // Schedule perf: mark mount + track primary-query return + first paint. See
+  // src/lib/scheduleOpenLatency.ts. Best-effort; one sample per open.
+  const scheduleOpenStartRef = useRef<number>(Date.now());
+  const schedulePerfLoggedRef = useRef(false);
+  const scheduleCacheHitRef = useRef(false);
+  useEffect(() => {
+    scheduleOpenStartRef.current = Date.now();
+    schedulePerfLoggedRef.current = false;
+    coldMark("schedule_mount");
+    return () => { resetScheduleOpenLog(); };
+  }, []);
+
   // Update view mode when profile loads
   useEffect(() => {
     if (savedViewMode) {
