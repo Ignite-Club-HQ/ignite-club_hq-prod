@@ -216,6 +216,7 @@ function handleNotificationTap(notification: any) {
       // Warm tap path: navigate immediately, no need to stash.
       clearPendingNotificationNavigation();
       try {
+        coldRemark("route_navigate");
         activeNavigator(path);
       } catch (err) {
         console.warn('[NotificationLaunch] navigator threw, falling back to stash:', err);
