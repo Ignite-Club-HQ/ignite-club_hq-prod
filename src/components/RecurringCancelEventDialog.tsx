@@ -142,13 +142,13 @@ export function RecurringCancelEventDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[425px] top-[max(0.75rem,env(safe-area-inset-top))] translate-y-0 sm:top-[50%] sm:translate-y-[-50%] p-4 sm:p-6 gap-3"
+        className="sm:max-w-[425px] top-[max(0.75rem,env(safe-area-inset-top))] translate-y-0 sm:top-[50%] sm:translate-y-[-50%] p-0 gap-0 flex flex-col overflow-hidden w-[calc(100vw-1rem)]"
         style={{ maxHeight: `calc(100dvh - ${keyboardBottomInset + 24}px)` }}
       >
 
-        <DialogHeader>
-          <DialogTitle>Cancel {typeLabel}?</DialogTitle>
-          <DialogDescription className="space-y-2">
+        <DialogHeader className="p-4 sm:p-6 pb-2 shrink-0">
+          <DialogTitle className="text-left">Cancel {typeLabel}?</DialogTitle>
+          <DialogDescription className="space-y-2 text-left">
             <span className="block">
               You are about to cancel "{eventTitle}".
             </span>
@@ -165,7 +165,7 @@ export function RecurringCancelEventDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-2 space-y-4 min-h-0">
           <div className="space-y-2">
             <Label htmlFor="custom-message-recurring">
               Custom message (optional)
@@ -175,7 +175,7 @@ export function RecurringCancelEventDialog({
               placeholder="Add a reason or message for members..."
               value={customMessage}
               onChange={(e) => setCustomMessage(e.target.value)}
-              className="min-h-[80px]"
+              className="min-h-[72px]"
               maxLength={500}
             />
             <p className="text-xs text-muted-foreground">
@@ -184,13 +184,14 @@ export function RecurringCancelEventDialog({
           </div>
 
           {/* Push notification option */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-start space-x-2">
             <Checkbox
               id="send-push-recurring"
               checked={sendPushNotification}
               onCheckedChange={(checked) => setSendPushNotification(checked === true)}
+              className="mt-0.5"
             />
-            <Label htmlFor="send-push-recurring" className="text-sm font-normal cursor-pointer">
+            <Label htmlFor="send-push-recurring" className="text-sm font-normal cursor-pointer leading-tight">
               Also send push notification to members
             </Label>
           </div>
@@ -198,18 +199,18 @@ export function RecurringCancelEventDialog({
           {/* Chat Message Preview - always shown */}
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Message will be posted to {chatType} chat
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Message will be posted to {chatType} chat</span>
             </Label>
             <div className="rounded-md border bg-muted/50 p-3">
-              <p className="text-sm text-foreground whitespace-pre-wrap">
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
                 {getChatMessagePreview()}
               </p>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="flex-col gap-2 pt-2">
+        <DialogFooter className="flex-col gap-2 p-4 sm:p-6 pt-3 border-t bg-background shrink-0">
           <Button
             variant="default"
             className="w-full bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
