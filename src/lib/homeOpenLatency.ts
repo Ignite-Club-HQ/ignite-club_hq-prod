@@ -31,6 +31,8 @@ interface LogArgs {
     activeClubFilter: string | null;
     isNewUserEmptyState: boolean;
   };
+  /** Resolved "primary" club for this open (active filter → first membership). */
+  primaryClubId?: string | null;
   userId?: string | null;
 }
 
@@ -89,6 +91,7 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
         context: args.context,
         platform,
         stages,
+        primary_club_id: args.primaryClubId ?? null,
       }).then(() => {}, () => {});
     };
 

@@ -2195,6 +2195,7 @@ export default function HomePage() {
       mountTs: homeMountTsRef.current,
       queryReturnTs: homeQueryReturnTsRef.current,
       firstPaintTs: homeFirstPaintTsRef.current,
+      primaryClubId: activeClubFilter ?? userClubs[0]?.id ?? null,
       context: {
         clubCount: membershipClubCount,
         teamCount: membershipTeamCount,

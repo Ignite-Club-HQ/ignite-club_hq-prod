@@ -2468,6 +2468,7 @@ export default function MessagesPage() {
       mountTs: inboxMountTsRef.current,
       bootstrapReturnTs: inboxBootstrapReturnTsRef.current,
       firstPaintTs: inboxFirstPaintTsRef.current,
+      primaryClubId: (memberClubs?.[0] as any)?.id ?? null,
       sectionCounts: {
         teams: filteredTeams.length,
         clubs: filteredClubs.length,

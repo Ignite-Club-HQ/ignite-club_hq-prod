@@ -4936,6 +4936,7 @@ export type Database = {
           first_paint_ms: number | null
           id: string
           platform: string | null
+          primary_club_id: string | null
           query_ms: number | null
           source: string
           stages: Json | null
@@ -4949,6 +4950,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           query_ms?: number | null
           source: string
           stages?: Json | null
@@ -4962,6 +4964,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           query_ms?: number | null
           source?: string
           stages?: Json | null
@@ -5018,6 +5021,7 @@ export type Database = {
           first_paint_ms: number | null
           id: string
           platform: string | null
+          primary_club_id: string | null
           section_counts: Json | null
           source: string
           stages: Json | null
@@ -5032,6 +5036,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           section_counts?: Json | null
           source: string
           stages?: Json | null
@@ -5046,6 +5051,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           section_counts?: Json | null
           source?: string
           stages?: Json | null
@@ -7949,6 +7955,7 @@ export type Database = {
           first_paint_ms: number | null
           id: string
           platform: string | null
+          primary_club_id: string | null
           query_ms: number | null
           source: string
           stages: Json | null
@@ -7962,6 +7969,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           query_ms?: number | null
           source: string
           stages?: Json | null
@@ -7975,6 +7983,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           query_ms?: number | null
           source?: string
           stages?: Json | null

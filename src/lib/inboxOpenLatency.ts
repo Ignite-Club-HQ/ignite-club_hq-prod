@@ -40,6 +40,8 @@ interface LogArgs {
     dms: number;
     total: number;
   };
+  /** Resolved "primary" club for this open (first membership). */
+  primaryClubId?: string | null;
   userId?: string | null;
 }
 
@@ -99,7 +101,8 @@ export async function logInboxOpenLatency(args: LogArgs): Promise<void> {
         section_counts: args.sectionCounts as any,
         platform,
         stages: stages as any,
-      }).then(() => {}, () => {});
+        primary_club_id: args.primaryClubId ?? null,
+      } as any).then(() => {}, () => {});
     };
 
     const w = window as any;
