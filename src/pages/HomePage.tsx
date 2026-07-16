@@ -395,10 +395,20 @@ export default function HomePage() {
 
   // Home perf: mark mount + track primary-query return + first paint. See
   // src/lib/homeOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // home open report the FIRST open's `query_ms` / `first_paint_ms`.
   const homeOpenStartRef = useRef<number>(Date.now());
+  const homeMountTsRef = useRef<number>(Date.now());
+  const homeQueryReturnTsRef = useRef<number | null>(null);
+  const homeFirstPaintTsRef = useRef<number | null>(null);
   const homePerfLoggedRef = useRef(false);
   useEffect(() => {
-    homeOpenStartRef.current = Date.now();
+    const now = Date.now();
+    homeOpenStartRef.current = now;
+    homeMountTsRef.current = now;
+    homeQueryReturnTsRef.current = null;
+    homeFirstPaintTsRef.current = null;
     homePerfLoggedRef.current = false;
     coldMark("home_mount");
     return () => { resetHomeOpenLog(); };
@@ -2149,13 +2159,19 @@ export default function HomePage() {
   // Home perf: log once first paint occurs (unified skeleton has been
   // replaced by real content OR the authoritative empty state).
   useEffect(() => {
-    if (membershipAndEvents) coldMark("home_query_return");
+    if (membershipAndEvents && homeQueryReturnTsRef.current === null) {
+      homeQueryReturnTsRef.current = Date.now();
+      coldMark("home_query_return");
+    }
   }, [membershipAndEvents]);
   useEffect(() => {
     if (homePerfLoggedRef.current) return;
     if (!user?.id) return;
     if (!(showContent || isNewUserEmptyState)) return;
     homePerfLoggedRef.current = true;
+    if (homeFirstPaintTsRef.current === null) {
+      homeFirstPaintTsRef.current = Date.now();
+    }
     let source: "warm_nav" | "cold_open" | "notification" =
       nextUpCachedSnapshot ? "warm_nav" : "cold_open";
     try {
@@ -2176,6 +2192,10 @@ export default function HomePage() {
       source,
       startTs: homeOpenStartRef.current,
       cacheHit: !!nextUpCachedSnapshot,
+      mountTs: homeMountTsRef.current,
+      queryReturnTs: homeQueryReturnTsRef.current,
+      firstPaintTs: homeFirstPaintTsRef.current,
+      primaryClubId: activeClubFilter ?? userClubs[0]?.id ?? null,
       context: {
         clubCount: membershipClubCount,
         teamCount: membershipTeamCount,

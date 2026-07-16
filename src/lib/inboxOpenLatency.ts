@@ -27,6 +27,12 @@ interface LogArgs {
   startTs: number;
   cacheHit: boolean;
   bootstrapEnabled: boolean;
+  /** Per-open timestamps (Date.now()). Preferred over `coldMark` deltas
+   *  because those are first-write-wins per JS session and go stale on
+   *  subsequent opens. */
+  mountTs?: number | null;
+  bootstrapReturnTs?: number | null;
+  firstPaintTs?: number | null;
   sectionCounts: {
     teams: number;
     clubs: number;
@@ -34,6 +40,8 @@ interface LogArgs {
     dms: number;
     total: number;
   };
+  /** Resolved "primary" club for this open (first membership). */
+  primaryClubId?: string | null;
   userId?: string | null;
 }
 
@@ -61,14 +69,19 @@ export async function logInboxOpenLatency(args: LogArgs): Promise<void> {
 
     const snap = snapshotStages();
     const deltas = snap.deltas;
+    // Prefer fresh per-open timings; fall back to (potentially stale) coldMark deltas.
     const bootstrap_ms =
-      deltas.inbox_bootstrap_return != null && deltas.inbox_mount != null
-        ? Math.max(0, deltas.inbox_bootstrap_return - deltas.inbox_mount)
-        : null;
+      args.mountTs != null && args.bootstrapReturnTs != null
+        ? Math.max(0, Math.round(args.bootstrapReturnTs - args.mountTs))
+        : deltas.inbox_bootstrap_return != null && deltas.inbox_mount != null
+          ? Math.max(0, deltas.inbox_bootstrap_return - deltas.inbox_mount)
+          : null;
     const first_paint_ms =
-      deltas.inbox_first_paint != null && deltas.inbox_mount != null
-        ? Math.max(0, deltas.inbox_first_paint - deltas.inbox_mount)
-        : null;
+      args.mountTs != null && args.firstPaintTs != null
+        ? Math.max(0, Math.round(args.firstPaintTs - args.mountTs))
+        : deltas.inbox_first_paint != null && deltas.inbox_mount != null
+          ? Math.max(0, deltas.inbox_first_paint - deltas.inbox_mount)
+          : null;
 
     const stages = snap.anchor !== null
       ? { anchor: snap.anchor, nav_ms: snap.nav_ms ?? 0, ...deltas, total_ms: tap_to_paint_ms }
@@ -88,7 +101,8 @@ export async function logInboxOpenLatency(args: LogArgs): Promise<void> {
         section_counts: args.sectionCounts as any,
         platform,
         stages: stages as any,
-      }).then(() => {}, () => {});
+        primary_club_id: args.primaryClubId ?? null,
+      } as any).then(() => {}, () => {});
     };
 
     const w = window as any;
