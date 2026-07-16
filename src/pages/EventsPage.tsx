@@ -109,11 +109,21 @@ export default function EventsPage() {
 
   // Schedule perf: mark mount + track primary-query return + first paint. See
   // src/lib/scheduleOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // schedule open report the FIRST open's `query_ms` / `first_paint_ms`.
   const scheduleOpenStartRef = useRef<number>(Date.now());
+  const scheduleMountTsRef = useRef<number>(Date.now());
+  const scheduleQueryReturnTsRef = useRef<number | null>(null);
+  const scheduleFirstPaintTsRef = useRef<number | null>(null);
   const schedulePerfLoggedRef = useRef(false);
   const scheduleCacheHitRef = useRef(false);
   useEffect(() => {
-    scheduleOpenStartRef.current = Date.now();
+    const now = Date.now();
+    scheduleOpenStartRef.current = now;
+    scheduleMountTsRef.current = now;
+    scheduleQueryReturnTsRef.current = null;
+    scheduleFirstPaintTsRef.current = null;
     schedulePerfLoggedRef.current = false;
     coldMark("schedule_mount");
     return () => { resetScheduleOpenLog(); };
