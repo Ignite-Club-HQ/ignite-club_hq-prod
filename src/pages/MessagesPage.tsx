@@ -2477,13 +2477,6 @@ export default function MessagesPage() {
         total: unifiedConversations.length,
       },
     });
-        teams: filteredTeams.length,
-        clubs: filteredClubs.length,
-        groups: filteredChatGroups.length + filteredLeagueChats.length,
-        dms: filteredDMs.length,
-        total: unifiedConversations.length,
-      },
-    });
   }, [unifiedConversations, user?.id, cachedData, teamsFetched, memberClubsFetched, chatGroupsFetched, dmFetched, latestBroadcastFetched, filteredTeams.length, filteredClubs.length, filteredChatGroups.length, filteredLeagueChats.length, filteredDMs.length]);
 
 
