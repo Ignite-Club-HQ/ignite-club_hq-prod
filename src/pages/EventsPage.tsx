@@ -109,11 +109,21 @@ export default function EventsPage() {
 
   // Schedule perf: mark mount + track primary-query return + first paint. See
   // src/lib/scheduleOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // schedule open report the FIRST open's `query_ms` / `first_paint_ms`.
   const scheduleOpenStartRef = useRef<number>(Date.now());
+  const scheduleMountTsRef = useRef<number>(Date.now());
+  const scheduleQueryReturnTsRef = useRef<number | null>(null);
+  const scheduleFirstPaintTsRef = useRef<number | null>(null);
   const schedulePerfLoggedRef = useRef(false);
   const scheduleCacheHitRef = useRef(false);
   useEffect(() => {
-    scheduleOpenStartRef.current = Date.now();
+    const now = Date.now();
+    scheduleOpenStartRef.current = now;
+    scheduleMountTsRef.current = now;
+    scheduleQueryReturnTsRef.current = null;
+    scheduleFirstPaintTsRef.current = null;
     schedulePerfLoggedRef.current = false;
     coldMark("schedule_mount");
     return () => { resetScheduleOpenLog(); };
@@ -693,7 +703,10 @@ export default function EventsPage() {
   // primary events query has resolved (rows or empty state) AND memberships
   // have loaded, so the list/calendar area is no longer showing a skeleton.
   useEffect(() => {
-    if (events !== undefined) coldMark("schedule_query_return");
+    if (events !== undefined && scheduleQueryReturnTsRef.current === null) {
+      scheduleQueryReturnTsRef.current = Date.now();
+      coldMark("schedule_query_return");
+    }
   }, [events]);
   useEffect(() => {
     if (schedulePerfLoggedRef.current) return;
@@ -701,6 +714,9 @@ export default function EventsPage() {
     const ready = !membershipsLoading && !isLoading && events !== undefined && !!userMemberships;
     if (!ready) return;
     schedulePerfLoggedRef.current = true;
+    if (scheduleFirstPaintTsRef.current === null) {
+      scheduleFirstPaintTsRef.current = Date.now();
+    }
     let source: "warm_nav" | "cold_open" | "notification" =
       scheduleCacheHitRef.current ? "warm_nav" : "cold_open";
     try {
@@ -726,6 +742,9 @@ export default function EventsPage() {
       source,
       startTs: scheduleOpenStartRef.current,
       cacheHit: scheduleCacheHitRef.current,
+      mountTs: scheduleMountTsRef.current,
+      queryReturnTs: scheduleQueryReturnTsRef.current,
+      firstPaintTs: scheduleFirstPaintTsRef.current,
       context: {
         viewMode,
         filter,
