@@ -30,6 +30,8 @@ interface LogArgs {
     teamFilter: string | null;
     eventCount: number;
   };
+  /** Resolved "primary" club for this open (active filter → first membership). */
+  primaryClubId?: string | null;
   userId?: string | null;
 }
 
@@ -87,6 +89,7 @@ export async function logScheduleOpenLatency(args: LogArgs): Promise<void> {
         context: args.context,
         platform,
         stages,
+        primary_club_id: args.primaryClubId ?? null,
       }).then(() => {}, () => {});
     };
 
