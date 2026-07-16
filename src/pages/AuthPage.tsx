@@ -868,8 +868,9 @@ export default function AuthPage() {
                       id="accept-terms"
                       checked={acceptedTerms}
                       onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                      className="mt-0.5 shrink-0"
                     />
-                    <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                    <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-snug cursor-pointer flex-1">
                       I agree to the{" "}
                       <Link to="/terms" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Terms of Service</Link>
                       {" "}and{" "}
