@@ -18,6 +18,12 @@ interface LogArgs {
   /** Reference timestamp (ms epoch) — when the home open started (route landing / tap). */
   startTs: number;
   cacheHit: boolean;
+  /** Per-open timestamps (Date.now()). Preferred over `coldMark` deltas
+   *  because those are first-write-wins per JS session and go stale on
+   *  subsequent opens. */
+  mountTs?: number | null;
+  queryReturnTs?: number | null;
+  firstPaintTs?: number | null;
   context: {
     clubCount: number;
     teamCount: number;
@@ -52,14 +58,19 @@ export async function logHomeOpenLatency(args: LogArgs): Promise<void> {
 
     const snap = snapshotStages();
     const deltas = snap.deltas;
+    // Prefer fresh per-open timings; fall back to (potentially stale) coldMark deltas.
     const query_ms =
-      deltas.home_query_return != null && deltas.home_mount != null
-        ? Math.max(0, deltas.home_query_return - deltas.home_mount)
-        : null;
+      args.mountTs != null && args.queryReturnTs != null
+        ? Math.max(0, Math.round(args.queryReturnTs - args.mountTs))
+        : deltas.home_query_return != null && deltas.home_mount != null
+          ? Math.max(0, deltas.home_query_return - deltas.home_mount)
+          : null;
     const first_paint_ms =
-      deltas.home_first_paint != null && deltas.home_mount != null
-        ? Math.max(0, deltas.home_first_paint - deltas.home_mount)
-        : null;
+      args.mountTs != null && args.firstPaintTs != null
+        ? Math.max(0, Math.round(args.firstPaintTs - args.mountTs))
+        : deltas.home_first_paint != null && deltas.home_mount != null
+          ? Math.max(0, deltas.home_first_paint - deltas.home_mount)
+          : null;
 
     const stages = snap.anchor !== null
       ? { anchor: snap.anchor, nav_ms: snap.nav_ms ?? 0, ...deltas, total_ms: tap_to_paint_ms }
