@@ -735,6 +735,14 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
     return () => onNeedsRsvpChange?.(id, false);
   }, [event.id, onNeedsRsvpChange]);
 
+  // Only render the amber "RSVP Required" pill / primary-tinted border once
+  // the underlying RSVP queries have truly settled. Otherwise the 1500 ms
+  // `heroReadyTimedOut` fallback can force the card to reveal with
+  // `myRsvp === undefined` / `childRsvps === undefined`, which momentarily
+  // satisfies `needsRsvp` even for events the user has already RSVP'd to —
+  // producing the ~1s flash of "RSVP Required" on cold start.
+  const showNeedsRsvp = needsRsvp && rsvpDataFullySettled;
+
   const needsRsvpPillLabel = hasGuardianChildren
     ? (guardianUnrespondedCount === 1
         ? `${(guardianUnrespondedChildren[0].name.split(" ")[0] || guardianUnrespondedChildren[0].name)} needs RSVP`
