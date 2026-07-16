@@ -745,6 +745,7 @@ export default function EventsPage() {
       mountTs: scheduleMountTsRef.current,
       queryReturnTs: scheduleQueryReturnTsRef.current,
       firstPaintTs: scheduleFirstPaintTsRef.current,
+      primaryClubId: clubFilter ?? userMemberships?.clubIds?.[0] ?? null,
       context: {
         viewMode,
         filter,

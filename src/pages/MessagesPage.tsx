@@ -2468,7 +2468,15 @@ export default function MessagesPage() {
       mountTs: inboxMountTsRef.current,
       bootstrapReturnTs: inboxBootstrapReturnTsRef.current,
       firstPaintTs: inboxFirstPaintTsRef.current,
+      primaryClubId: (memberClubs?.[0] as any)?.id ?? null,
       sectionCounts: {
+        teams: filteredTeams.length,
+        clubs: filteredClubs.length,
+        groups: filteredChatGroups.length + filteredLeagueChats.length,
+        dms: filteredDMs.length,
+        total: unifiedConversations.length,
+      },
+    });
         teams: filteredTeams.length,
         clubs: filteredClubs.length,
         groups: filteredChatGroups.length + filteredLeagueChats.length,
