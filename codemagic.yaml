@@ -203,7 +203,6 @@ workflows:
           ./gradlew bundleRelease
     # No artifacts published for DEV — build validates only.
     # Downloadable .aab is produced by the PROD android-workflow.
-    artifacts: []
   ios-debug-workflow:
     name: iOS Debug Build (DEV)
     max_build_duration: 60
