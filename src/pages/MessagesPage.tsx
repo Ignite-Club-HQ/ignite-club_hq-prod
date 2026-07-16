@@ -278,14 +278,27 @@ export default function MessagesPage() {
 
   // Inbox perf: mark mount + track bootstrap RPC return + first paint. See
   // src/lib/inboxOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // inbox open report the FIRST open's `bootstrap_ms` / `first_paint_ms`.
   const inboxOpenStartRef = useRef<number>(Date.now());
+  const inboxMountTsRef = useRef<number>(Date.now());
+  const inboxBootstrapReturnTsRef = useRef<number | null>(null);
+  const inboxFirstPaintTsRef = useRef<number | null>(null);
   useEffect(() => {
-    inboxOpenStartRef.current = Date.now();
+    const now = Date.now();
+    inboxOpenStartRef.current = now;
+    inboxMountTsRef.current = now;
+    inboxBootstrapReturnTsRef.current = null;
+    inboxFirstPaintTsRef.current = null;
     coldMark("inbox_mount");
     return () => { resetInboxOpenLog(); };
   }, []);
   useEffect(() => {
-    if (bootstrapQ.data) coldMark("inbox_bootstrap_return");
+    if (bootstrapQ.data && inboxBootstrapReturnTsRef.current === null) {
+      inboxBootstrapReturnTsRef.current = Date.now();
+      coldMark("inbox_bootstrap_return");
+    }
   }, [bootstrapQ.data]);
 
 
@@ -2443,12 +2456,18 @@ export default function MessagesPage() {
         inboxSource = "notification";
       }
     } catch {}
+    if (inboxFirstPaintTsRef.current === null) {
+      inboxFirstPaintTsRef.current = Date.now();
+    }
     void logInboxOpenLatency({
       userId: user.id,
       source: inboxSource,
       startTs: inboxOpenStartRef.current,
       cacheHit: !!cachedData,
       bootstrapEnabled: isMessagesBootstrapEnabled(),
+      mountTs: inboxMountTsRef.current,
+      bootstrapReturnTs: inboxBootstrapReturnTsRef.current,
+      firstPaintTs: inboxFirstPaintTsRef.current,
       sectionCounts: {
         teams: filteredTeams.length,
         clubs: filteredClubs.length,
