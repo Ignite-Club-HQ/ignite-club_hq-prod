@@ -262,7 +262,6 @@ export default function ClubSetupWizardPage() {
         ),
       );
       qc.invalidateQueries({ queryKey: ["club-teams", clubId] });
-      toast({ title: "Team created", description: draft.name });
     },
     onError: (err: Error) => {
       toast({
@@ -1343,10 +1342,6 @@ function OperationalGroupsStep({
     }
 
     qc.invalidateQueries({ queryKey: ["chat-groups"] });
-    toast({
-      title: "Group created",
-      description: `${g.name} — existing committee auto-added.`,
-    });
   };
 
   return (
