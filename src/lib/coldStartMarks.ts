@@ -120,6 +120,12 @@ export function remark(stage: ColdStartStage): void {
   }
 }
 
+/** Raw ms-epoch of a mark, or null if it hasn't fired this JS session. */
+export function getMarkTs(stage: ColdStartStage): number | null {
+  const rec = marks.get(stage);
+  return rec ? rec.ts : null;
+}
+
 export interface StageSnapshot {
   /** Absolute ms epoch of the anchor mark (usually `boot`). */
   anchor: number | null;
