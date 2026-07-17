@@ -158,6 +158,9 @@ export function AppLayout() {
     );
   }
 
+  // Gate has released: auth + profile + theme all ready, <Outlet /> can render.
+  try { coldMark("app_layout_gate_open"); } catch {}
+
   // Check if there's a pending OAuth callback that needs to be processed
   // This prevents redirecting to /auth before the OAuth code can be handled
   const hasPendingOAuth = typeof window !== 'undefined' && (
