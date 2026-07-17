@@ -128,9 +128,11 @@ export function PushNotificationManager() {
 
     // Drain any URL stashed by the early web launch handler (handles taps that
     // fired before this component mounted, e.g. during auth bootstrap).
+    try { coldMark("pending_nav_consume_attempt"); } catch {}
     const pending = consumePendingWebPushNav();
     if (pending) {
       console.log('[PushManager] Consuming pending web push nav:', pending);
+      try { coldMark("route_navigate"); } catch {}
       navigateToUrl(pending);
     }
 
