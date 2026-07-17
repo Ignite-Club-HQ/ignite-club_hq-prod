@@ -185,7 +185,6 @@ export default function FindOrCreateClubWizard({
     });
 
     setSaving(false);
-    toast({ title: "Club created!", description: `${clubName} has been created.` });
     onClubCreated(club.id);
   };
 

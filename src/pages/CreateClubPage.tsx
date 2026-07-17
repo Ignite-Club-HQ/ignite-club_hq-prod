@@ -250,11 +250,6 @@ export default function CreateClubPage() {
       });
     }
 
-    toast({
-      title: "Club created!",
-      description: `${name} has been created successfully.`,
-    });
-
     navigate(`/clubs/${club.id}/setup`);
   };
 
