@@ -178,7 +178,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     };
     const tryConsume = () => processPendingNotificationNavigation(safeNavigate);
 
-    try { (await import("@/lib/coldStartMarks")).mark("pending_nav_consume_attempt"); } catch {}
+    try { void import("@/lib/coldStartMarks").then(m => m.mark("pending_nav_consume_attempt")); } catch {}
     if (tryConsume()) {
       console.log('[useNativePush] Consumed pending nav after auth ready');
       return;
