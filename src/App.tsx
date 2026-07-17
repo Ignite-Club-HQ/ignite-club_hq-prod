@@ -146,7 +146,7 @@ const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
 const ClaimTeamPage = lazy(() => import("./pages/ClaimTeamPage"));
 const CompetitionJoinPage = lazy(() => import("./pages/CompetitionJoinPage"));
 const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
-const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
+// WatchLiveTeamPage archived: only served basketball/netball spectator view (archive/sports/pages/)
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -409,7 +409,7 @@ const App = () => {
                   <Route path="/clubs/:clubId/stripe" element={<StripeSettingsPage />} />
                   <Route path="/clubs/:clubId/enrol" element={<ClassEnrolmentPage />} />
                   <Route path="/teams/:id" element={<TeamDetailPage />} />
-                  <Route path="/watch/team/:teamId" element={<WatchLiveTeamPage />} />
+                  {/* /watch/team/:teamId route archived with WatchLiveTeamPage (court-sports only) */}
                   <Route path="/teams/:id/edit" element={<EditTeamPage />} />
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
