@@ -134,7 +134,28 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">;
 
+const isSuppressedCreationSuccessToast = ({ title, description, variant }: Toast) => {
+  if (variant === "destructive") return false;
+
+  const titleText = String(title ?? "").toLowerCase();
+  const descriptionText = String(description ?? "").toLowerCase();
+
+  return (
+    titleText === "club created!" ||
+    titleText === "team created!" ||
+    descriptionText.includes("has been created successfully")
+  );
+};
+
 function toast({ ...props }: Toast) {
+  if (isSuppressedCreationSuccessToast(props)) {
+    return {
+      id: "suppressed",
+      dismiss: () => undefined,
+      update: () => undefined,
+    };
+  }
+
   const id = genId();
 
   const update = (props: ToasterToast) =>

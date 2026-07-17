@@ -250,10 +250,6 @@ export default function CreateTeamPage() {
         return;
       }
 
-      toast({
-        title: "Request Submitted!",
-        description: `Your request to create "${name.trim()}" has been sent to the club admin for approval.`,
-      });
       navigate(-1);
       return;
     }
@@ -342,11 +338,6 @@ export default function CreateTeamPage() {
           description: "Team created but couldn't assign admin role.",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: `${entityLabel(club)} created!`,
-          description: `${adminAssignment.userDisplayName} has been assigned as ${entityLabel(club)} Admin.`,
-        });
       }
       navigate(`/teams/${team.id}`);
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName) {
@@ -410,11 +401,7 @@ export default function CreateTeamPage() {
       }
 
       setSaving(false);
-      toast({
-        title: `${entityLabel(club)} created!`,
-        description: `${team.name} has been created successfully.`,
-      });
-      navigate(`/teams/${team.id}`, { 
+      navigate(`/teams/${team.id}`, {
         state: { 
           showAdminInvite: true, 
           inviteName: adminAssignment.inviteName,
@@ -440,11 +427,6 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
       }
-
-      toast({
-        title: `${entityLabel(club)} created!`,
-        description: `${name} has been created successfully.`,
-      });
 
       // If user came here from a competition join link, return them to finish joining
       const pendingCompToken = sessionStorage.getItem("pendingCompetitionJoinToken");

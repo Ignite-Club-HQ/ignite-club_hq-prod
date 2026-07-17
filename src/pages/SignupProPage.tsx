@@ -297,7 +297,7 @@ export default function SignupProPage() {
 
     setSaving(false);
     setCreatedClubId(club.id);
-    toast({ title: "Club created!", description: `${clubName} has been created.` });
+    
     setStep(4);
   };
 
@@ -363,7 +363,7 @@ export default function SignupProPage() {
 
     setSaving(false);
     setCreatedTeamId(team.id);
-    toast({ title: "Team created!", description: `${teamName} has been created.` });
+    
     setStep(5);
   };
 

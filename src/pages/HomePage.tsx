@@ -505,15 +505,23 @@ export default function HomePage() {
         eventsQuery = eventsQuery.or(eventScopeOr.join(","));
       }
 
-      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
+      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult, activeClubsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds).is("deleted_at", null)
-          : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
+          ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
+          : Promise.resolve({ data: [] as { id: string; club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
         eventsQuery,
+        // Filter out soft-deleted clubs from role-derived memberships. Without
+        // this, deleting a club leaves orphan user_roles rows that still make
+        // the user look like a member (empty-state welcome hidden, ghost
+        // carousel entries) because user_roles isn't cleared by the soft-
+        // delete trigger.
+        clubIdsFromRolesArr.length > 0
+          ? supabase.from("clubs").select("id").in("id", clubIdsFromRolesArr).is("deleted_at", null)
+          : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
       ]);
 
       // Same protection on the events fetch — if it failed (RLS race on
@@ -522,24 +530,46 @@ export default function HomePage() {
       if ((eventsResult as any).error) throw (eventsResult as any).error;
       if (!eventsResult.data) throw new Error("events fetch returned null data");
 
-      (teamsResult.data || []).forEach((t: any) => clubIds.add(t.club_id));
+      // Drop soft-deleted role-club ids from the membership sets.
+      const activeClubIdSet = new Set(((activeClubsResult as any).data || []).map((c: any) => c.id as string));
+      const filteredClubIds = new Set<string>();
+      clubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubIds.add(id); });
+      const filteredClubAdmin = new Set<string>();
+      clubAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubAdmin.add(id); });
+      const filteredLeagueAdmin = new Set<string>();
+      leagueAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredLeagueAdmin.add(id); });
+
+      // Team-derived memberships must also be filtered. A deleted club can leave
+      // user_roles rows with team_id populated; counting the raw teamIds keeps
+      // the new-user welcome hidden even after the club itself is filtered out.
+      const filteredTeamIds = new Set<string>();
+      (teamsResult.data || []).forEach((t: any) => {
+        if (!activeClubIdSet.has(t.club_id)) return;
+        filteredTeamIds.add(t.id);
+        filteredClubIds.add(t.club_id);
+      });
 
       const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
       (adminLeaguesResult.data || []).forEach((l: any) => {
         if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
       });
 
+      // Drop role rows whose club has been soft-deleted so downstream
+      // consumers (userRoles derivation, admin gates) don't grant admin
+      // powers on a ghost club.
+      const activeRoles = roles.filter((r: any) => !r.club_id || activeClubIdSet.has(r.club_id));
+
       const memberships = {
-        teamIds,
-        clubIds: Array.from(clubIds),
-        clubAdminClubIds: Array.from(clubAdminClubIds),
-        leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        teamIds: Array.from(filteredTeamIds),
+        clubIds: Array.from(filteredClubIds),
+        clubAdminClubIds: Array.from(filteredClubAdmin),
+        leagueAdminClubIds: Array.from(filteredLeagueAdmin),
         miniLeagueIds,
-        roles: roles as { role: string; club_id: string | null; team_id: string | null }[],
+        roles: activeRoles as { role: string; club_id: string | null; team_id: string | null }[],
       };
 
       // Step 3: Filter events client-side
-      const clubIdsArr = Array.from(clubIds);
+      const clubIdsArr = Array.from(filteredClubIds);
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
