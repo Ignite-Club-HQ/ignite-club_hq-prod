@@ -562,7 +562,7 @@ export default function HomePage() {
       };
 
       // Step 3: Filter events client-side
-      const clubIdsArr = Array.from(clubIds);
+      const clubIdsArr = Array.from(filteredClubIds);
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
