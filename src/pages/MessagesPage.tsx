@@ -287,10 +287,30 @@ export default function MessagesPage() {
   const inboxFirstPaintTsRef = useRef<number | null>(null);
   useEffect(() => {
     const now = Date.now();
-    inboxOpenStartRef.current = now;
     inboxMountTsRef.current = now;
     inboxBootstrapReturnTsRef.current = null;
     inboxFirstPaintTsRef.current = null;
+    // For a true cold open, anchor tap_to_paint_ms to the earliest signal we
+    // have (notif_tap if it fired, otherwise boot/performance.timeOrigin) so
+    // the top-level metric captures the pre-mount prefix (native webview
+    // init, auth resolve, chunk fetch, route settle) — not just mount → paint.
+    let startTs = now;
+    try {
+      const snap = snapshotStages();
+      if (snap.anchor !== null) {
+        const notifTapDelta = snap.deltas.notif_tap;
+        if (typeof notifTapDelta === "number") {
+          startTs = snap.anchor + notifTapDelta;
+        } else if (typeof performance !== "undefined" && performance.timeOrigin) {
+          // Prefer timeOrigin (native process start) over the `boot` mark so
+          // cold_open captures webview/JS bundle parse time too.
+          startTs = Math.min(now, Math.round(performance.timeOrigin));
+        } else {
+          startTs = snap.anchor;
+        }
+      }
+    } catch {}
+    inboxOpenStartRef.current = startTs;
     coldMark("inbox_mount");
     return () => { resetInboxOpenLog(); };
   }, []);
