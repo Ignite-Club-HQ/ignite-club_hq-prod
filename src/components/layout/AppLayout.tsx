@@ -16,6 +16,7 @@ import { useAdMobInit } from "@/hooks/useAdMob";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
@@ -156,6 +157,9 @@ export function AppLayout() {
       </div>
     );
   }
+
+  // Gate has released: auth + profile + theme all ready, <Outlet /> can render.
+  try { coldMark("app_layout_gate_open"); } catch {}
 
   // Check if there's a pending OAuth callback that needs to be processed
   // This prevents redirecting to /auth before the OAuth code can be handled

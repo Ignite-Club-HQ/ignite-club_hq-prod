@@ -19,6 +19,8 @@ export type ColdStartStage =
   | "boot"              // main.tsx module evaluated (Capacitor + JS runtime ready)
   | "notif_tap"         // notification tap dispatched (native or web)
   | "auth_ready"        // useAuth `initialized` flipped true
+  | "pending_nav_consume_attempt" // first attempt to drain a pending push URL after auth/user resolved
+  | "app_layout_gate_open"        // AppLayout loading/profile/theme gate released; child routes can render
   | "route_navigate"    // router navigate(path) invoked for the chat route (warm tap or drained cold-start)
   | "chat_chunk_loaded" // lazy chat page dynamic import resolved
   | "chat_mount"        // chat page component mounted

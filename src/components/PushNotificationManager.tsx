@@ -13,6 +13,7 @@ import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from "@/lib/pendingChatJump";
 import { suppressChatScope } from "@/lib/pushTapSuppression";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
@@ -127,9 +128,11 @@ export function PushNotificationManager() {
 
     // Drain any URL stashed by the early web launch handler (handles taps that
     // fired before this component mounted, e.g. during auth bootstrap).
+    try { coldMark("pending_nav_consume_attempt"); } catch {}
     const pending = consumePendingWebPushNav();
     if (pending) {
       console.log('[PushManager] Consuming pending web push nav:', pending);
+      try { coldMark("route_navigate"); } catch {}
       navigateToUrl(pending);
     }
 
