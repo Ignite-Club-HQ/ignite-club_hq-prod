@@ -507,8 +507,8 @@ export default function HomePage() {
 
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult, activeClubsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds).is("deleted_at", null)
-          : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
+          ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
+          : Promise.resolve({ data: [] as { id: string; club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
@@ -539,8 +539,15 @@ export default function HomePage() {
       const filteredLeagueAdmin = new Set<string>();
       leagueAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredLeagueAdmin.add(id); });
 
-      // Team-derived clubs (from active teams query above) are already active.
-      (teamsResult.data || []).forEach((t: any) => filteredClubIds.add(t.club_id));
+      // Team-derived memberships must also be filtered. A deleted club can leave
+      // user_roles rows with team_id populated; counting the raw teamIds keeps
+      // the new-user welcome hidden even after the club itself is filtered out.
+      const filteredTeamIds = new Set<string>();
+      (teamsResult.data || []).forEach((t: any) => {
+        if (!activeClubIdSet.has(t.club_id)) return;
+        filteredTeamIds.add(t.id);
+        filteredClubIds.add(t.club_id);
+      });
 
       const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
       (adminLeaguesResult.data || []).forEach((l: any) => {
@@ -553,7 +560,7 @@ export default function HomePage() {
       const activeRoles = roles.filter((r: any) => !r.club_id || activeClubIdSet.has(r.club_id));
 
       const memberships = {
-        teamIds,
+        teamIds: Array.from(filteredTeamIds),
         clubIds: Array.from(filteredClubIds),
         clubAdminClubIds: Array.from(filteredClubAdmin),
         leagueAdminClubIds: Array.from(filteredLeagueAdmin),
