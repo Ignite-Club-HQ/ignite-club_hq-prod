@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { mark as coldMark } from '@/lib/coldStartMarks';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
