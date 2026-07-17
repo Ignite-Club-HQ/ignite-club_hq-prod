@@ -1,3 +1,37 @@
+# ---------------------------------------------------------------------------
+# PROD web build (mirrors codemagic android-workflow / ios-workflow pattern)
+#
+# Netlify's "production" context = whichever branch is set as the Production
+# branch in Site settings → Build & deploy → Branches. Set that to `prod`.
+#
+# This block rewrites .env at build time so Vite bakes the PROD Supabase
+# URL + anon key into the shipped bundle, regardless of what the committed
+# dev .env contains. All other branches/PRs keep using the committed dev .env
+# (matches android-debug-workflow / ios-debug-workflow behaviour).
+#
+# Required Netlify env var (Site settings → Environment variables,
+# scope = "Production" only):
+#   VITE_SUPABASE_PUBLISHABLE_KEY = <prod anon key from yabcfiuntwqjwvschnji>
+# ---------------------------------------------------------------------------
+[context.production.environment]
+  LOVABLE_ENV = "prod"
+  VITE_SUPABASE_URL = "https://yabcfiuntwqjwvschnji.supabase.co"
+  VITE_SUPABASE_PROJECT_ID = "yabcfiuntwqjwvschnji"
+
+[context.production]
+  command = """
+    set -euo pipefail
+    if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+      echo '::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set in Netlify (Production scope) — aborting so we do not ship a dev bundle to prod'
+      exit 1
+    fi
+    printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_PROJECT_ID=%s\nVITE_SUPABASE_PUBLISHABLE_KEY=%s\n' \
+      "$VITE_SUPABASE_URL" "$VITE_SUPABASE_PROJECT_ID" "$VITE_SUPABASE_PUBLISHABLE_KEY" > .env
+    echo '=== .env rewritten for PROD ==='
+    grep -v PUBLISHABLE_KEY .env
+    npm run build
+  """
+
 [[edge_functions]]
   function = "share"
   path = "/share"
