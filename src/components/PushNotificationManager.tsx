@@ -13,6 +13,7 @@ import { consumePendingWebPushNav } from "@/lib/webNotificationLaunchHandler";
 import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from "@/lib/pendingChatJump";
 import { suppressChatScope } from "@/lib/pushTapSuppression";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
