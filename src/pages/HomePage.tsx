@@ -31,7 +31,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
-import CourtBoardResumeCard from "@/components/home/CourtBoardResumeCard";
+// CourtBoardResumeCard archived (basketball/netball only) — soccer resume handled by GameTimerWidget
 
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
@@ -2321,9 +2321,7 @@ export default function HomePage() {
         );
       })()}
 
-      {/* Resume in-progress basketball / netball game boards.
-          Soccer is already handled by GameTimerWidget above. */}
-      <CourtBoardResumeCard />
+      {/* Court-sport resume card archived — soccer resume handled by GameTimerWidget above. */}
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
