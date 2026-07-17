@@ -16,6 +16,7 @@ import { useAdMobInit } from "@/hooks/useAdMob";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
