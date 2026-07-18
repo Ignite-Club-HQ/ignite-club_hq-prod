@@ -3193,6 +3193,7 @@ export default function HomePage() {
       </AlertDialog>
 
       {quickRsvpEvent && (
+        <Suspense fallback={null}>
         <QuickRSVPDialog
           open={!!quickRsvpEvent}
           onOpenChange={(open) => !open && setQuickRsvpEvent(null)}
@@ -3207,6 +3208,7 @@ export default function HomePage() {
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
           eventAmount={quickRsvpEvent.amount}
         />
+        </Suspense>
       )}
 
       {/* Claim Reward Confirmation Dialog */}
