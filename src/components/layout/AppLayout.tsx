@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
-import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
+const PendingInviteWelcomeDialog = lazy(() => import("@/components/PendingInviteWelcomeDialog").then(m => ({ default: m.PendingInviteWelcomeDialog })));
 import { useAdMobInit } from "@/hooks/useAdMob";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
