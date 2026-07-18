@@ -14,7 +14,7 @@ import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog"
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
-import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
+const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
 import {
   AlertDialog,
   AlertDialogAction,
