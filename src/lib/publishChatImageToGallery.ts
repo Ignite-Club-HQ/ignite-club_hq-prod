@@ -48,7 +48,7 @@ function inferExtension(blob: Blob, fallback = "jpg"): string {
 export async function publishChatImageToGallery(
   args: PublishChatImageArgs,
 ): Promise<PublishChatImageResult> {
-  const { imageUrl, uploaderId, teamId, clubId, caption } = args;
+  const { imageUrl, uploaderId, teamId, clubId, caption, albumId } = args;
   if (!imageUrl) throw new Error("imageUrl is required");
   if (!uploaderId) throw new Error("uploaderId is required");
   if (!teamId && !clubId) throw new Error("teamId or clubId is required");
