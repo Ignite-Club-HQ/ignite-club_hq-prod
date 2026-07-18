@@ -969,7 +969,8 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
-      {(isAdmin || isClubAdmin) && (
+      {(isAdmin || isClubAdmin) && headerInviteOpen && (
+        <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={id!}
           teamName={team.name}
@@ -981,6 +982,7 @@ export default function TeamDetailPage() {
           externalOpen={headerInviteOpen}
           onExternalOpenChange={setHeaderInviteOpen}
         />
+        </Suspense>
       )}
 
       {(isAdmin || isClubAdmin) && (
