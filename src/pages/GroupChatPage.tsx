@@ -2276,13 +2276,17 @@ export default function GroupChatPage() {
             </span>
             <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
           </button>
-          <AddMiniLeagueMemberSheet
-            miniLeagueId={group.mini_league_id}
-            miniLeagueName={miniLeagueInfo?.name || group.name}
-            clubId={group.club_id}
-            externalOpen={miniLeagueInviteOpen}
-            onExternalOpenChange={setMiniLeagueInviteOpen}
-          />
+          {miniLeagueInviteOpen && (
+            <Suspense fallback={null}>
+            <AddMiniLeagueMemberSheet
+              miniLeagueId={group.mini_league_id}
+              miniLeagueName={miniLeagueInfo?.name || group.name}
+              clubId={group.club_id}
+              externalOpen={miniLeagueInviteOpen}
+              onExternalOpenChange={setMiniLeagueInviteOpen}
+            />
+            </Suspense>
+          )}
         </>
       )}
 
