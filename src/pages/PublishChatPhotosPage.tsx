@@ -87,7 +87,7 @@ export default function PublishChatPhotosPage() {
     [candidates, done],
   );
 
-  const handlePublishOne = async (img: ChatImage) => {
+  const handlePublishOne = async (img: ChatImage, albumId?: string | null) => {
     if (!user?.id || !team) return;
     setPublishing((s) => new Set(s).add(img.image_url));
     try {
@@ -96,6 +96,7 @@ export default function PublishChatPhotosPage() {
         uploaderId: user.id,
         teamId: team.id,
         clubId: team.club_id ?? null,
+        albumId: albumId ?? null,
       });
       setDone((s) => new Set(s).add(img.image_url));
     } catch (err: any) {
@@ -111,11 +112,33 @@ export default function PublishChatPhotosPage() {
 
   const handlePublishAll = async () => {
     if (!remaining.length) return;
+
+    // Create a single album so the batch renders as ONE gallery card with
+    // a +N badge instead of N separate cards. Only when publishing 2+.
+    // If album creation fails, fall back to per-photo publish (ungrouped)
+    // rather than blocking the user — better to publish than not.
+    let batchAlbumId: string | null = null;
+    if (remaining.length > 1) {
+      try {
+        const { data, error } = await supabase.rpc("create_photo_album", {
+          _club_id: team?.club_id ?? null,
+          _team_id: team?.id ?? null,
+          _mini_league_id: null,
+          _event_id: null,
+          _caption: null,
+        });
+        if (error) throw error;
+        batchAlbumId = (data as string) ?? null;
+      } catch (err) {
+        console.warn("[PublishChatPhotos] album creation failed, publishing ungrouped", err);
+      }
+    }
+
     let ok = 0;
     let failed = 0;
     for (const img of remaining) {
       try {
-        await handlePublishOne(img);
+        await handlePublishOne(img, batchAlbumId);
         ok++;
       } catch {
         failed++;

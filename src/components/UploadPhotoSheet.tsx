@@ -708,28 +708,48 @@ export function UploadPhotoSheet({
     // Multi-photo upload session → create a single album so the feed shows
     // one card per upload session (with +N badge) instead of N separate
     // cards each duplicating the same caption.
+    //
+    // CRITICAL: photos.album_id has an FK to photo_albums(id), so if album
+    // creation fails and we upload with album_id=NULL the batch is
+    // permanently ungrouped in the gallery (this is exactly what Sandra hit
+    // on 2026-05-16 — 21 photos with album_id=NULL rendered as 21 separate
+    // feed cards). Never silently fall back to ungrouped: retry once, and
+    // if still failing, abort the whole upload with a clear error.
     let albumId: string | null = null;
     if (photosToUpload.length > 1) {
+      const args = {
+        _club_id: clubId || null,
+        _team_id: teamId || null,
+        _mini_league_id: miniLeagueId || null,
+        _event_id: eventId || null,
+        _caption: photoCaption || null,
+      };
+      const tryCreateAlbum = async () => {
+        const { data, error } = await supabase.rpc("create_photo_album", args);
+        if (error) throw error;
+        if (!data) throw new Error("create_photo_album returned no id");
+        return data as string;
+      };
       try {
-        // Use SECURITY DEFINER RPC to bypass RLS edge cases where a stale
-        // auth.uid() vs user.id mismatch silently rejects the direct insert.
-        const { data: newAlbumId, error: albumErr } = await supabase.rpc(
-          "create_photo_album",
-          {
-            _club_id: clubId || null,
-            _team_id: teamId || null,
-            _mini_league_id: miniLeagueId || null,
-            _event_id: eventId || null,
-            _caption: photoCaption || null,
-          },
-        );
-        if (albumErr) {
-          console.warn("[upload] album creation failed, falling back to ungrouped photos:", albumErr);
-        } else {
-          albumId = (newAlbumId as string) ?? null;
+        albumId = await tryCreateAlbum();
+      } catch (firstErr) {
+        console.warn("[upload] album creation failed, retrying once:", firstErr);
+        await new Promise((r) => setTimeout(r, 400));
+        try {
+          albumId = await tryCreateAlbum();
+        } catch (retryErr: any) {
+          console.error("[upload] album creation failed after retry, aborting upload:", retryErr);
+          toast.error(
+            retryErr?.message?.includes("Not authenticated")
+              ? "You need to be signed in to upload photos."
+              : "Couldn't group these photos into an album. Please try again in a moment.",
+            { id: uploadToastId },
+          );
+          setUploading(false);
+          setUploadProgress(0);
+          onUploadingCountChange?.(0);
+          return;
         }
-      } catch (e) {
-        console.warn("[upload] album creation threw:", e);
       }
     }
 
