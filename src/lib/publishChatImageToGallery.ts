@@ -114,6 +114,7 @@ export async function publishChatImageToGallery(
       file_size: blob.size,
       caption: caption || null,
       title: caption || null,
+      album_id: albumId ?? null,
     })
     .select("id")
     .single();
