@@ -509,6 +509,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       )}
 
       {target?.kind === "team" && (
+        <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={target.id}
           teamName={target.name}
@@ -518,9 +519,11 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
+        </Suspense>
       )}
 
       {target?.kind === "mini_league" && (
+        <Suspense fallback={null}>
         <AddMiniLeagueMemberSheet
           miniLeagueId={target.id}
           miniLeagueName={target.name}
@@ -528,6 +531,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
+        </Suspense>
       )}
     </>
   );
