@@ -35,7 +35,7 @@ import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
