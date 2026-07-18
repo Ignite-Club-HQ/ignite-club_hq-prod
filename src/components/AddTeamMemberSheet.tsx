@@ -3258,7 +3258,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   // Pass members directly to mutation to avoid state timing issues
                   addBulkMembersMutation.mutate(formattedMembers);
                 }}
-              />
+              /></Suspense>}
             </div>
 
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
