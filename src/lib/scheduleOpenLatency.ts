@@ -9,7 +9,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-import { mark as coldMark, snapshotStages, logStagesToConsole } from "./coldStartMarks";
+import { mark as coldMark, snapshotStages, logStagesToConsole, getMarkTs } from "./coldStartMarks";
 
 export type SchedulePerfSource = "cold_open" | "warm_nav" | "notification";
 
@@ -17,9 +17,6 @@ interface LogArgs {
   source: SchedulePerfSource;
   startTs: number;
   cacheHit: boolean;
-  /** Per-open timestamps (Date.now()). Preferred over `coldMark` deltas
-   *  because those are first-write-wins per JS session and go stale on
-   *  subsequent opens. */
   mountTs?: number | null;
   queryReturnTs?: number | null;
   firstPaintTs?: number | null;
@@ -30,7 +27,6 @@ interface LogArgs {
     teamFilter: string | null;
     eventCount: number;
   };
-  /** Resolved "primary" club for this open (active filter → first membership). */
   primaryClubId?: string | null;
   userId?: string | null;
 }
@@ -48,8 +44,24 @@ export async function logScheduleOpenLatency(args: LogArgs): Promise<void> {
     logged = true;
 
     coldMark("schedule_first_paint");
-    const tap_to_paint_ms = Math.max(0, Math.round(Date.now() - args.startTs));
-    if (tap_to_paint_ms > 60_000) return;
+
+    // Rebase startTs for cold/notification opens so tap_to_paint_ms includes
+    // the pre-mount waterfall (webview boot, JS parse, auth resolve, route).
+    let startTs = args.startTs;
+    if (args.source === "cold_open" || args.source === "notification") {
+      const notifTs = getMarkTs("notif_tap");
+      const bootTs = getMarkTs("boot");
+      const originTs =
+        typeof performance !== "undefined" && performance.timeOrigin
+          ? Math.round(performance.timeOrigin)
+          : null;
+      startTs = [notifTs, bootTs, originTs, args.startTs]
+        .filter((v): v is number => typeof v === "number" && v > 0)
+        .reduce((a, b) => Math.min(a, b), args.startTs);
+    }
+
+    const tap_to_paint_ms = Math.max(0, Math.round(Date.now() - startTs));
+    if (tap_to_paint_ms > 120_000) return;
 
     let platform = "web";
     try {
@@ -58,7 +70,6 @@ export async function logScheduleOpenLatency(args: LogArgs): Promise<void> {
 
     const snap = snapshotStages();
     const deltas = snap.deltas;
-    // Prefer fresh per-open timings; fall back to (potentially stale) coldMark deltas.
     const query_ms =
       args.mountTs != null && args.queryReturnTs != null
         ? Math.max(0, Math.round(args.queryReturnTs - args.mountTs))
@@ -72,9 +83,35 @@ export async function logScheduleOpenLatency(args: LogArgs): Promise<void> {
           ? Math.max(0, deltas.schedule_first_paint - deltas.schedule_mount)
           : null;
 
+    const bootTs = getMarkTs("boot");
+    const notifTs = getMarkTs("notif_tap");
+    const authReadyTs = getMarkTs("auth_ready");
+    const originTs =
+      typeof performance !== "undefined" && performance.timeOrigin
+        ? Math.round(performance.timeOrigin)
+        : null;
+    const fresh = {
+      origin_from_start_ms: originTs != null ? originTs - startTs : null,
+      boot_from_start_ms: bootTs != null ? bootTs - startTs : null,
+      notif_tap_from_start_ms: notifTs != null ? notifTs - startTs : null,
+      auth_ready_from_start_ms: authReadyTs != null ? authReadyTs - startTs : null,
+      mount_from_start_ms: args.mountTs != null ? args.mountTs - startTs : null,
+      query_return_from_start_ms:
+        args.queryReturnTs != null ? args.queryReturnTs - startTs : null,
+      first_paint_from_start_ms:
+        args.firstPaintTs != null ? args.firstPaintTs - startTs : null,
+    };
+
     const stages = snap.anchor !== null
-      ? { anchor: snap.anchor, nav_ms: snap.nav_ms ?? 0, ...deltas, total_ms: tap_to_paint_ms }
-      : null;
+      ? {
+          anchor: snap.anchor,
+          nav_ms: snap.nav_ms ?? 0,
+          ...deltas,
+          fresh,
+          rebased_start_ts: startTs,
+          total_ms: tap_to_paint_ms,
+        }
+      : { fresh, rebased_start_ts: startTs, total_ms: tap_to_paint_ms };
 
     logStagesToConsole(`scheduleOpen:${args.source}`);
 
