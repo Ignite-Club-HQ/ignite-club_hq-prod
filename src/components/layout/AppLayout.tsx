@@ -293,7 +293,7 @@ export function AppLayout() {
       <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
-      <PendingInviteWelcomeDialog />
+      <Suspense fallback={null}><PendingInviteWelcomeDialog /></Suspense>
     </div>
   );
 }
