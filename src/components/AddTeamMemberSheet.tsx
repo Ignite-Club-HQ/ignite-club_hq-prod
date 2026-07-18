@@ -3232,7 +3232,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </Button>
               </div>
               
-              <MemberCSVImportDialog
+              {csvImportOpen && <Suspense fallback={null}><MemberCSVImportDialog
                 open={csvImportOpen}
                 onOpenChange={setCsvImportOpen}
                 defaultRole={selectedRole}
