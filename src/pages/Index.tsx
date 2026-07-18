@@ -18,11 +18,14 @@ const Index = () => {
           </svg>
         </div>
         <h1 className="mb-3 text-3xl font-semibold tracking-tight text-foreground">
-          Ready to Build
+          Ignite Club HQ
         </h1>
         <p className="text-muted-foreground leading-relaxed">
-          Connect your Supabase project and sync with GitHub to start building.
+          Sports club management for teams, coaches, and families.
         </p>
+        <span className="mt-4 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          v1.4.0
+        </span>
       </div>
     </div>
   );
