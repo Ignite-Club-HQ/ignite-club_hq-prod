@@ -832,11 +832,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
         </SheetContent>
       </Sheet>
 
-      <MiniLeagueMemberCSVImportDialog
-        open={csvImportOpen}
-        onOpenChange={setCsvImportOpen}
-        onImport={handleCSVImport}
-      />
+      {csvImportOpen && (
+        <Suspense fallback={null}>
+          <MiniLeagueMemberCSVImportDialog
+            open={csvImportOpen}
+            onOpenChange={setCsvImportOpen}
+            onImport={handleCSVImport}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
