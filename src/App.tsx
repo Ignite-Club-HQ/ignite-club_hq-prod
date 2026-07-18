@@ -13,7 +13,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
 import { AccessibilityPrefsProvider } from "@/hooks/useAccessibilityPrefs";
-import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
+const GlobalSubMonitorGate = lazy(() => import("@/components/pitch/GlobalSubMonitorGate"));
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
 
@@ -355,7 +355,7 @@ const App = () => {
           <BrowserRouter>
             <ScrollToTop />
             <PWAPendingInviteHandler />
-            <GlobalSubMonitorGate />
+            <Suspense fallback={null}><GlobalSubMonitorGate /></Suspense>
             <PitchBoardResumeRedirect />
             <MessagesBootstrapPrefetcher />
 

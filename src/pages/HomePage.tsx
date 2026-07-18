@@ -14,7 +14,7 @@ import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog"
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
-import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
+const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
 import {
   AlertDialog,
   AlertDialogAction,
@@ -3193,6 +3193,7 @@ export default function HomePage() {
       </AlertDialog>
 
       {quickRsvpEvent && (
+        <Suspense fallback={null}>
         <QuickRSVPDialog
           open={!!quickRsvpEvent}
           onOpenChange={(open) => !open && setQuickRsvpEvent(null)}
@@ -3207,6 +3208,7 @@ export default function HomePage() {
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
           eventAmount={quickRsvpEvent.amount}
         />
+        </Suspense>
       )}
 
       {/* Claim Reward Confirmation Dialog */}
