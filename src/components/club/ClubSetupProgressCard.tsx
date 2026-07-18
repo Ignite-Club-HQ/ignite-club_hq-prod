@@ -78,7 +78,8 @@ export function ClubSetupProgressCard({
           .from("chat_groups")
           .select("id", { count: "exact", head: true })
           .eq("club_id", clubId)
-          .eq("category", "subcommittee"),
+          .is("deleted_at", null)
+          .in("category", ["subcommittee", "Operations"]),
         supabase
           .from("sponsors" as any)
           .select("id", { count: "exact", head: true })
