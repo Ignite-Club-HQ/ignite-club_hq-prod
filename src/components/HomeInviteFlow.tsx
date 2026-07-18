@@ -14,8 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { getCachedRoles } from "@/lib/rolesCache";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
-import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
+const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 
 interface HomeInviteFlowProps {
   open: boolean;
