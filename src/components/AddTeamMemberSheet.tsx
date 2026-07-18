@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
@@ -7,7 +7,7 @@ import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
-import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
+const MemberCSVImportDialog = lazy(() => import("@/components/MemberCSVImportDialog").then(m => ({ default: m.MemberCSVImportDialog })));
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3232,7 +3232,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </Button>
               </div>
               
-              <MemberCSVImportDialog
+              {csvImportOpen && <Suspense fallback={null}><MemberCSVImportDialog
                 open={csvImportOpen}
                 onOpenChange={setCsvImportOpen}
                 defaultRole={selectedRole}
@@ -3258,7 +3258,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   // Pass members directly to mutation to avoid state timing issues
                   addBulkMembersMutation.mutate(formattedMembers);
                 }}
-              />
+              /></Suspense>}
             </div>
 
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, lazy, Suspense } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
@@ -101,7 +101,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
@@ -2276,13 +2276,17 @@ export default function GroupChatPage() {
             </span>
             <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
           </button>
-          <AddMiniLeagueMemberSheet
-            miniLeagueId={group.mini_league_id}
-            miniLeagueName={miniLeagueInfo?.name || group.name}
-            clubId={group.club_id}
-            externalOpen={miniLeagueInviteOpen}
-            onExternalOpenChange={setMiniLeagueInviteOpen}
-          />
+          {miniLeagueInviteOpen && (
+            <Suspense fallback={null}>
+            <AddMiniLeagueMemberSheet
+              miniLeagueId={group.mini_league_id}
+              miniLeagueName={miniLeagueInfo?.name || group.name}
+              clubId={group.club_id}
+              externalOpen={miniLeagueInviteOpen}
+              onExternalOpenChange={setMiniLeagueInviteOpen}
+            />
+            </Suspense>
+          )}
         </>
       )}
 

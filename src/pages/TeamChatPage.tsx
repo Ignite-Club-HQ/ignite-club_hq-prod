@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
@@ -35,7 +35,7 @@ import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -1863,16 +1863,20 @@ export default function TeamChatPage() {
           setTimeout(() => setInviteSheetOpen(true), 80);
         }}
       />
-      <AddTeamMemberSheet
-        teamId={teamId!}
-        teamName={team.name}
-        clubId={team.club_id}
-        teamType={(team as any).team_type || "mixed"}
-        canBulkInvite={!!isAdmin}
-        triggerVariant="none"
-        externalOpen={inviteSheetOpen}
-        onExternalOpenChange={setInviteSheetOpen}
-      />
+      {inviteSheetOpen && (
+        <Suspense fallback={null}>
+        <AddTeamMemberSheet
+          teamId={teamId!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          canBulkInvite={!!isAdmin}
+          triggerVariant="none"
+          externalOpen={inviteSheetOpen}
+          onExternalOpenChange={setInviteSheetOpen}
+        />
+        </Suspense>
+      )}
       {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
       {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">

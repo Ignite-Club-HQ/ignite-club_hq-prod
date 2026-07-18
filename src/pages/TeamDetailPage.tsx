@@ -71,7 +71,7 @@ import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddPlayerToParentSheet from "@/components/team/AddPlayerToParentSheet";
 import LinkChildToParentSheet from "@/components/LinkChildToParentSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
@@ -969,7 +969,8 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
-      {(isAdmin || isClubAdmin) && (
+      {(isAdmin || isClubAdmin) && headerInviteOpen && (
+        <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={id!}
           teamName={team.name}
@@ -981,6 +982,7 @@ export default function TeamDetailPage() {
           externalOpen={headerInviteOpen}
           onExternalOpenChange={setHeaderInviteOpen}
         />
+        </Suspense>
       )}
 
       {(isAdmin || isClubAdmin) && (
