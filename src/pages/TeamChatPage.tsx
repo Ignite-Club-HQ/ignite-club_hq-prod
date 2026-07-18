@@ -1863,16 +1863,20 @@ export default function TeamChatPage() {
           setTimeout(() => setInviteSheetOpen(true), 80);
         }}
       />
-      <AddTeamMemberSheet
-        teamId={teamId!}
-        teamName={team.name}
-        clubId={team.club_id}
-        teamType={(team as any).team_type || "mixed"}
-        canBulkInvite={!!isAdmin}
-        triggerVariant="none"
-        externalOpen={inviteSheetOpen}
-        onExternalOpenChange={setInviteSheetOpen}
-      />
+      {inviteSheetOpen && (
+        <Suspense fallback={null}>
+        <AddTeamMemberSheet
+          teamId={teamId!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          canBulkInvite={!!isAdmin}
+          triggerVariant="none"
+          externalOpen={inviteSheetOpen}
+          onExternalOpenChange={setInviteSheetOpen}
+        />
+        </Suspense>
+      )}
       {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
       {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">
