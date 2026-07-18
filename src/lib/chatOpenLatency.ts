@@ -95,12 +95,9 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
       }).then(() => {}, () => {});
     };
 
-    const w = window as any;
-    if (typeof w?.requestIdleCallback === "function") {
-      w.requestIdleCallback(doInsert, { timeout: 4000 });
-    } else {
-      setTimeout(doInsert, 2000);
-    }
+    // Fire immediately — deferring drops writes on Android WebView when the app
+    // is backgrounded before the idle/timeout callback runs.
+    doInsert();
   } catch {
     // ignore
   }
