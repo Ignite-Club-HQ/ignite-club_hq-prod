@@ -687,6 +687,7 @@ export default function SignupProPage() {
         Back
       </Button>
 
+      <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
       <FindOrCreateClubWizard
         defaultSport={selectedPlan === "pro_football" ? "Soccer" : clubSport}
         onClubCreated={(clubId) => {
@@ -698,6 +699,7 @@ export default function SignupProPage() {
           // For now they stay on this step with the confirmation shown inside the wizard
         }}
       />
+      </Suspense>
     </div>
   );
 
