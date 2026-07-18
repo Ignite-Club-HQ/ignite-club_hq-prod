@@ -23,6 +23,8 @@ export interface PublishChatImageArgs {
   teamId: string | null;
   clubId: string | null;
   caption?: string | null;
+  /** Optional album to group this photo under (for batch "Publish all"). */
+  albumId?: string | null;
 }
 
 export interface PublishChatImageResult {
