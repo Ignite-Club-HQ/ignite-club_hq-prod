@@ -23,6 +23,8 @@ export interface PublishChatImageArgs {
   teamId: string | null;
   clubId: string | null;
   caption?: string | null;
+  /** Optional album to group this photo under (for batch "Publish all"). */
+  albumId?: string | null;
 }
 
 export interface PublishChatImageResult {
@@ -46,7 +48,7 @@ function inferExtension(blob: Blob, fallback = "jpg"): string {
 export async function publishChatImageToGallery(
   args: PublishChatImageArgs,
 ): Promise<PublishChatImageResult> {
-  const { imageUrl, uploaderId, teamId, clubId, caption } = args;
+  const { imageUrl, uploaderId, teamId, clubId, caption, albumId } = args;
   if (!imageUrl) throw new Error("imageUrl is required");
   if (!uploaderId) throw new Error("uploaderId is required");
   if (!teamId && !clubId) throw new Error("teamId or clubId is required");
@@ -112,6 +114,7 @@ export async function publishChatImageToGallery(
       file_size: blob.size,
       caption: caption || null,
       title: caption || null,
+      album_id: albumId ?? null,
     })
     .select("id")
     .single();
