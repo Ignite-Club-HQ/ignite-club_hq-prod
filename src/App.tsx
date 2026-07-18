@@ -355,7 +355,7 @@ const App = () => {
           <BrowserRouter>
             <ScrollToTop />
             <PWAPendingInviteHandler />
-            <GlobalSubMonitorGate />
+            <Suspense fallback={null}><GlobalSubMonitorGate /></Suspense>
             <PitchBoardResumeRedirect />
             <MessagesBootstrapPrefetcher />
 
