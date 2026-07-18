@@ -876,7 +876,8 @@ export default function MiniLeagueDetailPage() {
         canDelete={!!canDeleteLeague}
       />
 
-      {canManageLeague && (
+      {canManageLeague && addPlayersOpen && (
+        <Suspense fallback={null}>
         <AddMiniLeagueMemberSheet
           miniLeagueId={id!}
           miniLeagueName={league.name}
@@ -884,6 +885,7 @@ export default function MiniLeagueDetailPage() {
           externalOpen={addPlayersOpen}
           onExternalOpenChange={setAddPlayersOpen}
         />
+        </Suspense>
       )}
 
       {isClubAdmin && (
