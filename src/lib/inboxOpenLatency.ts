@@ -151,12 +151,10 @@ export async function logInboxOpenLatency(args: LogArgs): Promise<void> {
       } as any).then(() => {}, () => {});
     };
 
-    const w = window as any;
-    if (typeof w?.requestIdleCallback === "function") {
-      w.requestIdleCallback(doInsert, { timeout: 4000 });
-    } else {
-      setTimeout(doInsert, 2000);
-    }
+    // Fire immediately — deferring via requestIdleCallback/setTimeout drops
+    // writes on Android WebView when the app is backgrounded or the OS freezes
+    // the tab before the callback runs.
+    doInsert();
   } catch {
     // ignore
   }
