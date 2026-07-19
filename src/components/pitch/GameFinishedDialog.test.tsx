@@ -67,10 +67,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     expect(button).toBeDisabled();
 
     // Resolve the pending saves.
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
 
     await waitFor(() => {
       expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
@@ -84,10 +80,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     const button = screen.getByRole("button", { name: /Save & Finish/i });
     fireEvent.click(button);
     fireEvent.click(button);
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(saveGameStatsMock).toHaveBeenCalledTimes(1));
   });
 
@@ -96,10 +88,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     const button = screen.getByRole("button", { name: /Save & Finish/i });
     fireEvent.click(button);
     fireEvent.click(button);
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(saveGameResultMock).toHaveBeenCalledTimes(1));
   });
 
@@ -109,10 +97,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     fireEvent.click(button);
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
   });
 
@@ -127,10 +111,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     render(<GameFinishedDialog {...baseProps} />);
     const button = screen.getByRole("button", { name: /Save & Finish/i });
     fireEvent.click(button);
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => {
       expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
       expect(saveGameResultMock).toHaveBeenCalledTimes(1);
@@ -169,10 +149,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     );
     render(<GameFinishedDialog {...baseProps} />);
     fireEvent.click(screen.getByRole("button", { name: /Save & Finish/i }));
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
     const stamped = JSON.parse(localStorage.getItem(timerKey)!);
     expect(stamped.isGameFinished).toBe(true);
@@ -197,10 +173,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     );
     render(<GameFinishedDialog {...baseProps} />);
     fireEvent.click(screen.getByRole("button", { name: /Save & Finish/i }));
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
     const state = JSON.parse(localStorage.getItem(pitchKey)!);
     expect(state.autoSubPlan).toEqual([]);
@@ -218,10 +190,6 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     fireEvent.click(button);
     // saveGameStats has already been invoked exactly once, synchronously
     expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      resolveSaveStats(undefined);
-      resolveSaveResult(undefined);
-    });
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
   });
 });
