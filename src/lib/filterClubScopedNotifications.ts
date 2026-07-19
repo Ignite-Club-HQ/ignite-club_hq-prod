@@ -35,6 +35,31 @@ const GLOBAL_PASSTHROUGH = new Set<string>([
   "join_request",
 ]);
 
+// Types known to belong to a specific club via an underlying entity. If we
+// cannot resolve ownership for one of these, fail closed (drop) rather than
+// leaking a foreign-club row into the active-club view.
+const KNOWN_CLUB_SCOPED_TYPES = new Set<string>([
+  "direct_message",
+  "message_reaction",
+  "team_message",
+  "message_mention",
+  "message_reply",
+  "club_message",
+  "group_message",
+  "event_invite",
+  "event_note",
+  "event_updated",
+  "rsvp_updated",
+  "pending_sub",
+  "formation_change",
+  "half_time",
+  "game_finished",
+  "team_invite",
+  "comment_reaction",
+  "comment_reply",
+  "photo_comment",
+]);
+
 export async function filterClubScopedNotifications<T extends NotifRow>(
   rows: T[],
   recipientUserId: string,
