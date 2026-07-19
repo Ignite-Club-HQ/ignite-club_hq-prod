@@ -201,6 +201,7 @@ export function useCreateScheduledMessage() {
 }
 
 export function useUpdateScheduledMessage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
