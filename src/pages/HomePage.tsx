@@ -8,13 +8,37 @@ import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
-import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
-import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
-import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
-import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
+// Lazy-loaded to keep them out of the HomePage critical path. Each is only
+// mounted when the user opens a specific dialog / lands on a banner-eligible
+// state, so the chunk fetch happens on demand.
+const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
+const RecurringEventActionDialog = lazy(() => import("@/components/RecurringEventActionDialog").then(m => ({ default: m.RecurringEventActionDialog })));
+const CancelEventConfirmDialog = lazy(() => import("@/components/CancelEventConfirmDialog").then(m => ({ default: m.CancelEventConfirmDialog })));
+const RecurringCancelEventDialog = lazy(() => import("@/components/RecurringCancelEventDialog").then(m => ({ default: m.RecurringCancelEventDialog })));
+const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
+const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
+const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
 const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
+
+// Warm the dialog chunks after first paint so opening them feels instant.
+// idle callback keeps this off the critical path.
+if (typeof window !== "undefined") {
+  const warm = () => {
+    void import("@/components/CancelEventConfirmDialog").catch(() => {});
+    void import("@/components/RecurringCancelEventDialog").catch(() => {});
+    void import("@/components/RecurringEventActionDialog").catch(() => {});
+    void import("@/components/HomeInviteFlow").catch(() => {});
+    void import("@/components/NativeAppDownloadBanner").catch(() => {});
+    void import("@/components/AccountRecoveryBanner").catch(() => {});
+    void import("@/components/RewardClaimQRDialog").catch(() => {});
+  };
+  const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
+  if (typeof w.requestIdleCallback === "function") {
+    w.requestIdleCallback(warm, { timeout: 4000 });
+  } else {
+    window.setTimeout(warm, 2500);
+  }
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,7 +108,7 @@ const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import HomeInviteFlow from "@/components/HomeInviteFlow";
+
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
@@ -2358,17 +2382,25 @@ export default function HomePage() {
 
       {/* Account Recovery Banner */}
       {user && (
-        <AccountRecoveryBanner
-          userId={user.id}
-          onRecovered={() => queryClient.invalidateQueries()}
-        />
+        <Suspense fallback={null}>
+          <AccountRecoveryBanner
+            userId={user.id}
+            onRecovered={() => queryClient.invalidateQueries()}
+          />
+        </Suspense>
       )}
 
       {/* Native App Download Banner - for mobile browser users */}
-      <NativeAppDownloadBanner />
+      <Suspense fallback={null}>
+        <NativeAppDownloadBanner />
+      </Suspense>
 
 
-      <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+      {memberInviteOpen && (
+        <Suspense fallback={null}>
+          <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+        </Suspense>
+      )}
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <LazyMount minHeight={60}>
@@ -2732,17 +2764,19 @@ export default function HomePage() {
       </section>
 
       {/* Reward Claim QR Dialog */}
-      {latestPendingRedemption && user && (
-        <RewardClaimQRDialog
-          open={rewardQROpen}
-          onOpenChange={setRewardQROpen}
-          rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
-          clubName={latestPendingRedemption.clubs?.name || "Club"}
-          redemptionId={latestPendingRedemption.id}
-          qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
-          userName={profile?.display_name || undefined}
-          userId={user.id}
-        />
+      {latestPendingRedemption && user && rewardQROpen && (
+        <Suspense fallback={null}>
+          <RewardClaimQRDialog
+            open={rewardQROpen}
+            onOpenChange={setRewardQROpen}
+            rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
+            clubName={latestPendingRedemption.clubs?.name || "Club"}
+            redemptionId={latestPendingRedemption.id}
+            qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
+            userName={profile?.display_name || undefined}
+            userId={user.id}
+          />
+        </Suspense>
       )}
 
       {/* Rewards Browse Dialog */}
@@ -3073,20 +3107,22 @@ export default function HomePage() {
 
       {/* Delete Event Dialog */}
       {eventToDelete && (eventToDelete.is_recurring || eventToDelete.parent_event_id) ? (
-        <RecurringEventActionDialog
-          open={deleteDialogOpen}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) setEventToDelete(null);
-          }}
-          title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
-          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
-          actionLabel="Delete"
-          actionVariant="destructive"
-          onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
-          onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
-          isPending={deleteEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringEventActionDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              setDeleteDialogOpen(open);
+              if (!open) setEventToDelete(null);
+            }}
+            title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
+            description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            actionLabel="Delete"
+            actionVariant="destructive"
+            onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
+            onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
+            isPending={deleteEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToDelete && (
         <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
           setDeleteDialogOpen(open);
@@ -3114,43 +3150,47 @@ export default function HomePage() {
 
       {/* Cancel Event Dialog */}
       {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
-        <RecurringCancelEventDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onSingleAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          onSeriesAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringCancelEventDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onSingleAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            onSeriesAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToCancel && (
-        <CancelEventConfirmDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventId={eventToCancel?.id || ""}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onConfirm={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <CancelEventConfirmDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventId={eventToCancel?.id || ""}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onConfirm={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       )}
 
       {/* Remind Dialog */}
