@@ -352,8 +352,8 @@ export default function GameFinishedDialog({
         </div>
         
         <DialogFooter>
-          <Button onClick={handleFinish} className="w-full" disabled={isSaving}>
-            {isSaving ? (
+          <Button onClick={handleFinish} className="w-full" disabled={isSaving || finishInProgress}>
+            {(isSaving || finishInProgress) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Saving Stats...
