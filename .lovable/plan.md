@@ -72,3 +72,58 @@ If any of these hit in the 48h after merge:
 - Coding: 2-3 hours
 - Testing: 1-2 hours
 - Total: half a day, single PR
+
+---
+
+# Follow-up: Atomic `replace_game_stats` RPC
+
+## Context
+`useGameStats.ts` currently performs three sequential Supabase calls when saving a game:
+1. `game_summaries` upsert
+2. `game_player_stats` delete (by `event_id`)
+3. `game_player_stats` insert (new rows)
+
+Each call now checks its own error (fix shipped), but the three are **not atomic**. A crash, network drop, or RLS failure between steps 2 and 3 can leave the event with a written summary and **zero player stats rows** until the user retries.
+
+## Proposed change
+Wrap the delete + insert (and optionally the summary upsert) in a single Postgres function:
+
+```sql
+create or replace function public.replace_game_stats(
+  _event_id uuid,
+  _team_id uuid,
+  _summary jsonb,
+  _player_stats jsonb  -- array of row objects
+) returns void
+language plpgsql
+security invoker  -- keep RLS enforcement on the caller
+as $$
+begin
+  insert into public.game_summaries (...) values (...)
+  on conflict (event_id) do update set ...;
+
+  delete from public.game_player_stats where event_id = _event_id;
+
+  insert into public.game_player_stats
+  select * from jsonb_populate_recordset(null::public.game_player_stats, _player_stats);
+end;
+$$;
+```
+
+Client becomes one `supabase.rpc('replace_game_stats', {...})` call with one error check.
+
+## Risks / considerations
+- **RLS**: keep `security invoker` so the caller's policies still apply — do NOT use `security definer` unless we deliberately want to bypass RLS.
+- **Triggers on `game_player_stats`**: audit existing triggers (row-level `AFTER INSERT/DELETE`) — they still fire per row inside the function, so behaviour should be identical, but confirm nothing assumes a specific client context.
+- **Deploy order**: ship the migration first, then the client change in a follow-up release. Old clients keep working against the new schema.
+- **Test coverage**: replicate the current `useGameStats.test.tsx` scenarios against the mocked `rpc` call. Add a Postgres-level test (or manual check) that a mid-function failure rolls back the summary write.
+
+## Not doing now
+Bundling this into the current false-success fix would mix an unrelated schema change into a hotfix. Ship separately with its own tests and trigger review.
+
+## Estimated effort
+- Migration + function: 30 min
+- Client swap + test rewrite: 30 min
+- Trigger audit + manual verification: 30 min
+- Total: ~1.5 hours, single PR
+
