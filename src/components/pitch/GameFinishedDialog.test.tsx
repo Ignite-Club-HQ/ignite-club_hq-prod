@@ -48,12 +48,8 @@ const baseProps = {
 describe("GameFinishedDialog duplicate submission guard", () => {
   beforeEach(() => {
     localStorage.clear();
-    saveGameStatsMock = vi.fn(
-      () => new Promise((r) => { resolveSaveStats = r; }),
-    );
-    saveGameResultMock = vi.fn(
-      () => new Promise((r) => { resolveSaveResult = r; }),
-    );
+    saveGameStatsMock = vi.fn().mockResolvedValue(undefined);
+    saveGameResultMock = vi.fn().mockResolvedValue(undefined);
     baseProps.onClose = vi.fn();
   });
 
