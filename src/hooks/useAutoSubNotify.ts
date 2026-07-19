@@ -43,17 +43,28 @@ export function useAutoSubNotify(
   teamName: string,
   linkedEventId?: string | null,
 ) {
+  const inFlightRef = useRef<Set<string>>(new Set());
   const sentRef = useRef<Set<string>>(new Set());
 
   const notify = useCallback(
     async (args: Omit<AutoSubNotifyArgs, "teamId" | "teamName">) => {
       if (!teamId) return;
       const dedupeKey = `${args.playerOutName}|${args.playerInName}|${args.position}|${args.periodLabel ?? ""}|${Math.floor(Date.now() / 60000)}`;
-      if (sentRef.current.has(dedupeKey)) return;
-      sentRef.current.add(dedupeKey);
+
+      // Distinguish "currently processing" from "already completed" so a
+      // failed attempt (no push dispatched) can be retried within the same
+      // minute — while still preventing concurrent duplicate batches.
+      if (inFlightRef.current.has(dedupeKey) || sentRef.current.has(dedupeKey)) {
+        return;
+      }
+      inFlightRef.current.add(dedupeKey);
 
       try {
         const recipientIds = new Set<string>();
+        // Track whether any lookup path returned a safely-known result. If
+        // every source errored we cannot say the recipient list is empty —
+        // it may be non-empty on retry — so we leave sentRef untouched.
+        let recipientDiscoverySucceeded = false;
         const isEventGroup = teamId.startsWith("event-group-");
 
         if (isEventGroup) {
@@ -68,6 +79,7 @@ export function useAutoSubNotify(
           if (dutyErr) {
             console.error("[AutoSubNotify] mini-league duty lookup failed:", dutyErr);
           } else {
+            recipientDiscoverySucceeded = true;
             (matchDuties ?? []).forEach((d: any) => {
               if (d.assigned_to) recipientIds.add(d.assigned_to as string);
             });
@@ -87,10 +99,14 @@ export function useAutoSubNotify(
             if (error) {
               console.error("[AutoSubNotify] role lookup failed:", error);
             } else {
+              recipientDiscoverySucceeded = true;
               (roles ?? []).forEach((r) => {
                 if (r.user_id) recipientIds.add(r.user_id as string);
               });
             }
+          } else {
+            // No roles enabled — legitimately nothing to query for this path.
+            recipientDiscoverySucceeded = true;
           }
 
           // Include anyone with the "Subs Manager" duty for the linked event —
@@ -105,6 +121,7 @@ export function useAutoSubNotify(
             if (dutyErr) {
               console.error("[AutoSubNotify] subs-manager lookup failed:", dutyErr);
             } else {
+              recipientDiscoverySucceeded = true;
               (subsManagers ?? []).forEach((d: any) => {
                 if (d.assigned_to) recipientIds.add(d.assigned_to as string);
               });
@@ -112,9 +129,22 @@ export function useAutoSubNotify(
           }
         }
 
-
         const userIds = Array.from(recipientIds);
-        if (userIds.length === 0) return;
+
+        if (!recipientDiscoverySucceeded && userIds.length === 0) {
+          // Every recipient-discovery path errored and we have nobody to
+          // notify. Do NOT record the key as sent — a retry on the next
+          // tick may succeed. The finally block clears the in-flight guard.
+          return;
+        }
+
+        if (userIds.length === 0) {
+          // Recipient discovery succeeded with an empty result. Record the
+          // key so we don't re-run the (successful, empty) lookups every
+          // second for the rest of the minute bucket.
+          sentRef.current.add(dedupeKey);
+          return;
+        }
 
         const title = `${teamName} — Auto-sub`;
         const body = `${args.playerInName} ON for ${args.playerOutName} at ${args.position}${
@@ -138,12 +168,18 @@ export function useAutoSubNotify(
               console.error(`[AutoSubNotify] push failed for ${userId}:`, err);
             });
         }
+        // At least one push was dispatched (or accepted for dispatch) —
+        // consider this dedupe key completed for the minute bucket.
+        sentRef.current.add(dedupeKey);
       } catch (err) {
         console.error("[AutoSubNotify] unexpected error:", err);
+      } finally {
+        inFlightRef.current.delete(dedupeKey);
       }
     },
     [teamId, teamName, linkedEventId],
   );
+
 
   return notify;
 }
