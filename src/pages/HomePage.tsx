@@ -8,13 +8,37 @@ import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
-import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
-import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
-import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
-import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
+// Lazy-loaded to keep them out of the HomePage critical path. Each is only
+// mounted when the user opens a specific dialog / lands on a banner-eligible
+// state, so the chunk fetch happens on demand.
+const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
+const RecurringEventActionDialog = lazy(() => import("@/components/RecurringEventActionDialog").then(m => ({ default: m.RecurringEventActionDialog })));
+const CancelEventConfirmDialog = lazy(() => import("@/components/CancelEventConfirmDialog").then(m => ({ default: m.CancelEventConfirmDialog })));
+const RecurringCancelEventDialog = lazy(() => import("@/components/RecurringCancelEventDialog").then(m => ({ default: m.RecurringCancelEventDialog })));
+const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
+const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
+const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
 const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
+
+// Warm the dialog chunks after first paint so opening them feels instant.
+// idle callback keeps this off the critical path.
+if (typeof window !== "undefined") {
+  const warm = () => {
+    void import("@/components/CancelEventConfirmDialog").catch(() => {});
+    void import("@/components/RecurringCancelEventDialog").catch(() => {});
+    void import("@/components/RecurringEventActionDialog").catch(() => {});
+    void import("@/components/HomeInviteFlow").catch(() => {});
+    void import("@/components/NativeAppDownloadBanner").catch(() => {});
+    void import("@/components/AccountRecoveryBanner").catch(() => {});
+    void import("@/components/RewardClaimQRDialog").catch(() => {});
+  };
+  const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
+  if (typeof w.requestIdleCallback === "function") {
+    w.requestIdleCallback(warm, { timeout: 4000 });
+  } else {
+    window.setTimeout(warm, 2500);
+  }
+}
 import {
   AlertDialog,
   AlertDialogAction,
