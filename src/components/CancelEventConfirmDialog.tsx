@@ -46,6 +46,7 @@ export function CancelEventConfirmDialog({
   const [customMessage, setCustomMessage] = useState("");
   const [sendPushNotification, setSendPushNotification] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [recipientLookupFailed, setRecipientLookupFailed] = useState(false);
   const keyboardBottomInset = useNativeKeyboardBottomInset();
 
 
@@ -53,48 +54,54 @@ export function CancelEventConfirmDialog({
     if (open) {
       setCustomMessage("");
       setSendPushNotification(true);
+      setRecipientLookupFailed(false);
       fetchMemberCount();
     }
   }, [open, teamId, clubId, miniLeagueId]);
 
   const fetchMemberCount = async () => {
     setIsLoading(true);
+    setRecipientLookupFailed(false);
     try {
       // For mini-league events, count parents + league/club admins
       if (miniLeagueId) {
         // Get mini league to find the club_id
-        const { data: league } = await supabase
+        const { data: league, error: leagueError } = await supabase
           .from("mini_leagues")
           .select("club_id")
           .eq("id", miniLeagueId)
-          .single();
-        
+          .maybeSingle();
+        if (leagueError) throw leagueError;
+
         if (league) {
           // Get all parent user IDs from mini league players
-          const { data: playersData } = await supabase
+          const { data: playersData, error: playersError } = await supabase
             .from("mini_league_players")
             .select("parent_user_id")
             .eq("mini_league_id", miniLeagueId)
             .not("parent_user_id", "is", null);
-          
+          if (playersError) throw playersError;
+
           const parentIds = [...new Set(
             (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || []
           )];
-          
+
           // Get club admins, league admins, and coaches
-          const { data: adminRoles } = await supabase
+          const { data: adminRoles, error: adminError } = await supabase
             .from("user_roles")
             .select("user_id")
             .eq("club_id", league.club_id)
             .in("role", ["club_admin", "league_admin", "coach"]);
-          
+          if (adminError) throw adminError;
+
           const adminIds = adminRoles?.map(r => r.user_id) || [];
-          
+
           // Combine all unique IDs
           const allUserIds = [...new Set([...parentIds, ...adminIds])];
           setMemberCount(allUserIds.length);
+          setSendPushNotification(true);
         } else {
-          setMemberCount(null);
+          throw new Error("Mini league not found");
         }
       } else {
         // Standard team/club member count
@@ -105,20 +112,25 @@ export function CancelEventConfirmDialog({
           memberQuery = memberQuery.eq("club_id", clubId);
         }
 
-        const { data: members } = await memberQuery;
+        const { data: members, error: membersError } = await memberQuery;
+        if (membersError) throw membersError;
         const uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
         setMemberCount(uniqueMembers.length);
+        setSendPushNotification(true);
       }
     } catch (error) {
       console.error("Failed to fetch member count:", error);
       setMemberCount(null);
+      setRecipientLookupFailed(true);
+      setSendPushNotification(false);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleConfirm = () => {
-    onConfirm(customMessage.trim() || undefined, sendPushNotification);
+    const push = recipientLookupFailed ? false : sendPushNotification;
+    onConfirm(customMessage.trim() || undefined, push);
   };
 
   const getChatMessagePreview = () => {
