@@ -85,7 +85,7 @@ describe("buildEqualTimePlan — squad-wide fairness", () => {
       players,
       teamSize,
       halfDurationSec: HALF,
-      minShiftSec: 120,
+      minShiftSec: 30,
       chunkSec: 30,
       noSubBeforeSec: 0,
       noSubAfterSec: 0,
