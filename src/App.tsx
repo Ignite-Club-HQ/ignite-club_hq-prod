@@ -32,13 +32,17 @@ import { Loader2 } from "lucide-react";
 
 // OAuth callback capture is now handled in main.tsx (runs earlier)
 
-// Eagerly loaded pages (initial load)
-import AuthPage from "./pages/AuthPage";
-import CompleteProfilePage from "./pages/CompleteProfilePage";
+// Eagerly loaded pages (initial load) — keep this list tight; every import
+// here lands in the main bundle and lengthens cold-start parse time on
+// Android. Auth-adjacent pages are lazy because logged-in users (the vast
+// majority of cold opens) never hit them.
 import HomePage from "./pages/HomePage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
 import VerifyResetCodePage from "./pages/VerifyResetCodePage";
-import SignupProPage from "./pages/SignupProPage";
+const AuthPage = lazy(() => import("./pages/AuthPage"));
+const CompleteProfilePage = lazy(() => import("./pages/CompleteProfilePage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const SignupProPage = lazy(() => import("./pages/SignupProPage"));
+
 
 // Lazy loaded pages (code splitting)
 const EventsPage = lazy(() => import("./pages/EventsPage"));

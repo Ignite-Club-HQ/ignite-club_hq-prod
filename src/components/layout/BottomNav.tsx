@@ -16,7 +16,7 @@ import {
 } from "@/lib/iosLayoutStability";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
-import { prefetchRoute } from "@/lib/routePrefetch";
+import { prefetchRoute, warmMainRoutes } from "@/lib/routePrefetch";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
@@ -34,6 +34,14 @@ const DEFAULT_NAV_GUARD_MS = 900;
 export function BottomNav() {
   const { unreadMessagesCount: globalMessagesCount, user } = useAuth();
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+
+  // Warm the bottom-tab route chunks during idle after boot so tapping
+  // Messages / Schedule / Media on cold start doesn't pay the route-chunk
+  // fetch cost on the critical path.
+  useEffect(() => {
+    warmMainRoutes();
+  }, []);
+
 
   // Per-club message unread count: derive from the same breakdown the inbox/bell use
   // (fetchUnreadMessageCounts), then sum the slices that belong to the active club —
