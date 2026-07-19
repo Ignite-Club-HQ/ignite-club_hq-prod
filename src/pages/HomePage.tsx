@@ -108,7 +108,7 @@ const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import HomeInviteFlow from "@/components/HomeInviteFlow";
+
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
