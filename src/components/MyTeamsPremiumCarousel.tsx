@@ -913,10 +913,17 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         const avatars: string[] = [];
         for (const uid of userIds) {
           const raw = profileMap.get(uid);
-          if (raw) {
-            avatars.push(signed[raw] || raw);
-            if (avatars.length >= 3) break;
+          if (!raw) continue;
+          const resolved = signed[raw];
+          if (!resolved) {
+            // Private avatar URL that couldn't be signed — skip rather than
+            // hand the raw private URL to the <img>.
+            if (raw.includes("/storage/v1/object/")) continue;
+            avatars.push(raw);
+          } else {
+            avatars.push(resolved);
           }
+          if (avatars.length >= 3) break;
         }
         map[teamId] = { count: userIds.length, avatars };
       }
