@@ -2368,11 +2368,14 @@ export default function HomePage() {
         );
         
         return (
-          <GameTimerWidget 
-            onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
-            readOnly={!hasEditAccess}
-          />
+          <Suspense fallback={null}>
+            <GameTimerWidget
+              onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
+              readOnly={!hasEditAccess}
+            />
+          </Suspense>
         );
+
       })()}
 
       {/* Court-sport resume card archived — soccer resume handled by GameTimerWidget above. */}
