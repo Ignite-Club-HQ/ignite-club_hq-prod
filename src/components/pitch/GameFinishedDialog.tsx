@@ -103,6 +103,15 @@ export default function GameFinishedDialog({
   };
 
   const handleFinish = async () => {
+    // Synchronous, component-local guard against duplicate submissions.
+    // The `isSaving` prop updates asynchronously after the first click, so
+    // rapid taps can otherwise slip past the disabled state and run the
+    // full save + cleanup workflow multiple times.
+    if (finishInProgressRef.current) return;
+    finishInProgressRef.current = true;
+    setFinishInProgress(true);
+
+    try {
     // Auto-save stats if linked to an event and not already saved
     if (linkedEventId && teamId && !statsSaved) {
       try {
