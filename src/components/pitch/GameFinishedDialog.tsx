@@ -257,6 +257,13 @@ export default function GameFinishedDialog({
       }
     }
     onClose();
+    } catch (err) {
+      // Unexpected failure: allow the user to retry only if the dialog is
+      // still open. Reset the guard so the button becomes actionable again.
+      console.error('handleFinish failed:', err);
+      finishInProgressRef.current = false;
+      setFinishInProgress(false);
+    }
   };
 
   return (
