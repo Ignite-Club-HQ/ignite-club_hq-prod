@@ -87,6 +87,8 @@ export default function GameFinishedDialog({
   const { saveGameStats, isSaving } = useGameStats();
   const { save: saveGameResult } = useSaveGameResult();
   const [statsSaved, setStatsSaved] = useState(false);
+  const [finishInProgress, setFinishInProgress] = useState(false);
+  const finishInProgressRef = useRef(false);
   
   // Sort players by minutes played (descending)
   const sortedPlayers = [...players].sort((a, b) => (b.minutesPlayed || 0) - (a.minutesPlayed || 0));
