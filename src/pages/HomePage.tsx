@@ -3107,20 +3107,22 @@ export default function HomePage() {
 
       {/* Delete Event Dialog */}
       {eventToDelete && (eventToDelete.is_recurring || eventToDelete.parent_event_id) ? (
-        <RecurringEventActionDialog
-          open={deleteDialogOpen}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) setEventToDelete(null);
-          }}
-          title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
-          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
-          actionLabel="Delete"
-          actionVariant="destructive"
-          onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
-          onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
-          isPending={deleteEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringEventActionDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              setDeleteDialogOpen(open);
+              if (!open) setEventToDelete(null);
+            }}
+            title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
+            description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            actionLabel="Delete"
+            actionVariant="destructive"
+            onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
+            onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
+            isPending={deleteEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToDelete && (
         <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
           setDeleteDialogOpen(open);
