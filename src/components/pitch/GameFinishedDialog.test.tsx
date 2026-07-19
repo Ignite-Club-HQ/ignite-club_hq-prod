@@ -2,12 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import GameFinishedDialog from "./GameFinishedDialog";
 
-// Deferred resolvers so we can simulate the async gap between the first
-// click and `isSaving` flipping true.
 let saveGameStatsMock: ReturnType<typeof vi.fn>;
 let saveGameResultMock: ReturnType<typeof vi.fn>;
-let resolveSaveStats: (v?: unknown) => void;
-let resolveSaveResult: (v?: unknown) => void;
 
 vi.mock("@/hooks/useGameStats", () => ({
   useGameStats: () => ({
