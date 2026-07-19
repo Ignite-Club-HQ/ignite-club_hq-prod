@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // Mock supabase client BEFORE importing rsvpQueue
 type MockResult = { error: null | { code?: string; message?: string } };
 
-const updateMock = vi.fn<[], Promise<MockResult>>();
-const insertMock = vi.fn<[unknown], Promise<MockResult>>();
+const updateMock: any = vi.fn();
+const insertMock: any = vi.fn();
 
 // Chain: supabase.from("rsvps").update(...).eq(...) => Promise
 // Chain: supabase.from("rsvps").insert(...) => Promise
