@@ -288,15 +288,20 @@ export function processPendingNotificationNavigation(navigate: (path: string) =>
   // throw — better to drop the navigation than crash the app.
   if (typeof path !== 'string' || !path.startsWith('/') || path.length < 2) {
     console.warn('[NotificationLaunch] Dropping invalid pending nav path:', path);
+    clearPendingNotificationNavigation();
     return false;
   }
   try {
     coldMark("route_navigate");
     navigate(path);
+    // Only clear once navigate() returned without throwing. If the router
+    // isn't ready yet the caller will retry and pick the URL back up.
+    clearPendingNotificationNavigation();
     return true;
   } catch (err) {
-    console.error('[NotificationLaunch] navigate threw, dropping:', err);
+    console.error('[NotificationLaunch] navigate threw, will retry:', err);
     return false;
   }
+
 }
 
