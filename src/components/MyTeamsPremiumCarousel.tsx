@@ -742,7 +742,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
         const signed = await getSignedPhotoUrls(rawUrls);
         for (const entry of entries) {
-          map[entry.teamId].push({ id: entry.id, url: signed[entry.rawUrl] || entry.rawUrl });
+          const resolved = signed[entry.rawUrl];
+          if (!resolved) {
+            // Private URL that failed signing — skip rather than expose raw URL.
+            if (entry.rawUrl.includes("/storage/v1/object/")) continue;
+            map[entry.teamId].push({ id: entry.id, url: entry.rawUrl });
+            continue;
+          }
+          map[entry.teamId].push({ id: entry.id, url: resolved });
         }
       }
 
