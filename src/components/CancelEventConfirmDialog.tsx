@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, MessageSquare } from "lucide-react";
+import { AlertTriangle, Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
