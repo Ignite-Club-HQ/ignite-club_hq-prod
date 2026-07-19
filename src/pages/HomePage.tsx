@@ -53,7 +53,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-import GameTimerWidget from "@/components/pitch/GameTimerWidget";
+const GameTimerWidget = lazy(() => import("@/components/pitch/GameTimerWidget"));
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 // CourtBoardResumeCard archived (basketball/netball only) — soccer resume handled by GameTimerWidget
 
@@ -2368,11 +2368,14 @@ export default function HomePage() {
         );
         
         return (
-          <GameTimerWidget 
-            onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
-            readOnly={!hasEditAccess}
-          />
+          <Suspense fallback={null}>
+            <GameTimerWidget
+              onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
+              readOnly={!hasEditAccess}
+            />
+          </Suspense>
         );
+
       })()}
 
       {/* Court-sport resume card archived — soccer resume handled by GameTimerWidget above. */}
