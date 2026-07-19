@@ -322,5 +322,12 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
     }
   }
 
-  return rows.filter((n) => decision.get(n.id) !== "drop");
+  return rows.filter((n) => {
+    const d = decision.get(n.id);
+    if (d === "drop") return false;
+    if (d === "keep") return true;
+    // Unresolved: fail closed for known club-scoped types; keep unknown/global.
+    if (KNOWN_CLUB_SCOPED_TYPES.has(n.type)) return false;
+    return true;
+  });
 }
