@@ -2764,17 +2764,19 @@ export default function HomePage() {
       </section>
 
       {/* Reward Claim QR Dialog */}
-      {latestPendingRedemption && user && (
-        <RewardClaimQRDialog
-          open={rewardQROpen}
-          onOpenChange={setRewardQROpen}
-          rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
-          clubName={latestPendingRedemption.clubs?.name || "Club"}
-          redemptionId={latestPendingRedemption.id}
-          qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
-          userName={profile?.display_name || undefined}
-          userId={user.id}
-        />
+      {latestPendingRedemption && user && rewardQROpen && (
+        <Suspense fallback={null}>
+          <RewardClaimQRDialog
+            open={rewardQROpen}
+            onOpenChange={setRewardQROpen}
+            rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
+            clubName={latestPendingRedemption.clubs?.name || "Club"}
+            redemptionId={latestPendingRedemption.id}
+            qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
+            userName={profile?.display_name || undefined}
+            userId={user.id}
+          />
+        </Suspense>
       )}
 
       {/* Rewards Browse Dialog */}
