@@ -254,35 +254,34 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
 
   if (uncachedUrls.length === 0) return result;
 
-  try {
-    const resolved = await Promise.all(
-      uncachedUrls.map(async (url) => {
-        try {
-          return [url, await resolveSignedUrl(url)] as const;
-        } catch (error) {
-          console.error("Error resolving signed URL:", error);
-          return [url, url] as const;
-        }
-      })
-    );
-
-    for (const [originalUrl, resolvedUrl] of resolved) {
-      result[originalUrl] = resolvedUrl;
-
-      if (resolvedUrl !== originalUrl) {
-        urlCache.set(originalUrl, {
-          url: resolvedUrl,
-          expiresAt: Date.now() + CACHE_DURATION_MS,
-        });
+  const resolved = await Promise.all(
+    uncachedUrls.map(async (url) => {
+      try {
+        return [url, await resolveSignedUrl(url)] as const;
+      } catch (error) {
+        console.error("Error resolving signed URL:", error);
+        return [url, null] as const;
       }
-    }
-    schedulePersist();
-  } catch (error) {
-    console.error("Error batch fetching signed URLs:", error);
-    for (const url of uncachedUrls) {
-      result[url] = url;
+    })
+  );
+
+  let anySuccess = false;
+  for (const [originalUrl, resolvedUrl] of resolved) {
+    // Failed private-URL signings: omit from result entirely so callers
+    // never receive the raw private URL as a "successful" resolution.
+    if (!resolvedUrl) continue;
+
+    result[originalUrl] = resolvedUrl;
+
+    if (resolvedUrl !== originalUrl) {
+      urlCache.set(originalUrl, {
+        url: resolvedUrl,
+        expiresAt: Date.now() + CACHE_DURATION_MS,
+      });
+      anySuccess = true;
     }
   }
+  if (anySuccess) schedulePersist();
 
   return result;
 }
