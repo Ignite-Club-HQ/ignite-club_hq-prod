@@ -122,13 +122,18 @@ export function ClubSetupProgressCard({
         { label: "Add sponsors", done: data.sponsorsCount > 0, pro: true, optional: true },
       ];
 
-  // Only the two core steps determine "complete" — optional/Pro items don't hide the card.
+  // Only the two core steps determine "complete" — optional/Pro items don't
+  // keep the card alive. Once every required step is done, hide permanently
+  // and persist the dismissal locally so it never returns on this device,
+  // even if a future optional/Pro step regresses.
   const requiredSteps = steps.filter((s) => !s.optional);
   const completed = requiredSteps.filter((s) => s.done).length;
   const total = requiredSteps.length;
-  if (completed === total && steps.every((s) => s.done || s.optional)) {
-    // Everything meaningful is done — hide.
-    if (steps.every((s) => s.done)) return null;
+  if (completed === total) {
+    if (typeof localStorage !== "undefined" && localStorage.getItem(dismissKey) !== "1") {
+      try { localStorage.setItem(dismissKey, "1"); } catch { /* noop */ }
+    }
+    return null;
   }
 
   const dismiss = () => {
