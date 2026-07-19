@@ -194,6 +194,7 @@ export function CancelEventConfirmDialog({
             <Checkbox
               id="send-push"
               checked={sendPushNotification}
+              disabled={isLoading || recipientLookupFailed || isPending}
               onCheckedChange={(checked) => setSendPushNotification(checked === true)}
               className="mt-0.5"
             />
@@ -201,6 +202,19 @@ export function CancelEventConfirmDialog({
               Also send push notification to members
             </Label>
           </div>
+
+          {recipientLookupFailed && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-foreground"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
+              <span>
+                Recipients could not be verified. You can still cancel this event,
+                but push notifications will not be sent.
+              </span>
+            </div>
+          )}
 
           {/* Chat Message Preview - always shown */}
           <div className="space-y-2">
