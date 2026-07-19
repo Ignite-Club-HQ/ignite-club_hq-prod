@@ -234,9 +234,11 @@ export function useUpdateScheduledMessage() {
 }
 
 export function useCancelScheduledMessage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user?.id) throw new Error("Not authenticated");
       await invokeWrite({ action: "cancel", id });
     },
     onSuccess: () => {
