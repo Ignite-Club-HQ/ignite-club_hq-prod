@@ -161,10 +161,16 @@ export function useGameStats() {
       }
 
       // Delete existing player stats for this event (to allow re-saving)
-      await supabase
+      const { error: deleteError } = await supabase
         .from("game_player_stats")
         .delete()
         .eq("event_id", eventId);
+
+      if (deleteError) {
+        throw new Error(
+          `Failed to replace player stats: ${deleteError.message}`
+        );
+      }
 
       // Save individual player stats
       const playerStats = players.map((player) => {
