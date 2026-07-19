@@ -555,7 +555,10 @@ export default function DirectMessagePage() {
         hasOlderMessages: hasMore,
       };
     },
-    enabled: !!conversationId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
+    // Gate on `authReady` (user + initialized) — firing before auth is fully
+    // restored on notification-tap cold starts caused RLS to return 0 rows,
+    // leaving the thread visibly blank until a manual navigation.
+    enabled: !!conversationId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
@@ -583,6 +586,26 @@ export default function DirectMessagePage() {
     if (!conversationId || !authReady) return;
     queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
   }, [conversationId, authReady, queryClient]);
+
+  // Belt-and-braces: if the first fetch returned zero messages while auth was
+  // still settling (notification-tap cold start), retry once after a short
+  // delay. Prevents the "blank thread on push tap" bug even if the gate above
+  // is bypassed by a stale render.
+  const emptyRetriedRef = useRef(false);
+  useEffect(() => {
+    if (emptyRetriedRef.current) return;
+    if (!conversationId || !authReady) return;
+    if (messagesLoading) return;
+    if (!messagesData) return;
+    const list = Array.isArray(messagesData) ? messagesData : messagesData.messages;
+    if (list && list.length === 0) {
+      emptyRetriedRef.current = true;
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
