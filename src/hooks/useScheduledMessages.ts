@@ -212,6 +212,7 @@ export function useUpdateScheduledMessage() {
       recurrence?: ScheduledMessageRecurrence;
       recurrence_until?: Date | null;
     }) => {
+      if (!user?.id) throw new Error("Not authenticated");
       const body: Record<string, unknown> = { action: "update", id: input.id };
       if (input.text !== undefined) body.text = input.text;
       if (input.image_url !== undefined) body.image_url = input.image_url;
