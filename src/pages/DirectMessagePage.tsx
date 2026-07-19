@@ -587,6 +587,26 @@ export default function DirectMessagePage() {
     queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
   }, [conversationId, authReady, queryClient]);
 
+  // Belt-and-braces: if the first fetch returned zero messages while auth was
+  // still settling (notification-tap cold start), retry once after a short
+  // delay. Prevents the "blank thread on push tap" bug even if the gate above
+  // is bypassed by a stale render.
+  const emptyRetriedRef = useRef(false);
+  useEffect(() => {
+    if (emptyRetriedRef.current) return;
+    if (!conversationId || !authReady) return;
+    if (messagesLoading) return;
+    if (!messagesData) return;
+    const list = Array.isArray(messagesData) ? messagesData : messagesData.messages;
+    if (list && list.length === 0) {
+      emptyRetriedRef.current = true;
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = Array.isArray(messagesData) 
