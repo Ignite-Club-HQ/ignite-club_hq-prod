@@ -56,16 +56,32 @@ export function useSaveGameResult() {
         // Respect manual overrides: if a row already exists for this event,
         // skip the auto-write so user-edited scores/scorers aren't clobbered.
         if (opts?.onlyIfMissing && input.eventId) {
-          const { data: existing } = await supabase
+          const { data: existing, error: lookupError } = await supabase
             .from("game_results")
             .select("id")
             .eq("event_id", input.eventId)
             .maybeSingle();
+          if (lookupError) {
+            // Fail closed: we cannot confirm whether a manually edited result
+            // already exists, so refuse the auto-write to avoid clobbering it.
+            if (!opts?.silent) {
+              const isPermission = /row-level security|permission/i.test(lookupError.message);
+              toast({
+                title: "Could not check existing result",
+                description: isPermission
+                  ? "Only team admins or coaches can save games."
+                  : lookupError.message,
+                variant: "destructive",
+              });
+            }
+            return;
+          }
           if (existing?.id) {
             savedKeyRef.current = key;
             return;
           }
         }
+
 
         const mvp = input.mvpPlayerId
           ? input.players.find((p) => p.id === input.mvpPlayerId)
