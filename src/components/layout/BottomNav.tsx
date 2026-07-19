@@ -35,6 +35,14 @@ export function BottomNav() {
   const { unreadMessagesCount: globalMessagesCount, user } = useAuth();
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
+  // Warm the bottom-tab route chunks during idle after boot so tapping
+  // Messages / Schedule / Media on cold start doesn't pay the route-chunk
+  // fetch cost on the critical path.
+  useEffect(() => {
+    warmMainRoutes();
+  }, []);
+
+
   // Per-club message unread count: derive from the same breakdown the inbox/bell use
   // (fetchUnreadMessageCounts), then sum the slices that belong to the active club —
   // club chat + teams in the club + groups in the club — plus DMs and broadcasts
