@@ -170,7 +170,7 @@ export function RecurringCancelEventDialog({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Counting members...
               </span>
-            ) : memberCount !== null ? (
+            ) : recipientLookupFailed ? null : memberCount !== null ? (
               <span className="block font-medium text-foreground">
                 {memberCount} member{memberCount === 1 ? "" : "s"} will be notified.
               </span>
