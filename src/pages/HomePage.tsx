@@ -2382,17 +2382,25 @@ export default function HomePage() {
 
       {/* Account Recovery Banner */}
       {user && (
-        <AccountRecoveryBanner
-          userId={user.id}
-          onRecovered={() => queryClient.invalidateQueries()}
-        />
+        <Suspense fallback={null}>
+          <AccountRecoveryBanner
+            userId={user.id}
+            onRecovered={() => queryClient.invalidateQueries()}
+          />
+        </Suspense>
       )}
 
       {/* Native App Download Banner - for mobile browser users */}
-      <NativeAppDownloadBanner />
+      <Suspense fallback={null}>
+        <NativeAppDownloadBanner />
+      </Suspense>
 
 
-      <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+      {memberInviteOpen && (
+        <Suspense fallback={null}>
+          <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+        </Suspense>
+      )}
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <LazyMount minHeight={60}>
