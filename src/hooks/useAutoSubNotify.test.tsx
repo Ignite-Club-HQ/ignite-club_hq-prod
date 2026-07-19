@@ -35,19 +35,21 @@ const tableResponses: Record<string, TableResp | (() => TableResp)> = {};
 const tableCalls: Record<string, number> = {};
 
 const makeChain = (table: string) => {
-  const terminal = async () => {
+  const resolve = () => {
     tableCalls[table] = (tableCalls[table] ?? 0) + 1;
     const r = tableResponses[table];
-    return typeof r === "function" ? r() : (r ?? { data: [], error: null });
+    return Promise.resolve(typeof r === "function" ? r() : (r ?? { data: [], error: null }));
   };
   const chain: any = {
     select: () => chain,
     eq: () => chain,
     in: () => chain,
-    not: () => terminal(),
+    not: () => chain,
+    then: (onF: any, onR: any) => resolve().then(onF, onR),
   };
   return chain;
 };
+
 
 const invokeSpy = vi.fn(async () => ({ data: null, error: null }));
 
