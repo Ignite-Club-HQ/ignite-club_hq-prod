@@ -210,6 +210,21 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
 
   // Helper — pick best 1-swap at time `absT` in `half`. Returns null if
   // nothing improves OR if no legal swap exists.
+  //
+  // Scoring strategy (squad-wide fairness):
+  //   Primary   — sum of squared end-of-match deviations (projects each
+  //               player forward assuming the current on-pitch set remains
+  //               unchanged for the remaining time). Prefers reductions in
+  //               total squared error across the WHOLE rotation pool, not
+  //               just the single worst player.
+  //   Secondary — maximum absolute projected deviation.
+  //   Tertiary  — stable id ordering (outId then inId) for determinism.
+  //
+  // Accepting swaps that improve total squared deviation — even when the
+  // maximum absolute deviation is temporarily unchanged — is what breaks the
+  // multi-substitute stalemate: bringing on an under-played bench player can
+  // reduce the sum-of-squares even if a second, equally-underplayed player
+  // remains on the bench and keeps the maximum deviation the same.
   const findBestSwap = (
     absT: number,
     half: 1 | 2,
@@ -218,7 +233,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     in: EqualTimePlayer;
     outPos: PitchPosition;
     swap?: { player: EqualTimePlayer; fromPosition: PitchPosition; toPosition: PitchPosition };
-    /** Reduction in max(|deviation|) achieved (positive = improvement). */
+    /** Reduction in sum-of-squared-deviations achieved (positive = improvement). */
     improvement: number;
   } | null => {
     const eligible = half === 1 ? eligibleH1 : eligibleH2;
@@ -235,11 +250,46 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
 
     if (benchEligible.length === 0 || onPitchEligible.length === 0) return null;
 
-    // Order: bring on the most under-played, take off the most over-played.
-    benchEligible.sort((a, b) => dev(a) - dev(b)); // ascending
-    onPitchEligible.sort((a, b) => dev(b) - dev(a)); // descending
+    const remaining = totalSec - absT;
+    if (remaining <= 0) return null;
 
-    let best: ReturnType<typeof findBestSwap> = null;
+    // Deterministic ordering. Primary key = deviation, secondary = id (string
+    // compare) so ties resolve identically across runs.
+    benchEligible.sort((a, b) => dev(a) - dev(b) || (a < b ? -1 : a > b ? 1 : 0));
+    onPitchEligible.sort((a, b) => dev(b) - dev(a) || (a < b ? -1 : a > b ? 1 : 0));
+
+    // Baseline score: sum of squared projected deviations if we do NOTHING
+    // this chunk. Bench players stay bench (accumulate 0 more); on-pitch
+    // players collect `remaining` more seconds.
+    let baseSumSq = 0;
+    let baseMaxAbs = 0;
+    rotationPool.forEach((p) => {
+      const cur = projected.get(p.id) ?? 0;
+      const tgt = targetSec.get(p.id) ?? 0;
+      const proj = cur + (onPitchOutfield.has(p.id) ? remaining : 0);
+      const d = proj - tgt;
+      baseSumSq += d * d;
+      const ad = Math.abs(d);
+      if (ad > baseMaxAbs) baseMaxAbs = ad;
+    });
+
+    let best:
+      | {
+          out: EqualTimePlayer;
+          in: EqualTimePlayer;
+          outPos: PitchPosition;
+          swap?: {
+            player: EqualTimePlayer;
+            fromPosition: PitchPosition;
+            toPosition: PitchPosition;
+          };
+          improvement: number;
+          newSumSq: number;
+          newMaxAbs: number;
+          outId: string;
+          inId: string;
+        }
+      | null = null;
 
     for (const inId of benchEligible) {
       const inP = playerById.get(inId)!;
@@ -248,8 +298,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
         // Min-shift gate on the player coming OFF.
         const lastOut = lastSubAt.get(outId);
         if (lastOut !== undefined && absT - lastOut < minShiftSec) continue;
-        // Min-shift gate on the player coming ON (don't bounce them right back
-        // unless a strict improvement requires it).
+        // Min-shift gate on the player coming ON.
         const lastIn = lastSubAt.get(inId);
         if (lastIn !== undefined && absT - lastIn < minShiftSec) continue;
 
@@ -279,51 +328,76 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
           if (!foundSwap) continue;
         }
 
-        // Compute hypothetical post-swap max deviation. The swap doesn't
-        // immediately change deviations — it changes who accrues seconds for
-        // the REMAINING time. Approximate: project the remaining time to the
-        // end of game evenly across the new on-pitch set, and take the new
-        // max deviation. This is a one-step lookahead; good enough for a
-        // greedy hill climb.
-        const remaining = totalSec - absT;
-        if (remaining <= 0) continue;
-
-        // Build a "new on-pitch outfield" snapshot.
-        const newOn = new Set(onPitchOutfield);
-        newOn.delete(outId);
-        newOn.add(inId);
-
-        // For each player, project their final seconds:
-        //   - If they're in `newOn`, they accumulate `remaining` × (avg coverage).
-        //     Use the simplification: each on-pitch player gets `remaining` sec.
-        //   - If they're on bench (and eligible this half), they accumulate 0
-        //     for now but might come on later. Use 0 (worst case for them).
-        // The single-step heuristic is conservative; the iterative loop will
-        // re-evaluate every chunk so final deviations converge.
-        let maxAbsDev = 0;
-        let maxAbsDevCurrent = 0;
+        // Score the hypothetical post-swap squad projection.
+        let newSumSq = 0;
+        let newMaxAbs = 0;
         rotationPool.forEach((p) => {
           const cur = projected.get(p.id) ?? 0;
           const tgt = targetSec.get(p.id) ?? 0;
-          const onIn = newOn.has(p.id);
-          const proj = cur + (onIn ? remaining : 0);
-          const d = Math.abs(proj - tgt);
-          if (d > maxAbsDev) maxAbsDev = d;
-          const projCur = cur + (onPitchOutfield.has(p.id) ? remaining : 0);
-          const dCur = Math.abs(projCur - tgt);
-          if (dCur > maxAbsDevCurrent) maxAbsDevCurrent = dCur;
+          const onAfter =
+            p.id === outId
+              ? false
+              : p.id === inId
+                ? true
+                : onPitchOutfield.has(p.id);
+          const proj = cur + (onAfter ? remaining : 0);
+          const d = proj - tgt;
+          newSumSq += d * d;
+          const ad = Math.abs(d);
+          if (ad > newMaxAbs) newMaxAbs = ad;
         });
 
-        const improvement = maxAbsDevCurrent - maxAbsDev;
-        if (improvement <= 0) continue;
-        if (!best || improvement > best.improvement) {
-          best = { out: outP, in: inP, outPos, swap: swapMeta, improvement };
+        // Strict improvement in squad-wide fairness (sum-of-squares) required.
+        // Note: max deviation is allowed to stay unchanged — this is the fix
+        // for the multi-sub stalemate.
+        if (newSumSq >= baseSumSq) continue;
+
+        const improvement = baseSumSq - newSumSq;
+        if (!best) {
+          best = {
+            out: outP,
+            in: inP,
+            outPos,
+            swap: swapMeta,
+            improvement,
+            newSumSq,
+            newMaxAbs,
+            outId,
+            inId,
+          };
+          continue;
+        }
+        // Tie-break chain: lower newSumSq → lower newMaxAbs → stable ids.
+        if (
+          newSumSq < best.newSumSq ||
+          (newSumSq === best.newSumSq && newMaxAbs < best.newMaxAbs) ||
+          (newSumSq === best.newSumSq &&
+            newMaxAbs === best.newMaxAbs &&
+            (outId < best.outId || (outId === best.outId && inId < best.inId)))
+        ) {
+          best = {
+            out: outP,
+            in: inP,
+            outPos,
+            swap: swapMeta,
+            improvement,
+            newSumSq,
+            newMaxAbs,
+            outId,
+            inId,
+          };
         }
       }
-      if (best && best.improvement > minShiftSec) break; // good enough
     }
 
-    return best;
+    if (!best) return null;
+    return {
+      out: best.out,
+      in: best.in,
+      outPos: best.outPos,
+      swap: best.swap,
+      improvement: best.improvement,
+    };
   };
 
   for (let absT = 0; absT < totalSec; absT += chunkSec) {

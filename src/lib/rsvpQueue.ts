@@ -18,11 +18,27 @@ export interface QueuedRsvp {
 
 const QUEUE_KEY = "ignite_rsvp_queue";
 const MAX_RETRIES = 3;
+const VALID_STATUSES: QueuedRsvpStatus[] = ["going", "maybe", "not_going"];
+
+function isValidQueuedRsvp(entry: unknown): entry is QueuedRsvp {
+  if (!entry || typeof entry !== "object") return false;
+  const e = entry as Record<string, unknown>;
+  if (typeof e.id !== "string" || e.id.length === 0) return false;
+  if (typeof e.eventId !== "string" || e.eventId.length === 0) return false;
+  if (typeof e.userId !== "string" || e.userId.length === 0) return false;
+  if (typeof e.status !== "string" || !VALID_STATUSES.includes(e.status as QueuedRsvpStatus)) return false;
+  if (typeof e.retryCount !== "number" || !Number.isFinite(e.retryCount) || e.retryCount < 0) return false;
+  if (typeof e.queuedAt !== "string" || e.queuedAt.length === 0) return false;
+  return true;
+}
 
 export function getQueuedRsvps(): QueuedRsvp[] {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidQueuedRsvp);
   } catch {
     return [];
   }
@@ -101,29 +117,62 @@ async function sendQueuedRsvp(r: QueuedRsvp): Promise<boolean> {
   }
 }
 
+let syncInFlight: Promise<{ synced: number; failed: number }> | null = null;
+
 export async function syncQueuedRsvps(): Promise<{ synced: number; failed: number }> {
-  const queue = getQueuedRsvps();
-  if (queue.length === 0) return { synced: 0, failed: 0 };
+  if (syncInFlight) return syncInFlight;
 
-  let synced = 0;
-  let failed = 0;
-  const remaining: QueuedRsvp[] = [];
+  const run = async (): Promise<{ synced: number; failed: number }> => {
+    const snapshot = getQueuedRsvps();
+    if (snapshot.length === 0) return { synced: 0, failed: 0 };
 
-  for (const r of queue) {
-    const ok = await sendQueuedRsvp(r);
-    if (ok) {
-      synced++;
-    } else {
-      r.retryCount += 1;
-      if (r.retryCount < MAX_RETRIES) {
-        remaining.push(r);
+    let synced = 0;
+    let failed = 0;
+    // Track outcome per snapshot entry id
+    const results = new Map<string, { success: boolean; retryCount: number }>();
+
+    for (const r of snapshot) {
+      const ok = await sendQueuedRsvp(r);
+      if (ok) {
+        synced++;
+        results.set(r.id, { success: true, retryCount: r.retryCount });
       } else {
-        failed++;
+        const nextRetry = r.retryCount + 1;
+        if (nextRetry >= MAX_RETRIES) {
+          failed++;
+        }
+        results.set(r.id, { success: false, retryCount: nextRetry });
       }
     }
-  }
-  saveQueue(remaining);
-  return { synced, failed };
+
+    // Re-read the current queue: it may contain entries added or replaced during sync
+    const currentQueue = getQueuedRsvps();
+    const snapshotIds = new Set(snapshot.map((entry) => entry.id));
+
+    const merged = currentQueue.flatMap((current) => {
+      // Entry added or replaced during sync: preserve unchanged
+      if (!snapshotIds.has(current.id)) {
+        return [current];
+      }
+      const result = results.get(current.id);
+      // Shouldn't happen, but preserve if no result
+      if (!result) return [current];
+      // Successfully synced: remove
+      if (result.success) return [];
+      // Exhausted retries: drop
+      if (result.retryCount >= MAX_RETRIES) return [];
+      // Keep with updated retry count
+      return [{ ...current, retryCount: result.retryCount }];
+    });
+
+    saveQueue(merged);
+    return { synced, failed };
+  };
+
+  syncInFlight = run().finally(() => {
+    syncInFlight = null;
+  });
+  return syncInFlight;
 }
 
 export function getQueuedRsvpCount(): number {

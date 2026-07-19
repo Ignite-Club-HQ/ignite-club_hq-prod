@@ -201,6 +201,7 @@ export function useCreateScheduledMessage() {
 }
 
 export function useUpdateScheduledMessage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
@@ -211,6 +212,7 @@ export function useUpdateScheduledMessage() {
       recurrence?: ScheduledMessageRecurrence;
       recurrence_until?: Date | null;
     }) => {
+      if (!user?.id) throw new Error("Not authenticated");
       const body: Record<string, unknown> = { action: "update", id: input.id };
       if (input.text !== undefined) body.text = input.text;
       if (input.image_url !== undefined) body.image_url = input.image_url;
@@ -232,9 +234,11 @@ export function useUpdateScheduledMessage() {
 }
 
 export function useCancelScheduledMessage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user?.id) throw new Error("Not authenticated");
       await invokeWrite({ action: "cancel", id });
     },
     onSuccess: () => {
