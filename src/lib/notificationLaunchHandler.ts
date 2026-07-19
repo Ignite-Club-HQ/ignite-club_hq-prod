@@ -63,14 +63,14 @@ export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null 
 }
 
 export function getPendingNotificationNavigation(): string | null {
-  const url = pendingNavigationUrl || readPersistedPendingNav();
-  if (url) {
-    pendingNavigationUrl = null;
-    clearPersistedPendingNav();
-    navigationHandled = true;
-  }
-  return url;
+  // NOTE: this used to clear the stash on read, which meant a failed
+  // navigate() (router not ready, Index redirect race) would lose the URL
+  // forever. We now peek only; callers MUST invoke
+  // `clearPendingNotificationNavigation()` once navigation actually
+  // succeeded. `processPendingNotificationNavigation` does this below.
+  return pendingNavigationUrl || readPersistedPendingNav();
 }
+
 
 export function clearPendingNotificationNavigation() {
   pendingNavigationUrl = null;
