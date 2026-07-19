@@ -16,7 +16,7 @@ import {
 } from "@/lib/iosLayoutStability";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
-import { prefetchRoute } from "@/lib/routePrefetch";
+import { prefetchRoute, warmMainRoutes } from "@/lib/routePrefetch";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
