@@ -96,10 +96,15 @@ describe("buildEqualTimePlan — squad-wide fairness", () => {
     expect(res.plan.length).toBeGreaterThan(0);
 
     const target = equalTimeTargetSec(squadSize, teamSize, HALF * 2);
+    // True mathematical floor at 30s chunk resolution: with `slots × chunks`
+    // discrete chunks distributed across N players, the best-possible max
+    // deviation is `max(ceil(per) - per, per - floor(per)) × chunkSec`.
+    const chunkSec = 30;
+    const totalChunks = teamSize * ((HALF * 2) / chunkSec);
+    const per = totalChunks / squadSize;
+    const chunkFloor = Math.max(Math.ceil(per) - per, per - Math.floor(per)) * chunkSec;
     res.projectedSec.forEach((secs) => {
-      // "Within one planner chunk of the mathematical floor" — the floor is
-      // zero when perfectly divisible, otherwise 1s (chunk resolution).
-      expect(Math.abs(secs - target)).toBeLessThanOrEqual(30 + res.perfectFloorSec);
+      expect(Math.abs(secs - target)).toBeLessThanOrEqual(chunkSec + chunkFloor);
     });
   });
 
