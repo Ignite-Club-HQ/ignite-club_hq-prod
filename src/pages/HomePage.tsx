@@ -3150,43 +3150,47 @@ export default function HomePage() {
 
       {/* Cancel Event Dialog */}
       {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
-        <RecurringCancelEventDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onSingleAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          onSeriesAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringCancelEventDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onSingleAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            onSeriesAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToCancel && (
-        <CancelEventConfirmDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventId={eventToCancel?.id || ""}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onConfirm={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <CancelEventConfirmDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventId={eventToCancel?.id || ""}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onConfirm={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       )}
 
       {/* Remind Dialog */}
