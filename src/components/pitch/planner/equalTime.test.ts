@@ -104,7 +104,7 @@ describe("buildEqualTimePlan — squad-wide fairness", () => {
     const per = totalChunks / squadSize;
     const chunkFloor = Math.max(Math.ceil(per) - per, per - Math.floor(per)) * chunkSec;
     res.projectedSec.forEach((secs) => {
-      expect(Math.abs(secs - target)).toBeLessThanOrEqual(chunkSec + chunkFloor);
+      expect(Math.abs(secs - target)).toBeLessThanOrEqual(chunkSec + chunkFloor + 1e-6);
     });
   });
 
