@@ -125,7 +125,12 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
 
 
 
-  const { data: passkeys, isLoading } = useQuery({
+  const {
+    data: passkeys,
+    isLoading,
+    isError: passkeysErrored,
+    refetch: refetchPasskeys,
+  } = useQuery({
     queryKey: ["user-passkeys", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
