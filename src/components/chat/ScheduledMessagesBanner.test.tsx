@@ -87,6 +87,7 @@ import { ScheduledMessagesBanner } from "./ScheduledMessagesBanner";
 // ---- helpers ----------------------------------------------------------
 
 function renderBanner() {
+  const orig = console.error; console.error = (...a) => { orig(">>ERR>>", ...a); };
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
