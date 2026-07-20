@@ -318,6 +318,25 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            ) : passkeysErrored ? (
+              // Query failed — DO NOT claim the user has no passkeys. Show a
+              // neutral error state with a Retry that re-runs the same query.
+              // Hide "Add New Passkey" so nothing implies the current list is
+              // authoritative.
+              <div className="text-center py-8" role="alert">
+                <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-3" />
+                <p className="font-medium">Unable to load your passkeys.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Check your connection and try again.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => refetchPasskeys()}
+                >
+                  Retry
+                </Button>
+              </div>
             ) : passkeys && passkeys.length > 0 ? (
               <div className="space-y-3">
                 {passkeys.map((passkey) => {
@@ -381,23 +400,27 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               </div>
             )}
 
-            <Button
-              onClick={handleAddPasskey}
-              disabled={registerLoading}
-              className="w-full"
-            >
-              {registerLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Setting up...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Passkey
-                </>
-              )}
-            </Button>
+            {/* Only offer "Add New Passkey" when we successfully know the
+                current list. On error, the user retries first. */}
+            {!passkeysErrored && (
+              <Button
+                onClick={handleAddPasskey}
+                disabled={registerLoading}
+                className="w-full"
+              >
+                {registerLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Passkey
+                  </>
+                )}
+              </Button>
+            )}
           </div>
           )}
         </DialogContent>
