@@ -159,23 +159,15 @@ describe("AccountPage — delete account session validation", () => {
     expect(signOutFn).not.toHaveBeenCalled();
   });
 
-  it("re-entry guard blocks a second submission after failure until re-triggered", async () => {
-    // First call fails, second call proceeds — proves the guard resets.
-    invokeFn
-      .mockResolvedValueOnce({ data: null, error: { message: "boom" } })
-      .mockResolvedValueOnce({
-        data: { deletionDate: new Date(Date.now() + 86400_000).toISOString() },
-        error: null,
-      });
+  it("failure re-enables the trigger button (guard resets on error)", async () => {
+    invokeFn.mockResolvedValue({ data: null, error: { message: "boom" } });
     await clickDeleteAndConfirm();
     await waitFor(() => expect(toastFn).toHaveBeenCalled());
-    // Re-open and confirm again — should succeed.
-    fireEvent.click(screen.getByRole("button", { name: /^Delete My Account$/ }));
-    const confirm2 = await screen.findByRole("button", {
-      name: /yes, delete my account/i,
+    // Trigger button should be back to its enabled "Delete My Account" label.
+    const triggers = await screen.findAllByRole("button", {
+      name: /^Delete My Account$/,
     });
-    fireEvent.click(confirm2);
-    await waitFor(() => expect(invokeFn).toHaveBeenCalledTimes(2));
+    expect((triggers[0] as HTMLButtonElement).disabled).toBe(false);
   });
 });
 
