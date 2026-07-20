@@ -93,8 +93,10 @@ beforeEach(() => {
   for (const k of Object.keys(lastFilters)) delete lastFilters[k];
 });
 
-afterEach(() => vi.clearAllMocks();
-);
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
 
 describe("useChatSharedMedia — result-limit enforcement", () => {
   it("must enforce the requested result limit after deriving media items", async () => {
