@@ -36,6 +36,18 @@ export function consumePendingWebPushNav(): string | null {
   return url;
 }
 
+/**
+ * Drop any stashed pending web-push navigation without consuming it as a
+ * launch. Used by `clearUserScopedCaches()` on sign-out / cross-user sign-in
+ * so the previous user's pending route cannot leak to the next user in the
+ * same tab.
+ */
+export function clearPendingWebPushNav(): void {
+  pendingUrl = null;
+  clearPersisted();
+}
+
+
 function isExternalUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
