@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { requireAccessToken, SessionExpiredError, SESSION_EXPIRED_MESSAGE } from "@/lib/requireAccessToken";
 
 interface AccountRecoveryBannerProps {
   userId: string;
