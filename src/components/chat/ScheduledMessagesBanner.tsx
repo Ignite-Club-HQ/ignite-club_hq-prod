@@ -127,6 +127,26 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
           )}
         </button>
 
+        {isError && (
+          <div
+            role="alert"
+            className="mt-2 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/40 px-2 py-1.5"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-foreground flex-1">
+              Couldn't refresh scheduled messages. Existing messages may still send.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-[11px] font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {isFetching ? "…" : "Retry"}
+            </button>
+          </div>
+        )}
+
         {expanded && (
           <>
             <ul className="mt-2 space-y-1.5">
