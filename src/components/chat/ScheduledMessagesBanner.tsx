@@ -8,6 +8,7 @@ import {
   X,
   Image as ImageIcon,
   Repeat,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,13 +44,45 @@ interface ScheduledMessagesBannerProps {
 }
 
 export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps) {
-  const { data: rows = [] } = useThreadScheduledMessages(target);
+  const {
+    data: rows = [],
+    isError,
+    refetch,
+    isFetching,
+  } = useThreadScheduledMessages(target);
   const [expanded, setExpanded] = useState(false);
   const [editingRow, setEditingRow] = useState<ScheduledMessageRow | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const cancelMut = useCancelScheduledMessage();
 
-  if (rows.length === 0) return null;
+  // If the fetch failed and we have no cached rows to show, still surface a
+  // non-blocking warning so the user knows their previously scheduled
+  // messages may still send. Never imply the list is empty on error.
+  if (rows.length === 0) {
+    if (!isError) return null;
+    return (
+      <div
+        role="alert"
+        className="bg-amber-500/10 border-b border-amber-500/40 px-3 py-2 flex items-start gap-2"
+      >
+        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-foreground">
+            Scheduled messages could not be loaded. Your existing messages have
+            not been deleted and may still send.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="text-xs font-medium text-primary hover:underline disabled:opacity-60"
+        >
+          {isFetching ? "Retrying…" : "Retry"}
+        </button>
+      </div>
+    );
+  }
 
   const handleCancel = async () => {
     if (!confirmDeleteId) return;
@@ -57,7 +90,11 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
       await cancelMut.mutateAsync(confirmDeleteId);
       toast.success("Scheduled message cancelled");
     } catch (e: any) {
-      toast.error(e?.message || "Failed to cancel");
+      if (e?.code === "session_expired") {
+        toast.error("Your session expired. Please sign in again.");
+      } else {
+        toast.error(e?.message || "Failed to cancel");
+      }
     } finally {
       setConfirmDeleteId(null);
     }
@@ -89,6 +126,26 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
             <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
         </button>
+
+        {isError && (
+          <div
+            role="alert"
+            className="mt-2 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/40 px-2 py-1.5"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-foreground flex-1">
+              Couldn't refresh scheduled messages. Existing messages may still send.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-[11px] font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {isFetching ? "…" : "Retry"}
+            </button>
+          </div>
+        )}
 
         {expanded && (
           <>
