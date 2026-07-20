@@ -99,9 +99,11 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-const setHref = (href: string) => {
-  window.history.replaceState({}, "", href);
+const setHref = (relative: string) => {
+  // JSDOM disallows replaceState across origins; use a relative URL.
+  window.history.replaceState({}, "", relative);
 };
+
 
 beforeEach(() => {
   toastSpy.mockReset();
