@@ -81,6 +81,7 @@ describe("AccountPage — delete account session validation", () => {
     fireEvent.click(confirm);
   }
 
+
   it("valid session sends the exact bearer token and signs out on valid deletionDate", async () => {
     invokeFn.mockResolvedValue({
       data: { deletionDate: new Date(Date.now() + 30 * 86400_000).toISOString() },
