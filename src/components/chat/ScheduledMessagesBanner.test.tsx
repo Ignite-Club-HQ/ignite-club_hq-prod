@@ -68,8 +68,14 @@ vi.mock("sonner", () => ({
 }));
 
 // Skip the ScheduleMessageDialog subtree — it's unrelated and pulls in
-// heavy dependencies for tests focused on the cancel path.
+// heavy dependencies for tests focused on the cancel path. Mock via BOTH
+// the aliased and relative specifiers because Vitest treats them as
+// distinct module IDs when resolving vi.mock.
 vi.mock("./ScheduleMessageDialog", () => ({
+  ScheduleMessageDialog: () => null,
+  localTimezoneLabel: () => "UTC",
+}));
+vi.mock("@/components/chat/ScheduleMessageDialog", () => ({
   ScheduleMessageDialog: () => null,
   localTimezoneLabel: () => "UTC",
 }));
