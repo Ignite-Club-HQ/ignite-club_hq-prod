@@ -35,13 +35,27 @@ export function AccountRecoveryBanner({ userId, onRecovered }: AccountRecoveryBa
   }, [userId]);
 
   const handleRecover = async () => {
+    if (recovering) return;
     setRecovering(true);
+    let token: string;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      token = await requireAccessToken();
+    } catch (err) {
+      // Do NOT invoke the Edge Function, do NOT clear the warning, do NOT
+      // call onRecovered. Keep the banner visible so the user still sees
+      // that their account is scheduled for deletion.
+      toast({
+        title: "Session expired",
+        description: err instanceof SessionExpiredError ? err.message : SESSION_EXPIRED_MESSAGE,
+        variant: "destructive",
+      });
+      setRecovering(false);
+      return;
+    }
+
+    try {
       const response = await supabase.functions.invoke('recover-account', {
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.error) {
@@ -52,7 +66,7 @@ export function AccountRecoveryBanner({ userId, onRecovered }: AccountRecoveryBa
         title: "Account recovered!",
         description: "Your account has been restored and is no longer scheduled for deletion.",
       });
-      
+
       setScheduledDeletion(null);
       onRecovered();
     } catch (err) {
@@ -61,8 +75,9 @@ export function AccountRecoveryBanner({ userId, onRecovered }: AccountRecoveryBa
         description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      setRecovering(false);
     }
-    setRecovering(false);
   };
 
   if (loading || !scheduledDeletion) {
