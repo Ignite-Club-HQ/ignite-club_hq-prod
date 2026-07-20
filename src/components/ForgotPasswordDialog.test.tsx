@@ -16,7 +16,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import { ForgotPasswordDialog } from "./ForgotPasswordDialog";
 
-// input-otp calls ResizeObserver on mount — jsdom lacks it.
+// input-otp calls ResizeObserver + document.elementFromPoint on mount — jsdom lacks both.
 if (typeof (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver === "undefined") {
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
     observe() {}
@@ -24,6 +24,10 @@ if (typeof (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserve
     disconnect() {}
   };
 }
+if (typeof document !== "undefined" && typeof document.elementFromPoint !== "function") {
+  (document as unknown as { elementFromPoint: () => null }).elementFromPoint = () => null;
+}
+
 
 // ── mocks ────────────────────────────────────────────────────────────────
 const toastSpy = vi.fn();
