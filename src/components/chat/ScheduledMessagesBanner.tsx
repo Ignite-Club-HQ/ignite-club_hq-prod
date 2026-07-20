@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Clock,
