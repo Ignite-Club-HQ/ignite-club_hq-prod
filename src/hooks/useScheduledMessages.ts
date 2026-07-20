@@ -168,6 +168,7 @@ async function invokeWrite(body: Record<string, unknown>) {
     // Surface server-provided error payload when possible.
     const ctx: any = (error as any).context;
     let serverMsg: string | undefined;
+    let httpStatus: number | undefined = typeof ctx?.status === "number" ? ctx.status : undefined;
     try {
       const parsed = ctx && typeof ctx.json === "function" ? await ctx.json() : undefined;
       if (parsed?.error === "pro_required") {
@@ -180,7 +181,16 @@ async function invokeWrite(body: Record<string, unknown>) {
     } catch (inner) {
       if ((inner as any)?.code === "pro_required") throw inner;
     }
-    throw new Error(serverMsg || error.message || "Request failed");
+    const combined = `${serverMsg || ""} ${error.message || ""}`.toLowerCase();
+    const isSessionExpired =
+      httpStatus === 401 ||
+      /not authenticated|unauthori[sz]ed|jwt|session/i.test(combined);
+    const outMsg = isSessionExpired
+      ? "Your session has expired. Please sign in again."
+      : serverMsg || error.message || "Request failed";
+    const e = new Error(outMsg);
+    if (isSessionExpired) (e as any).code = "session_expired";
+    throw e;
   }
   return data;
 }
