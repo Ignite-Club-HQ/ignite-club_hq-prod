@@ -369,6 +369,14 @@ export default function ResetPasswordPage() {
   };
 
   const handleResetPassword = async () => {
+    // Synchronous guard: refuse to call updateUser() unless the recovery
+    // session has been confirmed. Supabase remains the authoritative security
+    // boundary, but this prevents the form from ever submitting during the
+    // checking / invalid states.
+    if (recoverySessionStatus !== "valid") {
+      return;
+    }
+
     const validation = passwordSchema.safeParse({ password, confirmPassword });
     if (!validation.success) {
       const strengthMessage = getPasswordStrengthMessage(password);
@@ -378,6 +386,7 @@ export default function ResetPasswordPage() {
       });
       return;
     }
+
 
     setLoading(true);
     
