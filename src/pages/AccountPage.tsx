@@ -18,15 +18,29 @@ export default function AccountPage() {
   const [exportingData, setExportingData] = useState(false);
 
   const handleDeleteAccount = async () => {
+    if (deletingAccount) return;
     setDeletingAccount(true);
+
+    let token: string;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await supabase.functions.invoke('delete-account', {
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
-        },
+      token = await requireAccessToken();
+    } catch (err) {
+      // Missing/expired session — do NOT invoke delete-account, do NOT
+      // sign the user out, keep them on the page.
+      toast({
+        title: "Session expired",
+        description: err instanceof SessionExpiredError ? err.message : SESSION_EXPIRED_MESSAGE,
+        variant: "destructive",
       });
-      
+      setDeletingAccount(false);
+      return;
+    }
+
+    try {
+      const response = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       if (response.error) {
         toast({
           title: "Failed to schedule account deletion",
@@ -36,13 +50,28 @@ export default function AccountPage() {
         setDeletingAccount(false);
         return;
       }
-      
-      const deletionDate = new Date(response.data.deletionDate);
+
+      // Only sign out after the backend confirms scheduling AND returns a
+      // valid ISO deletion date. A missing/invalid date is treated as a
+      // failure so we never claim success or sign the user out on a
+      // malformed response.
+      const rawDate = response.data?.deletionDate;
+      const parsed = rawDate ? new Date(rawDate) : null;
+      if (!parsed || Number.isNaN(parsed.getTime())) {
+        toast({
+          title: "Failed to schedule account deletion",
+          description: "The server returned an invalid response. Please try again.",
+          variant: "destructive",
+        });
+        setDeletingAccount(false);
+        return;
+      }
+
       toast({
         title: "Account scheduled for deletion",
-        description: `Your account will be permanently deleted on ${deletionDate.toLocaleDateString()}. Log back in within 30 days to recover it.`,
+        description: `Your account will be permanently deleted on ${parsed.toLocaleDateString()}. Log back in within 30 days to recover it.`,
       });
-      
+
       await signOut();
     } catch (err) {
       toast({
@@ -55,48 +84,84 @@ export default function AccountPage() {
   };
 
   const handleExportData = async () => {
+    if (exportingData) return;
     setExportingData(true);
+
+    let token: string;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      
+      token = await requireAccessToken();
+    } catch (err) {
+      toast({
+        title: "Session expired",
+        description: err instanceof SessionExpiredError ? err.message : SESSION_EXPIRED_MESSAGE,
+        variant: "destructive",
+      });
+      setExportingData(false);
+      return;
+    }
+
+    let objectUrl: string | null = null;
+    try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-user-data`,
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${sessionData.session?.access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }
       );
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Export failed');
+        let errorMessage = 'Export failed';
+        try {
+          const errorData = await response.json();
+          if (typeof errorData?.error === 'string') errorMessage = errorData.error;
+        } catch {
+          // ignore JSON parse errors
+        }
+        if (response.status === 401) {
+          throw new SessionExpiredError();
+        }
+        throw new Error(errorMessage);
       }
-      
+
+      // Validate the response actually contains a downloadable ZIP before
+      // creating a download link and reporting success.
+      const contentType = response.headers.get('content-type') || '';
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const looksLikeZip =
+        contentType.toLowerCase().includes('zip') || blob.type.toLowerCase().includes('zip');
+      if (!looksLikeZip || blob.size === 0) {
+        throw new Error('The server returned an unexpected response. Please try again.');
+      }
+
+      objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
+      link.href = objectUrl;
       link.download = `ignite-data-export-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
+
       toast({
         title: "Data exported",
         description: "Your data has been downloaded as a ZIP file with CSV files inside.",
       });
     } catch (err) {
+      const isSessionExpired = err instanceof SessionExpiredError;
       toast({
-        title: "Export failed",
+        title: isSessionExpired ? "Session expired" : "Export failed",
         description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      // Always revoke any created object URL, including after failures
+      // that happen after URL creation.
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setExportingData(false);
     }
-    setExportingData(false);
   };
 
   return (
