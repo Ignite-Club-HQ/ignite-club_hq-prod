@@ -37,16 +37,13 @@ vi.mock("@/lib/safeOpenUrl", () => ({ safeOpenUrl: vi.fn() }));
 
 // Stub fetch for the export endpoint.
 const fetchFn = vi.fn();
-// @ts-expect-error override
-global.fetch = fetchFn;
+(global as any).fetch = fetchFn;
 
 // Stub URL.createObjectURL / revokeObjectURL
 const createUrlFn = vi.fn(() => "blob:mock");
 const revokeUrlFn = vi.fn();
-// @ts-expect-error override
-global.URL.createObjectURL = createUrlFn;
-// @ts-expect-error override
-global.URL.revokeObjectURL = revokeUrlFn;
+(global as any).URL.createObjectURL = createUrlFn;
+(global as any).URL.revokeObjectURL = revokeUrlFn;
 
 import AccountPage from "./AccountPage";
 
