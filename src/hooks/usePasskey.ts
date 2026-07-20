@@ -217,6 +217,8 @@ export function setRememberMe(value: boolean) {
   }
 }
 
+export const PASSKEY_IN_PROGRESS_ERROR = 'A passkey operation is already in progress';
+
 export function usePasskey() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
@@ -224,6 +226,10 @@ export function usePasskey() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nativeBiometricInfo, setNativeBiometricInfo] = useState<BiometricAvailability | null>(null);
+  // Synchronous re-entry guard — set BEFORE any await so concurrent callers
+  // are rejected without invoking Edge Functions, opening WebAuthn or
+  // mutating any state on the active operation.
+  const operationInFlightRef = useRef(false);
 
   // Refresh accounts list
   const refreshAccounts = useCallback(async () => {
