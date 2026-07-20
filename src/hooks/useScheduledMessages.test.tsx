@@ -284,9 +284,9 @@ describe("useScheduledMessages auth guards", () => {
       await act(async () => {
         await result.current.refetch();
       });
+      await waitFor(() => expect(result.current.isError).toBe(true));
       // Previous data must remain visible so the UI does not blank the list.
       expect(result.current.data).toEqual([initialRow]);
-      expect(result.current.isError).toBe(true);
     });
   });
 });
