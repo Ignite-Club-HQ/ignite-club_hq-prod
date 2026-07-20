@@ -207,6 +207,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
                       variant="ghost"
                       className="h-7 w-7"
                       onClick={() => setEditingRow(row)}
+                      disabled={cancelling && confirmDeleteId === row.id}
                       aria-label="Edit scheduled message"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -216,6 +217,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
                       variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       onClick={() => setConfirmDeleteId(row.id)}
+                      disabled={cancelling && confirmDeleteId === row.id}
                       aria-label="Cancel scheduled message"
                     >
                       <X className="h-3.5 w-3.5" />
