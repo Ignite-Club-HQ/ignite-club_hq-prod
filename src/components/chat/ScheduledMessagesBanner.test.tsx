@@ -99,6 +99,7 @@ function renderBanner() {
 }
 
 async function openConfirmDialog() {
+  renderBanner();
   // Give React Query one tick to resolve the mocked read query so the
   // banner mounts before we start querying it.
   await new Promise((r) => setTimeout(r, 50));
