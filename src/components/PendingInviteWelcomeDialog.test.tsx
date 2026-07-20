@@ -52,6 +52,8 @@ const fromMock = vi.fn((table: string) => {
       return chain;
     },
     limit: () => chain,
+    // Thenable — awaiting the chain returns all matching rows.
+    then: (resolve: any) => resolve({ data: rowsMatching(), error: null }),
     maybeSingle: async () => {
       const rows = rowsMatching();
       return { data: rows[0] ?? null, error: null };
@@ -60,9 +62,15 @@ const fromMock = vi.fn((table: string) => {
       const rows = rowsMatching();
       return { data: rows[0] ?? null, error: rows[0] ? null : { message: "no rows" } };
     },
-    insert: async (row: any) => {
-      (state as any)[table].push({ id: `${table}-${Date.now()}-${Math.random()}`, ...row });
-      return { data: null, error: null };
+    insert: (row: any) => {
+      const doInsert = () => {
+        (state as any)[table].push({ id: `${table}-${Date.now()}-${Math.random()}`, ...row });
+        return { data: null, error: null };
+      };
+      // Support both `await supabase.from().insert()` and `.insert().then(...)`
+      const p: any = Promise.resolve(doInsert());
+      p.then = (fn: any, rej: any) => Promise.resolve(doInsert()).then(fn, rej);
+      return p;
     },
     update: (patch: any) => ({
       eq: async (k: string, v: any) => {
