@@ -7,7 +7,6 @@ import { z } from "npm:zod@3.23.8";
 import {
   requireAnyClubPro,
   requireClubPro,
-  requireTeamPro,
 } from "../_shared/proGuard.ts";
 
 const ChatType = z.enum(["team", "club", "group", "direct", "club_admin", "broadcast"]);
