@@ -94,18 +94,34 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
   }
 
   const handleCancel = async () => {
+    // Synchronous re-entry guard — must run before any await so a second
+    // click within the same tick observes `true` and bails.
+    if (cancellingRef.current) return;
     if (!confirmDeleteId) return;
+    const targetId = confirmDeleteId;
+    cancellingRef.current = true;
+    cancellingIdRef.current = targetId;
+    setCancelling(true);
     try {
-      await cancelMut.mutateAsync(confirmDeleteId);
+      await cancelMut.mutateAsync(targetId);
       toast.success("Scheduled message cancelled");
+      // Success: close the dialog and clear selection. Cache invalidation
+      // happens inside the mutation's onSuccess so the banner refreshes.
+      setConfirmDeleteId(null);
     } catch (e: any) {
       if (e?.code === "session_expired") {
         toast.error("Your session expired. Please sign in again.");
       } else {
         toast.error(e?.message || "Failed to cancel");
       }
+      // Keep dialog open + confirmDeleteId set so the user can retry the
+      // same message without reopening the confirmation.
     } finally {
-      setConfirmDeleteId(null);
+      // Reset guards last so a stale click that fired mid-request cannot
+      // accidentally start a second cancellation for the same or another row.
+      cancellingRef.current = false;
+      cancellingIdRef.current = null;
+      setCancelling(false);
     }
   };
 
