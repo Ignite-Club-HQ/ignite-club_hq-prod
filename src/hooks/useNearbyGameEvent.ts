@@ -85,14 +85,36 @@ export async function findNearbyGameEvent(teamId: string): Promise<string | null
     .eq("type", "game")
     .eq("is_cancelled", false)
     .gte("event_date", windowStart.toISOString())
-    .lte("event_date", windowEnd.toISOString())
-    .order("event_date", { ascending: true })
-    .limit(1);
+    .lte("event_date", windowEnd.toISOString());
 
   if (error || !events || events.length === 0) {
     return null;
   }
 
-  // Return the closest game event
-  return events[0].id;
+  const nowMs = now.getTime();
+
+  type Candidate = { id: string; time: number; distance: number };
+  const candidates: Candidate[] = [];
+  for (const evt of events) {
+    if (!evt?.event_date || !evt?.id) continue;
+    const time = new Date(evt.event_date).getTime();
+    if (!Number.isFinite(time)) continue;
+    candidates.push({ id: evt.id, time, distance: Math.abs(time - nowMs) });
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((a, b) => {
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    // Prefer the upcoming event when past and future are equally distant.
+    const aUpcoming = a.time >= nowMs;
+    const bUpcoming = b.time >= nowMs;
+    if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+    // Stable secondary tie-breaker on event id.
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
+  return candidates[0].id;
 }
