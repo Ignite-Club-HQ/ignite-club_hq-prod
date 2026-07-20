@@ -23,12 +23,30 @@ vi.mock("@/hooks/useAuth", () => ({
 
 // ---- supabase mock -----------------------------------------------------
 const invokeSpy = vi.fn();
+
+// Configurable per-test response for the read chain
+let readResponse: { data: any; error: any } = { data: [], error: null };
+const setReadResponse = (data: any, error: any = null) => {
+  readResponse = { data, error };
+};
+
+// Simulated chain: `.from().select().eq().eq()...` all return the same chain
+// which is thenable and resolves to `readResponse`.
+function makeReadChain() {
+  const chain: any = {};
+  const passthroughMethods = ["select", "eq", "in", "is", "order", "not"];
+  for (const m of passthroughMethods) chain[m] = () => chain;
+  chain.then = (onF: any, onR: any) =>
+    Promise.resolve(readResponse).then(onF, onR);
+  return chain;
+}
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     functions: {
       invoke: (...args: any[]) => invokeSpy(...args),
     },
-    from: () => ({ select: () => ({ eq: () => ({ in: () => ({}) }) }) }),
+    from: () => makeReadChain(),
   },
 }));
 
@@ -43,6 +61,7 @@ beforeEach(() => {
   invokeSpy.mockReset();
   invokeSpy.mockResolvedValue({ data: { row: { id: "row-1" } }, error: null });
   currentUser = { id: "user-1" };
+  setReadResponse([], null);
 });
 
 describe("useScheduledMessages auth guards", () => {
