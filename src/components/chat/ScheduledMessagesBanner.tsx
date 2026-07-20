@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Clock,
@@ -53,6 +53,15 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
   const [expanded, setExpanded] = useState(false);
   const [editingRow, setEditingRow] = useState<ScheduledMessageRow | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  // Synchronous re-entry guard. React state updates are batched, so two
+  // rapid clicks on the confirm button can both observe `cancelling=false`
+  // before the first re-render lands. This ref is flipped inside the click
+  // handler itself, so the second click sees `true` and bails immediately.
+  const cancellingRef = useRef(false);
+  // Track which row is being cancelled so we can lock its edit/delete
+  // affordances (and the dialog) to that exact ID for the whole request.
+  const cancellingIdRef = useRef<string | null>(null);
   const cancelMut = useCancelScheduledMessage();
 
   // If the fetch failed and we have no cached rows to show, still surface a
@@ -85,18 +94,34 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
   }
 
   const handleCancel = async () => {
+    // Synchronous re-entry guard — must run before any await so a second
+    // click within the same tick observes `true` and bails.
+    if (cancellingRef.current) return;
     if (!confirmDeleteId) return;
+    const targetId = confirmDeleteId;
+    cancellingRef.current = true;
+    cancellingIdRef.current = targetId;
+    setCancelling(true);
     try {
-      await cancelMut.mutateAsync(confirmDeleteId);
+      await cancelMut.mutateAsync(targetId);
       toast.success("Scheduled message cancelled");
+      // Success: close the dialog and clear selection. Cache invalidation
+      // happens inside the mutation's onSuccess so the banner refreshes.
+      setConfirmDeleteId(null);
     } catch (e: any) {
       if (e?.code === "session_expired") {
         toast.error("Your session expired. Please sign in again.");
       } else {
         toast.error(e?.message || "Failed to cancel");
       }
+      // Keep dialog open + confirmDeleteId set so the user can retry the
+      // same message without reopening the confirmation.
     } finally {
-      setConfirmDeleteId(null);
+      // Reset guards last so a stale click that fired mid-request cannot
+      // accidentally start a second cancellation for the same or another row.
+      cancellingRef.current = false;
+      cancellingIdRef.current = null;
+      setCancelling(false);
     }
   };
 
@@ -182,6 +207,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
                       variant="ghost"
                       className="h-7 w-7"
                       onClick={() => setEditingRow(row)}
+                      disabled={cancelling && confirmDeleteId === row.id}
                       aria-label="Edit scheduled message"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -191,6 +217,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
                       variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       onClick={() => setConfirmDeleteId(row.id)}
+                      disabled={cancelling && confirmDeleteId === row.id}
                       aria-label="Cancel scheduled message"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -213,7 +240,15 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
         editingRow={editingRow}
       />
 
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
+      <AlertDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(o) => {
+          // Don't allow the dialog to close (via Esc / outside click) while
+          // the cancellation request is still in flight — the user must see
+          // the outcome and the row must stay locked to this ID.
+          if (!o && !cancelling) setConfirmDeleteId(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel scheduled message?</AlertDialogTitle>
@@ -222,8 +257,23 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>Cancel message</AlertDialogAction>
+            <AlertDialogCancel disabled={cancelling}>Keep it</AlertDialogCancel>
+            {/*
+              Deliberately NOT AlertDialogAction — that auto-closes the dialog
+              on click, which would clear confirmDeleteId and let a stale
+              click submit against a different row. A plain Button lets us
+              control close/reset in `handleCancel` after the request
+              resolves.
+            */}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={cancelling}
+              aria-busy={cancelling}
+            >
+              {cancelling ? "Cancelling…" : "Cancel message"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
