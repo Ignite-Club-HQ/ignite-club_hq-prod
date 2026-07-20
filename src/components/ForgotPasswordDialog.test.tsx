@@ -188,9 +188,10 @@ describe("ForgotPasswordDialog — initial Send Code", () => {
       }),
     );
     renderDialog();
-    clickSendCode();
-    clickSendCode();
-    clickSendCode();
+    const btn = screen.getByRole("button", { name: /send code/i });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    fireEvent.click(btn);
     expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolve({ data: {}, error: null });
