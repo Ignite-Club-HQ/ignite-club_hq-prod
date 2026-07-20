@@ -205,9 +205,20 @@ Deno.serve(async (req) => {
     // Load existing row to determine scope for Pro check.
     const { data: existing, error: loadErr } = await supabase
       .from("scheduled_messages")
-      .select("chat_type, team_id, club_id, group_id, status, author_id")
+      .select("chat_type, team_id, club_id, group_id, conversation_id, status, author_id")
       .eq("id", body.id)
       .maybeSingle();
+    if (loadErr || !existing) return json({ error: "not_found" }, 404);
+    if (existing.author_id !== userId) return json({ error: "forbidden" }, 403);
+    if (existing.status !== "pending") return json({ error: "not_pending" }, 409);
+
+    const denied = await gateForScope({
+      chat_type: existing.chat_type as z.infer<typeof ChatType>,
+      team_id: existing.team_id,
+      club_id: existing.club_id,
+      group_id: existing.group_id,
+      conversation_id: existing.conversation_id,
+    });
     if (loadErr || !existing) return json({ error: "not_found" }, 404);
     if (existing.author_id !== userId) return json({ error: "forbidden" }, 403);
     if (existing.status !== "pending") return json({ error: "not_pending" }, 409);
