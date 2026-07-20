@@ -139,7 +139,7 @@ describe("AccountPage — delete account session validation", () => {
     expect(signOutFn).not.toHaveBeenCalled();
   });
 
-  it("invalid/missing deletionDate is rejected and does not signOut", async () => {
+  it("invalid deletionDate string is rejected and does not signOut", async () => {
     invokeFn.mockResolvedValue({ data: { deletionDate: "not-a-date" }, error: null });
     await clickDeleteAndConfirm();
     await waitFor(() =>
@@ -148,12 +148,10 @@ describe("AccountPage — delete account session validation", () => {
       )
     );
     expect(signOutFn).not.toHaveBeenCalled();
+  });
 
-    // And missing entirely
-    invokeFn.mockReset();
+  it("missing deletionDate is rejected and does not signOut", async () => {
     invokeFn.mockResolvedValue({ data: {}, error: null });
-    signOutFn.mockReset();
-    toastFn.mockReset();
     await clickDeleteAndConfirm();
     await waitFor(() => expect(toastFn).toHaveBeenCalled());
     expect(signOutFn).not.toHaveBeenCalled();
