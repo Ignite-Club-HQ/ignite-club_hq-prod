@@ -240,7 +240,15 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
         editingRow={editingRow}
       />
 
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
+      <AlertDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(o) => {
+          // Don't allow the dialog to close (via Esc / outside click) while
+          // the cancellation request is still in flight — the user must see
+          // the outcome and the row must stay locked to this ID.
+          if (!o && !cancelling) setConfirmDeleteId(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel scheduled message?</AlertDialogTitle>
@@ -249,8 +257,23 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>Cancel message</AlertDialogAction>
+            <AlertDialogCancel disabled={cancelling}>Keep it</AlertDialogCancel>
+            {/*
+              Deliberately NOT AlertDialogAction — that auto-closes the dialog
+              on click, which would clear confirmDeleteId and let a stale
+              click submit against a different row. A plain Button lets us
+              control close/reset in `handleCancel` after the request
+              resolves.
+            */}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={cancelling}
+              aria-busy={cancelling}
+            >
+              {cancelling ? "Cancelling…" : "Cancel message"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
