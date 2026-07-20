@@ -168,12 +168,16 @@ describe("CreateCompetitionPage — personal organiser (atomic RPC)", () => {
     await renderPage();
     await fillNameAndSubmit();
 
+    // Wait for the first RPC to actually be in flight before firing more clicks.
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
     const submit = screen.getByRole("button", { name: /create competition/i });
     fireEvent.click(submit);
     fireEvent.click(submit);
-
-    // Only the initial call should be in flight.
+    // Give any spurious re-submissions a chance to happen.
+    await new Promise((r) => setTimeout(r, 25));
     expect(rpcMock).toHaveBeenCalledTimes(1);
+
     resolveRpc({ data: [{ competition_id: "comp-1", club_id: "club-1" }], error: null });
     await waitFor(() => expect(navigateMock).toHaveBeenCalled());
   });
