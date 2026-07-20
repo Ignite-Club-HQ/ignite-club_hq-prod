@@ -213,5 +213,80 @@ describe("useScheduledMessages auth guards", () => {
         });
       });
     });
+
+    it("session-expiry errors tag the thrown error with code=session_expired", async () => {
+      invokeSpy.mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: "Unauthorized",
+          context: { status: 401, json: async () => ({ error: "not authenticated" }) },
+        },
+      });
+      const { result } = renderHook(() => useCancelScheduledMessage(), { wrapper });
+      await act(async () => {
+        await expect(result.current.mutateAsync("id-1")).rejects.toMatchObject({
+          code: "session_expired",
+        });
+      });
+    });
+  });
+
+  describe("read query semantics", () => {
+    it("thread query returns [] when no rows exist", async () => {
+      setReadResponse([], null);
+      const { result } = renderHook(
+        () => useThreadScheduledMessages({ chat_type: "team", team_id: "t1" }),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual([]);
+    });
+
+    it("thread query rejects rather than returning [] on error", async () => {
+      setReadResponse(null, { message: "boom" });
+      const { result } = renderHook(
+        () => useThreadScheduledMessages({ chat_type: "team", team_id: "t1" }),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.data).toBeUndefined();
+    });
+
+    it("all-message query returns [] when no rows exist", async () => {
+      setReadResponse([], null);
+      const { result } = renderHook(() => useAllScheduledMessages(["pending"]), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual([]);
+    });
+
+    it("all-message query rejects on error rather than returning []", async () => {
+      setReadResponse(null, { message: "boom" });
+      const { result } = renderHook(() => useAllScheduledMessages(["pending"]), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.data).toBeUndefined();
+    });
+
+    it("failed refetch preserves previous successful data (keepPreviousData)", async () => {
+      // Prime with a successful load, then flip to an error and refetch.
+      const initialRow = { id: "r-1", scheduled_for: "2030-01-01T00:00:00Z" };
+      setReadResponse([initialRow], null);
+      const { result } = renderHook(() => useAllScheduledMessages(["pending"]), {
+        wrapper,
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual([initialRow]);
+
+      setReadResponse(null, { message: "network down" });
+      await act(async () => {
+        await result.current.refetch();
+      });
+      // Previous data must remain visible so the UI does not blank the list.
+      expect(result.current.data).toEqual([initialRow]);
+      expect(result.current.isError).toBe(true);
+    });
   });
 });
