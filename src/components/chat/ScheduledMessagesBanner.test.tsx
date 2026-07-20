@@ -154,6 +154,11 @@ describe("ScheduledMessagesBanner — confirm cancellation flow", () => {
     // Two rapid synchronous clicks — the second must be swallowed.
     fireEvent.click(btn);
     fireEvent.click(btn);
+    // Wait for the async mutationFn microtask to invoke the Edge Function.
+    await waitFor(() => expect(invokeSpy).toHaveBeenCalledTimes(1));
+    // Give any (incorrectly-permitted) second invocation a chance to fire
+    // so this assertion doesn't false-pass on ordering alone.
+    await new Promise((r) => setTimeout(r, 50));
     expect(invokeSpy).toHaveBeenCalledTimes(1);
     // Cleanly resolve so React Query doesn't leak a pending mutation.
     resolveInvoke({ data: { ok: true }, error: null });
