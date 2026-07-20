@@ -86,6 +86,17 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const markInvalid = (message: string) => {
+      if (cancelled || !mountedRef.current) return;
+      setError(message);
+      setRecoverySessionStatus("invalid");
+    };
+    const markValid = () => {
+      if (cancelled || !mountedRef.current) return;
+      setError(null);
+      setRecoverySessionStatus("valid");
+    };
+
     const establishRecoverySession = async () => {
       try {
         // Case 1: PKCE flow — Supabase puts ?code=... in the URL search params
@@ -96,7 +107,7 @@ export default function ResetPasswordPage() {
           new URLSearchParams(url.hash.replace(/^#/, "")).get("error_description");
 
         if (errorDescription) {
-          if (!cancelled) setError(decodeURIComponent(errorDescription));
+          markInvalid(decodeURIComponent(errorDescription));
           return;
         }
 
@@ -104,13 +115,13 @@ export default function ResetPasswordPage() {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             console.error("[ResetPassword] exchangeCodeForSession error:", exchangeError);
-            if (!cancelled) {
-              setError("Invalid or expired reset link. Please request a new password reset.");
-            }
+            markInvalid("Invalid or expired reset link. Please request a new password reset.");
             return;
           }
           // Clean the URL so a refresh doesn't try to re-exchange the code
           window.history.replaceState({}, document.title, "/reset-password");
+          markValid();
+          return;
         }
 
         // Case 2: implicit/hash flow — Supabase auto-detects via detectSessionInUrl.
@@ -120,14 +131,14 @@ export default function ResetPasswordPage() {
         if (cancelled) return;
 
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session && !cancelled) {
-          setError("Invalid or expired reset link. Please request a new password reset.");
+        if (session) {
+          markValid();
+        } else {
+          markInvalid("Invalid or expired reset link. Please request a new password reset.");
         }
       } catch (err) {
         console.error("[ResetPassword] session setup failed:", err);
-        if (!cancelled) {
-          setError("Invalid or expired reset link. Please request a new password reset.");
-        }
+        markInvalid("Invalid or expired reset link. Please request a new password reset.");
       }
     };
 
@@ -135,8 +146,9 @@ export default function ResetPasswordPage() {
 
     // Also listen for PASSWORD_RECOVERY in case the SDK fires it after our check
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" && !cancelled) {
+      if (event === "PASSWORD_RECOVERY" && !cancelled && mountedRef.current) {
         setError(null);
+        setRecoverySessionStatus("valid");
       }
     });
 
