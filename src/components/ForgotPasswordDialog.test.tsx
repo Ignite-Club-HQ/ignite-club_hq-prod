@@ -214,7 +214,6 @@ describe("ForgotPasswordDialog — initial Send Code", () => {
 
 describe("ForgotPasswordDialog — Resend from code step", () => {
   const advanceToCodeStep = async () => {
-    // Install fake timers BEFORE render so the cooldown setTimeout is faked.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: null });
     renderDialog();
@@ -223,12 +222,16 @@ describe("ForgotPasswordDialog — Resend from code step", () => {
     await waitFor(() =>
       expect(screen.getByText(/6-digit code/i)).toBeInTheDocument(),
     );
-    // Drain the 45s cooldown; wrap in act so React re-renders after each tick.
-    await act(async () => {
-      vi.advanceTimersByTime(46_000);
-    });
+    // Drain the 45s cooldown. Advance one second at a time so React can
+    // flush its re-render + re-arm the next setTimeout between ticks.
+    for (let i = 0; i < 50; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+    }
     vi.useRealTimers();
   };
+
 
 
   it("does NOT show 'Code resent' when the resend fails", async () => {
