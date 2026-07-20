@@ -162,7 +162,78 @@ export function PendingInviteWelcomeDialog() {
             firstInvitedClubId = clubId;
           }
 
-          // Check if role already exists
+          const parentInviteMeta = invite.metadata as any;
+          const isGuardianChildInvite =
+            invite.role === "parent" && !!parentInviteMeta?.guardian_child_id;
+
+          // Guardian (parent-to-parent) invites: run the whole thing as a
+          // single transactional RPC. If the guardian link fails, no role
+          // is created and the invite stays pending so we can retry.
+          if (isGuardianChildInvite) {
+            const { data: rpcData, error: rpcError } = await supabase.rpc(
+              "accept_guardian_parent_invite" as any,
+              { _invite_id: invite.id }
+            );
+            if (rpcError) {
+              console.error(
+                "[InviteAutoAccept] Guardian RPC failed, leaving invite pending:",
+                invite.id,
+                rpcError
+              );
+              continue; // do NOT mark accepted, do NOT send email
+            }
+            console.log("[InviteAutoAccept] Guardian invite accepted via RPC:", rpcData);
+
+            // Best-effort child-added email (external side effect, non-blocking).
+            try {
+              const meta = parentInviteMeta;
+              const childName = meta.guardian_child_name || "your child";
+              const teamIdsFromRpc: string[] = Array.isArray((rpcData as any)?.team_ids)
+                ? (rpcData as any).team_ids
+                : [];
+              const firstTeamId =
+                teamIdsFromRpc[0] ||
+                (Array.isArray(meta.guardian_all_team_ids)
+                  ? meta.guardian_all_team_ids[0]
+                  : invite.team_id);
+              if (firstTeamId) {
+                const { data: teamInfo } = await supabase
+                  .from("teams")
+                  .select("name, club_id, clubs!club_id(name, logo_url, contact_email)")
+                  .eq("id", firstTeamId)
+                  .single();
+                if (teamInfo) {
+                  const club = (teamInfo as any).clubs;
+                  await supabase.functions.invoke("send-email", {
+                    body: {
+                      to: null,
+                      toUserId: user.id,
+                      subject: `${club?.name || "Your club"}: You've been linked to ${childName}'s team ⚽`,
+                      template: "child-added",
+                      senderName: club?.name || undefined,
+                      replyTo: club?.contact_email || undefined,
+                      templateData: {
+                        recipientName: user.user_metadata?.display_name || "there",
+                        teamName: (teamInfo as any).name,
+                        clubName: club?.name || "The Club",
+                        inviteLink: `${window.location.origin}/teams/${firstTeamId}`,
+                        clubLogoUrl: club?.logo_url || undefined,
+                        childrenNames: [childName],
+                      },
+                    },
+                  });
+                }
+              }
+            } catch (emailErr) {
+              console.error(
+                "[InviteAutoAccept] Guardian child-added email failed (non-blocking):",
+                emailErr
+              );
+            }
+            continue; // guardian branch complete — do not fall through
+          }
+
+          // Non-guardian path: check if role already exists
           const roleQuery = supabase
             .from("user_roles")
             .select("id")
@@ -176,15 +247,12 @@ export function PendingInviteWelcomeDialog() {
           }
 
           const { data: existingRole } = await roleQuery.maybeSingle();
-          const parentInviteMeta = invite.metadata as any;
           const needsParentLinking = invite.role === "parent" && (
-            !!parentInviteMeta?.guardian_child_id ||
             !!parentInviteMeta?.child_id ||
             Array.isArray(parentInviteMeta?.children)
           );
 
           if (!existingRole) {
-            // Insert the role
             const { error: roleError } = await supabase
               .from("user_roles")
               .insert({
@@ -199,7 +267,6 @@ export function PendingInviteWelcomeDialog() {
               continue;
             }
           } else if (!needsParentLinking) {
-            // Already a member and nothing else to sync — just mark invite as accepted
             await supabase
               .from("pending_invites")
               .update({ status: "accepted", accepted_at: new Date().toISOString() })
@@ -222,117 +289,9 @@ export function PendingInviteWelcomeDialog() {
           if (invite.metadata && invite.role === "parent") {
             const meta = invite.metadata as any;
 
-            // Parent-to-parent invite: link as guardian to existing child
-            if (meta.guardian_child_id) {
-              const childId = meta.guardian_child_id;
-              // Insert as guardian (non-primary)
-              const { error: guardErr } = await supabase.from("child_guardians").insert({
-                child_id: childId,
-                guardian_id: user.id,
-                relationship_type: "parent",
-                is_primary: false,
-              });
-              if (guardErr && !guardErr.message?.includes("duplicate")) {
-                console.error("[InviteAutoAccept] Failed to link guardian:", guardErr.message);
-              } else {
-                console.log("[InviteAutoAccept] Linked as guardian to child:", childId);
-              }
+            // (guardian_child_id branch handled earlier via transactional RPC)
 
-              // Assign parent role for ALL teams the child is in (not just the invite's team)
-              const allTeamIds: string[] = meta.guardian_all_team_ids || (invite.team_id ? [invite.team_id] : []);
-              
-              // If no team IDs in metadata, look up child's current team assignments
-              let resolvedTeamIds = allTeamIds;
-              if (resolvedTeamIds.length === 0) {
-                const { data: assignments } = await supabase
-                  .from("child_team_assignments")
-                  .select("team_id")
-                  .eq("child_id", childId);
-                resolvedTeamIds = assignments?.map(a => a.team_id) || [];
-              }
 
-              for (const tid of resolvedTeamIds) {
-                // Get club_id for the team
-                const { data: teamData } = await supabase
-                  .from("teams")
-                  .select("club_id")
-                  .eq("id", tid)
-                  .single();
-
-                const teamClubId = teamData?.club_id || clubId;
-
-                // Check if role already exists for this team
-                const { data: existingTeamRole } = await supabase
-                  .from("user_roles")
-                  .select("id")
-                  .eq("user_id", user.id)
-                  .eq("role", "parent" as any)
-                  .eq("team_id", tid)
-                  .maybeSingle();
-
-                if (!existingTeamRole) {
-                  await supabase.from("user_roles").insert({
-                    user_id: user.id,
-                    role: "parent" as any,
-                    team_id: tid,
-                    club_id: teamClubId,
-                  });
-                  console.log("[InviteAutoAccept] Assigned parent role for team:", tid);
-                }
-              }
-
-              // Send child-added email to the new guardian
-              try {
-                const childName = meta.guardian_child_name || "your child";
-                // Get team and club info for the email
-                const firstTeamId = resolvedTeamIds[0];
-                if (firstTeamId) {
-                  const { data: teamInfo } = await supabase
-                    .from("teams")
-                    .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
-                    .eq("id", firstTeamId)
-                    .single();
-
-                  if (teamInfo) {
-                    const club = teamInfo.clubs as any;
-                    const inviteLink = `${window.location.origin}/teams/${firstTeamId}`;
-
-                    await supabase.functions.invoke("send-email", {
-                      body: {
-                        to: null, // Will use the user's auth email
-                        toUserId: user.id,
-                        subject: `${club?.name || 'Your club'}: You've been linked to ${childName}'s team ⚽`,
-                        template: "child-added",
-                        senderName: club?.name || undefined,
-                        replyTo: club?.contact_email || undefined,
-                        templateData: {
-                          recipientName: user.user_metadata?.display_name || "there",
-                          teamName: teamInfo.name,
-                          clubName: club?.name || "The Club",
-                          inviteLink,
-                          clubLogoUrl: club?.logo_url || undefined,
-                          childrenNames: [childName],
-                        },
-                      },
-                    });
-                    console.log("[InviteAutoAccept] Sent child-added email for guardian link");
-                  }
-                }
-              } catch (emailErr) {
-                console.error("[InviteAutoAccept] Failed to send child-added email:", emailErr);
-              }
-
-              await supabase
-                .from("pending_invites")
-                .update({
-                  status: "accepted",
-                  accepted_at: new Date().toISOString(),
-                  invited_user_id: user.id,
-                })
-                .eq("id", invite.id);
-
-              continue; // Skip the standard children creation flow
-            }
 
             // Mini-league invite: child already exists, link parent as guardian
             if (meta.child_id && meta.mini_league_id) {

@@ -9902,6 +9902,10 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      accept_guardian_parent_invite: {
+        Args: { _invite_id: string }
+        Returns: Json
+      }
       acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
