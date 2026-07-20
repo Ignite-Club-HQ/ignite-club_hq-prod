@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
     team_id?: string | null;
     club_id?: string | null;
     group_id?: string | null;
+    conversation_id?: string | null;
   }): Promise<Response | null> {
     const { chat_type, team_id, club_id, group_id } = args;
 
