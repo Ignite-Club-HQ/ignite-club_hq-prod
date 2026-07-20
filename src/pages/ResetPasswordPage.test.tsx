@@ -116,7 +116,7 @@ beforeEach(() => {
   verifyOtp.mockReset();
   onAuthStateChange.mockClear();
   authCallback = null;
-  setHref("http://localhost/reset-password");
+  setHref("/reset-password");
   // Default: no active session (implicit path). Tests override as needed.
   getSession.mockResolvedValue({ data: { session: null } });
   getUser.mockResolvedValue({ data: { user: { email: "u@example.com" } } });
@@ -140,7 +140,7 @@ describe("ResetPasswordPage — recovery-session lifecycle", () => {
   });
 
   it("marks the session valid after a successful PKCE code exchange", async () => {
-    setHref("http://localhost/reset-password?code=abc123");
+    setHref("/reset-password?code=abc123");
     exchangeCodeForSession.mockResolvedValue({ error: null });
     renderPage();
     await waitFor(() =>
@@ -178,7 +178,7 @@ describe("ResetPasswordPage — recovery-session lifecycle", () => {
 
   it("marks the session invalid when the URL carries an error_description", async () => {
     setHref(
-      "http://localhost/reset-password?error_description=" +
+      "/reset-password?error_description=" +
         encodeURIComponent("Link expired"),
     );
     renderPage();
@@ -189,7 +189,7 @@ describe("ResetPasswordPage — recovery-session lifecycle", () => {
   });
 
   it("marks the session invalid when exchangeCodeForSession fails", async () => {
-    setHref("http://localhost/reset-password?code=badcode");
+    setHref("/reset-password?code=badcode");
     exchangeCodeForSession.mockResolvedValue({
       error: { message: "invalid grant" },
     });
