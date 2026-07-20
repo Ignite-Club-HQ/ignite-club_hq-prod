@@ -48,6 +48,7 @@ export function RecurringCancelEventDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [recipientLookupFailed, setRecipientLookupFailed] = useState(false);
   const keyboardBottomInset = useNativeKeyboardBottomInset();
+  const requestIdRef = useRef(0);
 
 
   useEffect(() => {
@@ -55,7 +56,11 @@ export function RecurringCancelEventDialog({
       setCustomMessage("");
       setSendPushNotification(true);
       setRecipientLookupFailed(false);
-      fetchMemberCount();
+      const reqId = ++requestIdRef.current;
+      fetchMemberCount(reqId);
+    } else {
+      // Invalidate any in-flight lookup so its result cannot leak into a later open
+      requestIdRef.current++;
     }
   }, [open, teamId, clubId, miniLeagueId]);
 
