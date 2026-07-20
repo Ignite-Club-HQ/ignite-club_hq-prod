@@ -12,12 +12,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // ---- supabase mock ---------------------------------------------------------
-const invokeMock = vi.fn();
-const setSessionMock = vi.fn();
-const getSessionMock = vi.fn(async () => ({
+const invokeMock: any = vi.fn();
+const setSessionMock: any = vi.fn();
+const getSessionMock: any = vi.fn(async () => ({
   data: { session: { user: { id: 'u1', email: 'a@b.c', user_metadata: {} } } },
 }));
-const signInWithPasswordMock = vi.fn(async () => ({ error: null }));
+const signInWithPasswordMock: any = vi.fn(async () => ({ error: null }));
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
