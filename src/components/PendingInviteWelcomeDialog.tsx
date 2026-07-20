@@ -162,7 +162,78 @@ export function PendingInviteWelcomeDialog() {
             firstInvitedClubId = clubId;
           }
 
-          // Check if role already exists
+          const parentInviteMeta = invite.metadata as any;
+          const isGuardianChildInvite =
+            invite.role === "parent" && !!parentInviteMeta?.guardian_child_id;
+
+          // Guardian (parent-to-parent) invites: run the whole thing as a
+          // single transactional RPC. If the guardian link fails, no role
+          // is created and the invite stays pending so we can retry.
+          if (isGuardianChildInvite) {
+            const { data: rpcData, error: rpcError } = await supabase.rpc(
+              "accept_guardian_parent_invite" as any,
+              { _invite_id: invite.id }
+            );
+            if (rpcError) {
+              console.error(
+                "[InviteAutoAccept] Guardian RPC failed, leaving invite pending:",
+                invite.id,
+                rpcError
+              );
+              continue; // do NOT mark accepted, do NOT send email
+            }
+            console.log("[InviteAutoAccept] Guardian invite accepted via RPC:", rpcData);
+
+            // Best-effort child-added email (external side effect, non-blocking).
+            try {
+              const meta = parentInviteMeta;
+              const childName = meta.guardian_child_name || "your child";
+              const teamIdsFromRpc: string[] = Array.isArray((rpcData as any)?.team_ids)
+                ? (rpcData as any).team_ids
+                : [];
+              const firstTeamId =
+                teamIdsFromRpc[0] ||
+                (Array.isArray(meta.guardian_all_team_ids)
+                  ? meta.guardian_all_team_ids[0]
+                  : invite.team_id);
+              if (firstTeamId) {
+                const { data: teamInfo } = await supabase
+                  .from("teams")
+                  .select("name, club_id, clubs!club_id(name, logo_url, contact_email)")
+                  .eq("id", firstTeamId)
+                  .single();
+                if (teamInfo) {
+                  const club = (teamInfo as any).clubs;
+                  await supabase.functions.invoke("send-email", {
+                    body: {
+                      to: null,
+                      toUserId: user.id,
+                      subject: `${club?.name || "Your club"}: You've been linked to ${childName}'s team ⚽`,
+                      template: "child-added",
+                      senderName: club?.name || undefined,
+                      replyTo: club?.contact_email || undefined,
+                      templateData: {
+                        recipientName: user.user_metadata?.display_name || "there",
+                        teamName: (teamInfo as any).name,
+                        clubName: club?.name || "The Club",
+                        inviteLink: `${window.location.origin}/teams/${firstTeamId}`,
+                        clubLogoUrl: club?.logo_url || undefined,
+                        childrenNames: [childName],
+                      },
+                    },
+                  });
+                }
+              }
+            } catch (emailErr) {
+              console.error(
+                "[InviteAutoAccept] Guardian child-added email failed (non-blocking):",
+                emailErr
+              );
+            }
+            continue; // guardian branch complete — do not fall through
+          }
+
+          // Non-guardian path: check if role already exists
           const roleQuery = supabase
             .from("user_roles")
             .select("id")
@@ -176,15 +247,12 @@ export function PendingInviteWelcomeDialog() {
           }
 
           const { data: existingRole } = await roleQuery.maybeSingle();
-          const parentInviteMeta = invite.metadata as any;
           const needsParentLinking = invite.role === "parent" && (
-            !!parentInviteMeta?.guardian_child_id ||
             !!parentInviteMeta?.child_id ||
             Array.isArray(parentInviteMeta?.children)
           );
 
           if (!existingRole) {
-            // Insert the role
             const { error: roleError } = await supabase
               .from("user_roles")
               .insert({
@@ -199,7 +267,6 @@ export function PendingInviteWelcomeDialog() {
               continue;
             }
           } else if (!needsParentLinking) {
-            // Already a member and nothing else to sync — just mark invite as accepted
             await supabase
               .from("pending_invites")
               .update({ status: "accepted", accepted_at: new Date().toISOString() })
