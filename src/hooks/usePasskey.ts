@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -85,12 +85,31 @@ export interface PasskeyAccount {
   addedAt: string;
 }
 
-// Get all stored passkey accounts
+// Get all stored passkey accounts.
+// Defensive: reject non-array payloads and malformed entries so callers only
+// ever see well-formed PasskeyAccount records. Never throws.
 export function getStoredPasskeyAccounts(): PasskeyAccount[] {
   try {
+    if (typeof localStorage === 'undefined') return [];
     const stored = localStorage.getItem(PASSKEY_ACCOUNTS_KEY);
     if (!stored) return [];
-    return JSON.parse(stored) as PasskeyAccount[];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    const valid: PasskeyAccount[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const email = rec.email;
+      const addedAt = rec.addedAt;
+      if (typeof email !== 'string' || email.length === 0) continue;
+      if (typeof addedAt !== 'string' || addedAt.length === 0) continue;
+      const displayName = rec.displayName;
+      if (displayName !== undefined && typeof displayName !== 'string') continue;
+      const clean: PasskeyAccount = { email, addedAt };
+      if (typeof displayName === 'string') clean.displayName = displayName;
+      valid.push(clean);
+    }
+    return valid;
   } catch {
     return [];
   }
