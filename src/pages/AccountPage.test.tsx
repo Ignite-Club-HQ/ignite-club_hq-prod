@@ -318,9 +318,13 @@ describe("AccountPage — export data session validation", () => {
     renderPage();
     const btn = screen.getByRole("button", { name: /download my data/i });
     fireEvent.click(btn);
+    // Allow the async session-check microtask to advance so setExportingData
+    // has flushed before the second click.
+    await Promise.resolve();
+    await Promise.resolve();
     fireEvent.click(btn);
     fireEvent.click(btn);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
     await act(async () => {
       resolveFetch(zipResponse());
     });
