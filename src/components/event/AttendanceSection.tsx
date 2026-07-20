@@ -347,6 +347,17 @@ export function AttendanceSection({
                   <div className="space-y-1.5">
                     {notViewedMembers.map((m) => {
                       const hasResponded = !notRespondedSet.has(m.id);
+                      // Fail-closed: unknown reachability => treat as no push
+                      // setup so buttons never advertise a channel we can't
+                      // deliver on. When reachable data is loaded, honour it.
+                      const hasPush = reachabilityUnknown
+                        ? false
+                        : pushReachable?.[m.id] ?? false;
+                      const eventsPushOn = reachabilityUnknown
+                        ? false
+                        : eventsEnabled?.[m.id] ?? true;
+                      const noPushSetup = !hasPush;
+                      const pushDisabled = hasPush && !eventsPushOn;
                       return (
                         <EventViewMemberRow
                           key={m.id}
@@ -358,8 +369,8 @@ export function AttendanceSection({
                             hasResponded,
                           }}
                           variant="not-viewed"
-                          pushDisabled={false}
-                          noPushSetup={false}
+                          pushDisabled={pushDisabled}
+                          noPushSetup={noPushSetup}
                           isBusy={sendingForUser === m.id}
                           onSendReminder={(channels, userIds) =>
                             handleSendReminders(channels, userIds)
