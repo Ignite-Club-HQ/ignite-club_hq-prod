@@ -53,6 +53,15 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
   const [expanded, setExpanded] = useState(false);
   const [editingRow, setEditingRow] = useState<ScheduledMessageRow | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  // Synchronous re-entry guard. React state updates are batched, so two
+  // rapid clicks on the confirm button can both observe `cancelling=false`
+  // before the first re-render lands. This ref is flipped inside the click
+  // handler itself, so the second click sees `true` and bails immediately.
+  const cancellingRef = useRef(false);
+  // Track which row is being cancelled so we can lock its edit/delete
+  // affordances (and the dialog) to that exact ID for the whole request.
+  const cancellingIdRef = useRef<string | null>(null);
   const cancelMut = useCancelScheduledMessage();
 
   // If the fetch failed and we have no cached rows to show, still surface a
