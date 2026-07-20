@@ -111,13 +111,22 @@ export function useThreadScheduledMessages(target: ScheduleTarget | null) {
       const { data, error } = await q;
       if (error) {
         console.error("[scheduled-messages] thread fetch error", error);
-        return [];
+        // Reject rather than return `[]` so React Query enters an error
+        // state — the UI must warn that existing scheduled messages may
+        // still send, instead of implying the schedule is empty.
+        const e = new Error(error.message || "Failed to load scheduled messages");
+        (e as any).code = "scheduled_messages_read_failed";
+        throw e;
       }
       return (data || []) as unknown as ScheduledMessageRow[];
     },
     enabled: !!user?.id && !!target,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
+    // Keep previously loaded rows visible during a background refetch that
+    // fails, so a transient error doesn't blank the banner and tempt users
+    // into recreating the same message.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -139,12 +148,15 @@ export function useAllScheduledMessages(statuses: ScheduledMessageStatus[] = ["p
         .order("scheduled_for", { ascending: true });
       if (error) {
         console.error("[scheduled-messages] all fetch error", error);
-        return [];
+        const e = new Error(error.message || "Failed to load scheduled messages");
+        (e as any).code = "scheduled_messages_read_failed";
+        throw e;
       }
       return (data || []) as unknown as ScheduledMessageRow[];
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
