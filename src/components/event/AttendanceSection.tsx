@@ -165,6 +165,55 @@ export function AttendanceSection({
     return { viewedMembers: viewed, notViewedMembers: notViewed };
   }, [addressableMembers, viewedUserIds]);
 
+  // Reachability lookup for the "Not opened" dialog. We must know per-member
+  // whether push is even possible (any subscription/token) AND whether the
+  // member has opted out of event pushes — otherwise per-user "Send push"
+  // will silently fail on the backend and mislead the admin.
+  //
+  // Fail-closed: if either query errors, we mark every member as unreachable
+  // so the UI degrades to email-only rather than showing an enabled push
+  // button that will drop the notification server-side.
+  const notViewedIds = useMemo(
+    () => notViewedMembers.map((m) => m.id),
+    [notViewedMembers],
+  );
+  const notViewedIdsKey = useMemo(() => [...notViewedIds].sort().join(","), [notViewedIds]);
+
+  const { data: pushReachable, isError: pushReachableError } = useQuery({
+    queryKey: ["event-attendance-push-reachable", eventId, notViewedIdsKey],
+    queryFn: async () => {
+      if (notViewedIds.length === 0) return {} as Record<string, boolean>;
+      const { data, error } = await supabase.rpc("get_members_push_reachable", {
+        member_ids: notViewedIds,
+      });
+      if (error) throw error;
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) map[row.user_id] = !!row.has_push;
+      return map;
+    },
+    enabled: isAdmin && viewsDialogOpen && notViewedIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  const { data: eventsEnabled, isError: eventsEnabledError } = useQuery({
+    queryKey: ["event-attendance-events-enabled", eventId, notViewedIdsKey],
+    queryFn: async () => {
+      if (notViewedIds.length === 0) return {} as Record<string, boolean>;
+      const { data, error } = await supabase.rpc("get_members_events_enabled", {
+        member_ids: notViewedIds,
+      });
+      if (error) throw error;
+      // Missing row → default enabled (matches backend default_true policy).
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) map[row.user_id] = row.events_enabled !== false;
+      return map;
+    },
+    enabled: isAdmin && viewsDialogOpen && notViewedIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  const reachabilityUnknown = pushReachableError || eventsEnabledError;
+
   const totalResponses = counts.going + counts.maybe + counts.notGoing;
   const noOneInvited = !hasMembers && totalResponses === 0;
 
