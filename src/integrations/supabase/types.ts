@@ -10329,6 +10329,20 @@ export type Database = {
         }
         Returns: string
       }
+      create_personal_competition: {
+        Args: {
+          p_description?: string
+          p_name: string
+          p_season?: string
+          p_shell_name?: string
+          p_sport?: string
+          p_visibility?: string
+        }
+        Returns: {
+          club_id: string
+          competition_id: string
+        }[]
+      }
       create_photo_album: {
         Args: {
           _caption: string
