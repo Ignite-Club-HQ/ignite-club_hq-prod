@@ -8,6 +8,7 @@ import {
   X,
   Image as ImageIcon,
   Repeat,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
