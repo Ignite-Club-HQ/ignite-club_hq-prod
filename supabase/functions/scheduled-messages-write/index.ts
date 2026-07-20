@@ -80,6 +80,10 @@ Deno.serve(async (req) => {
   const body = parsed.data;
 
   // ---- Pro gate per scope ---------------------------------------------------
+  // Defence-in-depth: derive the authoritative owning club from database
+  // relationships (never trust caller-supplied club_id unless it matches).
+  // Reject cross-club combinations, orphan targets, and free-club team/club
+  // scoping — regardless of the caller's Pro status at other clubs.
   async function gateForScope(args: {
     chat_type: z.infer<typeof ChatType>;
     team_id?: string | null;
@@ -87,21 +91,81 @@ Deno.serve(async (req) => {
     group_id?: string | null;
   }): Promise<Response | null> {
     const { chat_type, team_id, club_id, group_id } = args;
-    if (chat_type === "team" && team_id) {
-      return await requireTeamPro(supabase, team_id, corsHeaders);
+
+    if (chat_type === "team") {
+      if (!team_id) return json({ error: "missing_team_id" }, 400);
+      const { data: team, error: teamErr } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", team_id)
+        .maybeSingle();
+      if (teamErr) return json({ error: "team_lookup_failed" }, 500);
+      if (!team) return json({ error: "team_not_found" }, 404);
+      if (!team.club_id) return json({ error: "team_has_no_club" }, 400);
+      if (club_id && club_id !== team.club_id) {
+        return json({ error: "target_club_team_mismatch" }, 400);
+      }
+      return await requireClubPro(supabase, team.club_id, corsHeaders);
     }
-    if ((chat_type === "club" || chat_type === "club_admin" || chat_type === "broadcast") && club_id) {
+
+    if (chat_type === "club" || chat_type === "broadcast") {
+      if (!club_id) {
+        // broadcasts historically fell back to any-club Pro; keep that only
+        // when no club is scoped.
+        if (chat_type === "broadcast") {
+          return await requireAnyClubPro(supabase, userId, corsHeaders);
+        }
+        return json({ error: "missing_club_id" }, 400);
+      }
       return await requireClubPro(supabase, club_id, corsHeaders);
     }
+
+    if (chat_type === "club_admin") {
+      // Derive club from the admin conversation; reject mismatches.
+      const conversation_id = args as unknown as { conversation_id?: string };
+      const convId = (args as any).conversation_id ?? null;
+      let derivedClub: string | null = null;
+      if (convId) {
+        const { data: conv } = await supabase
+          .from("club_admin_conversations")
+          .select("club_id")
+          .eq("id", convId)
+          .maybeSingle();
+        derivedClub = (conv?.club_id as string) ?? null;
+      }
+      const effective = derivedClub ?? club_id ?? null;
+      if (!effective) return json({ error: "missing_club_id" }, 400);
+      if (club_id && derivedClub && club_id !== derivedClub) {
+        return json({ error: "target_club_conversation_mismatch" }, 400);
+      }
+      return await requireClubPro(supabase, effective, corsHeaders);
+    }
+
     if (chat_type === "group" && group_id) {
       const { data: g } = await supabase
         .from("chat_groups")
-        .select("club_id")
+        .select("club_id, team_id")
         .eq("id", group_id)
         .maybeSingle();
-      if (g?.club_id) return await requireClubPro(supabase, g.club_id, corsHeaders);
+      let derivedClub: string | null = (g?.club_id as string) ?? null;
+      if (!derivedClub && g?.team_id) {
+        const { data: t } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", g.team_id)
+          .maybeSingle();
+        derivedClub = (t?.club_id as string) ?? null;
+      }
+      if (derivedClub) {
+        if (club_id && club_id !== derivedClub) {
+          return json({ error: "target_club_group_mismatch" }, 400);
+        }
+        return await requireClubPro(supabase, derivedClub, corsHeaders);
+      }
+      // Genuinely clubless (standalone personal group) — any-club Pro.
       return await requireAnyClubPro(supabase, userId, corsHeaders);
     }
+
     // direct, or scopes missing the expected id → fall back to any-club-pro
     return await requireAnyClubPro(supabase, userId, corsHeaders);
   }
