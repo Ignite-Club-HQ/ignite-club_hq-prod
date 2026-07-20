@@ -98,10 +98,15 @@ function renderBanner() {
 }
 
 async function openConfirmDialog() {
+  // Give React Query one tick to resolve the mocked read query so the
+  // banner mounts before we start querying it.
+  await new Promise((r) => setTimeout(r, 50));
   // Expand the banner, then click the row's cancel (X) button.
-  const expandBtn = await screen.findByRole("button", {
-    name: /1 scheduled message/i,
-  });
+  const expandBtn = await screen.findByRole(
+    "button",
+    { name: /1 scheduled message/i },
+    { timeout: 3000 },
+  );
   fireEvent.click(expandBtn);
   const rowCancel = await screen.findByRole("button", {
     name: /^Cancel scheduled message$/i,
