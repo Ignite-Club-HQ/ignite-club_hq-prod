@@ -258,51 +258,112 @@ export default function ResetPasswordPage() {
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
     if (!validation.success) {
+      const message = validation.error.errors[0].message;
+      if (mountedRef.current) setOtpEmailError(message);
+      otpEmailInputRef.current?.focus();
       toast({
         title: "Invalid email",
-        description: validation.error.errors[0].message,
+        description: message,
       });
       return;
     }
-    setSendingOtp(true);
-    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail, {
-      redirectTo: getPasswordResetRedirectUrl(otpEmail),
-    });
-    setSendingOtp(false);
-    if (sendError) {
-      console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
+
+    // Prevent duplicate send-code requests while one is active.
+    if (sendOtpInFlightRef.current) return;
+    sendOtpInFlightRef.current = true;
+
+    if (mountedRef.current) {
+      setOtpEmailError(null);
+      setSendingOtp(true);
     }
-    toast({
-      title: "Code sent",
-      description: "Check your email for a 6-digit code.",
-    });
+    try {
+      // Fail closed: any thrown exception or Supabase error is treated the
+      // same — we do NOT show "Code sent" and do NOT reveal whether the email
+      // belongs to an account.
+      let sendError: unknown = null;
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(otpEmail, {
+          redirectTo: getPasswordResetRedirectUrl(otpEmail),
+        });
+        sendError = error ?? null;
+      } catch (thrown) {
+        sendError = thrown;
+      }
+
+      if (sendError) {
+        console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
+        if (!mountedRef.current) return;
+        toast({
+          title: "Unable to send code",
+          description:
+            "We couldn't send the verification code. Check your connection and try again.",
+        });
+        // Stay on the recovery-code interface, keep Send code enabled, allow retry.
+        return;
+      }
+
+      if (!mountedRef.current) return;
+      toast({
+        title: "Code sent",
+        description: "Check your email for a 6-digit code.",
+      });
+    } finally {
+      sendOtpInFlightRef.current = false;
+      if (mountedRef.current) setSendingOtp(false);
+    }
   };
 
   const verifyRecoveryCode = async (token: string) => {
-    setVerifyingOtp(true);
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: otpEmail,
-      token,
-      type: "recovery",
-    });
-    setVerifyingOtp(false);
-    if (verifyError) {
+    // Never invoke Supabase with an empty or malformed email — verifyOtp with
+    // an empty email silently fails and confuses the user.
+    const validation = emailSchema.safeParse(otpEmail);
+    if (!validation.success) {
+      const message = validation.error.errors[0].message;
+      if (mountedRef.current) setOtpEmailError(message);
+      otpEmailInputRef.current?.focus();
       toast({
-        title: "Invalid or expired code",
-        description: "Double-check the code or request a new one.",
+        title: "Enter your email",
+        description: "We need your email to verify the code.",
       });
-      setOtpCode("");
+      // Do NOT clear the entered code — user may want to retry after fixing email.
       return;
     }
-    // Now in a recovery session — clear the error to show password form
-    setError(null);
-    setShowOtpRecovery(false);
-    setOtpCode("");
+
+    // Prevent concurrent verify calls.
+    if (verifyOtpInFlightRef.current) return;
+    verifyOtpInFlightRef.current = true;
+
+    if (mountedRef.current) setVerifyingOtp(true);
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: otpEmail,
+        token,
+        type: "recovery",
+      });
+      if (verifyError) {
+        if (!mountedRef.current) return;
+        toast({
+          title: "Invalid or expired code",
+          description: "Double-check the code or request a new one.",
+        });
+        setOtpCode("");
+        return;
+      }
+      if (!mountedRef.current) return;
+      // Now in a real recovery session — flip status to valid so the form renders.
+      setError(null);
+      setShowOtpRecovery(false);
+      setOtpCode("");
+      setRecoverySessionStatus("valid");
+    } finally {
+      verifyOtpInFlightRef.current = false;
+      if (mountedRef.current) setVerifyingOtp(false);
+    }
   };
 
   const handleOtpChange = (value: string) => {
     setOtpCode(value);
-    if (value.length === 6 && !verifyingOtp) {
+    if (value.length === 6 && !verifyingOtp && !verifyOtpInFlightRef.current) {
       void verifyRecoveryCode(value);
     }
   };
