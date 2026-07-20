@@ -265,9 +265,13 @@ export default function ScheduledMessagesPage() {
     },
   });
 
-  const { data: pendingRows = [], isLoading: loadingPending } = useAllScheduledMessages([
-    "pending",
-  ]);
+  const {
+    data: pendingRows = [],
+    isLoading: loadingPending,
+    isError: pendingError,
+    refetch: refetchPending,
+    isFetching: pendingFetching,
+  } = useAllScheduledMessages(["pending"]);
   const { data: recentRows = [] } = useAllScheduledMessages(["sent", "failed"]);
   const allRows = useMemo(() => [...pendingRows, ...recentRows], [pendingRows, recentRows]);
   const { data: labels = {} } = useThreadLabels(allRows);
@@ -282,7 +286,11 @@ export default function ScheduledMessagesPage() {
       await cancelMut.mutateAsync(confirmDeleteId);
       toast.success("Scheduled message cancelled");
     } catch (e: any) {
-      toast.error(e?.message || "Failed to cancel");
+      if (e?.code === "session_expired") {
+        toast.error("Your session expired. Please sign in again.");
+      } else {
+        toast.error(e?.message || "Failed to cancel");
+      }
     } finally {
       setConfirmDeleteId(null);
     }
