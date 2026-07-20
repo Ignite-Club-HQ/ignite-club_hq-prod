@@ -68,8 +68,16 @@ export function useChatSharedMedia(
   chatId: string | undefined,
   options?: { limit?: number; enabled?: boolean }
 ) {
-  const limit = options?.limit ?? DEFAULT_LIMIT;
+  const rawLimit = options?.limit;
+  // Defensive normalisation: fall back to the default for any non-positive,
+  // non-finite or fractional value so callers can never trigger an unbounded
+  // query or receive an unexpected result count.
+  const limit =
+    typeof rawLimit === "number" && Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.floor(rawLimit)
+      : DEFAULT_LIMIT;
   const enabled = (options?.enabled ?? true) && !!chatId;
+
 
   return useQuery({
     queryKey: ["chat-shared-media", chatType, chatId, limit],
