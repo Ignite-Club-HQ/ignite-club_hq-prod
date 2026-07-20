@@ -233,10 +233,10 @@ describe("useUserEventViews — Bug 2: caller array not mutated + stable cache k
     );
     await waitFor(() => expect(state.inFilterCalls.length).toBe(1));
 
-    // Different order, same logical set
-    renderHook(
-      () => useUserEventViews("user-1", ["c", "a", "b"]),
-      { wrapper: Wrapper },
+    // Different order, same logical set — must reuse the SAME QueryClient
+    const h2 = renderHook(
+      ({ ids }: { ids: string[] }) => useUserEventViews("user-1", ids),
+      { wrapper: Wrapper, initialProps: { ids: ["c", "a", "b"] } },
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -251,6 +251,7 @@ describe("useUserEventViews — Bug 2: caller array not mutated + stable cache k
       .filter((k) => Array.isArray(k) && k[0] === "user-event-views" && k[1] === "user-1");
     expect(keys.length).toBe(1);
     h1.unmount();
+    h2.unmount();
   });
 
   it("deduplicates IDs and preserves deterministic ordering in the filter", async () => {
