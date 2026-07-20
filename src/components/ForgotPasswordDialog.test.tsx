@@ -315,6 +315,7 @@ describe("ForgotPasswordDialog — Resend from code step", () => {
 
   it("prevents concurrent resend requests", async () => {
     await advanceToCodeStep();
+    resetPasswordForEmail.mockClear();
     let resolve!: (v: { data: unknown; error: null }) => void;
     resetPasswordForEmail.mockReturnValueOnce(
       new Promise((r) => {
