@@ -21,11 +21,11 @@ const signInWithPasswordMock = vi.fn(async () => ({ error: null }));
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    functions: { invoke: (...a: any[]) => invokeMock(...a) },
+    functions: { invoke: (fn: any, opts: any) => invokeMock(fn, opts) },
     auth: {
-      getSession: (...a: any[]) => getSessionMock(...a),
-      setSession: (...a: any[]) => setSessionMock(...a),
-      signInWithPassword: (...a: any[]) => signInWithPasswordMock(...a),
+      getSession: () => getSessionMock(),
+      setSession: (args: any) => setSessionMock(args),
+      signInWithPassword: (args: any) => signInWithPasswordMock(args),
     },
     from: () => ({ select: () => ({ eq: () => ({ data: [], error: null }) }) }),
   },
