@@ -50,8 +50,15 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Explicit recovery-session lifecycle. The password form MUST NOT render
+  // until we've confirmed a real recovery session exists (PKCE code exchange,
+  // existing recovery session, OTP verification, or PASSWORD_RECOVERY event).
+  const [recoverySessionStatus, setRecoverySessionStatus] = useState<
+    "checking" | "valid" | "invalid"
+  >("checking");
   const [showOtpRecovery, setShowOtpRecovery] = useState(false);
   const [otpEmail, setOtpEmail] = useState("");
+  const [otpEmailError, setOtpEmailError] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -60,8 +67,19 @@ export default function ResetPasswordPage() {
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const resetScrollRef = useRef<HTMLDivElement>(null);
+  const otpEmailInputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
+  const sendOtpInFlightRef = useRef(false);
+  const verifyOtpInFlightRef = useRef(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const isNativePlatform = Capacitor.isNativePlatform();
   const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === "android";
 
