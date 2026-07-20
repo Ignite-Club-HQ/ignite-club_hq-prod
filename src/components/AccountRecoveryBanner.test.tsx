@@ -156,9 +156,13 @@ describe("AccountRecoveryBanner — session validation", () => {
     await renderBanner();
     const btn = screen.getByRole("button", { name: /recover my account/i });
     fireEvent.click(btn);
+    // Yield to the async token-check microtasks so the recovering state
+    // has propagated before the follow-up clicks fire.
+    await Promise.resolve();
+    await Promise.resolve();
     fireEvent.click(btn);
     fireEvent.click(btn);
-    expect(invokeFn).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(invokeFn).toHaveBeenCalledTimes(1));
     await act(async () => {
       resolveInvoke({ data: { success: true }, error: null });
     });
