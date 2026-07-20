@@ -74,7 +74,7 @@ beforeEach(() => {
 describe("AccountPage — delete account session validation", () => {
   async function clickDeleteAndConfirm() {
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: "Delete My Account" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Delete My Account$/ }));
     const confirm = await screen.findByRole("button", {
       name: /yes, delete my account/i,
     });
@@ -120,7 +120,7 @@ describe("AccountPage — delete account session validation", () => {
       signOutFn.mockReset();
       getSessionResult = { data: { session: { access_token: bad } }, error: null };
       const { unmount } = renderPage();
-      fireEvent.click(screen.getByRole("button", { name: "Delete My Account" }));
+      fireEvent.click(screen.getByRole("button", { name: /^Delete My Account$/ }));
       const confirm = await screen.findByRole("button", {
         name: /yes, delete my account/i,
       });
@@ -170,7 +170,7 @@ describe("AccountPage — delete account session validation", () => {
     await clickDeleteAndConfirm();
     await waitFor(() => expect(toastFn).toHaveBeenCalled());
     // Re-open and confirm again — should succeed.
-    fireEvent.click(screen.getByRole("button", { name: "Delete My Account" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Delete My Account$/ }));
     const confirm2 = await screen.findByRole("button", {
       name: /yes, delete my account/i,
     });
