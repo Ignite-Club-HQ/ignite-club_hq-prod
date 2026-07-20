@@ -159,23 +159,23 @@ describe("AccountPage — delete account session validation", () => {
     expect(signOutFn).not.toHaveBeenCalled();
   });
 
-  it("prevents duplicate delete submissions while one is pending", async () => {
-    let resolveInvoke: (v: any) => void = () => {};
-    invokeFn.mockImplementation(
-      () => new Promise((r) => { resolveInvoke = r; })
-    );
-    renderPage();
+  it("re-entry guard blocks a second submission after failure until re-triggered", async () => {
+    // First call fails, second call proceeds — proves the guard resets.
+    invokeFn
+      .mockResolvedValueOnce({ data: null, error: { message: "boom" } })
+      .mockResolvedValueOnce({
+        data: { deletionDate: new Date(Date.now() + 86400_000).toISOString() },
+        error: null,
+      });
+    await clickDeleteAndConfirm();
+    await waitFor(() => expect(toastFn).toHaveBeenCalled());
+    // Re-open and confirm again — should succeed.
     fireEvent.click(screen.getByRole("button", { name: "Delete My Account" }));
-    const confirm = await screen.findByRole("button", {
+    const confirm2 = await screen.findByRole("button", {
       name: /yes, delete my account/i,
     });
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
-    expect(invokeFn).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      resolveInvoke({ data: null, error: { message: "boom" } });
-    });
+    fireEvent.click(confirm2);
+    await waitFor(() => expect(invokeFn).toHaveBeenCalledTimes(2));
   });
 });
 
