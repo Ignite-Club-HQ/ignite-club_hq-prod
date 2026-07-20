@@ -219,16 +219,6 @@ Deno.serve(async (req) => {
       group_id: existing.group_id,
       conversation_id: existing.conversation_id,
     });
-    if (loadErr || !existing) return json({ error: "not_found" }, 404);
-    if (existing.author_id !== userId) return json({ error: "forbidden" }, 403);
-    if (existing.status !== "pending") return json({ error: "not_pending" }, 409);
-
-    const denied = await gateForScope({
-      chat_type: existing.chat_type as z.infer<typeof ChatType>,
-      team_id: existing.team_id,
-      club_id: existing.club_id,
-      group_id: existing.group_id,
-    });
     if (denied) return denied;
 
     const patch: Record<string, unknown> = {};
