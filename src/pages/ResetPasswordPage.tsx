@@ -435,7 +435,42 @@ export default function ResetPasswordPage() {
 
   };
 
-  if (error) {
+  if (recoverySessionStatus === "checking") {
+    return (
+      <div
+        className="flex flex-col bg-background overflow-hidden"
+        data-lock-keyboard-scroll="true"
+        style={resetShellStyle}
+      >
+        <div
+          ref={resetScrollRef}
+          className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}
+        >
+          <div className={`w-full max-w-md ${resetStackClassName}`}>
+            <div className="flex flex-col items-center gap-3">
+              <div className="p-4 rounded-2xl bg-primary glow-emerald">
+                <Flame className="h-10 w-10 text-primary-foreground" />
+              </div>
+              <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
+            </div>
+            <Card
+              className="border-border/50 bg-card/50 backdrop-blur-sm"
+              data-testid="reset-password-checking"
+            >
+              <CardContent className="pt-6 text-center space-y-3">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto" />
+                <p className="text-sm text-muted-foreground">
+                  Verifying your reset link…
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (recoverySessionStatus === "invalid") {
     return (
       <div className="flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true" style={resetShellStyle}>
         <div ref={resetScrollRef} className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}>
