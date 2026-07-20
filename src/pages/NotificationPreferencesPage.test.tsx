@@ -123,11 +123,13 @@ async function renderPage() {
 }
 
 async function readStat(label: RegExp): Promise<number> {
-  const node = await screen.findByText(label);
-  const value = node.parentElement?.querySelector("p.text-2xl")?.textContent
-    ?? (node.previousElementSibling as HTMLElement | null)?.textContent
-    ?? "";
-  return Number(value);
+  return await waitFor(() => {
+    const node = screen.getByText(label);
+    const value = node.parentElement?.querySelector("p.text-2xl")?.textContent ?? "";
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error(`stat "${label}" not ready: ${value}`);
+    return n;
+  });
 }
 
 // ---- Tests --------------------------------------------------------------
