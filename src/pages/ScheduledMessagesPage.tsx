@@ -378,6 +378,32 @@ export default function ScheduledMessagesPage() {
                 </div>
               ))}
             </div>
+          ) : pendingError && pendingRows.length === 0 ? (
+            <div className="flex justify-center pt-6">
+              <div
+                role="alert"
+                className="w-full rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 text-center shadow-sm"
+              >
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-700 ring-1 ring-amber-500/30">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <p className="font-semibold text-[15px]">
+                  Scheduled messages couldn't be loaded
+                </p>
+                <p className="text-[13px] text-muted-foreground mt-1 max-w-[300px] mx-auto leading-snug">
+                  Your existing scheduled messages have not been deleted and may
+                  still send at their scheduled time.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => refetchPending()}
+                  disabled={pendingFetching}
+                >
+                  {pendingFetching ? "Retrying…" : "Try again"}
+                </Button>
+              </div>
+            </div>
           ) : pendingRows.length === 0 ? (
             <div className="flex justify-center pt-6">
               <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
