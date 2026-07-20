@@ -64,9 +64,10 @@ export function CancelEventConfirmDialog({
     }
   }, [open, teamId, clubId, miniLeagueId]);
 
-  const fetchMemberCount = async () => {
+  const fetchMemberCount = async (reqId: number) => {
     setIsLoading(true);
     setRecipientLookupFailed(false);
+    const isCurrent = () => requestIdRef.current === reqId;
     try {
       // For mini-league events, count parents + league/club admins
       if (miniLeagueId) {
@@ -103,6 +104,7 @@ export function CancelEventConfirmDialog({
 
           // Combine all unique IDs
           const allUserIds = [...new Set([...parentIds, ...adminIds])];
+          if (!isCurrent()) return;
           setMemberCount(allUserIds.length);
           setSendPushNotification(true);
         } else {
@@ -120,16 +122,18 @@ export function CancelEventConfirmDialog({
         const { data: members, error: membersError } = await memberQuery;
         if (membersError) throw membersError;
         const uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
+        if (!isCurrent()) return;
         setMemberCount(uniqueMembers.length);
         setSendPushNotification(true);
       }
     } catch (error) {
       console.error("Failed to fetch member count:", error);
+      if (!isCurrent()) return;
       setMemberCount(null);
       setRecipientLookupFailed(true);
       setSendPushNotification(false);
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
