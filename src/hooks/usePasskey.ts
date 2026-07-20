@@ -259,6 +259,12 @@ export function usePasskey() {
   // Register a new passkey for the current user (WebAuthn - web only)
   // For native, use storeCredentialsForNativeBiometric instead
   const registerPasskey = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    // Synchronous concurrency guard — reject before touching state, Edge
+    // Functions, or WebAuthn.
+    if (operationInFlightRef.current) {
+      return { success: false, error: PASSKEY_IN_PROGRESS_ERROR };
+    }
+    operationInFlightRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -348,15 +354,16 @@ export function usePasskey() {
       setLastUsedAccount(email);
       refreshAccounts();
       
-      setLoading(false);
       return { success: true };
     } catch (err: any) {
       const message = err.name === 'NotAllowedError' 
         ? 'Passkey registration was cancelled or timed out'
         : err.message || 'Failed to register passkey';
       setError(message);
-      setLoading(false);
       return { success: false, error: message };
+    } finally {
+      setLoading(false);
+      operationInFlightRef.current = false;
     }
   }, [refreshAccounts]);
 
