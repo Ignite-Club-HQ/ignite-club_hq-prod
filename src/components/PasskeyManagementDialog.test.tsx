@@ -166,10 +166,11 @@ describe("PasskeyManagementDialog — deletion failure (defect #2)", () => {
   const openConfirmAndDelete = async () => {
     render(wrap(<PasskeyManagementDialog open={true} onOpenChange={() => {}} />));
     await waitFor(() => expect(screen.getByText(/iPhone/i)).toBeInTheDocument());
-    // Click the trash icon (destructive-styled ghost button, no accessible name)
+    // The row's trash button is the destructive-styled ghost button in the
+    // card. Find it by className since the icon has no accessible name.
     const trashBtn = screen
       .getAllByRole("button")
-      .find((b) => b.querySelector("svg.lucide-trash-2"));
+      .find((b) => b.className.includes("text-destructive"));
     expect(trashBtn).toBeTruthy();
     fireEvent.click(trashBtn!);
     fireEvent.click(await screen.findByRole("button", { name: /^Remove$/i }));
