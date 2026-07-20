@@ -264,20 +264,28 @@ describe('authenticateWithPasskey session guarantees (defect #2)', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 describe('concurrent passkey operations (defect #3)', () => {
   it('rejects a second authenticate call while the first is in-flight (no Edge invoke)', async () => {
-    let release: (v: any) => void = () => {};
-    invokeMock.mockImplementation(
-      () => new Promise((r) => { release = r; })
-    );
+    let releaseVerify: (v: any) => void = () => {};
+    invokeMock.mockImplementation((_fn: string, { body }: any) => {
+      if (body.action === 'get-options') {
+        return Promise.resolve({
+          data: { options: { challenge: 'AA', rpId: 'x', allowCredentials: [] } },
+          error: null,
+        });
+      }
+      return new Promise((r) => { releaseVerify = r; });
+    });
     const { result } = renderHook(() => usePasskey());
 
     let firstDone: any = null;
     await act(async () => {
       const p1 = result.current.authenticateWithPasskey('u@x.y').then((v) => (firstDone = v));
-      // Second call while first is pending
+      // Yield so the first call reaches the pending verify invoke.
+      await new Promise((r) => setTimeout(r, 0));
+      const callsBefore = invokeMock.mock.calls.length;
       const p2 = await result.current.authenticateWithPasskey('u@x.y');
       expect(p2).toEqual({ success: false, error: PASSKEY_IN_PROGRESS_ERROR });
-      expect(invokeMock).toHaveBeenCalledTimes(1); // only first reached backend
-      release({
+      expect(invokeMock.mock.calls.length).toBe(callsBefore); // no new backend calls
+      releaseVerify({
         data: { success: true, session: { access_token: 'a', refresh_token: 'r' } },
         error: null,
       });
