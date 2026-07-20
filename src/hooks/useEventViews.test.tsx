@@ -83,7 +83,10 @@ import {
 
 function wrapper() {
   const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, staleTime: 60_000, refetchOnMount: false },
+      mutations: { retry: false },
+    },
   });
   const Wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: qc }, children);
