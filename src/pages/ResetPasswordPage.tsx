@@ -518,15 +518,30 @@ export default function ResetPasswordPage() {
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
+                        ref={otpEmailInputRef}
                         id="otp-email"
                         type="email"
                         placeholder="you@example.com"
                         className="pl-10"
                         value={otpEmail}
-                        onChange={(e) => setOtpEmail(e.target.value)}
+                        aria-invalid={otpEmailError ? "true" : undefined}
+                        aria-describedby={otpEmailError ? "otp-email-error" : undefined}
+                        onChange={(e) => {
+                          setOtpEmail(e.target.value);
+                          if (otpEmailError) setOtpEmailError(null);
+                        }}
                       />
                     </div>
+                    {otpEmailError && (
+                      <p
+                        id="otp-email-error"
+                        className="text-xs text-destructive"
+                      >
+                        {otpEmailError}
+                      </p>
+                    )}
                   </div>
+
                   <Button
                     onClick={sendRecoveryCode}
                     disabled={sendingOtp}
