@@ -1494,7 +1494,26 @@ export default function MessagesPage() {
   useEffect(() => { clubIdsRef.current = new Set((memberClubs ?? []).map((c: any) => c.id)); }, [memberClubs]);
   useEffect(() => { groupIdsRef.current = new Set((chatGroups ?? []).map((g: any) => g.id)); }, [chatGroups]);
 
+  // Fail-closed authorization set for Realtime callbacks (pass b of Realtime
+  // membership audit). We keep the page-driven teams/clubs/groups refs above
+  // for perf (they drive UI patching) but layer the authoritative membership
+  // snapshot on top: payloads are dropped while status !== 'ready' AND when
+  // the scope id is not in the authorized set. Empty set + ready => user has
+  // no access to that scope => drop (previous `ids.size && !ids.has(x)` guard
+  // failed open on empty).
+  const authScopes = useAuthorizedScopes();
+  const authStatusRef = useRef(authScopes.status);
+  const authTeamIdsRef = useRef<ReadonlySet<string>>(authScopes.teamIds);
+  const authClubIdsRef = useRef<ReadonlySet<string>>(authScopes.clubIds);
+  const authGroupIdsRef = useRef<ReadonlySet<string>>(authScopes.groupIds);
+  const authDmIdsRef = useRef<ReadonlySet<string>>(authScopes.dmConversationIds);
   useEffect(() => {
+    authStatusRef.current = authScopes.status;
+    authTeamIdsRef.current = authScopes.teamIds;
+    authClubIdsRef.current = authScopes.clubIds;
+    authGroupIdsRef.current = authScopes.groupIds;
+    authDmIdsRef.current = authScopes.dmConversationIds;
+  }, [authScopes]);
     if (!user?.id) return;
 
     // HARD-STOP PERF GUARD (native): the inbox realtime fanout was the single
