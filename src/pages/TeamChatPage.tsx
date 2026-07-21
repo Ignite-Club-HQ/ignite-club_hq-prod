@@ -89,6 +89,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -1462,11 +1463,15 @@ export default function TeamChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`team-messages-${teamId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `team-messages-${teamId}`, channel, userId: user.id, scope: { kind: "team", id: teamId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
