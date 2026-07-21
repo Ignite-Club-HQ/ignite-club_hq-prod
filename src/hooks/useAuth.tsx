@@ -583,6 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // signing in on this device.
           try {
             clearUserScopedCaches();
+            if (previousUserId) revokeAllForUser(previousUserId);
           } catch { /* noop */ }
 
           profileFetched = false;
