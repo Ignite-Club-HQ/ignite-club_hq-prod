@@ -8,6 +8,10 @@ const LOCAL_URL = "http://127.0.0.1:54321";
 const LOCAL_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 const LOCAL_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 const LOCAL_WORKSPACE = resolve(process.cwd(), "local-supabase-workspace");
+// Keep the local container images and legacy demo JWT contract reproducible.
+// Newer floating CLI releases can provision asymmetric signing-key state that
+// is incompatible with the fixed, local-only HS256 keys used by this harness.
+const LOCAL_SUPABASE_CLI = "supabase@2.71.0";
 const EXPECTED_LOCAL_PROJECT = 'project_id = "ignite-club-local-security-tests"';
 const TEST_BRANCH = "codespaces-review";
 const TEST_REMOTE = "origin";
@@ -129,25 +133,35 @@ async function isLocalStackHealthy() {
 if (!(await updateTestBranch())) process.exit(1);
 
 let localHealthy = await isLocalStackHealthy();
-if (!localHealthy) {
-  const configPath = resolve(LOCAL_WORKSPACE, "supabase/config.toml");
-  let config = "";
-  try { config = readFileSync(configPath, "utf8"); } catch { /* handled below */ }
-  if (!config.includes(EXPECTED_LOCAL_PROJECT)) {
-    console.error(`Refusing local startup: expected isolated config was not found at ${configPath}.`);
-  } else if (!stdin.isTTY) {
-    console.error("Local Supabase is stopped and startup approval requires an interactive terminal.");
+let localSessionApproved = false;
+const configPath = resolve(LOCAL_WORKSPACE, "supabase/config.toml");
+let config = "";
+try { config = readFileSync(configPath, "utf8"); } catch { /* handled below */ }
+
+if (!config.includes(EXPECTED_LOCAL_PROJECT)) {
+  console.error(`Refusing local test session: expected isolated config was not found at ${configPath}.`);
+} else if (!stdin.isTTY) {
+  console.error("Local Supabase test-session approval requires an interactive terminal.");
+} else {
+  console.log("\n========== Local Supabase test-session approval ==========");
+  if (!localHealthy) {
+    console.log(`Exact command: cd ${LOCAL_WORKSPACE} && npx --yes ${LOCAL_SUPABASE_CLI} start`);
   } else {
-    console.log("\n========== Local Supabase startup approval ==========");
-    console.log(`Exact command: cd ${LOCAL_WORKSPACE} && npx --yes supabase@latest start`);
-    console.log("Target: the fresh Docker-based Supabase instance configured in local-supabase-workspace only.");
-    console.log("Hosted safety: hosted Supabase variables are removed; this command contains no remote URL,");
-    console.log("project reference, hosted credential, or remote migration option. It cannot target hosted Supabase.");
-    const prompt = createInterface({ input: stdin, output: stdout });
-    const approval = await prompt.question('Type "APPROVE LOCAL START" to continue: ');
-    prompt.close();
-    if (approval === "APPROVE LOCAL START") {
-      const start = spawnSync("npx", ["--yes", "supabase@latest", "start"], {
+    console.log(`Start not required: the isolated stack at ${LOCAL_URL} is already healthy.`);
+  }
+  console.log(`Exact cleanup command after tests: cd ${LOCAL_WORKSPACE} && npx --yes ${LOCAL_SUPABASE_CLI} stop`);
+  console.log("Target: only the Docker-based Supabase instance configured in local-supabase-workspace.");
+  console.log("Hosted safety: hosted Supabase variables are removed; neither command contains a remote URL,");
+  console.log("project reference, hosted credential, or remote migration option. They cannot target hosted Supabase.");
+  console.log("The cleanup command runs after the test stages even when a test stage fails.");
+  const prompt = createInterface({ input: stdin, output: stdout });
+  const approval = await prompt.question('Type "APPROVE LOCAL TEST SESSION" to continue: ');
+  prompt.close();
+  localSessionApproved = approval === "APPROVE LOCAL TEST SESSION";
+  if (!localSessionApproved) {
+    console.error("Local Supabase test session was not approved; backend tests will not run.");
+  } else if (!localHealthy) {
+      const start = spawnSync("npx", ["--yes", LOCAL_SUPABASE_CLI, "start"], {
         cwd: LOCAL_WORKSPACE,
         env: safeEnvironment,
         stdio: "inherit",
@@ -155,16 +169,13 @@ if (!localHealthy) {
       });
       if ((start.status ?? 1) !== 0) console.error("Local Supabase startup failed.");
       localHealthy = await isLocalStackHealthy();
-    } else {
-      console.error("Local Supabase startup was not approved; backend tests will not run.");
-    }
   }
 }
 
 runStage("Frontend Vitest", "npm", ["run", "test:ci"]);
 runStage("Isolated Playwright", "npm", ["run", "test:e2e-baseline"]);
 
-if (localHealthy) {
+if (localSessionApproved && localHealthy) {
   runStage("Local Supabase integration", "npm", ["run", "test:local-supabase"], {
     ...safeEnvironment,
     LOCAL_SUPABASE_URL: LOCAL_URL,
@@ -177,6 +188,19 @@ if (localHealthy) {
   console.error(`\n========== Local Supabase integration ==========`);
   console.error(`NOT RUN: no healthy local stack at ${LOCAL_URL}. Hosted fallback is forbidden.`);
   results.push({ name: "Local Supabase integration", status: 2, skipped: true });
+}
+
+if (localSessionApproved) {
+  console.log("\n========== Local Supabase cleanup ==========");
+  const stop = spawnSync("npx", ["--yes", LOCAL_SUPABASE_CLI, "stop"], {
+    cwd: LOCAL_WORKSPACE,
+    env: safeEnvironment,
+    stdio: "inherit",
+    shell: false,
+  });
+  const status = stop.status ?? 1;
+  results.push({ name: "Local Supabase cleanup", status, skipped: false });
+  if (status !== 0) console.error("Local Supabase cleanup failed; stop the isolated stack manually.");
 }
 
 console.log("\n========== Baseline summary ==========");

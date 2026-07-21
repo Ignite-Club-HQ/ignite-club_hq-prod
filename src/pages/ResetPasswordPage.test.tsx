@@ -62,6 +62,35 @@ vi.mock("@capacitor/keyboard", () => ({
   },
 }));
 
+// The third-party OTP widget schedules visual caret timers that are unrelated
+// to this page's recovery/session behaviour and can survive jsdom teardown.
+// Keep its public numeric-input contract while removing that external timer.
+vi.mock("@/components/ui/input-otp", () => ({
+  InputOTP: ({
+    value,
+    onChange,
+    maxLength,
+    disabled,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    maxLength: number;
+    disabled?: boolean;
+  }) => (
+    <input
+      aria-label="6-digit code"
+      autoComplete="one-time-code"
+      disabled={disabled}
+      value={value}
+      onChange={(event) =>
+        onChange(event.currentTarget.value.replace(/\D/g, "").slice(0, maxLength))
+      }
+    />
+  ),
+  InputOTPGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  InputOTPSlot: () => null,
+}));
+
 const exchangeCodeForSession = vi.fn();
 const getSession = vi.fn();
 const getUser = vi.fn();

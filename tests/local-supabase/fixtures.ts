@@ -38,7 +38,13 @@ async function createSyntheticUser(label: string): Promise<SyntheticUser> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const signedIn = await client.auth.signInWithPassword({ email, password });
-  if (signedIn.error) throw signedIn.error;
+  if (signedIn.error || !signedIn.data.session?.access_token) {
+    throw signedIn.error ?? new Error("Local user sign-in returned no access token");
+  }
+  // Keep the synthetic Realtime socket on the same confirmed user token as
+  // PostgREST. Explicit propagation avoids SDK/image-version races where a
+  // channel briefly opens with the bootstrap anon token after password login.
+  client.realtime.setAuth(signedIn.data.session.access_token);
   return { id, email, password, client };
 }
 

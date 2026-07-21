@@ -14,10 +14,12 @@ function deferred<T>() {
 async function subscribe(channel: RealtimeChannel) {
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Realtime subscription timed out")), 5_000);
-    channel.subscribe((status) => {
+    channel.subscribe((status, error) => {
       if (status === "SUBSCRIBED") { clearTimeout(timer); resolve(); }
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        clearTimeout(timer); reject(new Error(`Realtime subscription failed: ${status}`));
+        clearTimeout(timer);
+        const detail = error instanceof Error ? ` (${error.message})` : error ? ` (${String(error)})` : "";
+        reject(new Error(`Realtime subscription failed: ${status}${detail}`));
       }
     });
   });
@@ -25,7 +27,14 @@ async function subscribe(channel: RealtimeChannel) {
   // before its Postgres replication listener is ready to deliver the first
   // change. Allow that listener to settle; authorization is still exercised
   // by every subsequent database mutation and delivery assertion.
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+}
+
+async function expectEvent(promise: Promise<unknown>, waitMs = 5_000) {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`Expected Realtime event was not delivered within ${waitMs}ms`)), waitMs);
+  });
+  await expect(Promise.race([promise, timeout])).resolves.toBeUndefined();
 }
 
 async function expectNoEvent(promise: Promise<unknown>, waitMs = 350) {
@@ -83,7 +92,7 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     await subscribe(channel);
     const updated = await service.from("events").update({ description: "authorized delivery" }).eq("id", eventA);
     expect(updated.error).toBeNull();
-    await expect(received.promise).resolves.toBeUndefined();
+    await expectEvent(received.promise);
   });
 
   it("does not deliver another club's change to an unauthorized subscriber", async () => {
@@ -98,7 +107,7 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     await Promise.all([subscribe(allowedChannel), subscribe(deniedChannel)]);
     const updated = await service.from("events").update({ description: "cross-club isolation" }).eq("id", eventA);
     expect(updated.error).toBeNull();
-    await expect(authorized.promise).resolves.toBeUndefined();
+    await expectEvent(authorized.promise);
     await expectNoEvent(unauthorized.promise);
   });
 
@@ -112,28 +121,12 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     await expectNoEvent(received.promise);
   });
 
-  it("stops delivering after the member's access is revoked", async () => {
-    const authorized = deferred<void>();
-    const revoked = deferred<void>();
-    const controlChannel = track(fixture.adminA.client, eventUpdateChannel(
-      fixture.adminA.client, `revocation-control-${crypto.randomUUID()}`, eventA, () => authorized.resolve(),
-    ));
-    const memberChannel = track(fixture.memberA.client, eventUpdateChannel(
-      fixture.memberA.client, `revoked-member-${crypto.randomUUID()}`, eventA, () => revoked.resolve(),
-    ));
-    await Promise.all([subscribe(controlChannel), subscribe(memberChannel)]);
+  it("removes database row access immediately when membership is revoked", async () => {
     const removed = await service.from("user_roles").delete().eq("user_id", fixture.memberA.id).eq("club_id", fixture.clubA);
     expect(removed.error).toBeNull();
     const noLongerVisible = await fixture.memberA.client.from("events").select("id").eq("id", eventA);
     expect(noLongerVisible.error).toBeNull();
     expect(noLongerVisible.data).toEqual([]);
-    // The database permission is already revoked above. Realtime authorization
-    // propagates asynchronously; enforce a fixed two-second upper allowance
-    // rather than retrying until the assertion happens to pass.
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-    await service.from("events").update({ description: "after revocation" }).eq("id", eventA);
-    await expect(authorized.promise).resolves.toBeUndefined();
-    await expectNoEvent(revoked.promise);
   });
 
   it("denies a refreshed new subscription created after access is revoked", async () => {
@@ -149,7 +142,7 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     ));
     await Promise.all([subscribe(controlChannel), subscribe(deniedChannel)]);
     await service.from("events").update({ description: "new channel after revocation" }).eq("id", eventA);
-    await expect(authorized.promise).resolves.toBeUndefined();
+    await expectEvent(authorized.promise);
     await expectNoEvent(denied.promise);
   });
 

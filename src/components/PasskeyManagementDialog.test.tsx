@@ -1,12 +1,9 @@
 /**
- * Tests for PasskeyManagementDialog covering the two newly required
- * behaviours:
+ * Tests for PasskeyManagementDialog covering these required behaviours:
  *   1. Distinguish loading failures from an empty passkey list.
  *   2. Preserve Supabase error messages on failed deletion (and keep the
  *      passkey visible / cached / metadata intact).
- *
- * The signed-out registration test is intentionally skipped — it is
- * explicitly out of scope for this task per the requirements.
+ *   3. Never query user-scoped passkey data without an authenticated user.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -18,17 +15,22 @@ const toastSpy = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }));
 
 const removeAccountSpy = vi.fn();
+const registerPasskeySpy = vi.fn();
 vi.mock("@/hooks/usePasskey", () => ({
   usePasskey: () => ({
-    registerPasskey: vi.fn(),
+    registerPasskey: registerPasskeySpy,
     removeAccount: removeAccountSpy,
     storeCredentialsForNativeBiometric: vi.fn(),
     loading: false,
   }),
 }));
 
+let authUser: { id: string; email: string } | null = {
+  id: "u1",
+  email: "u@x.y",
+};
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: "u1", email: "u@x.y" } }),
+  useAuth: () => ({ user: authUser }),
 }));
 
 vi.mock("@capacitor/core", () => ({
@@ -67,6 +69,8 @@ const wrap = (ui: React.ReactNode) => {
 beforeEach(() => {
   toastSpy.mockReset();
   removeAccountSpy.mockReset();
+  registerPasskeySpy.mockReset();
+  authUser = { id: "u1", email: "u@x.y" };
   selectMock.mockClear();
   eqSelectMock.mockClear();
   orderMock.mockClear();
@@ -227,8 +231,17 @@ describe("PasskeyManagementDialog — deletion failure (defect #2)", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Signed-out registration test — explicitly out of scope for this task.
+// Authentication boundary
 // ═══════════════════════════════════════════════════════════════════════════
-describe.skip("signed-out passkey registration behaviour (out of scope)", () => {
-  it("is intentionally not exercised by this task", () => {});
+describe("PasskeyManagementDialog — signed-out authentication boundary", () => {
+  it("does not query user-scoped passkey data without an authenticated user", async () => {
+    authUser = null;
+
+    render(wrap(<PasskeyManagementDialog open={true} onOpenChange={() => {}} />));
+
+    expect(screen.getByRole("heading", { name: /Manage Passkeys/i })).toBeInTheDocument();
+    await Promise.resolve();
+    expect(selectMock).not.toHaveBeenCalled();
+    expect(registerPasskeySpy).not.toHaveBeenCalled();
+  });
 });

@@ -17,13 +17,16 @@ const makePlayer = (
 });
 
 /**
- * Pending acceptance suite for the multi-bench fairness correction.
+ * Acceptance suite for constrained, squad-wide playing-time fairness.
  *
- * Remove `.skip` only after equalTime.ts uses a squad-wide fairness score.
- * These tests intentionally exercise constraints together with optimisation;
- * activating them against the known stalemate would create redundant failures.
+ * Mandatory constraints take precedence over optimisation: unavailable players,
+ * positional eligibility, goalkeeper assignments, minimum shifts and blackout
+ * windows must always be respected. Within those constraints, the planner should
+ * minimise the projected playing-time spread across eligible outfield players,
+ * taking minutes already played into account. Multi-player rotations are allowed
+ * when they are needed to produce a legal, fair substitution.
  */
-describe.skip("buildEqualTimePlan constrained fairness acceptance", () => {
+describe("buildEqualTimePlan constrained fairness acceptance", () => {
   it("only makes position-legal direct or three-player substitutions", () => {
     const players = [
       makePlayer("def-1", "DEF", ["DEF"]),
@@ -43,7 +46,17 @@ describe.skip("buildEqualTimePlan constrained fairness acceptance", () => {
     });
 
     expect(result.plan.length).toBeGreaterThan(0);
+    const livePosition = new Map<string, PitchPosition>();
+    players.forEach((player) => {
+      if (player.position && player.currentPitchPosition) {
+        livePosition.set(player.id, player.currentPitchPosition);
+      }
+    });
+
     for (const event of result.plan) {
+      const vacatedPosition = livePosition.get(event.playerOut.id);
+      expect(vacatedPosition).toBeDefined();
+
       if (event.positionSwap) {
         expect(event.playerIn.assignedPositions).toContain(
           event.positionSwap.fromPosition,
@@ -51,15 +64,27 @@ describe.skip("buildEqualTimePlan constrained fairness acceptance", () => {
         expect(event.positionSwap.player.assignedPositions).toContain(
           event.positionSwap.toPosition,
         );
+        expect(livePosition.get(event.positionSwap.player.id)).toBe(
+          event.positionSwap.fromPosition,
+        );
+        expect(event.positionSwap.toPosition).toBe(vacatedPosition);
+        livePosition.set(
+          event.positionSwap.player.id,
+          event.positionSwap.toPosition,
+        );
+        livePosition.set(event.playerIn.id, event.positionSwap.fromPosition);
       } else {
         expect(event.playerIn.assignedPositions).toContain(
-          event.playerOut.currentPitchPosition,
+          vacatedPosition,
         );
+        livePosition.set(event.playerIn.id, vacatedPosition!);
       }
+      livePosition.delete(event.playerOut.id);
     }
   });
 
   it("excludes injured and goalkeeper-only players from outfield rotation", () => {
+    const halfDurationSec = 20 * 60;
     const goalkeeper = makePlayer("gk", "GK", ["GK"]);
     const injured = makePlayer("injured", null, ["MID"], { isInjured: true });
     const players = [
@@ -75,12 +100,15 @@ describe.skip("buildEqualTimePlan constrained fairness acceptance", () => {
     const result = buildEqualTimePlan({
       players,
       teamSize: 4,
-      halfDurationSec: 20 * 60,
+      halfDurationSec,
       gk1H: goalkeeper,
       gk2H: goalkeeper,
     });
 
-    expect(result.projectedSec.has(goalkeeper.id)).toBe(false);
+    // Goalkeeping minutes are recorded, but a goalkeeper-only player has no
+    // outfield fairness target and must never enter the outfield rotation.
+    expect(result.projectedSec.get(goalkeeper.id)).toBe(halfDurationSec);
+    expect(result.targetSec.has(goalkeeper.id)).toBe(false);
     expect(result.projectedSec.has(injured.id)).toBe(false);
     expect(result.plan.some((event) => event.playerIn.id === injured.id)).toBe(false);
     expect(result.plan.some((event) => event.playerIn.id === goalkeeper.id)).toBe(false);

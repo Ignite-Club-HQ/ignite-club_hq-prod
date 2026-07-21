@@ -57,16 +57,19 @@ schema work must be independently reviewed.
 ## Workflow
 
 1. Review `local-supabase-workspace/supabase/config.toml`, the baseline migration, and seed.
-2. Obtain approval for the exact local-only Supabase command.
-3. Start a fresh Docker stack using only `supabase-local`.
+2. Run `npm run test:baseline` (or the **Tests: Complete safe baseline** task).
+3. Review the exact local start and cleanup commands printed by the runner,
+   then approve the complete local test session.
 4. Verify every reported URL uses localhost.
-5. Supply only the locally generated API URL, anonymous key, and service-role
-   key as `LOCAL_SUPABASE_*` variables.
-6. Run `npm run test:local-supabase`.
-7. Stop and discard the local stack after the run.
+5. The runner supplies only its fixed local API URL and local demo keys to the
+   integration process; inherited Supabase and database variables are removed.
+6. The runner executes frontend, Playwright, and local integration stages.
+7. The runner stops the local stack after all stages, including when a test
+   stage fails, and reports cleanup as a required result in its summary.
 
-The start/reset/stop commands are intentionally not embedded here. They must be
-shown and approved at execution time so their target can be reviewed.
+Start and cleanup use the pinned CLI version embedded in the runner. Both exact
+commands are shown before execution and covered by one explicit local-session
+approval; neither command contains hosted configuration or a remote target.
 
 ## Rollback
 
