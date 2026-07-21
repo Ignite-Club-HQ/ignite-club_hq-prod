@@ -9,6 +9,7 @@ import { clearProfileCache } from "@/lib/profileCache";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
+import { revokeAllForUser } from "@/lib/realtimeChannelRegistry";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
 import { mark as coldMark } from "@/lib/coldStartMarks";
 
