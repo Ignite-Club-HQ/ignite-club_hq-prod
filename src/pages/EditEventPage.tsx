@@ -505,6 +505,29 @@ export default function EditEventPage() {
       return;
     }
 
+    // Frontend club/team scope guard — matches backend
+    // validate_event_team_club_scope trigger. Fail closed if the team list
+    // is unavailable or stale so we never submit an ambiguous combination.
+    if (selectedTeamId) {
+      if (!userTeams || userTeams.length === 0) {
+        toast({
+          title: "Team list unavailable",
+          description: "Please reselect the club so we can load its teams before saving.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const selectedTeam = userTeams.find((t) => t.id === selectedTeamId);
+      if (!selectedTeam || selectedTeam.club_id !== selectedClubId) {
+        toast({
+          title: "Team does not belong to selected club",
+          description: "The selected team is not part of the selected club. Please choose a team from this club.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Validate recurring settings if converting to recurring
     if (enableRecurring && !isRecurring && !recurrenceEndDate) {
       toast({
