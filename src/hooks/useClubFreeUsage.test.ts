@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { FREE_FILE_STORAGE_BYTES, resolveClubFreeUsage } from "./useClubFreeUsage";
+import {
+  FREE_CHAT_PHOTOS_PER_CYCLE,
+  FREE_FILE_STORAGE_BYTES,
+  FREE_PHOTO_UPLOADS_PER_CYCLE,
+  resolveClubFreeUsage,
+} from "./useClubFreeUsage";
 
 describe("resolveClubFreeUsage", () => {
   it("keeps a free club below every cap", () => {
-    const usage = resolveClubFreeUsage({ photo_uploads_this_cycle: 19, chat_photo_uploads_this_cycle: 19, file_count: 9, file_storage_bytes: FREE_FILE_STORAGE_BYTES - 1, chat_file_uploads_this_cycle: 9, chat_file_storage_bytes: FREE_FILE_STORAGE_BYTES - 1, polls_this_cycle: 1, is_pro: false });
+    const usage = resolveClubFreeUsage({ photo_uploads_this_cycle: FREE_PHOTO_UPLOADS_PER_CYCLE - 1, chat_photo_uploads_this_cycle: FREE_CHAT_PHOTOS_PER_CYCLE - 1, file_count: 9, file_storage_bytes: FREE_FILE_STORAGE_BYTES - 1, chat_file_uploads_this_cycle: 9, chat_file_storage_bytes: FREE_FILE_STORAGE_BYTES - 1, polls_this_cycle: 1, is_pro: false });
     expect([usage.photo.atCap, usage.chatPhoto.atCap, usage.file.atCap, usage.chatFile.atCap, usage.poll.atCap]).toEqual([false, false, false, false, false]);
   });
 

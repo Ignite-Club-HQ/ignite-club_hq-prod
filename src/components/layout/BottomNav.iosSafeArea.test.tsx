@@ -62,6 +62,12 @@ describe("BottomNav iOS safe-area handling across device sizes", () => {
 
   beforeEach(() => {
     originalGetComputedStyle = window.getComputedStyle.bind(window);
+    // The shared test setup backs requestAnimationFrame with setTimeout. Run
+    // this layout-only frame immediately so it cannot fire after jsdom teardown.
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(performance.now());
+      return 1;
+    });
   });
 
   afterEach(() => {
