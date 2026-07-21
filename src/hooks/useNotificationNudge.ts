@@ -76,32 +76,34 @@ export function useNotificationNudge(userId: string | undefined, context: string
         }
 
         const isNative = Capacitor.isNativePlatform();
-        let nextHasPushEnabled = false;
+        let nextHasPushEnabled: boolean | null = null;
+        let lookupErrored = false;
 
         if (isNative) {
           // Check device-level permission first — if granted, don't nudge
+          let permissionGranted = false;
           try {
             const { PushNotifications } = await import("@capacitor/push-notifications");
             const permResult = await PushNotifications.checkPermissions();
-            if (permResult.receive === "granted") {
-              nextHasPushEnabled = true;
-            } else {
-              // Permission not granted — check DB as fallback
-              const { data, error } = await supabase
-                .from("fcm_tokens" as any)
-                .select("id")
-                .eq("user_id", userId)
-                .limit(1);
-              nextHasPushEnabled = !error && !!data && data.length > 0;
-            }
+            permissionGranted = permResult.receive === "granted";
           } catch {
-            // Fallback to DB check if PushNotifications API fails
+            permissionGranted = false;
+          }
+
+          if (permissionGranted) {
+            nextHasPushEnabled = true;
+          } else {
+            // Permission not granted — check DB as fallback
             const { data, error } = await supabase
               .from("fcm_tokens" as any)
               .select("id")
               .eq("user_id", userId)
               .limit(1);
-            nextHasPushEnabled = !error && !!data && data.length > 0;
+            if (error) {
+              lookupErrored = true;
+            } else {
+              nextHasPushEnabled = !!data && data.length > 0;
+            }
           }
         } else {
           // Check push_subscriptions for web/PWA
@@ -110,15 +112,33 @@ export function useNotificationNudge(userId: string | undefined, context: string
             .select("id")
             .eq("user_id", userId)
             .limit(1);
-          nextHasPushEnabled = !error && !!data && data.length > 0;
+          if (error) {
+            lookupErrored = true;
+          } else {
+            nextHasPushEnabled = !!data && data.length > 0;
+          }
         }
 
         if (cancelled) return;
+
+        if (lookupErrored) {
+          // Lookup failed — status is UNKNOWN, not "disabled".
+          // Preserve the cached value if we have one; otherwise assume enabled
+          // for this render only to avoid a false enable-notifications nudge.
+          // Do NOT write a "disabled" cache entry.
+          setHasPushEnabled(cachedStatus ?? true);
+          setIsLoading(false);
+          return;
+        }
+
         setHasPushEnabled(nextHasPushEnabled);
-        writeCachedPushStatus(context, userId, nextHasPushEnabled);
+        if (nextHasPushEnabled !== null) {
+          writeCachedPushStatus(context, userId, nextHasPushEnabled);
+        }
       } catch {
         if (cancelled) return;
-        // On error, preserve cached value when available; otherwise assume enabled to avoid false nudges
+        // On thrown exception, preserve cached value when available; otherwise
+        // assume enabled to avoid a false nudge. Do not cache.
         setHasPushEnabled(cachedStatus ?? true);
       } finally {
         if (!cancelled) {

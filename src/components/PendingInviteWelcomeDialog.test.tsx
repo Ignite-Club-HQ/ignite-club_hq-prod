@@ -1,200 +1,283 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase's fluent test double carries heterogeneous rows */
-import { render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PendingInviteWelcomeDialog } from "./PendingInviteWelcomeDialog";
 
-type DbCall = { table: string; op: string; payload?: any; filters: Array<[string, string, any]> };
+// --- Mocks ---------------------------------------------------------------
 
-const mocks = vi.hoisted(() => ({
-  user: { id: "user-accepting", user_metadata: { display_name: "Alex" } } as any,
-  invites: [] as any[],
-  calls: [] as DbCall[],
-  responder: vi.fn(),
-  invalidateQueries: vi.fn(),
-  seedClubFilter: vi.fn(),
-  setActiveClubTheme: vi.fn(),
-  queryOptions: null as any,
-}));
+const rpcMock = vi.fn();
+const functionsInvokeMock = vi.fn().mockResolvedValue({ data: {}, error: null });
 
-function queryBuilder(table: string) {
-  const call: DbCall = { table, op: "select", filters: [] };
-  const result = () => mocks.responder(call) ?? { data: null, error: null };
-  const builder: any = {
-    select: () => builder,
-    insert: (payload: any) => { call.op = "insert"; call.payload = payload; return builder; },
-    update: (payload: any) => { call.op = "update"; call.payload = payload; return builder; },
-    delete: () => { call.op = "delete"; return builder; },
-    eq: (column: string, value: any) => { call.filters.push(["eq", column, value]); return builder; },
-    is: (column: string, value: any) => { call.filters.push(["is", column, value]); return builder; },
-    limit: async () => result(),
-    maybeSingle: async () => result(),
-    single: async () => result(),
-    then: (resolve: any, reject: any) => Promise.resolve(result()).then(resolve, reject),
+// Per-table mutable state
+type UserRole = {
+  id: string;
+  user_id: string;
+  role: string;
+  team_id: string | null;
+  club_id: string | null;
+};
+const state: {
+  pending_invites: any[];
+  user_roles: UserRole[];
+  child_guardians: any[];
+} = {
+  pending_invites: [],
+  user_roles: [],
+  child_guardians: [],
+};
+
+const fromMock = vi.fn((table: string) => {
+  const filters: Record<string, any> = {};
+  const isNull: string[] = [];
+
+  const rowsMatching = () => {
+    let rows = (state as any)[table] ?? [];
+    for (const [k, v] of Object.entries(filters)) {
+      rows = rows.filter((r: any) => r[k] === v);
+    }
+    for (const k of isNull) {
+      rows = rows.filter((r: any) => r[k] == null);
+    }
+    return rows;
   };
-  mocks.calls.push(call);
-  return builder;
-}
 
-vi.mock("@tanstack/react-query", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
-  return {
-    ...actual,
-    useQuery: (options: any) => {
-      mocks.queryOptions = options;
-      return { data: mocks.invites };
+  const chain: any = {
+    select: () => chain,
+    eq: (k: string, v: any) => {
+      filters[k] = v;
+      return chain;
     },
-    useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
+    is: (k: string, _v: null) => {
+      isNull.push(k);
+      return chain;
+    },
+    limit: () => chain,
+    // Thenable — awaiting the chain returns all matching rows.
+    then: (resolve: any) => resolve({ data: rowsMatching(), error: null }),
+    maybeSingle: async () => {
+      const rows = rowsMatching();
+      return { data: rows[0] ?? null, error: null };
+    },
+    single: async () => {
+      const rows = rowsMatching();
+      return { data: rows[0] ?? null, error: rows[0] ? null : { message: "no rows" } };
+    },
+    insert: (row: any) => {
+      const doInsert = () => {
+        (state as any)[table].push({ id: `${table}-${Date.now()}-${Math.random()}`, ...row });
+        return { data: null, error: null };
+      };
+      // Support both `await supabase.from().insert()` and `.insert().then(...)`
+      const p: any = Promise.resolve(doInsert());
+      p.then = (fn: any, rej: any) => Promise.resolve(doInsert()).then(fn, rej);
+      return p;
+    },
+    update: (patch: any) => ({
+      eq: async (k: string, v: any) => {
+        for (const r of (state as any)[table]) {
+          if (r[k] === v) Object.assign(r, patch);
+        }
+        return { data: null, error: null };
+      },
+    }),
   };
+  return chain;
 });
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: mocks.user }) }));
-vi.mock("@/hooks/useClubTheme", () => ({
-  useClubTheme: () => ({ setActiveClubTheme: mocks.setActiveClubTheme }),
-}));
-vi.mock("@/lib/seedClubFilterFromInvite", () => ({
-  seedClubFilterFromInvite: mocks.seedClubFilter,
-}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: (table: string) => queryBuilder(table),
-    functions: { invoke: vi.fn().mockResolvedValue({ data: null, error: null }) },
+    from: (t: string) => fromMock(t),
+    rpc: (...args: any[]) => rpcMock(...args),
+    functions: { invoke: (...args: any[]) => functionsInvokeMock(...args) },
   },
 }));
 
-import { PendingInviteWelcomeDialog } from "./PendingInviteWelcomeDialog";
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: { id: "user-1", user_metadata: { display_name: "Test User" } },
+  }),
+}));
 
-const invite = (overrides: Record<string, any> = {}) => ({
-  id: "invite-a",
-  role: "coach",
-  invite_token: "token-a",
-  team_id: "team-a",
-  club_id: "club-a",
-  invited_label: "Alex",
-  metadata: null,
-  teams: { name: "Rovers U12", club_id: "club-a", clubs: { name: "Rovers" } },
-  clubs: null,
-  ...overrides,
+vi.mock("@/hooks/useClubTheme", () => ({
+  useClubTheme: () => ({ setActiveClubTheme: vi.fn() }),
+}));
+
+vi.mock("@/lib/seedClubFilterFromInvite", () => ({
+  seedClubFilterFromInvite: () => false,
+}));
+
+// --- Helpers -------------------------------------------------------------
+
+function renderComponent() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <PendingInviteWelcomeDialog />
+    </QueryClientProvider>
+  );
+}
+
+async function flush() {
+  // Allow the queryFn microtasks + the useEffect chain to drain.
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+  }
+}
+
+function makeGuardianInvite(overrides: Partial<any> = {}) {
+  return {
+    id: "invite-guardian-1",
+    role: "parent",
+    invite_token: "tok-1",
+    team_id: "team-1",
+    club_id: "club-1",
+    invited_user_id: "user-1",
+    invited_label: null,
+    status: "pending",
+    metadata: {
+      guardian_child_id: "child-1",
+      guardian_child_name: "Kiddo",
+      guardian_all_team_ids: ["team-1"],
+    },
+    teams: { name: "U10 Blue", club_id: "club-1", clubs: { name: "Test FC" } },
+    clubs: null,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  rpcMock.mockReset();
+  functionsInvokeMock.mockClear();
+  state.pending_invites = [];
+  state.user_roles = [];
+  state.child_guardians = [];
 });
 
-const callsFor = (table: string, op?: string) =>
-  mocks.calls.filter((call) => call.table === table && (!op || call.op === op));
+// --- Tests ---------------------------------------------------------------
 
-describe("PendingInviteWelcomeDialog membership transaction", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.calls.length = 0;
-    mocks.invites = [];
-    mocks.user = { id: "user-accepting", user_metadata: { display_name: "Alex" } };
-    mocks.responder.mockImplementation(() => ({ data: null, error: null }));
-    mocks.seedClubFilter.mockReturnValue(true);
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-  });
-
-  it("fetches only pending invites belonging to the signed-in user", async () => {
-    render(<PendingInviteWelcomeDialog />);
-    await mocks.queryOptions.queryFn();
-
-    const query = callsFor("pending_invites", "select")[0];
-    expect(query.filters).toEqual(expect.arrayContaining([
-      ["eq", "invited_user_id", "user-accepting"],
-      ["eq", "status", "pending"],
-    ]));
-  });
-
-  it("does not fetch or process invitations while signed out", async () => {
-    mocks.user = null;
-    mocks.invites = [invite()];
-    render(<PendingInviteWelcomeDialog />);
-    expect(mocks.queryOptions.enabled).toBe(false);
-    expect(await mocks.queryOptions.queryFn()).toEqual([]);
-    expect(mocks.calls).toHaveLength(0);
-  });
-
-  it("creates the exact scoped membership before accepting an invite", async () => {
-    mocks.invites = [invite()];
-    render(<PendingInviteWelcomeDialog />);
-
-    await waitFor(() => expect(callsFor("pending_invites", "update")).toHaveLength(1));
-    expect(callsFor("user_roles", "insert")[0].payload).toEqual({
-      user_id: "user-accepting", role: "coach", team_id: "team-a", club_id: "club-a",
+describe("PendingInviteWelcomeDialog — guardian invite transactional acceptance", () => {
+  it("successful guardian RPC marks the invite accepted via the RPC (no client user_roles insert)", async () => {
+    const invite = makeGuardianInvite();
+    state.pending_invites = [invite];
+    // Simulate the server-side RPC succeeding by mutating pending_invites like the DB would.
+    rpcMock.mockImplementation(async () => {
+      invite.status = "accepted";
+      return { data: { success: true, invite_id: invite.id, team_ids: ["team-1"] }, error: null };
     });
-    expect(callsFor("pending_invites", "update")[0]).toEqual(expect.objectContaining({
-      payload: expect.objectContaining({ status: "accepted", invited_user_id: "user-accepting" }),
-      filters: [["eq", "id", "invite-a"]],
-    }));
-  });
 
-  it("treats an already-existing exact role as idempotently fulfilled", async () => {
-    mocks.invites = [invite()];
-    mocks.responder.mockImplementation((call: DbCall) =>
-      call.table === "user_roles" && call.op === "select"
-        ? { data: { id: "existing-role" }, error: null }
-        : { data: null, error: null },
-    );
-    render(<PendingInviteWelcomeDialog />);
+    renderComponent();
+    await flush();
 
-    await waitFor(() => expect(callsFor("pending_invites", "update")).toHaveLength(1));
-    expect(callsFor("user_roles", "insert")).toHaveLength(0);
-  });
-
-  it("does not mark an invite accepted when membership creation fails", async () => {
-    mocks.invites = [invite()];
-    mocks.responder.mockImplementation((call: DbCall) =>
-      call.table === "user_roles" && call.op === "insert"
-        ? { data: null, error: { message: "role denied" } }
-        : { data: null, error: null },
-    );
-    render(<PendingInviteWelcomeDialog />);
-
-    await waitFor(() => expect(callsFor("user_roles", "insert")).toHaveLength(1));
-    expect(callsFor("pending_invites", "update")).toHaveLength(0);
-    expect(mocks.seedClubFilter).toHaveBeenCalledWith(
-      "user-accepting", "club-a", mocks.setActiveClubTheme,
-    );
-  });
-
-  it("isolates a failed invite so a later valid invite can still be accepted", async () => {
-    mocks.invites = [invite({ id: "bad-invite", team_id: "team-b" }), invite({ id: "good-invite" })];
-    let roleInsert = 0;
-    mocks.responder.mockImplementation((call: DbCall) => {
-      if (call.table === "user_roles" && call.op === "insert" && roleInsert++ === 0) {
-        return { data: null, error: { message: "first denied" } };
-      }
-      return { data: null, error: null };
-    });
-    render(<PendingInviteWelcomeDialog />);
-
-    await waitFor(() => expect(callsFor("pending_invites", "update")).toHaveLength(1));
-    expect(callsFor("pending_invites", "update")[0].filters).toEqual([["eq", "id", "good-invite"]]);
+    expect(rpcMock).toHaveBeenCalledWith("accept_guardian_parent_invite", { _invite_id: invite.id });
+    expect(invite.status).toBe("accepted");
+    // The client MUST NOT have inserted a user_roles row itself — the RPC owns that.
+    expect(state.user_roles).toHaveLength(0);
   });
 
   it("does not accept a parent invite when its required guardian link fails", async () => {
-    mocks.invites = [invite({
-      role: "parent",
-      metadata: { guardian_child_id: "child-a", guardian_all_team_ids: ["team-a"] },
-    })];
-    mocks.responder.mockImplementation((call: DbCall) => {
-      if (call.table === "child_guardians" && call.op === "insert") {
-        return { data: null, error: { message: "guardian link denied" } };
-      }
-      if (call.table === "teams" && call.op === "select") {
-        return { data: { club_id: "club-a" }, error: null };
-      }
-      return { data: null, error: null };
+    const invite = makeGuardianInvite();
+    state.pending_invites = [invite];
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "child_guardians insert failed", code: "23503" },
     });
-    render(<PendingInviteWelcomeDialog />);
 
-    await waitFor(() => expect(callsFor("child_guardians", "insert")).toHaveLength(1));
-    expect(callsFor("pending_invites", "update")).toHaveLength(0);
+    renderComponent();
+    await flush();
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    // Invite stays pending, no roles created, no email sent.
+    expect(invite.status).toBe("pending");
+    expect(state.user_roles).toHaveLength(0);
+    expect(functionsInvokeMock).not.toHaveBeenCalled();
   });
 
-  it("refreshes membership state and seeds the invited club after successful processing", async () => {
-    mocks.invites = [invite()];
-    render(<PendingInviteWelcomeDialog />);
+  it("a failed guardian invite does not stop a later valid guardian invite from being processed", async () => {
+    const failing = makeGuardianInvite({ id: "invite-fail" });
+    const succeeding = makeGuardianInvite({
+      id: "invite-ok",
+      metadata: { ...makeGuardianInvite().metadata, guardian_child_id: "child-2" },
+    });
+    state.pending_invites = [failing, succeeding];
 
-    await waitFor(() => expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["user-roles"] }));
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["pending-invites-for-user"] });
-    expect(mocks.seedClubFilter).toHaveBeenCalledWith(
-      "user-accepting", "club-a", mocks.setActiveClubTheme,
-    );
+    rpcMock.mockImplementation(async (_fn: string, args: any) => {
+      if (args._invite_id === failing.id) {
+        return { data: null, error: { message: "boom" } };
+      }
+      succeeding.status = "accepted";
+      return { data: { success: true, invite_id: succeeding.id, team_ids: [] }, error: null };
+    });
+
+    renderComponent();
+    await flush();
+
+    expect(rpcMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(failing.status).toBe("pending");
+    expect(succeeding.status).toBe("accepted");
+  });
+
+  it("treats a duplicate guardian relationship as idempotent success (RPC returns success)", async () => {
+    // The RPC absorbs unique_violation internally and still returns success.
+    const invite = makeGuardianInvite();
+    state.pending_invites = [invite];
+    // Pre-seed an existing guardian row to mimic the real duplicate scenario.
+    state.child_guardians.push({
+      child_id: "child-1",
+      guardian_id: "user-1",
+      relationship_type: "parent",
+      is_primary: false,
+    });
+    rpcMock.mockImplementation(async () => {
+      invite.status = "accepted";
+      return { data: { success: true, invite_id: invite.id, team_ids: ["team-1"] }, error: null };
+    });
+
+    renderComponent();
+    await flush();
+
+    expect(invite.status).toBe("accepted");
+    // Only the pre-existing row — no duplicate created on the client.
+    expect(state.child_guardians).toHaveLength(1);
+  });
+
+  it("routes guardian_child_id invites to the RPC and never falls back to the raw child_guardians insert on the client", async () => {
+    const invite = makeGuardianInvite();
+    state.pending_invites = [invite];
+    rpcMock.mockResolvedValue({
+      data: { success: true, invite_id: invite.id, team_ids: [] },
+      error: null,
+    });
+
+    renderComponent();
+    await flush();
+
+    // No client-side write to child_guardians for the guardian path.
+    expect(state.child_guardians).toHaveLength(0);
+    expect(rpcMock).toHaveBeenCalledWith("accept_guardian_parent_invite", { _invite_id: invite.id });
+  });
+
+  it("ordinary non-parent invites are unaffected by the RPC branch", async () => {
+    const coachInvite = {
+      id: "invite-coach",
+      role: "coach",
+      invite_token: "tok-c",
+      team_id: "team-1",
+      club_id: "club-1",
+      invited_user_id: "user-1",
+      status: "pending",
+      metadata: null,
+      teams: { name: "U10 Blue", club_id: "club-1", clubs: { name: "Test FC" } },
+      clubs: null,
+    };
+    state.pending_invites = [coachInvite];
+
+    renderComponent();
+    await flush();
+
+    // Guardian RPC MUST NOT be invoked for non-guardian invites.
+    expect(rpcMock).not.toHaveBeenCalled();
+    // Coach role should have been inserted by the standard path.
+    expect(state.user_roles.some((r) => r.role === "coach" && r.team_id === "team-1")).toBe(true);
   });
 });

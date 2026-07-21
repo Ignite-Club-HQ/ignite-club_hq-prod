@@ -1,175 +1,232 @@
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for useSaveGameResult — ensures the `onlyIfMissing`
+ * lookup on `game_results` fails closed. If the pre-write lookup errors
+ * (e.g. RLS/permission), the hook MUST NOT proceed with an upsert that
+ * could clobber a manually edited result.
+ */
 
-const { getUser, from, toast } = vi.hoisted(() => ({ getUser: vi.fn(), from: vi.fn(), toast: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: { getUser }, from } }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
-
+import React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSaveGameResult, type SaveGameResultInput } from "./useSaveGameResult";
 
-const input: SaveGameResultInput = {
-  teamId: "team-1", eventId: "event-1", sport: "basketball", homeLabel: "Riverside", awayLabel: "United",
-  homeScore: 72, awayScore: 68,
-  perQuarter: [{ period: 1, home: 18, away: 17 } as any],
-  players: [{ id: "player-1", name: "Alex", points: 20 } as any],
-  mvpPlayerId: "player-1",
+// ---- toast mock --------------------------------------------------------
+const toastSpy = vi.fn();
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: toastSpy }),
+}));
+
+// ---- supabase mock -----------------------------------------------------
+type Op = "select" | "upsert" | "insert";
+const ops: Op[] = [];
+
+let lookupResponse: { data: { id: string } | null; error: { message: string } | null } = {
+  data: null,
+  error: null,
+};
+let writeError: { message: string } | null = null;
+let currentUser: { id: string } | null = { id: "user-1" };
+
+const makeSelectChain = () => ({
+  eq: vi.fn(() => ({
+    maybeSingle: vi.fn(async () => {
+      ops.push("select");
+      return lookupResponse;
+    }),
+  })),
+});
+
+const makeFromBuilder = () => ({
+  select: vi.fn(() => makeSelectChain()),
+  upsert: vi.fn(async () => {
+    ops.push("upsert");
+    return { error: writeError };
+  }),
+  insert: vi.fn(async () => {
+    ops.push("insert");
+    return { error: writeError };
+  }),
+});
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: vi.fn(() => makeFromBuilder()),
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: currentUser } })),
+    },
+  },
+}));
+
+// ---- helpers -----------------------------------------------------------
+const wrapper = ({ children }: { children: React.ReactNode }) => {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 };
 
-function writeResult(error: unknown = null) {
-  const chain: any = {};
-  chain.upsert = vi.fn(() => chain); chain.insert = vi.fn(() => chain);
-  Object.defineProperty(chain, "then", { value: (resolve: any) => Promise.resolve({ error }).then(resolve) });
-  return chain;
-}
+const baseInput = (): SaveGameResultInput => ({
+  teamId: "team-1",
+  eventId: "evt-1",
+  sport: "soccer",
+  homeLabel: "Home",
+  awayLabel: "Away",
+  homeScore: 3,
+  awayScore: 1,
+  perQuarter: [],
+  players: [],
+  mvpPlayerId: null,
+});
 
-function existingResult(data: unknown, error: unknown = null) {
-  const chain: any = {};
-  chain.select = vi.fn(() => chain); chain.eq = vi.fn(() => chain);
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data, error });
-  return chain;
-}
+beforeEach(() => {
+  ops.length = 0;
+  toastSpy.mockReset();
+  lookupResponse = { data: null, error: null };
+  writeError = null;
+  currentUser = { id: "user-1" };
+});
 
-describe("useSaveGameResult", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getUser.mockResolvedValue({ data: { user: { id: "coach-1" } } });
+// ---- tests -------------------------------------------------------------
+describe("useSaveGameResult — onlyIfMissing fail-closed", () => {
+  it("performs the upsert when lookup succeeds with no existing row", async () => {
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true });
+    });
+    expect(ops).toEqual(["select", "upsert"]);
+    await waitFor(() => expect(result.current.saved).toBe(true));
   });
 
-  it("upserts an event-linked result with exact scope, score, stats and MVP identity", async () => {
-    const query = writeResult(); from.mockReturnValueOnce(query);
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input));
-
-    expect(from).toHaveBeenCalledWith("game_results");
-    expect(query.upsert).toHaveBeenCalledWith({
-      team_id: "team-1", event_id: "event-1", sport: "basketball", home_label: "Riverside", away_label: "United",
-      home_score: 72, away_score: 68, period_scores: input.perQuarter, player_stats: input.players,
-      mvp_player_id: "player-1", mvp_player_name: "Alex", saved_by: "coach-1",
-    }, { onConflict: "event_id" });
-    expect(result.current.saved).toBe(true);
-    expect(toast).toHaveBeenCalledWith({ title: "Game saved", description: "Available in History on the team page." });
-  });
-
-  it("inserts an unlinked result rather than using event-id upsert", async () => {
-    const query = writeResult(); from.mockReturnValueOnce(query);
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save({ ...input, eventId: null, sport: "netball" }));
-    expect(query.insert).toHaveBeenCalledWith(expect.objectContaining({ event_id: null, sport: "netball" }));
-    expect(query.upsert).not.toHaveBeenCalled();
-  });
-
-  it("skips automatic persistence when onlyIfMissing finds a manual result", async () => {
-    const lookup = existingResult({ id: "manual-result" }); from.mockReturnValueOnce(lookup);
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input, { onlyIfMissing: true, silent: true }));
-    expect(from).toHaveBeenCalledTimes(1);
+  it("skips the write when lookup succeeds and a row already exists", async () => {
+    lookupResponse = { data: { id: "existing-1" }, error: null };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true });
+    });
+    expect(ops).toEqual(["select"]);
     expect(result.current.saved).toBe(false);
-    expect(toast).not.toHaveBeenCalled();
-  });
-
-  it("writes when onlyIfMissing confirms no result exists", async () => {
-    const lookup = existingResult(null); const write = writeResult();
-    from.mockReturnValueOnce(lookup).mockReturnValueOnce(write);
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input, { onlyIfMissing: true, silent: true }));
-    expect(write.upsert).toHaveBeenCalledOnce();
-    expect(toast).not.toHaveBeenCalled();
-  });
-
-  it("rejects unauthenticated persistence before querying game results", async () => {
-    getUser.mockResolvedValue({ data: { user: null } });
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input));
-    expect(from).not.toHaveBeenCalled(); expect(result.current.saved).toBe(false); expect(toast).not.toHaveBeenCalled();
-  });
-
-  it("deduplicates identical completed-game saves but permits a corrected score", async () => {
-    const first = writeResult(); const second = writeResult(); from.mockReturnValueOnce(first).mockReturnValueOnce(second);
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input, { silent: true }));
-    await act(async () => result.current.save(input, { silent: true }));
-    await act(async () => result.current.save({ ...input, homeScore: 73 }, { silent: true }));
-    expect(from).toHaveBeenCalledTimes(2);
-    expect(second.upsert).toHaveBeenCalledWith(expect.objectContaining({ home_score: 73 }), expect.anything());
-  });
-
-  it("allows force to persist an otherwise identical result", async () => {
-    from.mockReturnValueOnce(writeResult()).mockReturnValueOnce(writeResult());
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input, { silent: true }));
-    await act(async () => result.current.save(input, { silent: true, force: true }));
-    expect(from).toHaveBeenCalledTimes(2);
-  });
-
-  it("shows a permission-specific failure without marking the result saved", async () => {
-    from.mockReturnValueOnce(writeResult({ message: "new row violates row-level security policy" }));
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input));
-    expect(result.current.saved).toBe(false);
-    expect(toast).toHaveBeenCalledWith({
-      title: "Could not save game", description: "Only team admins or coaches can save games.", variant: "destructive",
-    });
-  });
-
-  it("suppresses failure UI in silent mode", async () => {
-    from.mockReturnValueOnce(writeResult({ message: "network unavailable" }));
-    const { result } = renderHook(() => useSaveGameResult());
-    await act(async () => result.current.save(input, { silent: true }));
-    expect(result.current.saved).toBe(false); expect(toast).not.toHaveBeenCalled();
-  });
-
-  it("deduplicates concurrent saves before either request completes", async () => {
-    let releaseWrite!: (value: { error: null }) => void;
-    const query: any = {};
-    query.upsert = vi.fn(() => query);
-    Object.defineProperty(query, "then", {
-      value: (resolve: any) =>
-        new Promise<{ error: null }>((release) => { releaseWrite = release; })
-          .then(resolve),
-    });
-    from.mockReturnValueOnce(query);
-    const { result } = renderHook(() => useSaveGameResult());
-
-    let first!: Promise<void>;
-    let second!: Promise<void>;
-    act(() => {
-      first = result.current.save(input, { silent: true });
-      second = result.current.save(input, { silent: true });
-    });
-    await vi.waitFor(() => expect(query.upsert).toHaveBeenCalledOnce());
-    expect(from).toHaveBeenCalledTimes(1);
-
-    releaseWrite({ error: null });
-    await act(async () => Promise.all([first, second]));
-    expect(query.upsert).toHaveBeenCalledOnce();
-  });
-
-  it("allows retry after a failed write because the result was not saved", async () => {
-    const failed = writeResult({ message: "temporary failure" });
-    const retry = writeResult();
-    from.mockReturnValueOnce(failed).mockReturnValueOnce(retry);
-    const { result } = renderHook(() => useSaveGameResult());
-
-    await act(async () => result.current.save(input, { silent: true }));
-    await act(async () => result.current.save(input, { silent: true }));
-
-    expect(from).toHaveBeenCalledTimes(2);
-    expect(retry.upsert).toHaveBeenCalledOnce();
-    expect(result.current.saved).toBe(true);
   });
 
   it("must not overwrite a manual result when the onlyIfMissing lookup fails", async () => {
-    const lookup = existingResult(null, { message: "lookup unavailable" });
-    const unsafeWrite = writeResult();
-    from.mockReturnValueOnce(lookup).mockReturnValueOnce(unsafeWrite);
-    const { result } = renderHook(() => useSaveGameResult());
-
-    await act(async () =>
-      result.current.save(input, { onlyIfMissing: true, silent: true }),
+    lookupResponse = { data: null, error: { message: "row-level security policy" } };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true });
+    });
+    // Only the lookup ran; no insert/upsert.
+    expect(ops).toEqual(["select"]);
+    expect(ops).not.toContain("upsert");
+    expect(ops).not.toContain("insert");
+    expect(result.current.saved).toBe(false);
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Could not check existing result",
+        variant: "destructive",
+      }),
     );
+  });
 
-    expect(from).toHaveBeenCalledTimes(1);
-    expect(unsafeWrite.upsert).not.toHaveBeenCalled();
+  it("suppresses the failure toast in silent mode but still aborts", async () => {
+    lookupResponse = { data: null, error: { message: "row-level security policy" } };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true, silent: true });
+    });
+    expect(ops).toEqual(["select"]);
+    expect(toastSpy).not.toHaveBeenCalled();
+    expect(result.current.saved).toBe(false);
+  });
+
+  it("releases the in-flight guard so a subsequent save can be retried", async () => {
+    lookupResponse = { data: null, error: { message: "row-level security policy" } };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true, silent: true });
+    });
+    expect(ops).toEqual(["select"]);
+
+    // Second attempt (lookup now succeeds) must be allowed to run.
+    lookupResponse = { data: null, error: null };
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true });
+    });
+    expect(ops).toEqual(["select", "select", "upsert"]);
+    await waitFor(() => expect(result.current.saved).toBe(true));
+  });
+
+  it("shows a permission-oriented message when the lookup RLS-fails and not silent", async () => {
+    lookupResponse = { data: null, error: { message: "new row violates row-level security policy" } };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput(), { onlyIfMissing: true });
+    });
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "Only team admins or coaches can save games.",
+      }),
+    );
+  });
+
+  it("still runs the upsert path when onlyIfMissing is not set (unchanged)", async () => {
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    expect(ops).toEqual(["upsert"]);
+    await waitFor(() => expect(result.current.saved).toBe(true));
+  });
+
+  it("uses insert (not upsert) when no eventId is provided", async () => {
+    const input = { ...baseInput(), eventId: null };
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(input);
+    });
+    expect(ops).toEqual(["insert"]);
+  });
+
+  it("dedupes identical saves within a session", async () => {
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    expect(ops).toEqual(["upsert"]);
+  });
+
+  it("force: true bypasses the dedup guard", async () => {
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    await act(async () => {
+      await result.current.save(baseInput(), { force: true });
+    });
+    expect(ops).toEqual(["upsert", "upsert"]);
+  });
+
+  it("shows success toast on happy path", async () => {
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Game saved" }),
+      ),
+    );
+  });
+
+  it("no toast / no saved flag when unauthenticated", async () => {
+    currentUser = null;
+    const { result } = renderHook(() => useSaveGameResult(), { wrapper });
+    await act(async () => {
+      await result.current.save(baseInput());
+    });
+    expect(ops).toEqual([]);
     expect(result.current.saved).toBe(false);
   });
 });

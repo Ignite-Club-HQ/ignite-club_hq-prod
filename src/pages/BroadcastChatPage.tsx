@@ -63,6 +63,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -809,11 +810,15 @@ export default function BroadcastChatPage() {
       )
       .subscribe();
     noteChannelSubscribed("broadcast-messages-realtime");
+    const unregister = user?.id
+      ? registerChannel({ key: "broadcast-messages-realtime", channel, userId: user.id, scope: { kind: "global", id: "" } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved("broadcast-messages-realtime");
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient]);
+  }, [queryClient, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1177,7 +1182,7 @@ export default function BroadcastChatPage() {
       {isAppAdmin && (
         <>
         <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

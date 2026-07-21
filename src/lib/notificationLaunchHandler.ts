@@ -63,20 +63,36 @@ export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null 
 }
 
 export function getPendingNotificationNavigation(): string | null {
-  const url = pendingNavigationUrl || readPersistedPendingNav();
-  if (url) {
-    pendingNavigationUrl = null;
-    clearPersistedPendingNav();
-    navigationHandled = true;
-  }
-  return url;
+  // NOTE: this used to clear the stash on read, which meant a failed
+  // navigate() (router not ready, Index redirect race) would lose the URL
+  // forever. We now peek only; callers MUST invoke
+  // `clearPendingNotificationNavigation()` once navigation actually
+  // succeeded. `processPendingNotificationNavigation` does this below.
+  return pendingNavigationUrl || readPersistedPendingNav();
 }
+
 
 export function clearPendingNotificationNavigation() {
   pendingNavigationUrl = null;
   clearPersistedPendingNav();
   navigationHandled = true;
 }
+
+/**
+ * Drop any stashed pending notification navigation AND reset the
+ * module-level "handled" gate without treating it as a successful launch.
+ * Used by `clearUserScopedCaches()` on sign-out / cross-user sign-in so
+ * User A's pending push route cannot survive into User B's session in the
+ * same tab. Also clears the force-update prompt, which is device-level but
+ * safe to re-derive from the next push.
+ */
+export function clearPendingNotificationLaunchState() {
+  pendingNavigationUrl = null;
+  clearPersistedPendingNav();
+  navigationHandled = false;
+  pendingForceUpdatePrompt = null;
+}
+
 
 export function peekPendingNotificationNavigation(): string | null {
   return pendingNavigationUrl || readPersistedPendingNav();
@@ -216,6 +232,7 @@ function handleNotificationTap(notification: any) {
       // Warm tap path: navigate immediately, no need to stash.
       clearPendingNotificationNavigation();
       try {
+        coldRemark("route_navigate");
         activeNavigator(path);
       } catch (err) {
         console.warn('[NotificationLaunch] navigator threw, falling back to stash:', err);
@@ -287,14 +304,20 @@ export function processPendingNotificationNavigation(navigate: (path: string) =>
   // throw — better to drop the navigation than crash the app.
   if (typeof path !== 'string' || !path.startsWith('/') || path.length < 2) {
     console.warn('[NotificationLaunch] Dropping invalid pending nav path:', path);
+    clearPendingNotificationNavigation();
     return false;
   }
   try {
+    coldMark("route_navigate");
     navigate(path);
+    // Only clear once navigate() returned without throwing. If the router
+    // isn't ready yet the caller will retry and pick the URL back up.
+    clearPendingNotificationNavigation();
     return true;
   } catch (err) {
-    console.error('[NotificationLaunch] navigate threw, dropping:', err);
+    console.error('[NotificationLaunch] navigate threw, will retry:', err);
     return false;
   }
+
 }
 

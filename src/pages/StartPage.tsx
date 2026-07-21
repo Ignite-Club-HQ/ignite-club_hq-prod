@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Users, Building2, Trophy, ChevronRight, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,14 @@ const options: Option[] = [
 export default function StartPage() {
   usePageTitle("Get started");
   const { activeClubFilter } = useClubTheme();
+
+  // /start is the entry point for the club setup flow. Auto-select
+  // "Start a Club" and jump straight to the club creation form so the user
+  // can complete club details immediately. When operating inside an existing
+  // club (theme filter active), fall back to the chooser instead.
+  if (!activeClubFilter) {
+    return <Navigate to="/clubs/new" replace />;
+  }
 
   // When filtered to a single club (club theme mode), hide "Start a Club" to
   // avoid encouraging duplicates while operating inside an existing club.

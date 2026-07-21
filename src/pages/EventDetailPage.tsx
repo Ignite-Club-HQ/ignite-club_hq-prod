@@ -92,8 +92,7 @@ import { EventNoteSection } from "@/components/event/EventNoteSection";
 
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
-const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+// NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 
 // Close handler used by all game-board variants. Clears both the React modal
@@ -647,11 +646,11 @@ export default function EventDetailPage() {
   const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer.
-  // Netball + basketball game boards are still in beta and restricted to app admins only.
+  // Netball + basketball game boards archived — football-only build.
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
-  const canAccessNetballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isNetballClub && !!isAppAdmin;
-  const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub && !!isAppAdmin;
-  const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
+  const canAccessNetballBoard = false;
+  const canAccessBasketballBoard = false;
+  const canAccessPitchBoard = canAccessSoccerBoard;
 
   const wantOpenPitchBoard = searchParams.get("openPitchBoard") === "1";
 
@@ -3913,55 +3912,8 @@ export default function EventDetailPage() {
         document.body
       )}
 
-      {/* Game Board Modal — netball */}
-      {showPitchBoard && isNetballClub && canAccessNetballBoard && teamMembers && event?.team_id && createPortal(
-        <Suspense fallback={
-          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-background">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        }>
-          <div className="fixed inset-0 z-[999999] bg-background">
-            <NetballBoard
-              teamId={event.team_id}
-              teamName={event.teams?.name || "Team"}
-              eventId={id}
-              members={teamMembers.map(m => ({
-                id: m.user_id,
-                user_id: m.user_id,
-                role: m.role,
-                profiles: m.profiles
-              }))}
-              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
-            />
-          </div>
-        </Suspense>,
-        document.body
-      )}
+      {/* Netball + Basketball Game Board modals archived — football-only build */}
 
-      {/* Game Board Modal — basketball */}
-      {showPitchBoard && isBasketballClub && canAccessBasketballBoard && teamMembers && event?.team_id && createPortal(
-        <Suspense fallback={
-          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-background">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        }>
-          <div className="fixed inset-0 z-[999999] bg-background">
-            <BasketballBoard
-              teamId={event.team_id}
-              teamName={event.teams?.name || "Team"}
-              eventId={id}
-              members={teamMembers.map(m => ({
-                id: m.user_id,
-                user_id: m.user_id,
-                role: m.role,
-                profiles: m.profiles
-              }))}
-              onClose={closePitchBoardWithFlag(setShowPitchBoard)}
-            />
-          </div>
-        </Suspense>,
-        document.body
-      )}
       {/* Post-RSVP Notification Prompt - only show if push is NOT enabled */}
       {user && event && notificationNudge.hasPushEnabled === false && (
         <PostRsvpNotificationPrompt

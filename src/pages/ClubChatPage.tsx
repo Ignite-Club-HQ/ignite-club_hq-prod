@@ -59,6 +59,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -75,13 +76,14 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
-import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
+import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -432,6 +434,7 @@ export default function ClubChatPage() {
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["club-messages", clubId],
     queryFn: async () => {
+      markChatFetch();
       // If offline, return cached messages using the shared online manager
       // so native app resume does not incorrectly fall back to stale cache.
       if (!isOnline) {
@@ -974,9 +977,23 @@ export default function ClubChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, clubId, authReady]);
 
+  // Free-tier polling switch (behind app_settings.free_club_polling_enabled).
+  const { mode: clubRealtimeMode, intervalMs: clubPollIntervalMs } = useClubRealtimeMode(clubId ?? null);
+
+  // Polling fallback: when this club is on the polling path, periodically
+  // invalidate the messages cache instead of holding a realtime WebSocket.
+  useEffect(() => {
+    if (!clubId || clubRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+    }, clubPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [clubId, clubRealtimeMode, clubPollIntervalMs, queryClient]);
+
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!clubId) return;
+    if (clubRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`club-messages-${clubId}`)
@@ -1196,11 +1213,15 @@ export default function ClubChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`club-messages-${clubId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `club-messages-${clubId}`, channel, userId: user.id, scope: { kind: "club", id: clubId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1770,7 +1791,7 @@ export default function ClubChatPage() {
       {canAccessClubChat && (
         <>
         <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

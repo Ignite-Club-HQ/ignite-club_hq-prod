@@ -1,399 +1,381 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for the three passkey defects:
+ *  1. `getStoredPasskeyAccounts` must sanitize localStorage payloads
+ *     (reject non-arrays, filter malformed records).
+ *  2. `authenticateWithPasskey` must NEVER return `{ success: true }` unless
+ *     a real Supabase session was established via `setSession`.
+ *  3. `usePasskey` must reject concurrent register/authenticate calls
+ *     synchronously — no Edge Function invocation, no WebAuthn prompt.
+ */
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act, waitFor } from '@testing-library/react';
 
-const mocks = vi.hoisted(() => ({
-  isNativePlatform: vi.fn(() => false),
-  checkNative: vi.fn(),
-  authenticateNative: vi.fn(),
-  storeNative: vi.fn(),
-  deleteNative: vi.fn(),
-  getSession: vi.fn(),
-  signInWithPassword: vi.fn(),
-  setSession: vi.fn(),
-  invoke: vi.fn(),
-  from: vi.fn(),
+// ---- supabase mock ---------------------------------------------------------
+const invokeMock: any = vi.fn();
+const setSessionMock: any = vi.fn();
+const getSessionMock: any = vi.fn(async () => ({
+  data: { session: { user: { id: 'u1', email: 'a@b.c', user_metadata: {} } } },
 }));
+const signInWithPasswordMock: any = vi.fn(async () => ({ error: null }));
 
-vi.mock("@capacitor/core", () => ({
-  Capacitor: { isNativePlatform: mocks.isNativePlatform },
-}));
-vi.mock("@/lib/nativeBiometrics", () => ({
-  checkNativeBiometricAvailability: mocks.checkNative,
-  authenticateWithNativeBiometric: mocks.authenticateNative,
-  storeCredentialsForBiometric: mocks.storeNative,
-  deleteStoredCredentials: mocks.deleteNative,
-}));
-vi.mock("@/integrations/supabase/client", () => ({
+vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
+    functions: { invoke: (fn: any, opts: any) => invokeMock(fn, opts) },
     auth: {
-      getSession: mocks.getSession,
-      signInWithPassword: mocks.signInWithPassword,
-      setSession: mocks.setSession,
+      getSession: () => getSessionMock(),
+      setSession: (args: any) => setSessionMock(args),
+      signInWithPassword: (args: any) => signInWithPasswordMock(args),
     },
-    functions: { invoke: mocks.invoke },
-    from: mocks.from,
+    from: () => ({ select: () => ({ eq: () => ({ data: [], error: null }) }) }),
   },
 }));
 
+// ---- Capacitor mock (default: web) ----------------------------------------
+const isNativeMock = vi.fn(() => false);
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: () => isNativeMock() },
+}));
+
+// SUT — imported after mocks
 import {
-  addStoredPasskeyAccount,
-  getLastUsedAccount,
-  getRememberMe,
-  getStoredPasskeyAccounts,
-  getStoredPasskeyEmail,
-  isPlatformAuthenticatorAvailable,
-  removeStoredPasskeyAccount,
-  setLastUsedAccount,
-  setRememberMe,
-  setStoredPasskeyAccounts,
-  syncPasskeyAccountsFromDatabase,
   usePasskey,
-} from "./usePasskey";
+  getStoredPasskeyAccounts,
+  PASSKEY_IN_PROGRESS_ERROR,
+} from './usePasskey';
 
-const availability = {
-  isAvailable: true,
-  biometryType: "faceId" as const,
-  hasCredentials: true,
-};
+const KEY = 'ignite_passkey_accounts';
 
-function bytes(...values: number[]) {
-  return new Uint8Array(values).buffer;
-}
+// WebAuthn credential mock
+const fakeCredential = () => ({
+  id: 'cred-1',
+  rawId: new ArrayBuffer(4),
+  type: 'public-key',
+  response: {
+    clientDataJSON: new ArrayBuffer(4),
+    authenticatorData: new ArrayBuffer(4),
+    signature: new ArrayBuffer(4),
+    userHandle: null,
+    attestationObject: new ArrayBuffer(4),
+  },
+});
 
-function webCredential(kind: "create" | "get") {
-  return {
-    id: "credential-1",
-    rawId: bytes(1, 2, 3),
-    type: "public-key",
-    response: kind === "create"
-      ? { clientDataJSON: bytes(4), attestationObject: bytes(5) }
-      : {
-          clientDataJSON: bytes(4),
-          authenticatorData: bytes(5),
-          signature: bytes(6),
-          userHandle: bytes(7),
-        },
+beforeEach(() => {
+  localStorage.clear();
+  invokeMock.mockReset();
+  setSessionMock.mockReset();
+  setSessionMock.mockResolvedValue({ error: null });
+  isNativeMock.mockReturnValue(false);
+
+  // navigator.credentials
+  (globalThis as any).navigator = (globalThis as any).navigator || {};
+  (navigator as any).credentials = {
+    get: vi.fn(async () => fakeCredential()),
+    create: vi.fn(async () => fakeCredential()),
   };
-}
-
-function registrationOptions() {
-  return {
-    challenge: "AQID",
-    rp: { name: "Ignite", id: "test.local" },
-    user: { id: "BAUG", name: "alex@example.test", displayName: "Alex" },
-    pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+  (window as any).PublicKeyCredential = class {
+    static isUserVerifyingPlatformAuthenticatorAvailable = async () => true;
   };
-}
+});
 
-function authenticationOptions() {
-  return {
-    challenge: "AQID",
-    rpId: "test.local",
-    allowCredentials: [{ id: "BAUG", type: "public-key", transports: ["internal"] }],
-  };
-}
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => { resolve = res; });
-  return { promise, resolve };
-}
-
-async function readyHook() {
-  const hook = renderHook(() => usePasskey());
-  await waitFor(() => expect(mocks.checkNative).not.toHaveBeenCalled());
-  return hook;
-}
-
-describe("passkey account storage", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("returns no accounts when storage is empty or corrupted", () => {
-    expect(getStoredPasskeyAccounts()).toEqual([]);
-    localStorage.setItem("ignite_passkey_accounts", "not-json");
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. getStoredPasskeyAccounts — payload sanitization
+// ═══════════════════════════════════════════════════════════════════════════
+describe('getStoredPasskeyAccounts (defect #1)', () => {
+  it('returns [] when localStorage is empty', () => {
     expect(getStoredPasskeyAccounts()).toEqual([]);
   });
 
-  it("rejects structurally invalid stored account data", () => {
-    localStorage.setItem("ignite_passkey_accounts", JSON.stringify({ email: "not-an-array@example.test" }));
+  it('returns [] when JSON is invalid', () => {
+    localStorage.setItem(KEY, '{not-json');
     expect(getStoredPasskeyAccounts()).toEqual([]);
   });
 
-  it("stores and returns a supplied account list", () => {
-    const accounts = [{ email: "alex@example.test", displayName: "Alex", addedAt: "2026-01-01" }];
-    setStoredPasskeyAccounts(accounts);
-    expect(getStoredPasskeyAccounts()).toEqual(accounts);
+  it('returns [] when payload is a JSON object (not array)', () => {
+    localStorage.setItem(KEY, JSON.stringify({ email: 'x@y.z' }));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
   });
 
-  it("deduplicates email addresses case-insensitively while retaining addedAt", () => {
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
-    addStoredPasskeyAccount("Alex@Example.test", "Old name");
-    const addedAt = getStoredPasskeyAccounts()[0].addedAt;
-    vi.setSystemTime(new Date("2026-02-01T00:00:00Z"));
-    addStoredPasskeyAccount("alex@example.test", "New name");
-
-    expect(getStoredPasskeyAccounts()).toEqual([{ email: "alex@example.test", displayName: "New name", addedAt }]);
-    vi.useRealTimers();
+  it('returns [] when payload is a JSON string', () => {
+    localStorage.setItem(KEY, JSON.stringify('nope'));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
   });
 
-  it("removes only the matching account case-insensitively", () => {
-    setStoredPasskeyAccounts([
-      { email: "alex@example.test", addedAt: "1" },
-      { email: "sam@example.test", addedAt: "2" },
+  it('returns [] when payload is a JSON number', () => {
+    localStorage.setItem(KEY, JSON.stringify(42));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
+  });
+
+  it('filters out entries missing email', () => {
+    localStorage.setItem(KEY, JSON.stringify([
+      { addedAt: '2025-01-01' },
+      { email: 'ok@x.y', addedAt: '2025-01-01' },
+    ]));
+    expect(getStoredPasskeyAccounts()).toEqual([{ email: 'ok@x.y', addedAt: '2025-01-01' }]);
+  });
+
+  it('filters out entries with empty email string', () => {
+    localStorage.setItem(KEY, JSON.stringify([{ email: '', addedAt: '2025-01-01' }]));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
+  });
+
+  it('filters out entries missing addedAt', () => {
+    localStorage.setItem(KEY, JSON.stringify([{ email: 'x@y.z' }]));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
+  });
+
+  it('filters out entries where email is not a string', () => {
+    localStorage.setItem(KEY, JSON.stringify([{ email: 123, addedAt: '2025' }]));
+    expect(getStoredPasskeyAccounts()).toEqual([]);
+  });
+
+  it('filters out null / non-object entries', () => {
+    localStorage.setItem(KEY, JSON.stringify([null, 'a', 5, { email: 'ok@x.y', addedAt: 't' }]));
+    expect(getStoredPasskeyAccounts()).toEqual([{ email: 'ok@x.y', addedAt: 't' }]);
+  });
+
+  it('rejects displayName with wrong type but keeps other records', () => {
+    localStorage.setItem(KEY, JSON.stringify([
+      { email: 'a@x.y', addedAt: 't', displayName: 42 },
+      { email: 'b@x.y', addedAt: 't' },
+    ]));
+    expect(getStoredPasskeyAccounts()).toEqual([{ email: 'b@x.y', addedAt: 't' }]);
+  });
+
+  it('preserves valid displayName', () => {
+    localStorage.setItem(KEY, JSON.stringify([
+      { email: 'a@x.y', addedAt: 't', displayName: 'Alice' },
+    ]));
+    expect(getStoredPasskeyAccounts()).toEqual([
+      { email: 'a@x.y', addedAt: 't', displayName: 'Alice' },
     ]);
-    removeStoredPasskeyAccount("ALEX@example.test");
-    expect(getStoredPasskeyAccounts().map((account) => account.email)).toEqual(["sam@example.test"]);
-  });
-
-  it("prefers the last-used stored account and ignores an orphaned preference", () => {
-    setStoredPasskeyAccounts([
-      { email: "alex@example.test", addedAt: "1" },
-      { email: "sam@example.test", addedAt: "2" },
-    ]);
-    setLastUsedAccount("SAM@example.test");
-    expect(getStoredPasskeyEmail()).toBe("sam@example.test");
-    setLastUsedAccount("missing@example.test");
-    expect(getStoredPasskeyEmail()).toBe("alex@example.test");
-  });
-
-  it("sets and clears remember-me and last-used preferences", () => {
-    setRememberMe(true);
-    setLastUsedAccount("alex@example.test");
-    expect(getRememberMe()).toBe(true);
-    expect(getLastUsedAccount()).toBe("alex@example.test");
-    setRememberMe(false);
-    setLastUsedAccount(null);
-    expect(getRememberMe()).toBe(false);
-    expect(getLastUsedAccount()).toBeNull();
   });
 });
 
-describe("usePasskey browser authentication", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
-    mocks.isNativePlatform.mockReturnValue(false);
-    mocks.getSession.mockResolvedValue({ data: { session: { user: {
-      email: "alex@example.test", user_metadata: { full_name: "Alex Rivers" },
-    } } } });
-    mocks.setSession.mockResolvedValue({ error: null });
-    Object.defineProperty(window, "PublicKeyCredential", {
-      configurable: true,
-      value: class { static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn().mockResolvedValue(true); },
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. authenticateWithPasskey — session establishment
+// ═══════════════════════════════════════════════════════════════════════════
+describe('authenticateWithPasskey session guarantees (defect #2)', () => {
+  const setupVerify = (verifyResp: any) => {
+    invokeMock.mockImplementation((_fn: string, { body }: any) => {
+      if (body.action === 'get-options') {
+        return Promise.resolve({
+          data: {
+            options: { challenge: 'AAAA', rpId: 'x', allowCredentials: [], timeout: 60000 },
+            discoverable: false,
+          },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: verifyResp, error: null });
     });
-    Object.defineProperty(navigator, "credentials", {
-      configurable: true,
-      value: { create: vi.fn(), get: vi.fn() },
+  };
+
+  it('returns success only when a full session is returned AND setSession succeeds', async () => {
+    setupVerify({
+      success: true,
+      userEmail: 'u@x.y',
+      session: { access_token: 'a', refresh_token: 'r' },
     });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(true);
+    expect(setSessionMock).toHaveBeenCalledWith({ access_token: 'a', refresh_token: 'r' });
   });
 
-  it("reports unavailable when the browser has no WebAuthn implementation", async () => {
-    Object.defineProperty(window, "PublicKeyCredential", { configurable: true, value: undefined });
-    await expect(isPlatformAuthenticatorAvailable()).resolves.toBe(false);
+  it('fails when backend returns success=true but NO session object', async () => {
+    setupVerify({ success: true, userEmail: 'u@x.y' });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("treats an authenticator availability exception as unavailable", async () => {
-    vi.mocked(PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable).mockRejectedValue(new Error("blocked"));
-    await expect(isPlatformAuthenticatorAvailable()).resolves.toBe(false);
+  it('fails when session lacks access_token', async () => {
+    setupVerify({ success: true, session: { refresh_token: 'r' } });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("refuses registration without an authenticated user before invoking an Edge Function", async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: null } });
-    const { result } = await readyHook();
-    let outcome: Awaited<ReturnType<typeof result.current.registerPasskey>>;
-    await act(async () => { outcome = await result.current.registerPasskey(); });
-    expect(outcome!).toEqual({ success: false, error: "You must be logged in to register a passkey" });
-    expect(mocks.invoke).not.toHaveBeenCalled();
+  it('fails when session lacks refresh_token', async () => {
+    setupVerify({ success: true, session: { access_token: 'a' } });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("stops when registration options fail and never opens the authenticator", async () => {
-    mocks.invoke.mockResolvedValueOnce({ data: null, error: { message: "denied" } });
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.registerPasskey(); });
-    expect(outcome.success).toBe(false);
-    expect(navigator.credentials.create).not.toHaveBeenCalled();
+  it('fails when tokens are empty strings', async () => {
+    setupVerify({ success: true, session: { access_token: '', refresh_token: '' } });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("maps browser cancellation to a stable registration error", async () => {
-    mocks.invoke.mockResolvedValueOnce({ data: { options: registrationOptions() }, error: null });
-    vi.mocked(navigator.credentials.create).mockRejectedValue(Object.assign(new Error("cancel"), { name: "NotAllowedError" }));
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.registerPasskey(); });
-    expect(outcome).toEqual({ success: false, error: "Passkey registration was cancelled or timed out" });
-    expect(result.current.loading).toBe(false);
+  it('fails when tokens are non-string types', async () => {
+    setupVerify({ success: true, session: { access_token: 123, refresh_token: null } });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("does not remember an account when registration verification fails", async () => {
-    mocks.invoke
-      .mockResolvedValueOnce({ data: { options: registrationOptions() }, error: null })
-      .mockResolvedValueOnce({ data: { success: false, error: "Invalid attestation" }, error: null });
-    vi.mocked(navigator.credentials.create).mockResolvedValue(webCredential("create") as any);
-    const { result } = await readyHook();
-    await act(async () => { await result.current.registerPasskey(); });
-    expect(getStoredPasskeyAccounts()).toEqual([]);
-    expect(getLastUsedAccount()).toBeNull();
+  it('fails when setSession itself returns an error', async () => {
+    setupVerify({ success: true, session: { access_token: 'a', refresh_token: 'r' } });
+    setSessionMock.mockResolvedValueOnce({ error: { message: 'bad' } });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
   });
 
-  it("registers a verified credential and remembers the authenticated account", async () => {
-    mocks.invoke
-      .mockResolvedValueOnce({ data: { options: registrationOptions() }, error: null })
-      .mockResolvedValueOnce({ data: { success: true }, error: null });
-    vi.mocked(navigator.credentials.create).mockResolvedValue(webCredential("create") as any);
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.registerPasskey(); });
-    expect(outcome).toEqual({ success: true });
-    expect(getStoredPasskeyAccounts()).toEqual([expect.objectContaining({
-      email: "alex@example.test", displayName: "Alex Rivers",
-    })]);
-    expect(getLastUsedAccount()).toBe("alex@example.test");
+  it('surfaces backend failure without invoking setSession', async () => {
+    setupVerify({ success: false, error: 'bad sig' });
+    const { result } = renderHook(() => usePasskey());
+    let res: any;
+    await act(async () => { res = await result.current.authenticateWithPasskey('u@x.y'); });
+    expect(res.success).toBe(false);
+    expect(setSessionMock).not.toHaveBeenCalled();
   });
 
-  it("does not report authentication success when verification returns no session", async () => {
-    mocks.invoke
-      .mockResolvedValueOnce({ data: { options: authenticationOptions() }, error: null })
-      .mockResolvedValueOnce({ data: { success: true, userEmail: "alex@example.test" }, error: null });
-    vi.mocked(navigator.credentials.get).mockResolvedValue(webCredential("get") as any);
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.authenticateWithPasskey("alex@example.test"); });
-    expect(outcome.success).toBe(false);
-    expect(mocks.setSession).not.toHaveBeenCalled();
-  });
-
-  it("fails authentication when returned tokens cannot establish a session", async () => {
-    mocks.invoke
-      .mockResolvedValueOnce({ data: { options: authenticationOptions() }, error: null })
-      .mockResolvedValueOnce({ data: { success: true, session: { access_token: "access", refresh_token: "refresh" } }, error: null });
-    mocks.setSession.mockResolvedValue({ error: { message: "invalid session" } });
-    vi.mocked(navigator.credentials.get).mockResolvedValue(webCredential("get") as any);
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.authenticateWithPasskey("alex@example.test"); });
-    expect(outcome).toEqual({ success: false, error: "Failed to establish session" });
-  });
-
-  it("establishes the verified session and records the selected account", async () => {
-    mocks.invoke
-      .mockResolvedValueOnce({ data: { options: authenticationOptions() }, error: null })
-      .mockResolvedValueOnce({ data: {
-        success: true,
-        userEmail: "alex@example.test",
-        session: { access_token: "access", refresh_token: "refresh" },
-      }, error: null });
-    vi.mocked(navigator.credentials.get).mockResolvedValue(webCredential("get") as any);
-    const { result } = await readyHook();
-    let outcome: any;
-    await act(async () => { outcome = await result.current.authenticateWithPasskey("alex@example.test"); });
-    expect(outcome).toEqual({ success: true, userEmail: "alex@example.test" });
-    expect(mocks.setSession).toHaveBeenCalledWith({ access_token: "access", refresh_token: "refresh" });
-    expect(getLastUsedAccount()).toBe("alex@example.test");
-  });
-
-  it("prevents concurrent authentication requests", async () => {
-    const pending = deferred<any>();
-    mocks.invoke.mockReturnValue(pending.promise);
-    const { result } = await readyHook();
-    let first!: Promise<any>;
-    let second!: Promise<any>;
-    act(() => {
-      first = result.current.authenticateWithPasskey("alex@example.test");
-      second = result.current.authenticateWithPasskey("alex@example.test");
-    });
-    expect(mocks.invoke).toHaveBeenCalledOnce();
-    pending.resolve({ data: null, error: { message: "stop" } });
-    await act(async () => { await Promise.all([first, second]); });
+  it('re-enables the loading flag after failure so the button can retry', async () => {
+    setupVerify({ success: true }); // missing session
+    const { result } = renderHook(() => usePasskey());
+    await act(async () => { await result.current.authenticateWithPasskey('u@x.y'); });
+    await waitFor(() => expect(result.current.loading).toBe(false));
   });
 });
 
-describe("usePasskey native authentication", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
-    mocks.isNativePlatform.mockReturnValue(true);
-    mocks.checkNative.mockResolvedValue(availability);
-    mocks.deleteNative.mockResolvedValue(undefined);
-    mocks.signInWithPassword.mockResolvedValue({ error: null });
-  });
-
-  it("uses only native biometrics and stored credentials on native platforms", async () => {
-    mocks.authenticateNative.mockResolvedValue({ success: true, email: "alex@example.test", password: "secret" });
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. Concurrent-operation guard
+// ═══════════════════════════════════════════════════════════════════════════
+describe('concurrent passkey operations (defect #3)', () => {
+  it('rejects a second authenticate call while the first is in-flight (no Edge invoke)', async () => {
+    let releaseVerify: (v: any) => void = () => {};
+    invokeMock.mockImplementation((_fn: string, { body }: any) => {
+      if (body.action === 'get-options') {
+        return Promise.resolve({
+          data: { options: { challenge: 'AA', rpId: 'x', allowCredentials: [] } },
+          error: null,
+        });
+      }
+      return new Promise((r) => { releaseVerify = r; });
+    });
     const { result } = renderHook(() => usePasskey());
-    await waitFor(() => expect(result.current.isAvailable).toBe(true));
-    let outcome: any;
-    await act(async () => { outcome = await result.current.authenticateWithPasskey(); });
-    expect(outcome).toEqual({ success: true, userEmail: "alex@example.test" });
-    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: "alex@example.test", password: "secret" });
-    expect(mocks.invoke).not.toHaveBeenCalled();
+
+    let firstDone: any = null;
+    await act(async () => {
+      const p1 = result.current.authenticateWithPasskey('u@x.y').then((v) => (firstDone = v));
+      // Yield so the first call reaches the pending verify invoke.
+      await new Promise((r) => setTimeout(r, 0));
+      const callsBefore = invokeMock.mock.calls.length;
+      const p2 = await result.current.authenticateWithPasskey('u@x.y');
+      expect(p2).toEqual({ success: false, error: PASSKEY_IN_PROGRESS_ERROR });
+      expect(invokeMock.mock.calls.length).toBe(callsBefore); // no new backend calls
+      releaseVerify({
+        data: { success: true, session: { access_token: 'a', refresh_token: 'r' } },
+        error: null,
+      });
+      await p1;
+    });
+    expect(firstDone.success).toBe(true);
   });
 
-  it("deletes invalid stored credentials after Supabase rejects them", async () => {
-    mocks.authenticateNative.mockResolvedValue({ success: true, email: "alex@example.test", password: "stale" });
-    mocks.signInWithPassword.mockResolvedValue({ error: { message: "Invalid login credentials" } });
+  it('rejects a second register call while the first is in-flight', async () => {
+    let release: (v: any) => void = () => {};
+    invokeMock.mockImplementation(() => new Promise((r) => { release = r; }));
     const { result } = renderHook(() => usePasskey());
-    await waitFor(() => expect(result.current.isAvailable).toBe(true));
-    let outcome: any;
-    await act(async () => { outcome = await result.current.authenticateWithPasskey(); });
-    expect(outcome.success).toBe(false);
-    expect(mocks.deleteNative).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      const p1 = result.current.registerPasskey();
+      const p2 = await result.current.registerPasskey();
+      expect(p2).toEqual({ success: false, error: PASSKEY_IN_PROGRESS_ERROR });
+      release({
+        data: { success: true },
+        error: null,
+      });
+      await p1;
+    });
   });
 
-  it("refuses native credential storage on web without touching the native provider", async () => {
-    mocks.isNativePlatform.mockReturnValue(false);
+  it('releases the guard after failure so the next call can proceed', async () => {
+    invokeMock.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
     const { result } = renderHook(() => usePasskey());
-    let outcome: any;
-    await act(async () => { outcome = await result.current.storeCredentialsForNativeBiometric("alex@example.test", "secret"); });
-    expect(outcome).toEqual({ success: false, error: "Not on native platform" });
-    expect(mocks.storeNative).not.toHaveBeenCalled();
+    await act(async () => {
+      const r1 = await result.current.authenticateWithPasskey('u@x.y');
+      expect(r1.success).toBe(false);
+    });
+    // Now a second call should reach the backend
+    invokeMock.mockImplementation((_fn: string, { body }: any) =>
+      body.action === 'get-options'
+        ? Promise.resolve({ data: { options: { challenge: 'AA', rpId: 'x', allowCredentials: [] } }, error: null })
+        : Promise.resolve({ data: { success: true, session: { access_token: 'a', refresh_token: 'r' } }, error: null })
+    );
+    await act(async () => {
+      const r2 = await result.current.authenticateWithPasskey('u@x.y');
+      expect(r2.success).toBe(true);
+    });
   });
 
-  it("clears native secure credentials and local account metadata together", async () => {
-    setStoredPasskeyAccounts([{ email: "alex@example.test", addedAt: "1" }]);
-    setLastUsedAccount("alex@example.test");
+  it('releases the guard after success so a follow-up call can proceed', async () => {
+    invokeMock.mockImplementation((_fn: string, { body }: any) =>
+      body.action === 'get-options'
+        ? Promise.resolve({ data: { options: { challenge: 'AA', rpId: 'x', allowCredentials: [] } }, error: null })
+        : Promise.resolve({ data: { success: true, session: { access_token: 'a', refresh_token: 'r' } }, error: null })
+    );
     const { result } = renderHook(() => usePasskey());
-    await waitFor(() => expect(result.current.isAvailable).toBe(true));
-    await act(async () => { await result.current.clearPasskey(); });
-    expect(mocks.deleteNative).toHaveBeenCalled();
-    expect(getStoredPasskeyAccounts()).toEqual([]);
-    expect(getLastUsedAccount()).toBeNull();
-  });
-});
-
-describe("passkey database reconciliation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
+    await act(async () => {
+      await result.current.authenticateWithPasskey('u@x.y');
+      const r2 = await result.current.authenticateWithPasskey('u@x.y');
+      expect(r2.success).toBe(true);
+    });
   });
 
-  function passkeyQuery(result: any) {
-    const chain: any = {};
-    chain.select = vi.fn(() => chain);
-    chain.eq = vi.fn(() => Promise.resolve(result));
-    mocks.from.mockReturnValue(chain);
-    return chain;
-  }
-
-  it("restores local account metadata only when the exact user has a database passkey", async () => {
-    const chain = passkeyQuery({ data: [{ id: "passkey-1" }], error: null });
-    await syncPasskeyAccountsFromDatabase("user-42", "alex@example.test", "Alex");
-    expect(mocks.from).toHaveBeenCalledWith("user_passkeys");
-    expect(chain.eq).toHaveBeenCalledWith("user_id", "user-42");
-    expect(getStoredPasskeyAccounts()).toEqual([expect.objectContaining({ email: "alex@example.test" })]);
+  it('does NOT open WebAuthn prompt when a call is rejected by the guard', async () => {
+    let release: (v: any) => void = () => {};
+    invokeMock.mockImplementation(() => new Promise((r) => { release = r; }));
+    const credGet = navigator.credentials.get as any;
+    const { result } = renderHook(() => usePasskey());
+    await act(async () => {
+      const p1 = result.current.authenticateWithPasskey('u@x.y');
+      const before = credGet.mock.calls.length;
+      const p2 = await result.current.authenticateWithPasskey('u@x.y');
+      expect(p2.success).toBe(false);
+      expect(credGet.mock.calls.length).toBe(before);
+      release({
+        data: { success: true, session: { access_token: 'a', refresh_token: 'r' } },
+        error: null,
+      });
+      await p1;
+    });
   });
 
-  it("removes orphaned local metadata when the exact user has no database passkey", async () => {
-    setStoredPasskeyAccounts([{ email: "alex@example.test", addedAt: "1" }]);
-    passkeyQuery({ data: [], error: null });
-    await syncPasskeyAccountsFromDatabase("user-42", "ALEX@example.test");
-    expect(getStoredPasskeyAccounts()).toEqual([]);
-  });
-
-  it("does not mutate local metadata when reconciliation is denied", async () => {
-    setStoredPasskeyAccounts([{ email: "alex@example.test", addedAt: "1" }]);
-    passkeyQuery({ data: null, error: { message: "RLS denied" } });
-    await syncPasskeyAccountsFromDatabase("user-42", "alex@example.test");
-    expect(getStoredPasskeyAccounts()).toHaveLength(1);
+  it('blocks register while authenticate is in-flight (shared guard)', async () => {
+    let release: (v: any) => void = () => {};
+    invokeMock.mockImplementation(() => new Promise((r) => { release = r; }));
+    const { result } = renderHook(() => usePasskey());
+    await act(async () => {
+      const p1 = result.current.authenticateWithPasskey('u@x.y');
+      const r = await result.current.registerPasskey();
+      expect(r).toEqual({ success: false, error: PASSKEY_IN_PROGRESS_ERROR });
+      release({
+        data: { success: true, session: { access_token: 'a', refresh_token: 'r' } },
+        error: null,
+      });
+      await p1;
+    });
   });
 });

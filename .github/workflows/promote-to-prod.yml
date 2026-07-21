@@ -1,24 +1,21 @@
 name: Promote to Prod
 
-# When a merge lands on the `prod` branch, run any pending Supabase migrations
-# and deploy edge functions to Supabase PROD *before* Netlify / Codemagic
-# rebuild the frontend against the same commit. If migrations or function
-# deploys fail, the frontend never ships → no schema/UI mismatch possible.
+# When a merge lands on `prod`, apply any pending Supabase migrations and
+# deploy edge functions BEFORE Netlify / Codemagic rebuild the frontend
+# against the same commit. If migrations or function deploys fail, the
+# frontend never ships → no schema/UI mismatch possible.
+#
+# History context (2026-07-14): prod was one-time baselined by running
+# scripts/generate-baseline.sql in the prod SQL editor. Every local
+# migration file with version <= 20260712224730 was inserted into
+# supabase_migrations.schema_migrations (metadata only, no SQL executed).
+# From that point forward, only NEW dev-authored migrations run in prod
+# and `supabase db push` works with zero special handling.
 #
 # Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN      — personal access token from
-#                                https://supabase.com/dashboard/account/tokens
+#   SUPABASE_ACCESS_TOKEN      — https://supabase.com/dashboard/account/tokens
 #   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
-#   SUPABASE_DB_PASSWORD       — the prod DB password (Project Settings →
-#                                Database → Connection string). Required by
-#                                `supabase db push` and `pg_dump` for a
-#                                non-interactive run.
-#
-# Pre-promotion backup:
-#   Before applying any migrations we run `pg_dump` against prod and upload the
-#   dump as a workflow artifact (retained 30 days). To roll back, download the
-#   artifact and follow scripts/restore-prod-backup.sh.
-
+#   SUPABASE_DB_PASSWORD       — prod DB password (Project Settings → Database)
 
 on:
   push:
@@ -64,6 +61,19 @@ jobs:
       - name: Link to Supabase PROD project
         run: supabase link --project-ref "$PROJECT_REF"
 
+      - name: Preflight — direct PROD DB connectivity + auth
+        # Fail fast if the runner can't reach prod's direct DB endpoint
+        # (requires Supabase IPv4 add-on) or the password is wrong.
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null 2>&1
+          DB_HOST="db.${PROJECT_REF}.supabase.co"
+          echo "Pinging $DB_HOST:5432 as postgres …"
+          PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
+            "postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&connect_timeout=10" \
+            -v ON_ERROR_STOP=1 -c "select 1 as ping, current_user;"
+          echo "✅ Preflight passed."
+
       - name: List pending migrations
         run: supabase migration list --linked
 
@@ -79,7 +89,6 @@ jobs:
           fi
           echo "=== Migration files changed since $BEFORE ==="
           git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true
-
           echo ""
           echo "=== SQL content ==="
           git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ | while read -r file; do
@@ -91,12 +100,10 @@ jobs:
           done
 
       - name: Guard against destructive migrations
-        # Fails the job (before backup/apply) if any pending migration file
-        # contains DML/DDL that could nuke prod media rows or their URL columns.
-        # This is a safety net for accidental "fix dev images" queries that
-        # slip into supabase/migrations/ and would otherwise run against prod.
-        # Whitelist a specific migration by adding a line containing the exact
-        # marker:  -- promote-guard: allow  (only do this after human review).
+        # Fails the job (before backup/apply) if any NEW migration file in
+        # this promotion contains DML/DDL that could nuke prod rows on a
+        # high-value table. Whitelist a specific file by adding a line:
+        #   -- promote-guard: allow   (only after human review).
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -108,15 +115,15 @@ jobs:
             BEFORE="HEAD^"
           fi
 
-          FILES=$(git diff --name-only "$BEFORE" HEAD -- supabase/migrations/ || true)
+          FILES=$(git diff --name-only --diff-filter=AM "$BEFORE" HEAD -- supabase/migrations/ | sed '/^$/d' || true)
           if [ -z "$FILES" ]; then
-            echo "No pending migration files — guard passes."
+            echo "No new/modified migration files — guard passes."
             exit 0
           fi
+          echo "Scanning $(echo "$FILES" | wc -l) new/modified migration file(s)."
 
-          # Case-insensitive, whitespace-tolerant patterns.
-          # Blocks writes/drops targeting media-bearing tables or their URL cols.
-          PATTERNS='(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\.)?(photos|vault_files|group_messages|club_messages|team_messages|direct_messages|gallery_chat_cards)\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url)\b'
+          TABLES='photos|vault_files|vault_folders|vault_drive_links|group_messages|club_messages|team_messages|direct_messages|match_messages|gallery_chat_cards|chat_groups|profiles|clubs|teams|user_roles|events|rsvps|children|club_subscriptions|team_subscriptions|member_subscription_payments|iap_transactions|notifications|fcm_tokens|push_subscriptions'
+          PATTERNS="(UPDATE|DELETE[[:space:]]+FROM|TRUNCATE)[[:space:]]+(ONLY[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\\.)?(${TABLES})\\b|DROP[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(image_url|file_url|hero_image_url|avatar_url|logo_url)\\b"
 
           failed=0
           for file in $FILES; do
@@ -126,18 +133,41 @@ jobs:
               continue
             fi
             if grep -niE -- "$PATTERNS" "$file"; then
-              echo "::error file=$file::Migration contains a statement that could destroy prod media data. Review and either remove the statement or add the marker '-- promote-guard: allow' after human review."
+              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table. Remove it or add '-- promote-guard: allow' after human review."
               failed=1
             fi
           done
 
           if [ "$failed" = "1" ]; then
-            echo ""
             echo "❌ Promotion halted BEFORE backup/apply. No changes made to prod."
             exit 1
           fi
-          echo "✅ Guard passed — no destructive statements against media tables."
+          echo "✅ Guard passed."
 
+      - name: Skip dev-only migrations in PROD
+        # Files whose first 5 lines contain:  -- prod-skip: dev-only
+        # are marked applied in prod history without running their SQL.
+        # Use for dev-only fixtures (synthetic accounts, collation refresh, etc.).
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          SKIP_VERSIONS=()
+          for f in supabase/migrations/*.sql; do
+            [ -f "$f" ] || continue
+            if head -5 "$f" | grep -qiE -- '--[[:space:]]*prod-skip:[[:space:]]*dev-only'; then
+              v=$(basename "$f" | grep -oE '^[0-9]{14}' || true)
+              [ -n "$v" ] || continue
+              SKIP_VERSIONS+=("$v")
+              echo "  - $v  ($(basename "$f"))"
+            fi
+          done
+          if [ ${#SKIP_VERSIONS[@]} -eq 0 ]; then
+            echo "✅ No files carry '-- prod-skip: dev-only'."
+          else
+            echo "Marking ${#SKIP_VERSIONS[@]} dev-only migration(s) as applied in PROD."
+            printf '%s\n' "${SKIP_VERSIONS[@]}" \
+              | xargs -n 20 supabase migration repair --linked --status applied || true
+          fi
 
       - name: Backup PROD schema + roles (pre-migration)
         if: github.event_name == 'push'
@@ -147,8 +177,7 @@ jobs:
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
           FILE="prod-schema-backup-${STAMP}-${GITHUB_SHA::7}.tar.gz"
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
-          # Schema + roles only — fast (~15s). Row data is captured by the
-          # nightly-backup workflow (.github/workflows/nightly-backup.yml).
+          # Schema + roles only. Row data is captured by nightly-backup.yml.
           supabase db dump --linked -f prod-schema.sql
           supabase db dump --linked --role-only -f prod-roles.sql
           tar czf "$FILE" prod-schema.sql prod-roles.sql
@@ -163,20 +192,14 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-
-      - name: Apply pending migrations
+      - name: Apply migrations to PROD
         if: github.event_name == 'push'
         run: supabase db push --linked
 
-      - name: Deploy edge functions
+      - name: Deploy edge functions to PROD
         if: github.event_name == 'push'
-        # Deploys every function under supabase/functions/. Individual function
-        # config (verify_jwt, import_map, etc.) still comes from
-        # supabase/config.toml.
         run: supabase functions deploy --project-ref "$PROJECT_REF"
 
-
-      - name: Success
-        run: |
-          echo "✅ Backend promoted. Netlify + Codemagic will now build the"
-          echo "   frontend against commit $GITHUB_SHA."
+      - name: Post-migration state
+        if: github.event_name == 'push'
+        run: supabase migration list --linked

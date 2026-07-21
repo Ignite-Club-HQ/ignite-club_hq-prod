@@ -3,12 +3,9 @@ import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
-import { detectGameBoardKind } from "@/lib/sportDetection";
 
-// Lazy-load the sport boards to avoid pulling all three into chat bundles.
+// Football-only build: netball / basketball boards archived (see archive/sports/).
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
-const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
 
 interface BoardViewerDialogProps {
   open: boolean;
@@ -30,8 +27,8 @@ interface LoadedGame {
 
 /**
  * Read-only viewer for a shared live board. Loads the active_games row,
- * resolves its team + roster, and renders the matching sport board with
- * `readOnly` so a viewer can't accidentally make changes.
+ * resolves its team + roster, and renders the pitch board with `readOnly`
+ * so a viewer can't accidentally make changes.
  *
  * RLS on `active_games` already enforces team-member visibility, so if the
  * fetch returns nothing we show a friendly "no access" state.
@@ -110,8 +107,6 @@ export function BoardViewerDialog({
     };
   }, [open, gameId]);
 
-  const kind = detectGameBoardKind(game?.sport);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!p-0 !gap-0 !w-screen !h-[100dvh] !max-w-none !rounded-none !border-0 overflow-hidden flex flex-col">
@@ -131,31 +126,13 @@ export function BoardViewerDialog({
               </div>
             }
           >
-            {kind === "basketball" ? (
-              <BasketballBoard
-                teamId={game.teamId}
-                teamName={game.teamName}
-                members={game.members}
-                onClose={() => onOpenChange(false)}
-                readOnly
-              />
-            ) : kind === "netball" ? (
-              <NetballBoard
-                teamId={game.teamId}
-                teamName={game.teamName}
-                members={game.members}
-                onClose={() => onOpenChange(false)}
-                readOnly
-              />
-            ) : (
-              <PitchBoard
-                teamId={game.teamId}
-                teamName={game.teamName}
-                members={game.members}
-                onClose={() => onOpenChange(false)}
-                readOnly
-              />
-            )}
+            <PitchBoard
+              teamId={game.teamId}
+              teamName={game.teamName}
+              members={game.members}
+              onClose={() => onOpenChange(false)}
+              readOnly
+            />
           </Suspense>
         )}
       </DialogContent>

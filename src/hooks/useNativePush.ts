@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { mark as coldMark } from '@/lib/coldStartMarks';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -178,20 +179,29 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     };
     const tryConsume = () => processPendingNotificationNavigation(safeNavigate);
 
+    try { coldMark("pending_nav_consume_attempt"); } catch {}
     if (tryConsume()) {
       console.log('[useNativePush] Consumed pending nav after auth ready');
       return;
     }
     if (!peekPendingNotificationNavigation()) return;
-    const t1 = setTimeout(() => {
-      if (!peekPendingNotificationNavigation()) return;
-      if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (250ms)');
-    }, 250);
-    const t2 = setTimeout(() => {
-      if (!peekPendingNotificationNavigation()) return;
-      if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (1000ms)');
-    }, 1000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // Extended retry window: slow Android cold starts + auth bootstrap +
+    // route mount can exceed 1s. Retry up to 4s so a stashed URL doesn't
+    // get abandoned before the router is actually ready.
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const schedule = (delay: number, label: string) => {
+      timers.push(setTimeout(() => {
+        if (!peekPendingNotificationNavigation()) return;
+        if (tryConsume()) console.log(`[useNativePush] Consumed pending nav post-auth (${label})`);
+      }, delay));
+    };
+    schedule(250, "250ms");
+    schedule(750, "750ms");
+    schedule(1500, "1500ms");
+    schedule(2500, "2500ms");
+    schedule(4000, "4000ms");
+    return () => { timers.forEach(clearTimeout); };
+
   }, [userId, isNative, navigate]);
 
   // Initialize native push when user is available

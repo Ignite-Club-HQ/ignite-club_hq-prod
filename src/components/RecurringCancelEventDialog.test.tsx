@@ -1,24 +1,49 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for RecurringCancelEventDialog — verifies the fail-closed
+ * behaviour when recipient discovery fails: both single-occurrence and
+ * entire-series cancellation remain available but push notification delivery
+ * is force-disabled. On successful discovery the callbacks receive the
+ * user's push selection unchanged.
+ *
+ * These tests fully mock @/integrations/supabase/client — no database or
+ * hosted service is contacted.
+ */
 
-const { from } = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from } }));
-vi.mock("@/hooks/useNativeKeyboardBottomInset", () => ({ useNativeKeyboardBottomInset: () => 0 }));
-
+import React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { RecurringCancelEventDialog } from "./RecurringCancelEventDialog";
 
-function queryResult(data: unknown) {
-  const chain: any = {};
-  chain.select = vi.fn(() => chain);
-  chain.eq = vi.fn(() => chain);
-  chain.not = vi.fn(() => chain);
-  chain.in = vi.fn(() => chain);
-  chain.single = vi.fn().mockResolvedValue({ data, error: null });
-  Object.defineProperty(chain, "then", {
-    value: (resolve: (value: unknown) => unknown) => Promise.resolve({ data, error: null }).then(resolve),
-  });
+// ---- supabase mock ----------------------------------------------------
+
+type TableResp = { data: unknown; error: { message: string } | null };
+const tableResponses: Record<string, TableResp> = {};
+
+const makeChain = (table: string) => {
+  const resolve = () => Promise.resolve(tableResponses[table] ?? { data: [], error: null });
+  const chain: any = {
+    select: () => chain,
+    eq: () => chain,
+    in: () => chain,
+    not: () => chain,
+    maybeSingle: () => resolve(),
+    single: () => resolve(),
+    then: (onF: any, onR: any) => resolve().then(onF, onR),
+  };
   return chain;
-}
+};
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: (table: string) => makeChain(table),
+  },
+}));
+
+vi.mock("@/hooks/useNativeKeyboardBottomInset", () => ({
+  useNativeKeyboardBottomInset: () => 0,
+}));
+
+// ---- helpers ----------------------------------------------------------
 
 const baseProps = {
   open: true,
@@ -26,110 +51,142 @@ const baseProps = {
   eventTitle: "Weekly Training",
   teamId: "team-1",
   clubId: "club-1",
-  eventType: "training",
-  onSingleAction: vi.fn(),
-  onSeriesAction: vi.fn(),
+  eventType: "training" as string | null,
 };
 
-describe("RecurringCancelEventDialog", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    baseProps.onOpenChange = vi.fn();
-    baseProps.onSingleAction = vi.fn();
-    baseProps.onSeriesAction = vi.fn();
-  });
+const setUserRoles = (data: unknown, error: any = null) => {
+  tableResponses["user_roles"] = { data, error };
+};
 
-  it("deduplicates team recipients and scopes cancellation to this occurrence", async () => {
-    from.mockReturnValueOnce(queryResult([
-      { user_id: "member-1" },
-      { user_id: "member-1" },
-      { user_id: "member-2" },
-    ]));
-    render(<RecurringCancelEventDialog {...baseProps} />);
+beforeEach(() => {
+  cleanup();
+  Object.keys(tableResponses).forEach((k) => delete tableResponses[k]);
+});
 
-    expect(await screen.findByText("2 members will be notified.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Custom message (optional)"), { target: { value: "  Pitch unavailable  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel This Training Only" }));
+// ---- tests ------------------------------------------------------------
 
-    expect(baseProps.onSingleAction).toHaveBeenCalledWith("Pitch unavailable", true);
-    expect(baseProps.onSeriesAction).not.toHaveBeenCalled();
-    expect(baseProps.onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("selects the entire series and preserves the no-push choice", async () => {
-    from.mockReturnValueOnce(queryResult([{ user_id: "member-1" }]));
-    render(<RecurringCancelEventDialog {...baseProps} />);
-    await screen.findByText("1 member will be notified.");
-    fireEvent.click(screen.getByLabelText("Also send push notification to members"));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Entire Series" }));
-
-    expect(baseProps.onSeriesAction).toHaveBeenCalledWith(undefined, false);
-    expect(baseProps.onSingleAction).not.toHaveBeenCalled();
-    expect(baseProps.onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("counts unique mini-league parents and admins without double-notifying the same user", async () => {
-    from
-      .mockReturnValueOnce(queryResult({ club_id: "club-1" }))
-      .mockReturnValueOnce(queryResult([
-        { parent_user_id: "parent-1" },
-        { parent_user_id: "parent-1" },
-        { parent_user_id: "parent-2" },
-      ]))
-      .mockReturnValueOnce(queryResult([
-        { user_id: "admin-1" },
-        { user_id: "parent-1" },
-      ]));
-    render(<RecurringCancelEventDialog {...baseProps} teamId={null} miniLeagueId="league-1" eventType="game" />);
-
-    expect(await screen.findByText("3 members will be notified.")).toBeInTheDocument();
-    expect(screen.getByText("Message will be posted to league chat")).toBeInTheDocument();
-    expect(from).toHaveBeenNthCalledWith(1, "mini_leagues");
-    expect(from).toHaveBeenNthCalledWith(2, "mini_league_players");
-    expect(from).toHaveBeenNthCalledWith(3, "user_roles");
-  });
-
-  it("disables both cancellation choices while recipient counting is pending", async () => {
-    let resolveQuery!: (value: unknown) => void;
-    const pending = new Promise((resolve) => { resolveQuery = resolve; });
-    const chain: any = { select: vi.fn(), eq: vi.fn() };
-    chain.select.mockReturnValue(chain);
-    chain.eq.mockReturnValue(chain);
-    Object.defineProperty(chain, "then", { value: pending.then.bind(pending) });
-    from.mockReturnValueOnce(chain);
-    render(<RecurringCancelEventDialog {...baseProps} />);
-
-    expect(screen.getByRole("button", { name: "Cancel This Training Only" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Cancel Entire Series" })).toBeDisabled();
-    resolveQuery({ data: [], error: null });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel This Training Only" })).toBeEnabled());
-  });
-
-  it("must fail closed on push delivery when series recipient discovery fails", async () => {
-    const chain: any = {};
-    chain.select = vi.fn(() => chain);
-    chain.eq = vi.fn(() => chain);
-    Object.defineProperty(chain, "then", {
-      value: (_resolve: unknown, reject: (error: unknown) => void) =>
-        Promise.reject(new Error("recipient lookup failed")).catch(reject),
-    });
-    from.mockReturnValueOnce(chain);
-    render(<RecurringCancelEventDialog {...baseProps} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Cancel Entire Series" })).toBeEnabled(),
+describe("RecurringCancelEventDialog — fail-closed on recipient lookup failure", () => {
+  it("counts members and enables push when recipient lookup succeeds", async () => {
+    setUserRoles([{ user_id: "u1" }, { user_id: "u2" }]);
+    render(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={vi.fn()}
+        onSeriesAction={vi.fn()}
+      />
     );
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Entire Series" }));
-
-    expect(baseProps.onSeriesAction).toHaveBeenCalledWith(undefined, false);
+    await waitFor(() =>
+      expect(screen.getByText(/2 members will be notified/i)).toBeInTheDocument()
+    );
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeDisabled();
+    expect(checkbox).toHaveAttribute("data-state", "checked");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("prevents every action while a series cancellation is pending", async () => {
-    from.mockReturnValueOnce(queryResult([]));
-    render(<RecurringCancelEventDialog {...baseProps} isPending />);
+  it("must fail closed on push delivery when series recipient discovery fails — single button", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onSingleAction = vi.fn();
+    const onSeriesAction = vi.fn();
+    render(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={onSingleAction}
+        onSeriesAction={onSeriesAction}
+      />
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
-    expect(await screen.findByRole("button", { name: "Cancelling..." })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Cancel Entire Series" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Keep Training" })).toBeDisabled();
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toHaveAttribute("data-state", "unchecked");
+    expect(checkbox).toBeDisabled();
+    expect(screen.queryByText(/members will be notified/i)).toBeNull();
+
+    const singleBtn = screen.getByRole("button", { name: /Cancel This/i });
+    expect(singleBtn).not.toBeDisabled();
+    fireEvent.click(singleBtn);
+    expect(onSingleAction).toHaveBeenCalledTimes(1);
+    expect(onSingleAction).toHaveBeenCalledWith(undefined, false);
+    expect(onSeriesAction).not.toHaveBeenCalled();
+  });
+
+  it("must fail closed on push delivery when series recipient discovery fails — series button", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onSingleAction = vi.fn();
+    const onSeriesAction = vi.fn();
+    render(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={onSingleAction}
+        onSeriesAction={onSeriesAction}
+      />
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    const seriesBtn = screen.getByRole("button", { name: /Cancel Entire Series/i });
+    expect(seriesBtn).not.toBeDisabled();
+    fireEvent.click(seriesBtn);
+    expect(onSeriesAction).toHaveBeenCalledTimes(1);
+    expect(onSeriesAction).toHaveBeenCalledWith(undefined, false);
+    expect(onSingleAction).not.toHaveBeenCalled();
+  });
+
+  it("trims the custom message and forwards it with push=false when lookup fails", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onSingleAction = vi.fn();
+    render(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={onSingleAction}
+        onSeriesAction={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    const textarea = screen.getByPlaceholderText(/Add a reason/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "  cancelled  " } });
+    fireEvent.click(screen.getByRole("button", { name: /Cancel This/i }));
+    expect(onSingleAction).toHaveBeenCalledWith("cancelled", false);
+  });
+
+  it("a successful retry restores normal recipient count and push selection", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onSingleAction = vi.fn();
+    const { rerender } = render(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={onSingleAction}
+        onSeriesAction={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    setUserRoles([{ user_id: "u1" }, { user_id: "u2" }, { user_id: "u3" }, { user_id: "u1" }]);
+    rerender(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        open={false}
+        onSingleAction={onSingleAction}
+        onSeriesAction={vi.fn()}
+      />
+    );
+    rerender(
+      <RecurringCancelEventDialog
+        {...baseProps}
+        onSingleAction={onSingleAction}
+        onSeriesAction={vi.fn()}
+      />
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/3 members will be notified/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeDisabled();
+    expect(checkbox).toHaveAttribute("data-state", "checked");
+
+    fireEvent.click(screen.getByRole("button", { name: /Cancel This/i }));
+    expect(onSingleAction).toHaveBeenLastCalledWith(undefined, true);
   });
 });

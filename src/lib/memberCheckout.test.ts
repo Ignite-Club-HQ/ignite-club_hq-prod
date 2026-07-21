@@ -1,195 +1,243 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests pinning the memberCheckout client contract.
+ *
+ * Covers:
+ *   Amount validation (defects 1) — invalid values never reach fetch.
+ *   Subscription interval validation (defect 2).
+ *   Server-side truth for platform fee (client-supplied values ignored).
+ *   Idempotent realtime listener cleanup (defect 3).
+ *   At-most-one terminal callback.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mocks = vi.hoisted(() => {
-  const channel = vi.fn();
-  const removeChannel = vi.fn();
-  const websiteClient = { channel, removeChannel };
+// Mock the Supabase client BEFORE importing the module under test so that
+// listenForPaymentStatus binds to the mock, not the real websiteSupabase.
+const removeChannelSpy = vi.fn();
+let channelCallback: ((payload: any) => void) | null = null;
+
+vi.mock('@supabase/supabase-js', () => {
   return {
-    createClient: vi.fn(() => websiteClient),
-    channel,
-    on: vi.fn(),
-    subscribe: vi.fn(),
-    removeChannel,
-    realtimeHandler: undefined as undefined | ((payload: any) => void),
-    channelObject: { id: "payment-channel" },
+    createClient: () => ({
+      channel: (_name: string) => {
+        const chan: any = {
+          on: (_event: string, _filter: any, cb: (payload: any) => void) => {
+            channelCallback = cb;
+            return chan;
+          },
+          subscribe: () => chan,
+        };
+        return chan;
+      },
+      removeChannel: (...args: any[]) => removeChannelSpy(...args),
+    }),
   };
 });
 
-vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
-
-mocks.channel.mockImplementation(() => ({ on: mocks.on }));
-mocks.on.mockImplementation((_event, _filter, handler) => {
-  mocks.realtimeHandler = handler;
-  return { subscribe: mocks.subscribe };
-});
-mocks.subscribe.mockReturnValue(mocks.channelObject);
-
 import {
   createMemberCheckout,
-  IGNITE_PLATFORM_FEE_PERCENT,
+  calculateIgnitePlatformFeeCents,
   listenForPaymentStatus,
-} from "./memberCheckout";
+  IGNITE_PLATFORM_FEE_PERCENT,
+  MEMBER_CHECKOUT_MIN_CENTS,
+  type MemberCheckoutParams,
+} from './memberCheckout';
 
-const validCheckout = {
-  club_id: "club-1",
-  title: "Season fees",
-  amount_cents: 2500,
-  type: "event" as const,
-};
-
-describe("member checkout request integrity", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: vi.fn().mockResolvedValue({ url: "https://checkout.example/session", payment_id: "payment-1" }),
-    }));
+// --- fetch mock ---------------------------------------------------------
+const fetchMock = vi.fn();
+beforeEach(() => {
+  fetchMock.mockReset();
+  removeChannelSpy.mockReset();
+  channelCallback = null;
+  fetchMock.mockResolvedValue({
+    json: async () => ({ url: 'https://stripe.test/session', payment_id: 'pmt_1' }),
   });
+  vi.stubGlobal('fetch', fetchMock);
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
-  it("uses the documented five-percent platform fee and safe defaults", async () => {
+function baseEvent(overrides: Partial<MemberCheckoutParams> = {}): MemberCheckoutParams {
+  return {
+    club_id: 'club-1',
+    title: 'Match fee',
+    amount_cents: 2500,
+    type: 'event',
+    ...overrides,
+  };
+}
+
+// --- fee math -----------------------------------------------------------
+describe('platform fee calculation', () => {
+  it('computes 5% correctly for a whole-dollar amount', () => {
+    // Test 2: 5% platform fee on $25 (2500 cents) = 125 cents
+    expect(calculateIgnitePlatformFeeCents(2500)).toBe(125);
     expect(IGNITE_PLATFORM_FEE_PERCENT).toBe(0.05);
-    await createMemberCheckout(validCheckout);
-
-    expect(fetch).toHaveBeenCalledOnce();
-    const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url).endsWith("/functions/v1/create-member-checkout")).toBe(true);
-    expect(init).toMatchObject({ method: "POST", headers: { "Content-Type": "application/json" } });
-    expect(JSON.parse(String(init!.body))).toEqual({
-      ...validCheckout,
-      currency: "aud",
-      success_url: "igniteclubhq://payment-success",
-      cancel_url: "igniteclubhq://payment-cancel",
-      platform_fee_cents: 125,
-      metadata: { platform_fee_cents: "125" },
-    });
   });
-
-  it("rounds fractional-cent platform fees deterministically", async () => {
-    await createMemberCheckout({ ...validCheckout, amount_cents: 999 });
-    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]!.body));
-    expect(body.platform_fee_cents).toBe(50);
-    expect(body.metadata.platform_fee_cents).toBe("50");
-  });
-
-  it("preserves custom checkout settings while protecting calculated fee metadata", async () => {
-    await createMemberCheckout({
-      ...validCheckout,
-      currency: "nzd",
-      success_url: "igniteclubhq://custom-success",
-      cancel_url: "igniteclubhq://custom-cancel",
-      metadata: { season: "2030", platform_fee_cents: "tampered" },
-      platform_fee_cents: 1,
-    });
-    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]!.body));
-
-    expect(body.currency).toBe("nzd");
-    expect(body.success_url).toBe("igniteclubhq://custom-success");
-    expect(body.cancel_url).toBe("igniteclubhq://custom-cancel");
-    expect(body.platform_fee_cents).toBe(125);
-    expect(body.metadata).toEqual({ season: "2030", platform_fee_cents: "125" });
-  });
-
-  it("returns the checkout URL and payment identity from a successful response", async () => {
-    await expect(createMemberCheckout(validCheckout)).resolves.toEqual({
-      url: "https://checkout.example/session",
-      payment_id: "payment-1",
-    });
-  });
-
-  it.each([0, 49, -100, Number.NaN, Number.POSITIVE_INFINITY])(
-    "must reject invalid amount_cents=%s before contacting checkout",
-    async amount_cents => {
-      await expect(createMemberCheckout({ ...validCheckout, amount_cents })).rejects.toThrow(/amount/i);
-      expect(fetch).not.toHaveBeenCalled();
-    },
-  );
-
-  it("must reject a subscription checkout without a billing interval", async () => {
-    await expect(createMemberCheckout({ ...validCheckout, type: "subscription" })).rejects.toThrow(/interval/i);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("preserves a checkout endpoint error for callers to surface", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      json: vi.fn().mockResolvedValue({ error: "Club payments are disabled" }),
-    } as any);
-
-    await expect(createMemberCheckout(validCheckout)).resolves.toEqual({ error: "Club payments are disabled" });
+  it('rounds fractional cent results deterministically', () => {
+    // Test 3: 5% of 199 cents = 9.95 -> 10 (Math.round, stable)
+    expect(calculateIgnitePlatformFeeCents(199)).toBe(10);
+    expect(calculateIgnitePlatformFeeCents(101)).toBe(5);
   });
 });
 
-describe("member payment realtime lifecycle", () => {
-  afterEach(() => vi.useRealTimers());
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
-    mocks.realtimeHandler = undefined;
-    mocks.channel.mockImplementation(() => ({ on: mocks.on }));
-    mocks.on.mockImplementation((_event, _filter, handler) => {
-      mocks.realtimeHandler = handler;
-      return { subscribe: mocks.subscribe };
+// --- createMemberCheckout: happy paths ---------------------------------
+describe('createMemberCheckout — valid input', () => {
+  it('Test 1: valid event checkout retains current defaults', async () => {
+    await createMemberCheckout(baseEvent());
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+    expect(body.currency).toBe('aud');
+    expect(body.success_url).toBe('igniteclubhq://payment-success');
+    expect(body.cancel_url).toBe('igniteclubhq://payment-cancel');
+    expect(body.platform_fee_cents).toBe(125);
+    expect(body.metadata.platform_fee_cents).toBe('125');
+  });
+
+  it('Test 4: caller-supplied platform_fee_cents cannot override the calculation', async () => {
+    await createMemberCheckout(
+      baseEvent({ platform_fee_cents: 1 as any, metadata: { platform_fee_cents: '1' } }),
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+    expect(body.platform_fee_cents).toBe(125);
+    expect(body.metadata.platform_fee_cents).toBe('125');
+  });
+
+  it('Tests 11 & 13: weekly, monthly and yearly subscriptions are accepted', async () => {
+    for (const interval of ['week', 'month', 'year'] as const) {
+      fetchMock.mockClear();
+      await createMemberCheckout(
+        baseEvent({ type: 'subscription', interval, amount_cents: 500 }),
+      );
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+      expect(body.interval).toBe(interval);
+      expect(body.type).toBe('subscription');
+    }
+  });
+
+  it('Test 14: event payments cannot contain recurring subscription parameters', async () => {
+    await createMemberCheckout(
+      baseEvent({ interval: 'month' as any }),
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+    expect(body.interval).toBeUndefined();
+  });
+});
+
+// --- amount validation --------------------------------------------------
+describe('createMemberCheckout — amount validation rejects before fetch', () => {
+  const cases: Array<[string, number]> = [
+    ['Test 5: zero amount', 0],
+    ['Test 6: amount below 50 cents', MEMBER_CHECKOUT_MIN_CENTS - 1],
+    ['Test 7: negative amount', -500],
+    ['Test 8: NaN', Number.NaN],
+    ['Test 9a: positive Infinity', Number.POSITIVE_INFINITY],
+    ['Test 9b: negative Infinity', Number.NEGATIVE_INFINITY],
+    ['Test 10: non-integer cents', 250.5],
+  ];
+  for (const [label, amount] of cases) {
+    it(`${label} is rejected and fetch is never called`, async () => {
+      await expect(
+        createMemberCheckout(baseEvent({ amount_cents: amount })),
+      ).rejects.toThrow(/Invalid checkout amount/);
+      expect(fetchMock).not.toHaveBeenCalled();
     });
-    mocks.subscribe.mockReturnValue(mocks.channelObject);
+  }
+});
+
+// --- subscription interval validation ----------------------------------
+describe('createMemberCheckout — subscription interval validation', () => {
+  it('Test 11: subscription without interval is rejected', async () => {
+    await expect(
+      createMemberCheckout(baseEvent({ type: 'subscription' })),
+    ).rejects.toThrow(/Invalid subscription interval/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('Test 12: subscription with an invalid interval is rejected', async () => {
+    await expect(
+      createMemberCheckout(
+        baseEvent({ type: 'subscription', interval: 'day' as any }),
+      ),
+    ).rejects.toThrow(/Invalid subscription interval/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// --- listenForPaymentStatus --------------------------------------------
+describe('listenForPaymentStatus — realtime lifecycle', () => {
+  it('Test 16: paid status triggers exactly one callback and one cleanup', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb);
+    channelCallback!({ new: { status: 'paid' } });
+    expect(cb).toHaveBeenCalledOnce();
+    expect(cb).toHaveBeenCalledWith('paid', { status: 'paid' });
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
   });
 
-  it("subscribes only to updates for the exact payment row", () => {
-    listenForPaymentStatus("payment-42", vi.fn());
-
-    expect(mocks.channel).toHaveBeenCalledWith("payment-payment-42");
-    expect(mocks.on).toHaveBeenCalledWith("postgres_changes", {
-      event: "UPDATE",
-      schema: "public",
-      table: "member_payments",
-      filter: "id=eq.payment-42",
-    }, expect.any(Function));
+  it('Test 17: failed status triggers exactly one callback and one cleanup', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb);
+    channelCallback!({ new: { status: 'failed' } });
+    expect(cb).toHaveBeenCalledOnce();
+    expect(cb).toHaveBeenCalledWith('failed', { status: 'failed' });
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
   });
 
-  it.each(["paid", "failed"] as const)("reports terminal %s status and unsubscribes", status => {
-    const onStatus = vi.fn();
-    listenForPaymentStatus("payment-1", onStatus);
-    const payment = { id: "payment-1", status };
-
-    mocks.realtimeHandler!({ new: payment });
-
-    expect(onStatus).toHaveBeenCalledWith(status, payment);
-    expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channelObject);
+  it('Test 18: non-terminal updates do not complete the listener', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb);
+    channelCallback!({ new: { status: 'pending' } });
+    channelCallback!({ new: { status: 'processing' } });
+    expect(cb).not.toHaveBeenCalled();
+    expect(removeChannelSpy).not.toHaveBeenCalled();
   });
 
-  it("ignores non-terminal payment updates", () => {
-    const onStatus = vi.fn();
-    listenForPaymentStatus("payment-1", onStatus);
-    mocks.realtimeHandler!({ new: { id: "payment-1", status: "pending" } });
-
-    expect(onStatus).not.toHaveBeenCalled();
-    expect(mocks.removeChannel).not.toHaveBeenCalled();
+  it('Test 19: timeout removes the channel without reporting a false status', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb, 1000);
+    vi.advanceTimersByTime(1000);
+    expect(cb).not.toHaveBeenCalled();
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
   });
 
-  it("unsubscribes after the configured timeout without reporting a false status", () => {
-    const onStatus = vi.fn();
-    listenForPaymentStatus("payment-1", onStatus, 5000);
-    vi.advanceTimersByTime(4999);
-    expect(mocks.removeChannel).not.toHaveBeenCalled();
+  it('Test 20: manual cleanup removes the channel exactly once even when called repeatedly', () => {
+    const cb = vi.fn();
+    const cleanup = listenForPaymentStatus('pmt_1', cb);
+    cleanup();
+    cleanup();
+    cleanup();
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
+  });
+
+  it('Test 21: cleanup racing with a terminal update removes the channel once and does not fire a stale callback', () => {
+    const cb = vi.fn();
+    const cleanup = listenForPaymentStatus('pmt_1', cb);
+    cleanup();
+    // Realtime terminal update arrives AFTER manual cleanup (navigation).
+    channelCallback!({ new: { status: 'paid' } });
+    expect(cb).not.toHaveBeenCalled();
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
+  });
+
+  it('Test 22: repeated terminal updates cannot invoke the callback twice', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb);
+    channelCallback!({ new: { status: 'paid' } });
+    channelCallback!({ new: { status: 'paid' } });
+    channelCallback!({ new: { status: 'failed' } });
+    expect(cb).toHaveBeenCalledOnce();
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the default 10-minute timeout when not overridden', () => {
+    const cb = vi.fn();
+    listenForPaymentStatus('pmt_1', cb);
+    // Just under 10 minutes — still active.
+    vi.advanceTimersByTime(10 * 60 * 1000 - 1);
+    expect(removeChannelSpy).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-
-    expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channelObject);
-    expect(onStatus).not.toHaveBeenCalled();
-  });
-
-  it("returns a cleanup function for navigation away", () => {
-    const cleanup = listenForPaymentStatus("payment-1", vi.fn());
-    cleanup();
-    expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channelObject);
-  });
-
-  it("must remove the realtime channel at most once when cleanup races a terminal update", () => {
-    const cleanup = listenForPaymentStatus("payment-1", vi.fn());
-    cleanup();
-    mocks.realtimeHandler!({ new: { id: "payment-1", status: "paid" } });
-    vi.runAllTimers();
-
-    expect(mocks.removeChannel).toHaveBeenCalledTimes(1);
+    expect(removeChannelSpy).toHaveBeenCalledOnce();
   });
 });

@@ -276,6 +276,28 @@ export function consumePendingChatJump(kind: ChatJumpKind, targetId: string | nu
 }
 
 /**
+ * Drop the pending chat-jump target and reset module-level "last consumed"
+ * memoisation. Used by `clearUserScopedCaches()` on sign-out / cross-user
+ * sign-in so User A's tapped message id cannot influence User B's chat page
+ * mount in the same tab. Also cancels the eager jump-active arming timer so
+ * User B's chat pages don't skip their initial bottom-pin.
+ */
+export function clearPendingChatJumpState(): void {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+  lastConsumedJump = null;
+  if (eagerJumpClearTimer) {
+    clearTimeout(eagerJumpClearTimer);
+    eagerJumpClearTimer = null;
+  }
+  try { setChatJumpActive(false); } catch { /* noop */ }
+}
+
+
+/**
  * Best-effort: derive (kind, targetId, messageId) from a notification
  * payload + URL and persist them so the chat page can pick up the jump
  * even if the search param is stripped during navigation.

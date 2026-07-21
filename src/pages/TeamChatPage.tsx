@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
@@ -35,7 +35,7 @@ import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -82,12 +83,13 @@ import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
-import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
+import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -551,6 +553,7 @@ export default function TeamChatPage() {
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
     queryFn: async () => {
+      markChatFetch();
       // If offline, return cached messages using the React Query online manager
       // so native app resume does not incorrectly fall back to stale cache.
       if (!isOnline) {
@@ -1203,8 +1206,20 @@ export default function TeamChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, teamId, authReady]);
 
+  // Free-tier polling switch (based on parent club's Pro status).
+  const { mode: teamRealtimeMode, intervalMs: teamPollIntervalMs } = useClubRealtimeMode(team?.club_id ?? null);
+
+  useEffect(() => {
+    if (!teamId || teamRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    }, teamPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient]);
+
   useEffect(() => {
     if (!teamId) return;
+    if (teamRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`team-messages-${teamId}`)
@@ -1448,11 +1463,15 @@ export default function TeamChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`team-messages-${teamId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `team-messages-${teamId}`, channel, userId: user.id, scope: { kind: "team", id: teamId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1849,16 +1868,20 @@ export default function TeamChatPage() {
           setTimeout(() => setInviteSheetOpen(true), 80);
         }}
       />
-      <AddTeamMemberSheet
-        teamId={teamId!}
-        teamName={team.name}
-        clubId={team.club_id}
-        teamType={(team as any).team_type || "mixed"}
-        canBulkInvite={!!isAdmin}
-        triggerVariant="none"
-        externalOpen={inviteSheetOpen}
-        onExternalOpenChange={setInviteSheetOpen}
-      />
+      {inviteSheetOpen && (
+        <Suspense fallback={null}>
+        <AddTeamMemberSheet
+          teamId={teamId!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          canBulkInvite={!!isAdmin}
+          triggerVariant="none"
+          externalOpen={inviteSheetOpen}
+          onExternalOpenChange={setInviteSheetOpen}
+        />
+        </Suspense>
+      )}
       {/* Notification Nudge — deferred until after initial chat reveal to prevent post-pin jolt */}
       {bannersReady && notificationNudge.shouldShowNudge && (
         <div className="px-4 pt-2 shrink-0">
@@ -2033,7 +2056,7 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

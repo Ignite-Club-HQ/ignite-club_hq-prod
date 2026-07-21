@@ -44,6 +44,18 @@ function sanitizeError(error: unknown): string {
   return sanitized;
 }
 
+// Reject missing, empty, whitespace-only, "undefined" / "null" or malformed
+// bearer tokens BEFORE any downstream call.
+function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader || typeof authHeader !== "string") return null;
+  const trimmed = authHeader.trim();
+  if (!trimmed.toLowerCase().startsWith("bearer ")) return null;
+  const token = trimmed.slice(7).trim();
+  if (!token) return null;
+  const lower = token.toLowerCase();
+  if (lower === "undefined" || lower === "null") return null;
+  return token;
+
 async function checkRateLimit(
   supabase: any,
   identifier: string,
@@ -106,7 +118,8 @@ serve(async (req) => {
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const bearer = extractBearerToken(authHeader);
+    if (!bearer) {
       return new Response(
         JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -118,11 +131,11 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
     });
 
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-    
+
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Authentication required" }),

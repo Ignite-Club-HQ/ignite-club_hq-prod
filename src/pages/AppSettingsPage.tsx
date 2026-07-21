@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff, ListOrdered, Sparkles, Rocket } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff, ListOrdered, Sparkles, Rocket, Radio } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,6 +111,11 @@ export default function AppSettingsPage() {
   // Default notification prefetch to ON when the row is missing or unset.
   const notifPrefetchRow = settings?.find(s => s.key === "notification_prefetch_enabled");
   const isNotifPrefetchEnabled = notifPrefetchRow?.value !== false && notifPrefetchRow?.value !== "false";
+
+  // Default Free-club polling to OFF (explicit opt-in). Only flips Free-tier
+  // clubs from realtime to periodic polling; Pro clubs are unaffected.
+  const freePollingRow = settings?.find(s => s.key === "free_club_polling_enabled");
+  const isFreePollingEnabled = freePollingRow?.value === true || freePollingRow?.value === "true";
 
   // Basic-mode chunk size — clamped 10–500, default 100.
   const chunkRow = settings?.find(s => s.key === "chat_basic_chunk_size");
@@ -352,6 +357,39 @@ export default function AppSettingsPage() {
 
 
         <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Radio className={`h-5 w-5 ${isFreePollingEnabled ? "text-amber-500" : "text-green-500"}`} />
+              Free-club polling mode
+            </CardTitle>
+            <CardDescription>
+              Scaling lever. When ON, Free-tier clubs switch their chat pages from Supabase Realtime WebSockets to periodic polling (~30s). Pro clubs are unaffected and keep instant realtime updates. Reduces concurrent WebSocket connections by roughly 80% at scale. Users on Free clubs may see new messages up to 30s later while the chat is open and idle; sent messages, push notifications, and refetch-on-resume are unchanged. Default OFF — turn ON as onboarding scales past ~200 clubs. May take up to 5 min to propagate to active sessions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="free-polling-toggle" className="text-base font-medium">
+                  Enable polling for Free clubs
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {isFreePollingEnabled
+                    ? "Free clubs poll every 30s. Pro clubs remain on realtime."
+                    : "All clubs (Free and Pro) use realtime — no scaling protection."}
+                </p>
+              </div>
+              <Switch
+                id="free-polling-toggle"
+                checked={isFreePollingEnabled}
+                onCheckedChange={() => handleToggle("free_club_polling_enabled", isFreePollingEnabled)}
+                disabled={updateSettingMutation.isPending}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />

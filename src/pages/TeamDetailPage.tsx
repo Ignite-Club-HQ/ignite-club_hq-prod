@@ -64,15 +64,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
-const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+// NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
 const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddPlayerToParentSheet from "@/components/team/AddPlayerToParentSheet";
 import LinkChildToParentSheet from "@/components/LinkChildToParentSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
@@ -970,7 +969,8 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
-      {(isAdmin || isClubAdmin) && (
+      {(isAdmin || isClubAdmin) && headerInviteOpen && (
+        <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={id!}
           teamName={team.name}
@@ -982,6 +982,7 @@ export default function TeamDetailPage() {
           externalOpen={headerInviteOpen}
           onExternalOpenChange={setHeaderInviteOpen}
         />
+        </Suspense>
       )}
 
       {(isAdmin || isClubAdmin) && (
@@ -2574,64 +2575,8 @@ export default function TeamDetailPage() {
         document.body
       )}
 
-      {/* Game Board Modal — netball */}
-      {showPitchBoard && isNetballClub && isAppAdmin && createPortal(
-        <Suspense fallback={
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
-            </div>
-          </div>
-        }>
-          <div className="fixed inset-0 z-[9999] bg-background">
-            <NetballBoard
-              teamId={id!}
-              teamName={team.name}
-              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
-              onClose={() => {
-                clearPitchBoardOpenFlag();
-                setShowPitchBoard(false);
-                setLinkedEventId(null);
-                setPitchBoardMembersOverride([]);
-              }}
-              readOnly={!canEditPitchBoard && !isSubsManager}
-              eventId={linkedEventId}
-            />
-          </div>
-        </Suspense>,
-        document.body
-      )}
+      {/* Netball + Basketball Game Board modals archived — football-only build (see archive/sports/) */}
 
-      {/* Game Board Modal — basketball */}
-      {showPitchBoard && isBasketballClub && isAppAdmin && createPortal(
-        <Suspense fallback={
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
-            </div>
-          </div>
-        }>
-          <div className="fixed inset-0 z-[9999] bg-background">
-            <BasketballBoard
-              teamId={id!}
-              teamName={team.name}
-              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
-              onClose={() => {
-                clearPitchBoardOpenFlag();
-                setShowPitchBoard(false);
-                setLinkedEventId(null);
-                setPitchBoardMembersOverride([]);
-              }}
-              readOnly={!canEditPitchBoard && !isSubsManager}
-              eventId={linkedEventId}
-            />
-          </div>
-        </Suspense>,
-        document.body
-      )}
-      
       {/* Admin invite dialog - shown after team creation with "assign someone else" option */}
       <TeamAdminInviteDialog
         open={showAdminInviteDialog}

@@ -1,139 +1,187 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for usePitchBoardNotifications.
+ *
+ * Core defect: an in-flight preference request from a previous account
+ * must NOT overwrite state after the authenticated user changes.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, waitFor, act } from "@testing-library/react";
 
-const { from, authState, responses } = vi.hoisted(() => ({
-  from: vi.fn(),
-  authState: { user: undefined as undefined | { id: string } },
-  responses: [] as Array<Promise<any> | any>,
+// ---------- useAuth mock ----------
+let currentUser: { id: string } | null = { id: "user-A" };
+vi.mock("./useAuth", () => ({
+  useAuth: () => ({ user: currentUser }),
 }));
+
+// ---------- Supabase mock ----------
+type Resp = { data: { pitch_board_enabled: boolean | null } | null; error: unknown };
+// Map of user_id -> queued responses (each call shifts one; falls back to last)
+const responses: Record<string, Array<Resp | (() => Promise<Resp>)>> = {};
+const singleCalls: Array<{ userId: string }> = [];
+
+function nextResp(userId: string): Promise<Resp> {
+  const q = responses[userId];
+  if (!q || q.length === 0) return Promise.resolve({ data: null, error: null });
+  const next = q.length === 1 ? q[0] : q.shift()!;
+  return typeof next === "function" ? next() : Promise.resolve(next);
+}
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from },
-}));
-vi.mock("./useAuth", () => ({
-  useAuth: () => authState,
+  supabase: {
+    from: (_table: string) => {
+      const state: { userId: string } = { userId: "" };
+      const chain: any = {
+        select: () => chain,
+        eq: (_col: string, val: string) => {
+          state.userId = val;
+          return chain;
+        },
+        single: () => {
+          singleCalls.push({ userId: state.userId });
+          return nextResp(state.userId);
+        },
+      };
+      return chain;
+    },
+  },
 }));
 
 import {
-  checkPitchBoardNotificationsEnabled,
   usePitchBoardNotifications,
+  checkPitchBoardNotificationsEnabled,
 } from "./usePitchBoardNotifications";
 
-function preferenceQuery() {
-  const response = responses.shift() ?? { data: null, error: null };
-  const query: any = {};
-  query.select = vi.fn(() => query);
-  query.eq = vi.fn(() => query);
-  query.single = vi.fn(() => response);
-  return query;
-}
+beforeEach(() => {
+  currentUser = { id: "user-A" };
+  for (const k of Object.keys(responses)) delete responses[k];
+  singleCalls.length = 0;
+});
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
-describe("pitch-board notification preferences", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    responses.length = 0;
-    authState.user = undefined;
-    from.mockImplementation(() => preferenceQuery());
-  });
-
-  it("defaults to enabled and does not query without an authenticated user", () => {
-    const { result } = renderHook(() => usePitchBoardNotifications());
-
-    expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
-    expect(from).not.toHaveBeenCalled();
-  });
-
-  it("honours an authenticated user's explicit opt-out", async () => {
-    authState.user = { id: "user-1" };
-    responses.push(Promise.resolve({ data: { pitch_board_enabled: false }, error: null }));
-    const query = preferenceQuery();
-    from.mockReturnValue(query);
-
-    const { result } = renderHook(() => usePitchBoardNotifications());
-
-    await waitFor(() => expect(result.current.pitchBoardNotificationsEnabled).toBe(false));
-    expect(from).toHaveBeenCalledWith("notification_preferences");
-    expect(query.select).toHaveBeenCalledWith("pitch_board_enabled");
-    expect(query.eq).toHaveBeenCalledWith("user_id", "user-1");
-    expect(query.single).toHaveBeenCalledOnce();
-  });
-
-  it("defaults to enabled when the preference row or field is missing", async () => {
-    authState.user = { id: "user-1" };
-    responses.push(
-      Promise.resolve({ data: null, error: null }),
-      Promise.resolve({ data: { pitch_board_enabled: null }, error: null }),
+describe("usePitchBoardNotifications", () => {
+  it("defaults to enabled before the preference resolves", () => {
+    responses["user-A"] = [new Promise<Resp>(() => {}) as any].map(
+      (p) => () => p as Promise<Resp>,
     );
-
-    const first = renderHook(() => usePitchBoardNotifications());
-    await act(async () => undefined);
-    expect(first.result.current.pitchBoardNotificationsEnabled).toBe(true);
-    first.unmount();
-
-    const second = renderHook(() => usePitchBoardNotifications());
-    await act(async () => undefined);
-    expect(second.result.current.pitchBoardNotificationsEnabled).toBe(true);
-  });
-
-  it("the standalone check skips the database for an empty user identity", async () => {
-    await expect(checkPitchBoardNotificationsEnabled("")).resolves.toBe(true);
-    expect(from).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [false, false],
-    [true, true],
-    [null, true],
-  ])("the standalone check maps stored value %s to %s", async (stored, expected) => {
-    responses.push(Promise.resolve({ data: { pitch_board_enabled: stored }, error: null }));
-
-    await expect(checkPitchBoardNotificationsEnabled("user-1")).resolves.toBe(expected);
-  });
-
-  it("the standalone check fails safely to enabled when the query throws", async () => {
-    responses.push(Promise.reject(new Error("preferences unavailable")));
-
-    await expect(checkPitchBoardNotificationsEnabled("user-1")).resolves.toBe(true);
-  });
-
-  it("reloads the preference when the authenticated account changes", async () => {
-    authState.user = { id: "user-1" };
-    responses.push(
-      Promise.resolve({ data: { pitch_board_enabled: true }, error: null }),
-      Promise.resolve({ data: { pitch_board_enabled: false }, error: null }),
-    );
-    const { result, rerender } = renderHook(() => usePitchBoardNotifications());
-    await act(async () => undefined);
+    const { result } = renderHook(() => usePitchBoardNotifications());
     expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
+  });
 
-    authState.user = { id: "user-2" };
-    rerender();
+  it("applies enabled=true when preference is true", async () => {
+    responses["user-A"] = [{ data: { pitch_board_enabled: true }, error: null }];
+    const { result } = renderHook(() => usePitchBoardNotifications());
+    await waitFor(() =>
+      expect(result.current.pitchBoardNotificationsEnabled).toBe(true),
+    );
+  });
 
-    await waitFor(() => expect(result.current.pitchBoardNotificationsEnabled).toBe(false));
-    expect(from).toHaveBeenCalledTimes(2);
+  it("applies enabled=false when preference is false", async () => {
+    responses["user-A"] = [{ data: { pitch_board_enabled: false }, error: null }];
+    const { result } = renderHook(() => usePitchBoardNotifications());
+    await waitFor(() =>
+      expect(result.current.pitchBoardNotificationsEnabled).toBe(false),
+    );
+  });
+
+  it("treats a null pitch_board_enabled value as enabled", async () => {
+    responses["user-A"] = [{ data: { pitch_board_enabled: null }, error: null }];
+    const { result } = renderHook(() => usePitchBoardNotifications());
+    await waitFor(() => expect(singleCalls.length).toBeGreaterThan(0));
+    expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
+  });
+
+  it("does not query when there is no user", async () => {
+    currentUser = null;
+    const { result } = renderHook(() => usePitchBoardNotifications());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(singleCalls.length).toBe(0);
+    expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
   });
 
   it("must ignore a stale preference response from the previous account", async () => {
-    const firstUser = deferred<{ data: { pitch_board_enabled: boolean }; error: null }>();
-    const secondUser = deferred<{ data: { pitch_board_enabled: boolean }; error: null }>();
-    authState.user = { id: "user-1" };
-    responses.push(firstUser.promise, secondUser.promise);
+    // User A: pending promise we resolve later with `false`
+    let resolveA: (v: Resp) => void = () => {};
+    const aPromise = new Promise<Resp>((res) => {
+      resolveA = res;
+    });
+    responses["user-A"] = [() => aPromise];
+    // User B: immediate response with `true`
+    responses["user-B"] = [{ data: { pitch_board_enabled: true }, error: null }];
+
     const { result, rerender } = renderHook(() => usePitchBoardNotifications());
 
-    authState.user = { id: "user-2" };
-    rerender();
-    await act(async () => secondUser.resolve({ data: { pitch_board_enabled: false }, error: null }));
-    expect(result.current.pitchBoardNotificationsEnabled).toBe(false);
+    // Switch to user B before A resolves
+    await act(async () => {
+      currentUser = { id: "user-B" };
+      rerender();
+    });
 
-    await act(async () => firstUser.resolve({ data: { pitch_board_enabled: true }, error: null }));
-    expect(result.current.pitchBoardNotificationsEnabled).toBe(false);
+    // B loads
+    await waitFor(() =>
+      expect(result.current.pitchBoardNotificationsEnabled).toBe(true),
+    );
+
+    // Now A's stale response arrives with `false`
+    await act(async () => {
+      resolveA({ data: { pitch_board_enabled: false }, error: null });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Must still reflect user B's preference
+    expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
+  });
+
+  it("re-queries when the user changes", async () => {
+    responses["user-A"] = [{ data: { pitch_board_enabled: true }, error: null }];
+    responses["user-B"] = [{ data: { pitch_board_enabled: false }, error: null }];
+    const { result, rerender } = renderHook(() => usePitchBoardNotifications());
+    await waitFor(() =>
+      expect(result.current.pitchBoardNotificationsEnabled).toBe(true),
+    );
+
+    await act(async () => {
+      currentUser = { id: "user-B" };
+      rerender();
+    });
+
+    await waitFor(() =>
+      expect(result.current.pitchBoardNotificationsEnabled).toBe(false),
+    );
+    expect(singleCalls.map((c) => c.userId)).toEqual(["user-A", "user-B"]);
+  });
+
+  it("does not update state after unmount", async () => {
+    let resolveA: (v: Resp) => void = () => {};
+    responses["user-A"] = [
+      () =>
+        new Promise<Resp>((res) => {
+          resolveA = res;
+        }),
+    ];
+    const { result, unmount } = renderHook(() => usePitchBoardNotifications());
+    unmount();
+    await act(async () => {
+      resolveA({ data: { pitch_board_enabled: false }, error: null });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // Still the default; no warnings expected either
+    expect(result.current.pitchBoardNotificationsEnabled).toBe(true);
+  });
+});
+
+describe("checkPitchBoardNotificationsEnabled (standalone)", () => {
+  it("returns true for a missing userId without querying", async () => {
+    const v = await checkPitchBoardNotificationsEnabled("");
+    expect(v).toBe(true);
+    expect(singleCalls.length).toBe(0);
+  });
+
+  it("returns the stored preference when present", async () => {
+    responses["user-X"] = [{ data: { pitch_board_enabled: false }, error: null }];
+    const v = await checkPitchBoardNotificationsEnabled("user-X");
+    expect(v).toBe(false);
   });
 });

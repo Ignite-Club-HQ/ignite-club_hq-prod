@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   Flame, Mail, Lock, Loader2, Check, Crown, Target, 
@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
-import FindOrCreateClubWizard from "@/components/FindOrCreateClubWizard";
+const FindOrCreateClubWizard = lazy(() => import("@/components/FindOrCreateClubWizard"));
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
@@ -36,8 +36,8 @@ const SPORTS = Object.keys(SPORT_EMOJIS);
 const PRO_FEATURES = [
   "Club-wide announcements & chat",
   "DMs & custom groups",
-  "Unlimited photo & media uploads (Free: 20/month)",
-  "Unlimited file storage (Free: 10 files / 100 MB)",
+  "Unlimited photo & media uploads (Free: 10/month)",
+  "Unlimited file storage (Free: 10 files / 25 MB)",
   "Unlimited polls (Free: 2/month)",
   "Scheduled messages",
   "Pinned vault files in chat",
@@ -297,7 +297,7 @@ export default function SignupProPage() {
 
     setSaving(false);
     setCreatedClubId(club.id);
-    toast({ title: "Club created!", description: `${clubName} has been created.` });
+    
     setStep(4);
   };
 
@@ -363,7 +363,7 @@ export default function SignupProPage() {
 
     setSaving(false);
     setCreatedTeamId(team.id);
-    toast({ title: "Team created!", description: `${teamName} has been created.` });
+    
     setStep(5);
   };
 
@@ -687,6 +687,7 @@ export default function SignupProPage() {
         Back
       </Button>
 
+      <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
       <FindOrCreateClubWizard
         defaultSport={selectedPlan === "pro_football" ? "Soccer" : clubSport}
         onClubCreated={(clubId) => {
@@ -698,6 +699,7 @@ export default function SignupProPage() {
           // For now they stay on this step with the confirmation shown inside the wizard
         }}
       />
+      </Suspense>
     </div>
   );
 

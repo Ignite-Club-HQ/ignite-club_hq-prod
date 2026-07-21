@@ -9,6 +9,7 @@ import { clearProfileCache } from "@/lib/profileCache";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
+import { revokeAllForUser } from "@/lib/realtimeChannelRegistry";
 import { setAuthThemeHint } from "@/lib/authThemeHint";
 import { mark as coldMark } from "@/lib/coldStartMarks";
 
@@ -539,6 +540,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // cross-account data leak.
               try {
                 clearUserScopedCaches();
+                if (previousUserId) revokeAllForUser(previousUserId);
               } catch { /* noop */ }
 
               setIsFreshLogin(true);
@@ -581,6 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // signing in on this device.
           try {
             clearUserScopedCaches();
+            if (previousUserId) revokeAllForUser(previousUserId);
           } catch { /* noop */ }
 
           profileFetched = false;

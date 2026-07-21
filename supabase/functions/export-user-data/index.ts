@@ -129,6 +129,19 @@ function getExtension(path: string, defaultExt: string = ".jpg"): string {
   return defaultExt;
 }
 
+// Reject missing, empty, whitespace-only, "undefined"/"null" or malformed
+// bearer tokens BEFORE any downstream call.
+function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader || typeof authHeader !== "string") return null;
+  const trimmed = authHeader.trim();
+  if (!trimmed.toLowerCase().startsWith("bearer ")) return null;
+  const token = trimmed.slice(7).trim();
+  if (!token) return null;
+  const lower = token.toLowerCase();
+  if (lower === "undefined" || lower === "null") return null;
+  return token;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -136,7 +149,8 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const bearer = extractBearerToken(authHeader);
+    if (!bearer) {
       return new Response(
         JSON.stringify({ error: "No authorization header" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -149,7 +163,7 @@ serve(async (req) => {
 
     // Use anon key for user auth
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
     });
 
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();

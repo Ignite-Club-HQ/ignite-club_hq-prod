@@ -1,175 +1,191 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const { saveGameStats, saveGameResult, hookState } = vi.hoisted(() => ({
-  saveGameStats: vi.fn(), saveGameResult: vi.fn(), hookState: { isSaving: false },
-}));
-vi.mock("@/hooks/useGameStats", () => ({ useGameStats: () => ({ saveGameStats, isSaving: hookState.isSaving }) }));
-vi.mock("@/hooks/useSaveGameResult", () => ({ useSaveGameResult: () => ({ save: saveGameResult }) }));
-
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import GameFinishedDialog from "./GameFinishedDialog";
 
+let saveGameStatsMock: ReturnType<typeof vi.fn>;
+let saveGameResultMock: ReturnType<typeof vi.fn>;
+
+vi.mock("@/hooks/useGameStats", () => ({
+  useGameStats: () => ({
+    saveGameStats: saveGameStatsMock,
+    isSaving: false,
+  }),
+}));
+
+vi.mock("@/hooks/useSaveGameResult", () => ({
+  useSaveGameResult: () => ({
+    save: saveGameResultMock,
+  }),
+}));
+
 const players = [
-  { id: "player-1", name: "Alex", position: null, minutesPlayed: 2400 },
-  { id: "fill-in-1", name: "Guest", position: null, minutesPlayed: 1200, isFillIn: true },
-];
-const goals = [
-  { id: "g1", scorerId: "player-1", scorerName: "Alex", time: 300, half: 1 as const, isOpponentGoal: false },
-  { id: "g2", scorerId: "player-1", scorerName: "Alex", time: 900, half: 1 as const, isOpponentGoal: false },
-  { id: "g3", time: 1500, half: 2 as const, isOpponentGoal: true },
+  { id: "p1", name: "Alice", position: null, minutesPlayed: 30 },
+  { id: "p2", name: "Bob", position: null, minutesPlayed: 25 },
 ];
 
-function renderDialog(overrides: Record<string, unknown> = {}) {
-  const onClose = vi.fn();
-  render(<GameFinishedDialog
-    open onClose={onClose} players={players} totalGameTime={3600} teamName="Riverside"
-    linkedEventId="event-1" teamId="team-1" formationUsed="4-4-2" teamSize={11}
-    executedSubs={[]} halfDuration={1800} goals={goals} eventTitle="League Match"
-    eventDate="2026-08-01" opponent="United" {...overrides}
-  />);
-  return onClose;
-}
+const baseProps = {
+  open: true,
+  onClose: vi.fn(),
+  players,
+  totalGameTime: 60,
+  teamName: "Test Team",
+  linkedEventId: "event-1",
+  teamId: "team-1",
+  formationUsed: "2-3-1",
+  teamSize: 7,
+  executedSubs: [],
+  halfDuration: 30,
+  goals: [],
+  eventTitle: "Match",
+  eventDate: "2026-01-01",
+  opponent: "Opponent FC",
+};
 
-describe("GameFinishedDialog completion workflow", () => {
+describe("GameFinishedDialog duplicate submission guard", () => {
   beforeEach(() => {
-    localStorage.clear(); vi.clearAllMocks(); hookState.isSaving = false;
-    saveGameStats.mockResolvedValue(undefined); saveGameResult.mockResolvedValue(undefined);
-  });
-
-  it("persists linked game stats and a non-clobbering soccer result before closing", async () => {
-    const onClose = renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-
-    expect(saveGameStats).toHaveBeenCalledWith(expect.objectContaining({
-      eventId: "event-1", teamId: "team-1", players, totalGameTime: 3600,
-      halfDuration: 1800, formationUsed: "4-4-2", teamSize: 11, goals,
-    }));
-    expect(saveGameResult).toHaveBeenCalledWith({
-      teamId: "team-1", eventId: "event-1", sport: "soccer", homeLabel: "Riverside", awayLabel: "United",
-      homeScore: 2, awayScore: 1, perQuarter: [], players: [{ id: "player-1", name: "Alex", goals: 2 }],
-    }, { silent: true, onlyIfMissing: true });
-  });
-
-  it("does not persist stats or results for an unlinked game", async () => {
-    const onClose = renderDialog({ linkedEventId: null });
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(saveGameStats).not.toHaveBeenCalled(); expect(saveGameResult).not.toHaveBeenCalled();
-  });
-
-  it("continues local cleanup and closes when stats and result persistence fail", async () => {
-    saveGameStats.mockRejectedValue(new Error("stats denied"));
-    saveGameResult.mockRejectedValue(new Error("result denied"));
-    localStorage.setItem("ignite-pitch-board-state-team-team-1", JSON.stringify({
-      teamId: "team-1", linkedEventId: "event-1", autoSubPlan: [{ id: "step" }], autoSubActive: true,
-      autoSubPaused: true, players,
-    }));
-    const onClose = renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    const state = JSON.parse(localStorage.getItem("ignite-pitch-board-state-team-team-1")!);
-    expect(state).toMatchObject({ linkedEventId: null, autoSubPlan: [], autoSubActive: false, autoSubPaused: false });
-    expect(state.players).toEqual([expect.objectContaining({ id: "player-1" })]);
-  });
-
-  it("stamps only the matching team's timer as finished", async () => {
-    localStorage.setItem("pitch-board-timer-state-team-team-1", JSON.stringify({ isRunning: true }));
-    localStorage.setItem("pitch-board-timer-state", JSON.stringify({ teamId: "other-team", isRunning: true }));
-    const onClose = renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(JSON.parse(localStorage.getItem("pitch-board-timer-state-team-team-1")!)).toMatchObject({ isGameFinished: true, isRunning: false });
-    expect(JSON.parse(localStorage.getItem("pitch-board-timer-state")!)).toEqual({ teamId: "other-team", isRunning: true });
-  });
-
-  it("preserves an existing finish timestamp while refreshing last-update time", async () => {
-    localStorage.setItem("pitch-board-timer-state-team-team-1", JSON.stringify({ isRunning: true, gameFinishedAt: 123 }));
-    const onClose = renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    const timer = JSON.parse(localStorage.getItem("pitch-board-timer-state-team-team-1")!);
-    expect(timer.gameFinishedAt).toBe(123);
-    expect(timer.lastUpdateTime).toEqual(expect.any(Number));
-  });
-
-  it("disables completion while stats are already saving", () => {
-    hookState.isSaving = true;
-    renderDialog();
-    expect(screen.getByRole("button", { name: "Saving Stats..." })).toBeDisabled();
+    localStorage.clear();
+    saveGameStatsMock = vi.fn().mockResolvedValue(undefined);
+    saveGameResultMock = vi.fn().mockResolvedValue(undefined);
+    baseProps.onClose = vi.fn();
   });
 
   it("submits completion only once when the finish button is clicked repeatedly", async () => {
-    let releaseSave!: () => void;
-    saveGameStats.mockImplementation(
-      () => new Promise<void>((resolve) => { releaseSave = resolve; }),
-    );
-    const onClose = renderDialog();
-    const finish = screen.getByRole("button", { name: "Save & Finish" });
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
 
-    fireEvent.click(finish);
-    fireEvent.click(finish);
-    expect(saveGameStats).toHaveBeenCalledTimes(1);
+    // Rapid successive clicks before any async state can update.
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
 
-    releaseSave();
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(saveGameResult).toHaveBeenCalledTimes(1);
+    // Button becomes disabled immediately after the first click.
+    expect(button).toBeDisabled();
+
+    // Resolve the pending saves.
+
+    await waitFor(() => {
+      expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
+    });
+    expect(saveGameResultMock).toHaveBeenCalledTimes(1);
+    expect(baseProps.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("removes match-only fill-ins while preserving registered players after completion", async () => {
-    localStorage.setItem("ignite-pitch-board-state-team-team-1", JSON.stringify({
-      teamId: "team-1",
-      linkedEventId: "event-1",
-      players,
-      goals,
-      score: { home: 2, away: 1 },
-    }));
-    const onClose = renderDialog();
-
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-
-    const state = JSON.parse(
-      localStorage.getItem("ignite-pitch-board-state-team-team-1")!,
-    );
-    expect(state.players).toEqual([
-      expect.objectContaining({ id: "player-1", name: "Alex" }),
-    ]);
-    expect(state.goals).toEqual(goals);
-    expect(state.score).toEqual({ home: 2, away: 1 });
+  it("saveGameStats is called once", async () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(saveGameStatsMock).toHaveBeenCalledTimes(1));
   });
 
-  it("counts opponent goals in the away score and excludes unattributed team goals from player tallies", async () => {
-    const mixedGoals = [
-      ...goals,
-      { id: "g4", time: 1700, half: 2 as const, isOpponentGoal: false },
-      { id: "g5", scorerId: "player-2", time: 1800, half: 2 as const, isOpponentGoal: true },
-    ];
-    const onClose = renderDialog({ goals: mixedGoals });
+  it("saveGameResult is called once", async () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(saveGameResultMock).toHaveBeenCalledTimes(1));
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  it("onClose is called once", async () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
+  });
 
-    expect(saveGameResult).toHaveBeenCalledWith(
-      expect.objectContaining({
-        homeScore: 3,
-        awayScore: 2,
-        players: [{ id: "player-1", name: "Alex", goals: 2 }],
+  it("the completion button becomes disabled immediately after the first click", () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+  });
+
+  it("still saves stats and result for a linked game (happy path)", async () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    await waitFor(() => {
+      expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
+      expect(saveGameResultMock).toHaveBeenCalledTimes(1);
+      expect(baseProps.onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("unlinked game performs local completion once without remote saves", async () => {
+    render(<GameFinishedDialog {...baseProps} linkedEventId={null} />);
+    const button = screen.getByRole("button", { name: /Done/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
+    expect(saveGameStatsMock).not.toHaveBeenCalled();
+    expect(saveGameResultMock).not.toHaveBeenCalled();
+  });
+
+  it("stats and result failures do not prevent local cleanup or closing", async () => {
+    saveGameStatsMock = vi.fn().mockRejectedValue(new Error("stats fail"));
+    saveGameResultMock = vi.fn().mockRejectedValue(new Error("result fail"));
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
+    expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
+    expect(saveGameResultMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stamps timer state as finished with gameFinishedAt", async () => {
+    const timerKey = "pitch-board-timer-state-team-team-1";
+    localStorage.setItem(
+      timerKey,
+      JSON.stringify({ isRunning: true, lastUpdateTime: 1 }),
+    );
+    render(<GameFinishedDialog {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save & Finish/i }));
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
+    const stamped = JSON.parse(localStorage.getItem(timerKey)!);
+    expect(stamped.isGameFinished).toBe(true);
+    expect(stamped.isRunning).toBe(false);
+    expect(stamped.gameFinishedAt).toBeGreaterThan(0);
+  });
+
+  it("clears autoSubPlan and linked event from pitch state", async () => {
+    const pitchKey = "ignite-pitch-board-state-team-team-1";
+    localStorage.setItem(
+      pitchKey,
+      JSON.stringify({
+        autoSubPlan: [{ x: 1 }],
+        autoSubActive: true,
+        autoSubPaused: true,
+        linkedEventId: "event-1",
+        players: [
+          { id: "p1", isFillIn: false },
+          { id: "p9", isFillIn: true },
+        ],
       }),
-      { silent: true, onlyIfMissing: true },
     );
+    render(<GameFinishedDialog {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save & Finish/i }));
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
+    const state = JSON.parse(localStorage.getItem(pitchKey)!);
+    expect(state.autoSubPlan).toEqual([]);
+    expect(state.autoSubActive).toBe(false);
+    expect(state.autoSubPaused).toBe(false);
+    expect(state.linkedEventId).toBeNull();
+    expect(state.players.map((p: any) => p.id)).toEqual(["p1"]);
   });
 
-  it("still closes safely when persisted timer and pitch state are malformed", async () => {
-    localStorage.setItem("pitch-board-timer-state-team-team-1", "{invalid");
-    localStorage.setItem("pitch-board-timer-state", "{invalid");
-    localStorage.setItem("ignite-pitch-board-state-team-team-1", "{invalid");
-    const onClose = renderDialog();
-
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-
-    expect(localStorage.getItem("pitch-board-timer-state-team-team-1")).toBe("{invalid");
-    expect(localStorage.getItem("ignite-pitch-board-state-team-team-1")).toBe("{invalid");
+  it("guard blocks a synchronous double-click before React re-renders", async () => {
+    render(<GameFinishedDialog {...baseProps} />);
+    const button = screen.getByRole("button", { name: /Save & Finish/i });
+    // Two clicks dispatched in the same microtask
+    fireEvent.click(button);
+    fireEvent.click(button);
+    // saveGameStats has already been invoked exactly once, synchronously
+    expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
   });
 });

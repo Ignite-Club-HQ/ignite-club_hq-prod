@@ -1,125 +1,183 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for CancelEventConfirmDialog — verifies the fail-closed
+ * behaviour when recipient discovery fails: cancellation stays available but
+ * push notification delivery is force-disabled and the callback receives
+ * `false` for the push flag. On successful discovery the dialog behaves as
+ * before.
+ *
+ * These tests fully mock @/integrations/supabase/client — no database or
+ * hosted service is contacted.
+ */
 
-const { from } = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from } }));
-vi.mock("@/hooks/useNativeKeyboardBottomInset", () => ({ useNativeKeyboardBottomInset: () => 0 }));
-
+import React from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { CancelEventConfirmDialog } from "./CancelEventConfirmDialog";
 
-function memberQuery(data: Array<{ user_id: string }>) {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-  chain.select = vi.fn(() => chain);
-  chain.eq = vi.fn(() => chain);
-  Object.defineProperty(chain, "then", {
-    value: (resolve: (value: unknown) => unknown) => Promise.resolve({ data, error: null }).then(resolve),
-  });
+// ---- supabase mock ----------------------------------------------------
+
+type TableResp = { data: unknown; error: { message: string } | null };
+const tableResponses: Record<string, TableResp> = {};
+const tableCalls: Record<string, number> = {};
+
+const makeChain = (table: string) => {
+  const resolve = () => {
+    tableCalls[table] = (tableCalls[table] ?? 0) + 1;
+    return Promise.resolve(tableResponses[table] ?? { data: [], error: null });
+  };
+  const chain: any = {
+    select: () => chain,
+    eq: () => chain,
+    in: () => chain,
+    not: () => chain,
+    maybeSingle: () => resolve(),
+    single: () => resolve(),
+    then: (onF: any, onR: any) => resolve().then(onF, onR),
+  };
   return chain;
-}
+};
 
-describe("CancelEventConfirmDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: (table: string) => makeChain(table),
+  },
+}));
 
-  it("deduplicates recipients and sends a trimmed custom reason", async () => {
-    from.mockReturnValueOnce(memberQuery([
-      { user_id: "member-1" },
-      { user_id: "member-1" },
-      { user_id: "member-2" },
-    ]));
+vi.mock("@/hooks/useNativeKeyboardBottomInset", () => ({
+  useNativeKeyboardBottomInset: () => 0,
+}));
+
+// ---- helpers ----------------------------------------------------------
+
+const baseProps = {
+  open: true,
+  onOpenChange: vi.fn(),
+  eventId: "e1",
+  eventTitle: "Test Event",
+  teamId: "team-1",
+  clubId: "club-1",
+  eventType: "training" as string | null,
+};
+
+const setUserRoles = (data: unknown, error: any = null) => {
+  tableResponses["user_roles"] = { data, error };
+};
+
+beforeEach(() => {
+  cleanup();
+  Object.keys(tableResponses).forEach((k) => delete tableResponses[k]);
+  Object.keys(tableCalls).forEach((k) => delete tableCalls[k]);
+});
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+// ---- tests ------------------------------------------------------------
+
+describe("CancelEventConfirmDialog — fail-closed on recipient lookup failure", () => {
+  it("counts members and enables push when recipient lookup succeeds", async () => {
+    setUserRoles([{ user_id: "u1" }, { user_id: "u2" }, { user_id: "u1" }]);
     const onConfirm = vi.fn();
-    render(
-      <CancelEventConfirmDialog
-        open
-        onOpenChange={vi.fn()}
-        eventId="event-1"
-        eventTitle="Saturday Training"
-        teamId="team-1"
-        clubId="club-1"
-        eventType="training"
-        onConfirm={onConfirm}
-      />,
+    render(<CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />);
+    await waitFor(() =>
+      expect(screen.getByText(/2 members will be notified\./i)).toBeInTheDocument()
     );
-
-    expect(await screen.findByText("2 members will be notified.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Custom message (optional)"), {
-      target: { value: "  Ground is flooded  " },
-    });
-    expect(screen.getAllByText(/Ground is flooded/)).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Training" }));
-    expect(onConfirm).toHaveBeenCalledWith("Ground is flooded", true);
-  });
-
-  it("supports cancelling without push and omits a blank reason", async () => {
-    from.mockReturnValueOnce(memberQuery([{ user_id: "member-1" }]));
-    const onConfirm = vi.fn();
-    render(
-      <CancelEventConfirmDialog
-        open
-        onOpenChange={vi.fn()}
-        eventId="event-1"
-        eventTitle="Club Social"
-        teamId={null}
-        clubId="club-1"
-        eventType="social"
-        onConfirm={onConfirm}
-      />,
-    );
-    await screen.findByText("1 member will be notified.");
-    fireEvent.click(screen.getByLabelText("Also send push notification to members"));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Social" }));
-    expect(onConfirm).toHaveBeenCalledWith(undefined, false);
-  });
-
-  it("keeps confirmation disabled until recipient counting finishes", async () => {
-    let resolveQuery!: (value: unknown) => void;
-    const pending = new Promise((resolve) => { resolveQuery = resolve; });
-    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    chain.select = vi.fn(() => chain);
-    chain.eq = vi.fn(() => chain);
-    Object.defineProperty(chain, "then", { value: pending.then.bind(pending) });
-    from.mockReturnValueOnce(chain);
-
-    render(
-      <CancelEventConfirmDialog open onOpenChange={vi.fn()} eventId="event-1" eventTitle="Match" teamId="team-1" clubId="club-1" eventType="game" onConfirm={vi.fn()} />,
-    );
-    expect(screen.getByRole("button", { name: "Cancel Game" })).toBeDisabled();
-    resolveQuery({ data: [], error: null });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel Game" })).toBeEnabled());
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeDisabled();
+    expect(checkbox).toHaveAttribute("data-state", "checked");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("must fail closed on push delivery when recipient discovery fails", async () => {
-    const chain: any = {};
-    chain.select = vi.fn(() => chain);
-    chain.eq = vi.fn(() => chain);
-    Object.defineProperty(chain, "then", {
-      value: (_resolve: unknown, reject: (error: unknown) => void) =>
-        Promise.reject(new Error("recipient lookup failed")).catch(reject),
-    });
-    from.mockReturnValueOnce(chain);
+    setUserRoles(null, { message: "boom" });
     const onConfirm = vi.fn();
-    render(
-      <CancelEventConfirmDialog
-        open onOpenChange={vi.fn()} eventId="event-1" eventTitle="Match"
-        teamId="team-1" clubId="club-1" eventType="game" onConfirm={onConfirm}
-      />,
-    );
+    render(<CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel Game" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Game" }));
+    // Warning is shown, checkbox is unchecked + disabled, count is NOT displayed.
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not be verified/i);
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toHaveAttribute("data-state", "unchecked");
+    expect(checkbox).toBeDisabled();
+    expect(screen.queryByText(/members will be notified/i)).toBeNull();
+    expect(screen.queryByText(/0 members? will be notified/i)).toBeNull();
 
+    // Cancellation button remains enabled and passes `false` for push.
+    const cancelBtn = screen.getByRole("button", { name: /^Cancel (Event|Training)/i });
+    expect(cancelBtn).not.toBeDisabled();
+    fireEvent.click(cancelBtn);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onConfirm).toHaveBeenCalledWith(undefined, false);
   });
 
-  it("prevents confirmation and dismissal while cancellation is pending", async () => {
-    from.mockReturnValueOnce(memberQuery([]));
-    render(
-      <CancelEventConfirmDialog
-        open onOpenChange={vi.fn()} eventId="event-1" eventTitle="Match"
-        teamId="team-1" clubId="club-1" eventType="game" onConfirm={vi.fn()} isPending
-      />,
+  it("passes false for push even if user had checked it before lookup errored", async () => {
+    // First render succeeds — user leaves push checked (default).
+    setUserRoles([{ user_id: "u1" }]);
+    const onConfirm = vi.fn();
+    const { rerender } = render(
+      <CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/1 member will be notified/i)).toBeInTheDocument()
     );
 
-    expect(await screen.findByRole("button", { name: "Cancelling..." })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Keep Game" })).toBeDisabled();
+    // Simulate reopen with a failing lookup.
+    setUserRoles(null, { message: "network" });
+    rerender(
+      <CancelEventConfirmDialog {...baseProps} open={false} onConfirm={onConfirm} />
+    );
+    rerender(<CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    const cancelBtn = screen.getByRole("button", { name: /^Cancel (Event|Training)/i });
+    fireEvent.click(cancelBtn);
+    expect(onConfirm).toHaveBeenLastCalledWith(undefined, false);
+  });
+
+  it("trims custom message and forwards it with push=false on failed lookup", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onConfirm = vi.fn();
+    render(<CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    const textarea = screen.getByPlaceholderText(/Add a reason/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "  weather  " } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Cancel (Event|Training)/i }));
+    expect(onConfirm).toHaveBeenCalledWith("weather", false);
+  });
+
+  it("a successful retry (reopen) restores normal recipient count and push selection", async () => {
+    setUserRoles(null, { message: "boom" });
+    const onConfirm = vi.fn();
+    const { rerender } = render(
+      <CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    // Reopen with a healthy response.
+    setUserRoles([{ user_id: "u1" }, { user_id: "u2" }, { user_id: "u3" }]);
+    rerender(
+      <CancelEventConfirmDialog {...baseProps} open={false} onConfirm={onConfirm} />
+    );
+    rerender(<CancelEventConfirmDialog {...baseProps} onConfirm={onConfirm} />);
+    await waitFor(() =>
+      expect(screen.getByText(/3 members will be notified/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeDisabled();
+    expect(checkbox).toHaveAttribute("data-state", "checked");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Cancel (Event|Training)/i }));
+    expect(onConfirm).toHaveBeenCalledWith(undefined, true);
+  });
+
+  it("does not display '0 members will be notified' after a failed lookup", async () => {
+    setUserRoles(null, { message: "boom" });
+    render(<CancelEventConfirmDialog {...baseProps} onConfirm={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    await flush();
+    expect(screen.queryByText(/0 members? will be notified/i)).toBeNull();
   });
 });

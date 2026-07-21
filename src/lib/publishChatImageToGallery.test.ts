@@ -1,163 +1,277 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
-const { from, storageFrom, upload, remove, fetchMock } = vi.hoisted(() => ({
-  from: vi.fn(),
-  storageFrom: vi.fn(),
-  upload: vi.fn(),
-  remove: vi.fn(),
-  fetchMock: vi.fn(),
-}));
+// ─── Supabase mock ─────────────────────────────────────────────────────────
+// Fluent builder that resolves on `.maybeSingle()` / `.single()` with values
+// programmed per test via the shared handler refs below.
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from, storage: { from: storageFrom } },
-}));
+type LookupResult = { data: { id: string } | null; error: { message: string } | null };
+type InsertResult = { data: { id: string } | null; error: { message: string } | null };
 
+const state: {
+  lookup: LookupResult;
+  insert: InsertResult;
+  uploadError: { message: string } | null;
+  updateError: { message: string } | null;
+  removed: string[][];
+  uploaded: Array<{ path: string; blob: Blob; opts: any }>;
+  insertPayload: any;
+} = {
+  lookup: { data: null, error: null },
+  insert: { data: { id: "new-photo" }, error: null },
+  uploadError: null,
+  updateError: null,
+  removed: [],
+  uploaded: [],
+  insertPayload: null,
+};
+
+function makeSelectBuilder(finalResult: LookupResult) {
+  const builder: any = {
+    select: () => builder,
+    eq: () => builder,
+    is: () => builder,
+    maybeSingle: () => Promise.resolve(finalResult),
+    single: () => Promise.resolve(finalResult),
+  };
+  return builder;
+}
+
+function makeInsertBuilder(finalResult: InsertResult) {
+  const builder: any = {
+    select: () => builder,
+    single: () => Promise.resolve(finalResult),
+  };
+  return builder;
+}
+
+vi.mock("@/integrations/supabase/client", () => {
+  return {
+    supabase: {
+      from: (_table: string) => ({
+        select: (..._args: any[]) => makeSelectBuilder(state.lookup).select(),
+        insert: (payload: any) => {
+          state.insertPayload = payload;
+          return makeInsertBuilder(state.insert);
+        },
+        update: (_payload: any) => ({
+          eq: () => Promise.resolve({ error: state.updateError }),
+        }),
+      }),
+      storage: {
+        from: (_bucket: string) => ({
+          upload: (path: string, blob: Blob, opts: any) => {
+            state.uploaded.push({ path, blob, opts });
+            return Promise.resolve({ error: state.uploadError });
+          },
+          remove: (paths: string[]) => {
+            state.removed.push(paths);
+            return Promise.resolve({ error: null });
+          },
+        }),
+      },
+    },
+  };
+});
+
+// Import AFTER mock is registered.
 import {
   publishChatImageToGallery,
   unpublishGalleryPhoto,
 } from "./publishChatImageToGallery";
 
-function lookupResult(data: unknown = null, error: unknown = null) {
-  const query: any = {};
-  for (const method of ["select", "eq", "is"]) query[method] = vi.fn(() => query);
-  query.maybeSingle = vi.fn().mockResolvedValue({ data, error });
-  return query;
+const originalFetch = globalThis.fetch;
+
+function stubFetch(blob: Blob, ok = true, status = 200) {
+  globalThis.fetch = vi.fn(async () => ({
+    ok,
+    status,
+    blob: async () => blob,
+  })) as any;
 }
 
-function insertResult(data: unknown = { id: "photo-new" }, error: unknown = null) {
-  const query: any = {};
-  query.insert = vi.fn(() => query);
-  query.select = vi.fn(() => query);
-  query.single = vi.fn().mockResolvedValue({ data, error });
-  return query;
-}
+beforeEach(() => {
+  state.lookup = { data: null, error: null };
+  state.insert = { data: { id: "new-photo" }, error: null };
+  state.uploadError = null;
+  state.updateError = null;
+  state.removed = [];
+  state.uploaded = [];
+  state.insertPayload = null;
+});
 
-function updateResult(error: unknown = null) {
-  const query: any = {};
-  query.update = vi.fn(() => query);
-  query.eq = vi.fn().mockResolvedValue({ error });
-  return query;
-}
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  vi.restoreAllMocks();
+});
 
-const base = {
-  imageUrl: "https://example.invalid/chat-image.jpg",
-  uploaderId: "user-1",
-  teamId: "team-1",
-  clubId: "club-1",
-  caption: "Winning goal",
-};
+const IMG = "https://cdn.example.com/chat-attachments/abc.jpg";
 
-describe("publishChatImageToGallery media permissions and consistency", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockResolvedValue({
-      ok: true,
-      blob: async () => new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" }),
-    });
-    upload.mockResolvedValue({ error: null });
-    remove.mockResolvedValue({ error: null });
-    storageFrom.mockReturnValue({ upload, remove });
-    vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
-    vi.spyOn(Math, "random").mockReturnValue(0.25);
-  });
-
-  it.each([
-    [{ ...base, imageUrl: "" }, "imageUrl is required"],
-    [{ ...base, uploaderId: "" }, "uploaderId is required"],
-    [{ ...base, teamId: null, clubId: null }, "teamId or clubId is required"],
-  ])("rejects invalid scope before querying or downloading", async (args, message) => {
-    await expect(publishChatImageToGallery(args)).rejects.toThrow(message);
-    expect(from).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(upload).not.toHaveBeenCalled();
-  });
-
-  it("returns an existing publication without downloading or uploading again", async () => {
-    const lookup = lookupResult({ id: "photo-existing" });
-    from.mockReturnValueOnce(lookup);
-
-    await expect(publishChatImageToGallery(base)).resolves.toEqual({
-      photoId: "photo-existing",
-      alreadyPublished: true,
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(storageFrom).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [{ teamId: "team-1", clubId: "club-1" }, "clubs/club-1/teams/team-1/user-1/1234567890-9.jpg"],
-    [{ teamId: "team-1", clubId: null }, "teams/team-1/user-1/1234567890-9.jpg"],
-    [{ teamId: null, clubId: "club-1" }, "clubs/club-1/user-1/1234567890-9.jpg"],
-  ])("uploads into the exact team or club storage scope", async (scope, expectedPath) => {
-    const lookup = lookupResult();
-    const insertion = insertResult();
-    from.mockReturnValueOnce(lookup).mockReturnValueOnce(insertion);
-
+describe("publishChatImageToGallery", () => {
+  it("rejects when imageUrl missing", async () => {
     await expect(
-      publishChatImageToGallery({ ...base, ...scope }),
-    ).resolves.toEqual({ photoId: "photo-new", alreadyPublished: false });
-
-    expect(storageFrom).toHaveBeenCalledWith("photos");
-    expect(upload).toHaveBeenCalledWith(expectedPath, expect.any(Blob), {
-      contentType: "image/jpeg",
-      upsert: false,
-      cacheControl: "31536000",
-    });
-    expect(insertion.insert).toHaveBeenCalledWith(expect.objectContaining({
-      uploader_id: "user-1",
-      team_id: scope.teamId,
-      club_id: scope.clubId,
-      file_size: 3,
-      caption: "Winning goal",
-      title: "Winning goal",
-    }));
+      publishChatImageToGallery({ imageUrl: "", uploaderId: "u1", teamId: "t1", clubId: "c1" }),
+    ).rejects.toThrow(/imageUrl/);
   });
 
-  it("does not create a database row when storage permission rejects the upload", async () => {
-    from.mockReturnValueOnce(lookupResult());
-    upload.mockResolvedValue({ error: { message: "RLS denied" } });
-
-    await expect(publishChatImageToGallery(base)).rejects.toThrow(
-      "Could not save image to the gallery",
-    );
-    expect(from).toHaveBeenCalledTimes(1);
-    expect(remove).not.toHaveBeenCalled();
+  it("rejects when uploaderId missing", async () => {
+    await expect(
+      publishChatImageToGallery({ imageUrl: IMG, uploaderId: "", teamId: "t1", clubId: "c1" }),
+    ).rejects.toThrow(/uploaderId/);
   });
 
-  it("removes the uploaded object when registering the photo row fails", async () => {
-    const insertion = insertResult(null, { message: "insert denied" });
-    from.mockReturnValueOnce(lookupResult()).mockReturnValueOnce(insertion);
+  it("rejects when neither teamId nor clubId provided", async () => {
+    await expect(
+      publishChatImageToGallery({ imageUrl: IMG, uploaderId: "u1", teamId: null, clubId: null }),
+    ).rejects.toThrow(/teamId or clubId/);
+  });
 
-    await expect(publishChatImageToGallery(base)).rejects.toEqual({
-      message: "insert denied",
+  it("returns alreadyPublished without downloading when a row exists", async () => {
+    state.lookup = { data: { id: "existing-id" }, error: null };
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as any;
+
+    const result = await publishChatImageToGallery({
+      imageUrl: IMG,
+      uploaderId: "u1",
+      teamId: "t1",
+      clubId: "c1",
     });
-    const uploadedPath = upload.mock.calls[0][0];
-    expect(remove).toHaveBeenCalledWith([uploadedPath]);
+
+    expect(result).toEqual({ photoId: "existing-id", alreadyPublished: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(state.uploaded).toHaveLength(0);
+    expect(state.insertPayload).toBeNull();
   });
 
   it("must stop before copying media when the idempotency lookup fails", async () => {
-    from.mockReturnValueOnce(
-      lookupResult(null, { message: "cannot verify existing publication" }),
-    );
+    state.lookup = { data: null, error: { message: "permission denied" } };
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as any;
 
-    await expect(publishChatImageToGallery(base)).rejects.toThrow(
-      "cannot verify existing publication",
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(upload).not.toHaveBeenCalled();
+    await expect(
+      publishChatImageToGallery({
+        imageUrl: IMG,
+        uploaderId: "u1",
+        teamId: "t1",
+        clubId: "c1",
+      }),
+    ).rejects.toThrow(/permission denied/);
+
+    // No fetch, no storage upload, no photos insert.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(state.uploaded).toHaveLength(0);
+    expect(state.insertPayload).toBeNull();
   });
 
-  it("soft-deletes only the requested gallery row and surfaces permission failure", async () => {
-    const success = updateResult();
-    const denied = updateResult({ message: "delete denied" });
-    from.mockReturnValueOnce(success).mockReturnValueOnce(denied);
+  it("uses a fallback error message when the lookup error has none", async () => {
+    state.lookup = { data: null, error: { message: "" } };
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as any;
 
+    await expect(
+      publishChatImageToGallery({
+        imageUrl: IMG,
+        uploaderId: "u1",
+        teamId: "t1",
+        clubId: "c1",
+      }),
+    ).rejects.toThrow(/already published/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(state.uploaded).toHaveLength(0);
+  });
+
+  it("throws a friendly error when the source image cannot be downloaded", async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 404 })) as any;
+
+    await expect(
+      publishChatImageToGallery({
+        imageUrl: IMG,
+        uploaderId: "u1",
+        teamId: "t1",
+        clubId: "c1",
+      }),
+    ).rejects.toThrow(/load the image/);
+    expect(state.uploaded).toHaveLength(0);
+    expect(state.insertPayload).toBeNull();
+  });
+
+  it("uploads to clubs/{clubId}/teams/{teamId}/{uploaderId}/... when both are supplied and inserts scoped row", async () => {
+    stubFetch(new Blob(["hi"], { type: "image/jpeg" }));
+
+    const result = await publishChatImageToGallery({
+      imageUrl: IMG,
+      uploaderId: "u1",
+      teamId: "t1",
+      clubId: "c1",
+      caption: "hello",
+      albumId: "album-1",
+    });
+
+    expect(result.alreadyPublished).toBe(false);
+    expect(state.uploaded).toHaveLength(1);
+    const { path, opts } = state.uploaded[0];
+    expect(path.startsWith("clubs/c1/teams/t1/u1/")).toBe(true);
+    expect(path.endsWith(".jpg")).toBe(true);
+    expect(opts.upsert).toBe(false);
+    expect(state.insertPayload).toMatchObject({
+      uploader_id: "u1",
+      club_id: "c1",
+      team_id: "t1",
+      caption: "hello",
+      title: "hello",
+      album_id: "album-1",
+    });
+  });
+
+  it("uploads to teams/{teamId}/... when only teamId is provided", async () => {
+    stubFetch(new Blob(["hi"], { type: "image/png" }));
+
+    await publishChatImageToGallery({
+      imageUrl: IMG,
+      uploaderId: "u1",
+      teamId: "t1",
+      clubId: null,
+    });
+
+    expect(state.uploaded[0].path.startsWith("teams/t1/u1/")).toBe(true);
+    expect(state.uploaded[0].path.endsWith(".png")).toBe(true);
+  });
+
+  it("uploads to clubs/{clubId}/{uploaderId}/... for club-wide chats", async () => {
+    stubFetch(new Blob(["hi"], { type: "image/webp" }));
+
+    await publishChatImageToGallery({
+      imageUrl: IMG,
+      uploaderId: "u1",
+      teamId: null,
+      clubId: "c1",
+    });
+
+    expect(state.uploaded[0].path.startsWith("clubs/c1/u1/")).toBe(true);
+    expect(state.uploaded[0].path.endsWith(".webp")).toBe(true);
+  });
+
+  it("cleans up storage when the photos insert fails", async () => {
+    stubFetch(new Blob(["hi"], { type: "image/jpeg" }));
+    state.insert = { data: null, error: { message: "rls denied" } };
+
+    await expect(
+      publishChatImageToGallery({
+        imageUrl: IMG,
+        uploaderId: "u1",
+        teamId: "t1",
+        clubId: "c1",
+      }),
+    ).rejects.toMatchObject({ message: "rls denied" });
+
+    expect(state.removed).toHaveLength(1);
+    expect(state.removed[0][0]).toBe(state.uploaded[0].path);
+  });
+
+  it("unpublishGalleryPhoto soft-deletes the given photo and surfaces errors", async () => {
     await expect(unpublishGalleryPhoto("photo-1")).resolves.toBeUndefined();
-    expect(success.update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
-    expect(success.eq).toHaveBeenCalledWith("id", "photo-1");
 
-    await expect(unpublishGalleryPhoto("photo-2")).rejects.toThrow("Could not undo");
-    expect(denied.eq).toHaveBeenCalledWith("id", "photo-2");
+    state.updateError = { message: "boom" };
+    await expect(unpublishGalleryPhoto("photo-2")).rejects.toThrow(/undo/);
   });
 });

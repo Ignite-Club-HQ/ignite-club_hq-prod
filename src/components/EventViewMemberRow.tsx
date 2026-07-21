@@ -120,11 +120,25 @@ export function EventViewMemberRow({
 
               {/* Action buttons */}
               <div className="grid gap-2">
+                {(pushDisabled || noPushSetup) && (
+                  <p
+                    role="note"
+                    data-testid="push-unavailable-note"
+                    className="text-xs text-muted-foreground bg-muted/60 rounded-md px-2 py-1.5"
+                  >
+                    {noPushSetup
+                      ? "This member has no push notifications set up — push isn't available. Email will still be delivered."
+                      : "This member has turned off event push notifications — push isn't available. Email will still be delivered."}
+                  </p>
+                )}
                 <Button
                   variant="outline"
                   className="justify-start gap-2 h-11"
-                  disabled={isBusy}
-                  onClick={() => handleAction(() => onSendReminder("push", [member.id]))}
+                  disabled={isBusy || pushDisabled || noPushSetup}
+                  onClick={() => {
+                    if (pushDisabled || noPushSetup) return;
+                    handleAction(() => onSendReminder("push", [member.id]));
+                  }}
                 >
                   {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4 text-blue-500" />}
                   Send Push Notification
@@ -142,10 +156,18 @@ export function EventViewMemberRow({
                   variant="outline"
                   className="justify-start gap-2 h-11"
                   disabled={isBusy}
-                  onClick={() => handleAction(() => onSendReminder("both", [member.id]))}
+                  onClick={() => {
+                    // If push is unavailable, safely degrade to email-only so we
+                    // never bypass a member's push preference by using "both".
+                    const channel: "email" | "both" =
+                      pushDisabled || noPushSetup ? "email" : "both";
+                    handleAction(() => onSendReminder(channel, [member.id]));
+                  }}
                 >
                   {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4 text-amber-500" />}
-                  Send Both (Push + Email)
+                  {pushDisabled || noPushSetup
+                    ? "Send Reminder (Email Only)"
+                    : "Send Both (Push + Email)"}
                 </Button>
                 {onShareLink && (
                   <Button

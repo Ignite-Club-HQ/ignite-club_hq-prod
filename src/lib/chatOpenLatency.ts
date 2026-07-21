@@ -31,7 +31,27 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
     if (!args.userId) return;
     // Record the render mark first so the stage snapshot includes it.
     coldMark("chat_render");
-    const tap_to_render_ms = Math.max(0, Math.round(Date.now() - args.startTs));
+    // For cold_open, anchor startTs to the earliest signal we have (notif_tap
+    // or performance.timeOrigin / boot) so tap_to_render_ms includes the
+    // pre-mount prefix (native webview init, auth resolve, chunk fetch,
+    // route settle). Callers pass mount-time for cold_open; override here.
+    let startTs = args.startTs;
+    if (args.source === "cold_open") {
+      try {
+        const snap = snapshotStages();
+        if (snap.anchor !== null) {
+          const notifDelta = snap.deltas.notif_tap;
+          if (typeof notifDelta === "number") {
+            startTs = Math.min(startTs, snap.anchor + notifDelta);
+          } else if (typeof performance !== "undefined" && performance.timeOrigin) {
+            startTs = Math.min(startTs, Math.round(performance.timeOrigin));
+          } else {
+            startTs = Math.min(startTs, snap.anchor);
+          }
+        }
+      } catch {}
+    }
+    const tap_to_render_ms = Math.max(0, Math.round(Date.now() - startTs));
     // Sanity bound — drop anything over 60s (likely the user navigated elsewhere first)
     if (tap_to_render_ms > 60_000) return;
 
@@ -75,12 +95,9 @@ export async function logChatOpenLatency(args: LogArgs): Promise<void> {
       }).then(() => {}, () => {});
     };
 
-    const w = window as any;
-    if (typeof w?.requestIdleCallback === "function") {
-      w.requestIdleCallback(doInsert, { timeout: 4000 });
-    } else {
-      setTimeout(doInsert, 2000);
-    }
+    // Fire immediately — deferring drops writes on Android WebView when the app
+    // is backgrounded before the idle/timeout callback runs.
+    doInsert();
   } catch {
     // ignore
   }

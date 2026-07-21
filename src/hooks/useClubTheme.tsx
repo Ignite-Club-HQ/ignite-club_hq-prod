@@ -960,18 +960,23 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Try to find theme from server data first
     const theme = availableClubThemes.find(t => t.clubId === activeClubTheme);
-    
-    // CRITICAL FIX: If server data not loaded yet, use cached theme data
-    // This ensures theme applies immediately for new users before query completes
-    const themeToApply = theme || cachedThemeData;
-    
+
+    // Fall back to cached theme ONLY while the server query has not yet
+    // succeeded — this keeps the theme visible on cold-start before the query
+    // resolves. Once the query has succeeded and the club is not in the themed
+    // (Pro) list, we must NOT apply cached colours: doing so would let a free
+    // club keep Pro branding after a downgrade / trial expiry.
+    const canUseCache = !isClubThemesSuccess;
+    const themeToApply = theme || (canUseCache ? cachedThemeData : null);
+
     if (!themeToApply) {
-      // If user selected a free / non-themed club, clear overrides; otherwise wait for data.
-      if (availableClubThemes.length > 0 && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
+      // If server data is loaded and this club isn't themed, clear overrides.
+      if (isClubThemesSuccess && !availableClubThemes.some(t => t.clubId === activeClubTheme)) {
         clearAllThemeCSS();
       }
       return;
     }
+
 
     // Skip applying colors if logo-only mode is enabled
     if (themeToApply.logoOnlyMode) {
@@ -990,7 +995,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     });
 
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme, isClubThemesSuccess]);
 
   // Validate theme data only. This must never change activeClubTheme: the club
   // filter is user-controlled and can only be changed through setActiveClubTheme.
@@ -1009,15 +1014,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const inThemed = availableClubThemes.some(t => t.clubId === activeClubTheme);
 
     if (!inThemed) {
-      // Club is not in themed list. Two possibilities:
-      // (a) user genuinely no longer has themed Pro access → drop cache.
-      // (b) transient refetch after reconnect returned a partial embed
-      //     (e.g. `club_subscriptions` join briefly empty right after token
-      //     rotation) → the club is still in `userClubs` (fetched fresh via
-      //     the same reconnect refetch) so we must NOT evict.
-      // Only evict when BOTH queries agree the club is gone.
-      const stillOwned = userClubs.some(c => c.id === activeClubTheme);
-      if (stillOwned) return;
+      // Club is not in the themed (Pro + theme_enabled) list. Even if the user
+      // still owns the club (free plan or theme disabled), we must evict any
+      // stale cached theme so free clubs don't keep Pro colours after a
+      // downgrade / trial expiry. The apply-effect above already refuses to
+      // fall back to cache once the themed query succeeded, but we also drop
+      // the persisted cache here to keep localStorage consistent.
+
 
       // Club is free/non-themed/inaccessible for theme rendering.
       // Evict any stale themed cache so the header drops the logo + colours

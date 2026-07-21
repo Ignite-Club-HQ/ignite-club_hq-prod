@@ -1,0 +1,53 @@
+--- a/node_modules/@capgo/native-purchases/android/src/main/java/ee/forgr/nativepurchases/NativePurchasesPlugin.java	1985-10-26 08:15:00.000000000 +0000
++++ b/node_modules/@capgo/native-purchases/android/src/main/java/ee/forgr/nativepurchases/NativePurchasesPlugin.java	2026-07-14 08:40:50.144897100 +0000
+@@ -507,22 +507,42 @@
+                                 BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(productDetailsItem);
+                             if (productType.equals("subs")) {
+                                 Log.d(TAG, "Processing subscription product");
+-                                // list the SubscriptionOfferDetails and find the one who match the planIdentifier if not found get the first one
++                                // (Lovable patch) Select the most-beneficial offer for the requested basePlanId:
++                                // prefer offers whose first pricing phase has the lowest price (i.e. free trial > intro > base).
++                                // Upstream picks the first matching offer, which is almost always the bare base plan,
++                                // so Play Console free-trial offers were never being applied.
+                                 ProductDetails.SubscriptionOfferDetails selectedOfferDetails = null;
+                                 assert productDetailsItem.getSubscriptionOfferDetails() != null;
+-                                Log.d(TAG, "Available offer details count: " + productDetailsItem.getSubscriptionOfferDetails().size());
+-                                for (ProductDetails.SubscriptionOfferDetails offerDetails : productDetailsItem.getSubscriptionOfferDetails()) {
+-                                    Log.d(TAG, "Checking offer: " + offerDetails.getBasePlanId());
++                                java.util.List<ProductDetails.SubscriptionOfferDetails> allOffers = productDetailsItem.getSubscriptionOfferDetails();
++                                Log.d(TAG, "Available offer details count: " + allOffers.size());
++                                java.util.List<ProductDetails.SubscriptionOfferDetails> candidates = new java.util.ArrayList<>();
++                                for (ProductDetails.SubscriptionOfferDetails offerDetails : allOffers) {
++                                    Log.d(TAG, "Checking offer basePlanId=" + offerDetails.getBasePlanId() + " offerId=" + offerDetails.getOfferId());
+                                     if (offerDetails.getBasePlanId().equals(planIdentifier)) {
++                                        candidates.add(offerDetails);
++                                    }
++                                }
++                                if (candidates.isEmpty()) {
++                                    candidates.addAll(allOffers);
++                                }
++                                long bestFirstPhasePrice = Long.MAX_VALUE;
++                                for (ProductDetails.SubscriptionOfferDetails offerDetails : candidates) {
++                                    java.util.List<ProductDetails.PricingPhase> phases =
++                                        offerDetails.getPricingPhases().getPricingPhaseList();
++                                    if (phases == null || phases.isEmpty()) continue;
++                                    long firstPhasePrice = phases.get(0).getPriceAmountMicros();
++                                    Log.d(TAG, "Offer " + offerDetails.getOfferId() + " first-phase price micros: " + firstPhasePrice);
++                                    if (firstPhasePrice < bestFirstPhasePrice) {
++                                        bestFirstPhasePrice = firstPhasePrice;
+                                         selectedOfferDetails = offerDetails;
+-                                        Log.d(TAG, "Found matching plan: " + planIdentifier);
+-                                        break;
+                                     }
+                                 }
+                                 if (selectedOfferDetails == null) {
+-                                    selectedOfferDetails = productDetailsItem.getSubscriptionOfferDetails().get(0);
+-                                    Log.d(TAG, "Using first available offer: " + selectedOfferDetails.getBasePlanId());
++                                    selectedOfferDetails = candidates.get(0);
+                                 }
++                                Log.d(TAG, "Selected offer: basePlanId=" + selectedOfferDetails.getBasePlanId() +
++                                    " offerId=" + selectedOfferDetails.getOfferId() +
++                                    " firstPhasePriceMicros=" + bestFirstPhasePrice);
+                                 productDetailsParams.setOfferToken(selectedOfferDetails.getOfferToken());
+                                 Log.d(TAG, "Set offer token: " + selectedOfferDetails.getOfferToken());
+                             }

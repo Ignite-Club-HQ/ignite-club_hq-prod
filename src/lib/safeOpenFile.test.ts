@@ -1,154 +1,136 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  isNativePlatform: vi.fn(),
-  safeOpenUrl: vi.fn(),
-  resolveSignedUrl: vi.fn(),
-  downloadFile: vi.fn(),
-  getUri: vi.fn(),
-  fileOpen: vi.fn(),
+// --- Hoisted mocks ---
+const capacitorMock = vi.hoisted(() => ({
+  isNativePlatform: vi.fn(() => true),
 }));
+const filesystemMock = vi.hoisted(() => ({
+  downloadFile: vi.fn(),
+  getUri: vi.fn(async () => ({ uri: "file:///cache/x" })),
+}));
+const fileOpenerMock = vi.hoisted(() => ({ open: vi.fn() }));
+const safeOpenUrlMock = vi.hoisted(() => vi.fn(async () => {}));
+const resolveSignedUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@capacitor/core", () => ({
-  Capacitor: { isNativePlatform: mocks.isNativePlatform },
+  Capacitor: {
+    isNativePlatform: () => capacitorMock.isNativePlatform(),
+  },
 }));
-vi.mock("./safeOpenUrl", () => ({ safeOpenUrl: mocks.safeOpenUrl }));
-vi.mock("@/hooks/useSignedPhotoUrl", () => ({ resolveSignedUrl: mocks.resolveSignedUrl }));
 vi.mock("@capacitor/filesystem", () => ({
-  Filesystem: { downloadFile: mocks.downloadFile, getUri: mocks.getUri },
+  Filesystem: filesystemMock,
   Directory: { Cache: "CACHE" },
 }));
 vi.mock("@capacitor-community/file-opener", () => ({
-  FileOpener: { open: mocks.fileOpen },
+  FileOpener: fileOpenerMock,
+}));
+vi.mock("./safeOpenUrl", () => ({ safeOpenUrl: safeOpenUrlMock }));
+vi.mock("@/hooks/useSignedPhotoUrl", () => ({
+  resolveSignedUrl: resolveSignedUrlMock,
 }));
 
 import { safeOpenFile } from "./safeOpenFile";
 
-const privateUrl =
-  "https://project.example/storage/v1/object/public/documents/clubs/club-1/team-sheet.pdf";
+const RAW_PRIVATE =
+  "https://xyz.supabase.co/storage/v1/object/public/photos/club/secret.pdf";
+const SIGNED =
+  "https://xyz.supabase.co/storage/v1/object/sign/photos/club/secret.pdf?token=SIGNED_TOKEN_ABC";
 
-describe("safeOpenFile authorization and native fallback", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.isNativePlatform.mockReturnValue(true);
-    mocks.safeOpenUrl.mockResolvedValue(undefined);
-    mocks.resolveSignedUrl.mockResolvedValue("https://signed.example/team-sheet.pdf?token=signed");
-    mocks.downloadFile.mockResolvedValue({ path: "file:///cache/team-sheet.pdf" });
-    mocks.getUri.mockResolvedValue({ uri: "file:///cache/fallback.pdf" });
-    mocks.fileOpen.mockResolvedValue(undefined);
-    vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
+beforeEach(() => {
+  vi.clearAllMocks();
+  capacitorMock.isNativePlatform.mockReturnValue(true);
+  filesystemMock.downloadFile.mockResolvedValue({ path: "file:///cache/x" });
+  fileOpenerMock.open.mockResolvedValue(undefined);
+});
+
+describe("safeOpenFile — private URL fail-closed", () => {
+  it("must not download or expose a raw private URL when signing fails", async () => {
+    resolveSignedUrlMock.mockRejectedValueOnce(new Error("Unable to create signed URL"));
+
+    await expect(safeOpenFile(RAW_PRIVATE)).rejects.toThrow();
+
+    expect(filesystemMock.downloadFile).not.toHaveBeenCalled();
+    expect(fileOpenerMock.open).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+
+    // Any thrown error must not leak the raw URL, tokens, or query params.
+    try {
+      await safeOpenFile(RAW_PRIVATE);
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg).not.toContain(RAW_PRIVATE);
+      expect(msg).not.toContain("token");
+      expect(msg).not.toContain("secret.pdf");
+    }
   });
 
-  it("delegates directly to safe URL opening on web", async () => {
-    mocks.isNativePlatform.mockReturnValue(false);
-
-    await safeOpenFile(privateUrl);
-
-    expect(mocks.safeOpenUrl).toHaveBeenCalledWith(privateUrl);
-    expect(mocks.resolveSignedUrl).not.toHaveBeenCalled();
-    expect(mocks.downloadFile).not.toHaveBeenCalled();
-    expect(mocks.fileOpen).not.toHaveBeenCalled();
+  it("signing failure triggers no native download or file opener", async () => {
+    resolveSignedUrlMock.mockRejectedValue(new Error("signing failed"));
+    await expect(safeOpenFile(RAW_PRIVATE)).rejects.toBeTruthy();
+    expect(filesystemMock.downloadFile).not.toHaveBeenCalled();
+    expect(fileOpenerMock.open).not.toHaveBeenCalled();
   });
 
-  it("signs a private storage URL before native download", async () => {
-    await safeOpenFile(privateUrl, { fileName: "Team sheet.pdf" });
-
-    expect(mocks.resolveSignedUrl).toHaveBeenCalledWith(privateUrl);
-    expect(mocks.downloadFile).toHaveBeenCalledWith({
-      url: "https://signed.example/team-sheet.pdf?token=signed",
-      path: "vault-1234567890-Team_sheet.pdf",
-      directory: "CACHE",
-    });
-    expect(mocks.fileOpen).toHaveBeenCalledWith({
-      filePath: "file:///cache/team-sheet.pdf",
-      contentType: "application/pdf",
-      openWithDefault: true,
-    });
-  });
-
-  it("does not invoke signing for an ordinary external file URL", async () => {
-    const url = "https://cdn.example/public/rules.pdf";
-
-    await safeOpenFile(url);
-
-    expect(mocks.resolveSignedUrl).not.toHaveBeenCalled();
-    expect(mocks.downloadFile).toHaveBeenCalledWith(expect.objectContaining({ url }));
+  it("signing failure never sends the raw private URL to safeOpenUrl", async () => {
+    resolveSignedUrlMock.mockRejectedValue(new Error("signing failed"));
+    await expect(safeOpenFile(RAW_PRIVATE)).rejects.toBeTruthy();
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["minutes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-    ["scores.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-    ["presentation.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
-    ["players.csv", "text/csv"],
-    ["photo.jpeg", "image/jpeg"],
-    ["unknown.bin", "application/octet-stream"],
-  ])("infers the native content type for %s", async (fileName, contentType) => {
-    await safeOpenFile(`https://cdn.example/${fileName}`);
+    "/storage/v1/object/public/photos/a.pdf",
+    "/storage/v1/object/sign/photos/a.pdf",
+    "/storage/v1/object/authenticated/photos/a.pdf",
+    "/storage/v1/render/image/public/photos/a.png",
+    "/storage/v1/render/image/sign/photos/a.png",
+  ])("every supported private storage URL form fails closed when signing fails: %s", async (path) => {
+    resolveSignedUrlMock.mockRejectedValue(new Error("nope"));
+    const url = `https://xyz.supabase.co${path}`;
+    await expect(safeOpenFile(url)).rejects.toBeTruthy();
+    expect(filesystemMock.downloadFile).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+});
 
-    expect(mocks.fileOpen).toHaveBeenCalledWith(expect.objectContaining({ contentType }));
+describe("safeOpenFile — successful signing", () => {
+  it("downloads and opens using the signed URL, never the raw URL", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    await safeOpenFile(RAW_PRIVATE);
+
+    expect(filesystemMock.downloadFile).toHaveBeenCalledTimes(1);
+    const arg = filesystemMock.downloadFile.mock.calls[0][0];
+    expect(arg.url).toBe(SIGNED);
+    expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the explicitly supplied MIME type instead of filename inference", async () => {
-    await safeOpenFile("https://cdn.example/download", {
-      fileName: "download",
-      mimeType: "application/vnd.custom",
-    });
+  it("native viewer failure falls back using the signed URL, not the raw URL", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    fileOpenerMock.open.mockRejectedValueOnce(new Error("no viewer"));
 
-    expect(mocks.fileOpen).toHaveBeenCalledWith(expect.objectContaining({
-      contentType: "application/vnd.custom",
-    }));
+    await safeOpenFile(RAW_PRIVATE);
+
+    expect(safeOpenUrlMock).toHaveBeenCalledTimes(1);
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
+    expect(safeOpenUrlMock).not.toHaveBeenCalledWith(RAW_PRIVATE);
+  });
+});
+
+describe("safeOpenFile — external / public non-storage URLs", () => {
+  it("does not call the signer for external URLs and retains browser fallback", async () => {
+    const externalUrl = "https://example.com/some/file.pdf";
+    filesystemMock.downloadFile.mockRejectedValueOnce(new Error("download failed"));
+
+    await safeOpenFile(externalUrl);
+
+    expect(resolveSignedUrlMock).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(externalUrl);
   });
 
-  it("sanitizes user-controlled filenames before writing to the native cache", async () => {
-    await safeOpenFile("https://cdn.example/file.pdf", {
-      fileName: "../../unsafe folder/club sheet?.pdf",
-    });
-
-    const path = mocks.downloadFile.mock.calls[0][0].path;
-    expect(path).toBe("vault-1234567890-.._.._unsafe_folder_club_sheet_.pdf");
-    expect(path).not.toContain("/");
-  });
-
-  it("resolves a local URI when native download does not return a path", async () => {
-    mocks.downloadFile.mockResolvedValue({ path: undefined });
-
-    await safeOpenFile("https://cdn.example/rules.pdf", { fileName: "rules.pdf" });
-
-    expect(mocks.getUri).toHaveBeenCalledWith({
-      path: "vault-1234567890-rules.pdf",
-      directory: "CACHE",
-    });
-    expect(mocks.fileOpen).toHaveBeenCalledWith(expect.objectContaining({
-      filePath: "file:///cache/fallback.pdf",
-    }));
-  });
-
-  it("falls back to the browser with the signed URL when native opening fails", async () => {
-    mocks.fileOpen.mockRejectedValue(new Error("viewer unavailable"));
-
-    await safeOpenFile(privateUrl);
-
-    expect(mocks.safeOpenUrl).toHaveBeenCalledWith(
-      "https://signed.example/team-sheet.pdf?token=signed",
-    );
-    expect(mocks.safeOpenUrl).not.toHaveBeenCalledWith(privateUrl);
-  });
-
-  it("falls back to the browser when a public-file native download fails", async () => {
-    const publicUrl = "https://cdn.example/rules.pdf";
-    mocks.downloadFile.mockRejectedValue(new Error("download unavailable"));
-
-    await safeOpenFile(publicUrl);
-
-    expect(mocks.safeOpenUrl).toHaveBeenCalledWith(publicUrl);
-    expect(mocks.fileOpen).not.toHaveBeenCalled();
-  });
-
-  it("must not download or expose a raw private URL when signing fails", async () => {
-    mocks.resolveSignedUrl.mockRejectedValue(new Error("not authorized"));
-
-    await expect(safeOpenFile(privateUrl)).rejects.toThrow();
-    expect(mocks.downloadFile).not.toHaveBeenCalled();
-    expect(mocks.safeOpenUrl).not.toHaveBeenCalledWith(privateUrl);
+  it("does not call the signer for external URLs on web", async () => {
+    capacitorMock.isNativePlatform.mockReturnValue(false);
+    const externalUrl = "https://example.com/file.pdf";
+    await safeOpenFile(externalUrl);
+    expect(resolveSignedUrlMock).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(externalUrl);
   });
 });

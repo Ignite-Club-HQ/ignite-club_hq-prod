@@ -51,6 +51,7 @@ import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { cn } from "@/lib/utils";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
+import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 
 type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -655,6 +656,28 @@ export default function CreateEventPage() {
         description: "Please select a team for games and training sessions.",
       });
       return;
+    }
+
+    // Frontend club/team scope guard — matches the backend
+    // validate_event_team_club_scope trigger. Fail closed if the team list
+    // is unavailable or stale so we never submit an ambiguous combination.
+    {
+      const check = validateEventTeamClubScope(teamId, teams, clubId);
+      if (check.ok === false) {
+        const reason = check.reason;
+        toast({
+          title:
+            reason === "list_unavailable"
+              ? "Team list unavailable"
+              : "Team does not belong to selected club",
+          description:
+            reason === "list_unavailable"
+              ? "Please reselect the club so we can load its teams before creating the event."
+              : "The selected team is not part of the selected club. Please choose a team from this club.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (!address.trim()) {

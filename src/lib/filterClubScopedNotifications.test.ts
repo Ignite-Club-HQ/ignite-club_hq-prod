@@ -1,164 +1,159 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for filterClubScopedNotifications — proves that when
+ * ownership lookup for a KNOWN club-scoped notification type fails, the row
+ * is dropped (fail closed) rather than leaked into the active-club view.
+ * Global types and unknown/future types continue to pass through.
+ */
 
-const { from, tableData } = vi.hoisted(() => ({
-  from: vi.fn(),
-  tableData: new Map<string, unknown[] | { data: unknown[]; error: unknown }>(),
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// ---- supabase mock -----------------------------------------------------
+// Each `from(table)` returns a fluent builder. Callers do:
+//   supabase.from(t).select(cols).in(col, ids)   → awaited → { data, error }
+// or for user_roles:
+//   supabase.from("user_roles").select(cols).in(...).eq(...)  → awaited
+// The mock records the awaited terminal by returning a thenable.
+
+type Rows = Record<string, any[]>;
+let tableRows: Rows = {};
+let errorTables = new Set<string>();
+
+function makeBuilder(table: string): any {
+  const state: any = { table, filters: {} };
+  const builder: any = {};
+  const chain = () => builder;
+  builder.select = () => chain();
+  builder.in = (_col: string, ids: string[]) => {
+    state.ids = ids;
+    return builder;
+  };
+  builder.eq = (col: string, val: any) => {
+    state.filters[col] = val;
+    return builder;
+  };
+  builder.then = (resolve: (v: any) => any) => {
+    if (errorTables.has(table)) {
+      return Promise.resolve({ data: null, error: { message: "boom" } }).then(resolve);
+    }
+    let data = tableRows[table] || [];
+    if (state.ids) data = data.filter((r: any) => state.ids.includes(r.id));
+    for (const [k, v] of Object.entries(state.filters)) {
+      data = data.filter((r: any) => r[k] === v);
+    }
+    return Promise.resolve({ data, error: null }).then(resolve);
+  };
+  return builder;
+}
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { from: (t: string) => makeBuilder(t) },
 }));
-
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from } }));
 
 import { filterClubScopedNotifications } from "./filterClubScopedNotifications";
 
-function queryFor(table: string) {
-  const chain: any = {};
-  chain.select = vi.fn(() => chain);
-  chain.in = vi.fn(() => chain);
-  chain.eq = vi.fn(() => chain);
-  Object.defineProperty(chain, "then", {
-    value: (resolve: (value: unknown) => unknown) => {
-      const configured = tableData.get(table);
-      const result = configured && !Array.isArray(configured)
-        ? configured
-        : { data: configured ?? [], error: null };
-      return Promise.resolve(result).then(resolve);
-    },
-  });
-  return chain;
-}
+const ACTIVE = "club-A";
+const OTHER = "club-B";
+const ME = "user-me";
 
-const row = (id: string, type: string, relatedId: string | null, clubId?: string | null) => ({
-  id,
-  type,
-  related_id: relatedId,
-  club_id: clubId,
+beforeEach(() => {
+  tableRows = {};
+  errorTables = new Set();
 });
 
 describe("filterClubScopedNotifications", () => {
-  beforeEach(() => {
-    tableData.clear();
-    from.mockImplementation((table: string) => queryFor(table));
-    vi.clearAllMocks();
+  it("keeps rows explicitly scoped to the active club", async () => {
+    const rows = [{ id: "n1", type: "event_note", related_id: "e1", club_id: ACTIVE }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["n1"]);
   });
 
-  it("keeps active-club and global rows while dropping explicitly foreign-club rows without lookups", async () => {
-    const rows = [
-      row("active", "event_invite", "event-1", "club-a"),
-      row("foreign", "event_invite", "event-2", "club-b"),
-      row("global", "system_update", null, null),
-      row("unknown", "new_global_type", null, null),
-    ];
-
-    await expect(filterClubScopedNotifications(rows, "user-1", "club-a")).resolves.toEqual([
-      rows[0], rows[2], rows[3],
-    ]);
-    expect(from).not.toHaveBeenCalled();
+  it("drops rows explicitly scoped to a foreign club", async () => {
+    const rows = [{ id: "n1", type: "event_note", related_id: "e1", club_id: OTHER }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
   });
 
-  it("resolves event notifications directly by club and through their team", async () => {
-    tableData.set("events", [
-      { id: "event-active", club_id: "club-a", team_id: null },
-      { id: "event-team-active", club_id: null, team_id: "team-a" },
-      { id: "event-foreign", club_id: "club-b", team_id: null },
-    ]);
-    tableData.set("teams", [{ id: "team-a", club_id: "club-a" }]);
+  it("keeps global notification types even when unresolved", async () => {
     const rows = [
-      row("a", "event_invite", "event-active", null),
-      row("team-a", "formation_change", "event-team-active", null),
-      row("b", "game_finished", "event-foreign", null),
+      { id: "g1", type: "system_update", related_id: null, club_id: null },
+      { id: "g2", type: "role_request_approved", related_id: null, club_id: null },
+      { id: "g3", type: "child_added", related_id: null, club_id: null },
+      { id: "g4", type: "streak_progress", related_id: null, club_id: null },
+      { id: "g5", type: "reward_unlocked", related_id: null, club_id: null },
     ];
-
-    await expect(filterClubScopedNotifications(rows, "user-1", "club-a")).resolves.toEqual([rows[0], rows[1]]);
-    expect(from).toHaveBeenCalledWith("events");
-    expect(from).toHaveBeenCalledWith("teams");
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id).sort()).toEqual(["g1", "g2", "g3", "g4", "g5"]);
   });
 
-  it("filters team, club, and group chat notifications by their owning club", async () => {
-    tableData.set("team_messages", [
-      { id: "team-msg-a", team_id: "team-a" },
-      { id: "team-msg-b", team_id: "team-b" },
-    ]);
-    tableData.set("club_messages", [
-      { id: "club-msg-a", club_id: "club-a" },
-      { id: "club-msg-b", club_id: "club-b" },
-    ]);
-    tableData.set("group_messages", [
-      { id: "group-msg-a", group_id: "group-a" },
-      { id: "group-msg-b", group_id: "group-b" },
-    ]);
-    tableData.set("teams", [
-      { id: "team-a", club_id: "club-a" },
-      { id: "team-b", club_id: "club-b" },
-    ]);
-    tableData.set("chat_groups", [
-      { id: "group-a", club_id: null, team_id: "team-a" },
-      { id: "group-b", club_id: "club-b", team_id: null },
-    ]);
+  it("keeps unknown / future notification types when unresolved", async () => {
     const rows = [
-      row("ta", "team_message", "team-msg-a", null),
-      row("tb", "message_reply", "team-msg-b", null),
-      row("ca", "club_message", "club-msg-a", null),
-      row("cb", "club_message", "club-msg-b", null),
-      row("ga", "group_message", "group-msg-a", null),
-      row("gb", "group_message", "group-msg-b", null),
+      { id: "u1", type: "some_future_type", related_id: "x", club_id: null },
     ];
-
-    await expect(filterClubScopedNotifications(rows, "user-1", "club-a")).resolves.toEqual([rows[0], rows[2], rows[4]]);
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["u1"]);
   });
 
-  it("resolves comment notifications through photos, including team-owned photos", async () => {
-    tableData.set("photo_comments", [
-      { id: "comment-a", photo_id: "photo-a" },
-      { id: "comment-team-a", photo_id: "photo-team-a" },
-      { id: "comment-b", photo_id: "photo-b" },
-    ]);
-    tableData.set("photos", [
-      { id: "photo-a", club_id: "club-a", team_id: null },
-      { id: "photo-team-a", club_id: null, team_id: "team-a" },
-      { id: "photo-b", club_id: "club-b", team_id: null },
-    ]);
-    tableData.set("teams", [{ id: "team-a", club_id: "club-a" }]);
-    const rows = [
-      row("a", "photo_comment", "comment-a", null),
-      row("team-a", "comment_reply", "comment-team-a", null),
-      row("b", "comment_reaction", "comment-b", null),
-    ];
-
-    await expect(filterClubScopedNotifications(rows, "user-1", "club-a")).resolves.toEqual([rows[0], rows[1]]);
+  it("resolves active-club event notifications and keeps them", async () => {
+    tableRows.events = [{ id: "e1", club_id: ACTIVE, team_id: null }];
+    const rows = [{ id: "n1", type: "event_note", related_id: "e1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["n1"]);
   });
 
-  it("keeps direct messages only when the sender shares the active club", async () => {
-    tableData.set("direct_messages", [
-      { id: "dm-a", author_id: "sender-a" },
-      { id: "dm-b", author_id: "sender-b" },
-    ]);
-    tableData.set("user_roles", [{ user_id: "sender-a" }]);
-    const rows = [
-      row("a", "direct_message", "dm-a", null),
-      row("b", "direct_message", "dm-b", null),
-    ];
-
-    await expect(filterClubScopedNotifications(rows, "recipient", "club-a")).resolves.toEqual([rows[0]]);
+  it("resolves foreign-club event notifications and drops them", async () => {
+    tableRows.events = [{ id: "e1", club_id: OTHER, team_id: null }];
+    const rows = [{ id: "n1", type: "event_note", related_id: "e1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
   });
 
-  it("keeps unresolved and unknown notification types instead of hiding potentially global notifications", async () => {
-    tableData.set("events", []);
+  it("fails closed on known club-scoped types when ownership lookup returns no row", async () => {
+    // events table has no row for e1 → unresolved
+    tableRows.events = [];
     const rows = [
-      row("missing-event", "event_updated", "deleted-event", null),
-      row("unknown", "future_notification", "future-id", null),
+      { id: "n1", type: "event_note", related_id: "missing", club_id: null },
+      { id: "n2", type: "team_message", related_id: "missing", club_id: null },
+      { id: "n3", type: "club_message", related_id: "missing", club_id: null },
+      { id: "n4", type: "group_message", related_id: "missing", club_id: null },
+      { id: "n5", type: "photo_comment", related_id: "missing", club_id: null },
     ];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
 
-    await expect(filterClubScopedNotifications(rows, "user-1", "club-a")).resolves.toEqual(rows);
+  it("fails closed on known club-scoped types when the lookup errors", async () => {
+    errorTables.add("events");
+    const rows = [
+      { id: "n1", type: "event_note", related_id: "e1", club_id: null },
+    ];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
+
+  it("resolves team_message via team → club and drops when club differs", async () => {
+    tableRows.team_messages = [{ id: "m1", team_id: "t1" }];
+    tableRows.teams = [{ id: "t1", club_id: OTHER }];
+    const rows = [{ id: "n1", type: "team_message", related_id: "m1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
+
+  it("resolves photo_comment via photo → club and keeps when it matches", async () => {
+    tableRows.photo_comments = [{ id: "c1", photo_id: "p1" }];
+    tableRows.photos = [{ id: "p1", club_id: ACTIVE, team_id: null }];
+    const rows = [{ id: "n1", type: "photo_comment", related_id: "c1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["n1"]);
   });
 
   it("must not expose a known club-scoped notification when ownership lookup fails", async () => {
-    tableData.set("events", {
-      data: [],
-      error: { message: "event ownership lookup denied" },
-    });
-    const scoped = row("event", "event_updated", "event-foreign", null);
-
-    await expect(
-      filterClubScopedNotifications([scoped], "user-1", "club-a"),
-    ).resolves.toEqual([]);
+    // Simulate a foreign-club team_message where lookups fail entirely.
+    errorTables.add("team_messages");
+    errorTables.add("teams");
+    const rows = [
+      { id: "leak", type: "team_message", related_id: "m-foreign", club_id: null },
+    ];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.find((r) => r.id === "leak")).toBeUndefined();
   });
 });

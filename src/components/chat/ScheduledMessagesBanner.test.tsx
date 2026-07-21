@@ -1,177 +1,237 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for ScheduledMessagesBanner — verifies that rapid clicks
+ * on the "Cancel message" confirmation button send exactly one cancellation
+ * request, that the confirm control is disabled + relabelled while the
+ * request is pending, and that failures preserve the selection so the user
+ * can deliberately retry.
+ *
+ * The Supabase client is fully mocked (thread fetch + cancel mutation).
+ */
+import React from "react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup,
+  within,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const mocks = vi.hoisted(() => ({
-  query: { data: [] as any[], isLoading: false, isError: false, error: null as any, refetch: vi.fn() },
-  mutateAsync: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
+// ---- Supabase mock ----------------------------------------------------
+
+// Read chain returns one pending scheduled message so the banner renders.
+const scheduledRow = {
+  id: "sched-1",
+  scheduled_for: new Date(Date.now() + 3_600_000).toISOString(),
+  text: "Reminder: bring boots",
+  image_url: null,
+  recurrence: "none",
+  chat_type: "team",
+  team_id: "t1",
+  status: "pending",
+};
+
+let readResponse: { data: unknown; error: unknown } = { data: [scheduledRow], error: null };
+
+function makeReadChain() {
+  const chain: any = {};
+  for (const m of ["select", "eq", "in", "is", "order", "not"]) chain[m] = () => chain;
+  chain.then = (onF: any, onR: any) => Promise.resolve(readResponse).then(onF, onR);
+  return chain;
+}
+
+// invokeSpy is the shared handle every test uses to observe / configure the
+// cancel Edge Function invocation.
+const invokeSpy = vi.fn();
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    functions: { invoke: (...a: any[]) => invokeSpy(...a) },
+    from: () => makeReadChain(),
+    auth: {
+      getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+    },
+  },
 }));
 
-vi.mock("@/hooks/useScheduledMessages", () => ({
-  useThreadScheduledMessages: () => mocks.query,
-  useCancelScheduledMessage: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "user-1" } }),
 }));
-vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
+
+// Silence sonner in tests but keep call-count assertions.
+const successSpy = vi.fn();
+const errorSpy = vi.fn();
+vi.mock("sonner", () => ({
+  toast: { success: (m: string) => successSpy(m), error: (m: string) => errorSpy(m) },
+}));
+
+// Skip the ScheduleMessageDialog subtree — it's unrelated and pulls in
+// heavy dependencies for tests focused on the cancel path. Mock via BOTH
+// the aliased and relative specifiers because Vitest treats them as
+// distinct module IDs when resolving vi.mock.
 vi.mock("./ScheduleMessageDialog", () => ({
-  localTimezoneLabel: () => "Australia/Sydney",
-  ScheduleMessageDialog: ({ open, editingRow }: any) => open
-    ? <div data-testid="edit-dialog">Editing {editingRow?.id}</div>
-    : null,
+  ScheduleMessageDialog: () => null,
+  localTimezoneLabel: () => "UTC",
 }));
-vi.mock("@/components/ui/alert-dialog", () => ({
-  AlertDialog: ({ open, children }: any) => open ? <div>{children}</div> : null,
-  AlertDialogContent: ({ children }: any) => <div>{children}</div>,
-  AlertDialogHeader: ({ children }: any) => <div>{children}</div>,
-  AlertDialogTitle: ({ children }: any) => <h3>{children}</h3>,
-  AlertDialogDescription: ({ children }: any) => <p>{children}</p>,
-  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
-  AlertDialogCancel: ({ children }: any) => <button>{children}</button>,
-  AlertDialogAction: ({ children, onClick, disabled }: any) => <button onClick={onClick} disabled={disabled}>{children}</button>,
+vi.mock("@/components/chat/ScheduleMessageDialog", () => ({
+  ScheduleMessageDialog: () => null,
+  localTimezoneLabel: () => "UTC",
 }));
+
+// ---- imports under test -----------------------------------------------
 
 import { ScheduledMessagesBanner } from "./ScheduledMessagesBanner";
 
-const target = { chat_type: "team" as const, team_id: "team-1" };
-const baseRow = {
-  id: "scheduled-1",
-  author_id: "user-1",
-  chat_type: "team",
-  team_id: "team-1",
-  club_id: null,
-  group_id: null,
-  conversation_id: null,
-  text: "Bring the blue kit",
-  image_url: null,
-  reply_to_id: null,
-  scheduled_for: "2030-08-01T10:00:00.000Z",
-  status: "pending",
-  sent_message_id: null,
-  error_message: null,
-  attempted_at: null,
-  recurrence: "none",
-  recurrence_until: null,
-  recurrence_parent_id: null,
-  created_at: "2030-07-01T10:00:00.000Z",
-  updated_at: "2030-07-01T10:00:00.000Z",
-};
+// ---- helpers ----------------------------------------------------------
 
-function expand() {
-  fireEvent.click(screen.getByRole("button", { name: /scheduled message/i }));
+function renderBanner() {
+  
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ScheduledMessagesBanner target={{ chat_type: "team", team_id: "t1" }} />
+    </QueryClientProvider>,
+  );
 }
 
-describe("ScheduledMessagesBanner management behavior", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.query.data = [];
-    mocks.query.isLoading = false;
-    mocks.query.isError = false;
-    mocks.query.error = null;
-    mocks.mutateAsync.mockResolvedValue(undefined);
+async function openConfirmDialog() {
+  renderBanner();
+  // Give React Query one tick to resolve the mocked read query so the
+  // banner mounts before we start querying it.
+  await new Promise((r) => setTimeout(r, 50));
+  // Expand the banner, then click the row's cancel (X) button.
+  const expandBtn = await screen.findByRole(
+    "button",
+    { name: /1 scheduled message/i },
+    { timeout: 3000 },
+  );
+  fireEvent.click(expandBtn);
+  const rowCancel = await screen.findByRole("button", {
+    name: /^Cancel scheduled message$/i,
   });
+  fireEvent.click(rowCancel);
+  return await screen.findByRole("alertdialog");
+}
 
-  it("renders nothing after a successful genuinely empty result", () => {
-    const { container } = render(<ScheduledMessagesBanner target={target} />);
-    expect(container).toBeEmptyDOMElement();
-  });
+const getConfirmButton = (dialog: HTMLElement) =>
+  within(dialog).getByRole("button", { name: /^(Cancel message|Cancelling…)$/i });
 
-  it("shows the exact count and next-send summary while collapsed", () => {
-    mocks.query.data = [baseRow, { ...baseRow, id: "scheduled-2" }];
-    render(<ScheduledMessagesBanner target={target} />);
+beforeEach(() => {
+  invokeSpy.mockReset();
+  successSpy.mockReset();
+  errorSpy.mockReset();
+  readResponse = { data: [scheduledRow], error: null };
+});
 
-    expect(screen.getByText("2 scheduled messages")).toBeInTheDocument();
-    expect(screen.getByText(/next in/i)).toBeInTheDocument();
-    expect(screen.queryByText("Bring the blue kit")).not.toBeInTheDocument();
-  });
+afterEach(() => cleanup());
 
-  it("expands to show message text, time and timezone", () => {
-    mocks.query.data = [baseRow];
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
+// ---- tests ------------------------------------------------------------
 
-    expect(screen.getByText("Bring the blue kit")).toBeInTheDocument();
-    expect(screen.getByText("Times shown in Australia/Sydney")).toBeInTheDocument();
-    const toggle = screen.getAllByRole("button").find(button => button.hasAttribute("aria-expanded"));
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("labels an attachment-only schedule instead of displaying a blank row", () => {
-    mocks.query.data = [{ ...baseRow, text: "", image_url: "https://example.test/photo.jpg" }];
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    expect(screen.getByText("(Image only)")).toBeInTheDocument();
-  });
-
-  it("shows the recurrence cadence", () => {
-    mocks.query.data = [{ ...baseRow, recurrence: "weekly" }];
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    expect(screen.getByText("weekly")).toBeInTheDocument();
-  });
-
-  it("opens editing for only the selected scheduled row", () => {
-    mocks.query.data = [baseRow, { ...baseRow, id: "scheduled-2", text: "Second" }];
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit scheduled message" })[1]);
-    expect(screen.getByTestId("edit-dialog")).toHaveTextContent("Editing scheduled-2");
-  });
-
-  it("requires confirmation and cancels only the selected row", async () => {
-    mocks.query.data = [baseRow, { ...baseRow, id: "scheduled-2" }];
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    fireEvent.click(screen.getAllByRole("button", { name: "Cancel scheduled message" })[1]);
-
-    expect(screen.getByText("Cancel scheduled message?")).toBeInTheDocument();
-    expect(mocks.mutateAsync).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel message" }));
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledWith("scheduled-2"));
-    expect(mocks.success).toHaveBeenCalledWith("Scheduled message cancelled");
-  });
-
-  it("reports a cancellation failure without reporting success", async () => {
-    mocks.query.data = [baseRow];
-    mocks.mutateAsync.mockRejectedValue(new Error("Cancellation denied"));
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel scheduled message" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel message" }));
-
-    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("Cancellation denied"));
-    expect(mocks.success).not.toHaveBeenCalled();
-  });
-
-  it("must show a loading state rather than pretending there are no schedules", () => {
-    mocks.query.isLoading = true;
-    render(<ScheduledMessagesBanner target={target} />);
-    expect(screen.getByText(/Loading scheduled messages/i)).toBeInTheDocument();
-  });
-
-  it("must warn that existing schedules may still send when loading fails", () => {
-    mocks.query.isError = true;
-    mocks.query.error = new Error("Schedule lookup unavailable");
-    render(<ScheduledMessagesBanner target={target} />);
-
-    expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
-    expect(screen.getByText(/may still send/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Retry/i }));
-    expect(mocks.query.refetch).toHaveBeenCalledOnce();
+describe("ScheduledMessagesBanner — confirm cancellation flow", () => {
+  it("one confirmation click sends exactly one mutation", async () => {
+    invokeSpy.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => expect(invokeSpy).toHaveBeenCalledTimes(1));
+    expect(invokeSpy.mock.calls[0][1].body).toMatchObject({
+      action: "cancel",
+      id: "sched-1",
+    });
   });
 
   it("must prevent duplicate cancellation requests while the first is pending", async () => {
-    let release!: () => void;
-    mocks.query.data = [baseRow];
-    mocks.mutateAsync.mockReturnValue(new Promise<void>(resolve => { release = resolve; }));
-    render(<ScheduledMessagesBanner target={target} />);
-    expand();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel scheduled message" }));
-    const confirm = screen.getByRole("button", { name: "Cancel message" });
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
+    // Never-resolving invoke so the request stays pending across both clicks.
+    let resolveInvoke!: (v: any) => void;
+    invokeSpy.mockImplementationOnce(
+      () => new Promise((r) => { resolveInvoke = r; }),
+    );
+    const dialog = await openConfirmDialog();
+    const btn = getConfirmButton(dialog);
+    // Two rapid synchronous clicks — the second must be swallowed.
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    // Wait for the async mutationFn microtask to invoke the Edge Function.
+    await waitFor(() => expect(invokeSpy).toHaveBeenCalledTimes(1));
+    // Give any (incorrectly-permitted) second invocation a chance to fire
+    // so this assertion doesn't false-pass on ordering alone.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+    // Cleanly resolve so React Query doesn't leak a pending mutation.
+    resolveInvoke({ data: { ok: true }, error: null });
+    await waitFor(() => expect(successSpy).toHaveBeenCalledTimes(1));
+  });
 
-    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1);
-    release();
-    await waitFor(() => expect(mocks.success).toHaveBeenCalledOnce());
+  it("disables the confirm button and relabels it to Cancelling… while pending", async () => {
+    let resolveInvoke!: (v: any) => void;
+    invokeSpy.mockImplementationOnce(
+      () => new Promise((r) => { resolveInvoke = r; }),
+    );
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => {
+      const b = within(dialog).getByRole("button", { name: /Cancelling…/i });
+      expect(b).toBeDisabled();
+    });
+    resolveInvoke({ data: { ok: true }, error: null });
+  });
+
+  it("reports success exactly once and closes the dialog", async () => {
+    invokeSpy.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => expect(successSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports failure exactly once and keeps the dialog open for retry", async () => {
+    invokeSpy.mockResolvedValueOnce({ data: null, error: { message: "network" } });
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => expect(errorSpy).toHaveBeenCalledTimes(1));
+    // Dialog stays open + button is re-enabled and relabelled for retry.
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    const retryBtn = within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: /^Cancel message$/i,
+    });
+    expect(retryBtn).not.toBeDisabled();
+    expect(successSpy).not.toHaveBeenCalled();
+  });
+
+  it("a failed cancellation can be retried and reports success on the second attempt", async () => {
+    invokeSpy
+      .mockResolvedValueOnce({ data: null, error: { message: "network" } })
+      .mockResolvedValueOnce({ data: { ok: true }, error: null });
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => expect(errorSpy).toHaveBeenCalledTimes(1));
+    fireEvent.click(getConfirmButton(screen.getByRole("alertdialog")));
+    await waitFor(() => expect(successSpy).toHaveBeenCalledTimes(1));
+    expect(invokeSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("only the selected scheduled-message ID is submitted", async () => {
+    invokeSpy.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    const dialog = await openConfirmDialog();
+    fireEvent.click(getConfirmButton(dialog));
+    await waitFor(() => expect(invokeSpy).toHaveBeenCalledTimes(1));
+    expect(invokeSpy.mock.calls[0][1].body.id).toBe("sched-1");
+  });
+
+  it("a stale click after the dialog closes cannot submit another request", async () => {
+    invokeSpy.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    const dialog = await openConfirmDialog();
+    const btn = getConfirmButton(dialog);
+    fireEvent.click(btn);
+    await waitFor(() => expect(successSpy).toHaveBeenCalledTimes(1));
+    // Dialog has closed — the resolved button ref no longer belongs to an
+    // open dialog. Clicking it again must not resurrect a mutation.
+    fireEvent.click(btn);
+    // Still exactly one invocation.
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 });

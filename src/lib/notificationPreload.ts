@@ -141,3 +141,26 @@ export function consumeFromNotificationFlag(kind: ChatKind, targetId: string): n
     return null;
   }
 }
+
+/**
+ * Sweep every `ignite_from_notification_*` flag from sessionStorage. Called
+ * by `clearUserScopedCaches()` on sign-out / cross-user sign-in so User A's
+ * "opened from notification" hints cannot flip User B's chat pages into
+ * refetch-priority mode on first mount. Safe/idempotent.
+ */
+export function clearAllFromNotificationFlags(): void {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    const doomed: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(FLAG_PREFIX)) doomed.push(k);
+    }
+    for (const k of doomed) {
+      try { sessionStorage.removeItem(k); } catch { /* noop */ }
+    }
+  } catch {
+    /* noop */
+  }
+}
+

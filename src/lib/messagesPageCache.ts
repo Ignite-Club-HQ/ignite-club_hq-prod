@@ -13,7 +13,10 @@
 // debounced (1500ms) and scheduled via requestIdleCallback so they never sit
 // on the navigation/render critical path.
 
-const CACHE_KEY = 'messages-page-cache';
+// v2 drops stale team rows cached before inbox queries filtered deleted/purged
+// parent clubs. Keep the old key ignored so orphaned deleted-club teams do not
+// flash back into /messages from localStorage.
+const CACHE_KEY = 'messages-page-cache-v2';
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const FLUSH_DEBOUNCE_MS = 1500;
 const IDLE_TIMEOUT_MS = 3000;
@@ -22,7 +25,8 @@ interface CachedTeam {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { name: string; logo_url: string | null; sport: string | null };
+  deleted_at?: string | null;
+  clubs: { name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
 }
 
 interface CachedClub {

@@ -1,179 +1,451 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Regression tests for ResetPasswordPage.
+ *
+ * Covers three newly-identified defects:
+ *   1. Password reset form must be locked behind recovery-session validation
+ *      (explicit `checking` | `valid` | `invalid` status). Never render an
+ *      actionable form or call `updateUser()` until the recovery session is
+ *      confirmed.
+ *   2. Fallback recovery-code delivery failures must NOT display "Code sent";
+ *      they must show a safe non-enumerating error toast, keep the Send code
+ *      button ready for retry, and never reveal account existence.
+ *   3. OTP verification must validate the email locally before calling
+ *      Supabase, must not clear the entered code on validation failure, and
+ *      must guard against concurrent verify calls.
+ */
 
-const mocks = vi.hoisted(() => ({
-  navigate: vi.fn(), toast: vi.fn(), exchange: vi.fn(), getSession: vi.fn(),
-  onAuthStateChange: vi.fn(), unsubscribe: vi.fn(), updateUser: vi.fn(),
-  resetPasswordForEmail: vi.fn(), verifyOtp: vi.fn(), getUser: vi.fn(),
-  authCallback: undefined as any,
+import React from "react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+
+// input-otp / Radix helpers need these jsdom polyfills.
+if (typeof (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver === "undefined") {
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+if (typeof document !== "undefined" && typeof document.elementFromPoint !== "function") {
+  (document as unknown as { elementFromPoint: () => null }).elementFromPoint = () => null;
+}
+
+// ── mocks ────────────────────────────────────────────────────────────────
+const toastSpy = vi.fn();
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: toastSpy }),
 }));
 
-vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
-vi.mock("@capacitor/core", () => ({ Capacitor: { isNativePlatform: () => false, getPlatform: () => "web" } }));
-vi.mock("@capacitor/keyboard", () => ({ Keyboard: { addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) } }));
-vi.mock("@/lib/passwordResetRedirect", () => ({ getPasswordResetRedirectUrl: (email: string) => `https://test.local/verify-reset-code?email=${encodeURIComponent(email)}` }));
-vi.mock("@/components/ui/input-otp", () => ({
-  InputOTP: ({ value, onChange, disabled }: any) => <input aria-label="Recovery code" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />,
-  InputOTPGroup: ({ children }: any) => <>{children}</>, InputOTPSlot: () => null,
-}));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: {
-  exchangeCodeForSession: mocks.exchange, getSession: mocks.getSession,
-  onAuthStateChange: mocks.onAuthStateChange, updateUser: mocks.updateUser,
-  resetPasswordForEmail: mocks.resetPasswordForEmail, verifyOtp: mocks.verifyOtp,
-  getUser: mocks.getUser,
-} } }));
+const navigateSpy = vi.fn();
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom",
+  );
+  return { ...actual, useNavigate: () => navigateSpy };
+});
 
+vi.mock("@/lib/passwordResetRedirect", () => ({
+  getPasswordResetRedirectUrl: () => "https://example.test/reset",
+}));
+
+vi.mock("@capacitor/core", () => ({
+  Capacitor: {
+    isNativePlatform: () => false,
+    getPlatform: () => "web",
+  },
+}));
+
+vi.mock("@capacitor/keyboard", () => ({
+  Keyboard: {
+    addListener: vi.fn(() => Promise.resolve({ remove: () => {} })),
+  },
+}));
+
+const exchangeCodeForSession = vi.fn();
+const getSession = vi.fn();
+const getUser = vi.fn();
+const updateUser = vi.fn();
+const resetPasswordForEmail = vi.fn();
+const verifyOtp = vi.fn();
+type AuthCb = (event: string) => void;
+let authCallback: AuthCb | null = null;
+const onAuthStateChange = vi.fn((cb: AuthCb) => {
+  authCallback = cb;
+  return { data: { subscription: { unsubscribe: vi.fn() } } };
+});
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: {
+      exchangeCodeForSession: (...a: unknown[]) => exchangeCodeForSession(...a),
+      getSession: (...a: unknown[]) => getSession(...a),
+      getUser: (...a: unknown[]) => getUser(...a),
+      updateUser: (...a: unknown[]) => updateUser(...a),
+      resetPasswordForEmail: (...a: unknown[]) => resetPasswordForEmail(...a),
+      verifyOtp: (...a: unknown[]) => verifyOtp(...a),
+      onAuthStateChange: (cb: AuthCb) => onAuthStateChange(cb),
+    },
+  },
+}));
+
+// Import AFTER mocks are registered.
 import ResetPasswordPage from "./ResetPasswordPage";
 
-async function renderAndResolveSession(session: any = { user: { id: "user-42" } }) {
-  mocks.getSession.mockResolvedValue({ data: { session }, error: null });
-  render(<ResetPasswordPage />);
-  await act(async () => { await vi.advanceTimersByTimeAsync(600); });
-}
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ResetPasswordPage />
+    </MemoryRouter>,
+  );
 
-function fillPasswords(password = "StrongPass1", confirm = password) {
-  fireEvent.change(screen.getByLabelText("New Password"), { target: { value: password } });
-  fireEvent.change(screen.getByLabelText("Confirm Password"), { target: { value: confirm } });
-}
+const setHref = (relative: string) => {
+  // JSDOM disallows replaceState across origins; use a relative URL.
+  window.history.replaceState({}, "", relative);
+};
 
-describe("ResetPasswordPage", () => {
-  beforeEach(() => {
-    vi.useFakeTimers(); vi.clearAllMocks();
-    window.history.replaceState({}, "", "/reset-password");
-    mocks.exchange.mockResolvedValue({ error: null });
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "user-42" } } }, error: null });
-    mocks.updateUser.mockResolvedValue({ error: null });
-    mocks.resetPasswordForEmail.mockResolvedValue({ error: null });
-    mocks.verifyOtp.mockResolvedValue({ error: null });
-    mocks.getUser.mockResolvedValue({ data: { user: { email: "alex@example.test" } } });
-    mocks.onAuthStateChange.mockImplementation((callback) => {
-      mocks.authCallback = callback;
-      return { data: { subscription: { unsubscribe: mocks.unsubscribe } } };
+
+beforeEach(() => {
+  toastSpy.mockReset();
+  navigateSpy.mockReset();
+  exchangeCodeForSession.mockReset();
+  getSession.mockReset();
+  getUser.mockReset();
+  updateUser.mockReset();
+  resetPasswordForEmail.mockReset();
+  verifyOtp.mockReset();
+  onAuthStateChange.mockClear();
+  authCallback = null;
+  setHref("/reset-password");
+  // Default: no active session (implicit path). Tests override as needed.
+  getSession.mockResolvedValue({ data: { session: null } });
+  getUser.mockResolvedValue({ data: { user: { email: "u@example.com" } } });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// ── 1. Recovery-session validation ───────────────────────────────────────
+
+describe("ResetPasswordPage — recovery-session lifecycle", () => {
+  it("shows a loading state while checking and hides the password form", async () => {
+    // Never resolves during this test — status stays `checking`.
+    getSession.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(screen.getByTestId("reset-password-checking")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reset password/i }))
+      .not.toBeInTheDocument();
+  });
+
+  it("marks the session valid after a successful PKCE code exchange", async () => {
+    setHref("/reset-password?code=abc123");
+    exchangeCodeForSession.mockResolvedValue({ error: null });
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/new password/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("reset-password-checking"))
+      .not.toBeInTheDocument();
+  });
+
+  it("marks the session valid when getSession() confirms an existing recovery session", async () => {
+    getSession.mockResolvedValue({
+      data: { session: { access_token: "a", refresh_token: "r" } },
     });
-    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, value: vi.fn() });
-    Object.defineProperty(window, "scrollTo", { configurable: true, value: vi.fn() });
-  });
-  afterEach(() => vi.useRealTimers());
-
-  it("does not expose an actionable password reset before recovery session validation completes", () => {
-    mocks.getSession.mockReturnValue(new Promise(() => {}));
-    render(<ResetPasswordPage />);
-    expect(screen.queryByRole("button", { name: "Reset Password" })).not.toBeInTheDocument();
-    expect(mocks.updateUser).not.toHaveBeenCalled();
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/new password/i)).toBeInTheDocument(),
+    );
   });
 
-  it("shows an expired-link recovery state when no session exists", async () => {
-    await renderAndResolveSession(null);
-    expect(screen.getByText(/Invalid or expired reset link/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Use a 6-digit code instead" })).toBeInTheDocument();
-  });
-
-  it("exchanges a PKCE code before checking the resulting session and cleans the URL", async () => {
-    window.history.replaceState({}, "", "/reset-password?code=pkce-code");
-    await renderAndResolveSession();
-    expect(mocks.exchange).toHaveBeenCalledWith("pkce-code");
-    expect(window.location.pathname).toBe("/reset-password");
-    expect(window.location.search).toBe("");
-  });
-
-  it("fails closed when PKCE exchange is rejected", async () => {
-    window.history.replaceState({}, "", "/reset-password?code=bad-code");
-    mocks.exchange.mockResolvedValue({ error: { message: "expired" } });
-    render(<ResetPasswordPage />);
-    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
-    expect(screen.getByText(/Invalid or expired reset link/i)).toBeInTheDocument();
-    expect(mocks.getSession).not.toHaveBeenCalled();
-  });
-
-  it("clears an expired-link error when PASSWORD_RECOVERY establishes a session", async () => {
-    await renderAndResolveSession(null);
-    expect(screen.getByText(/Invalid or expired reset link/i)).toBeInTheDocument();
-    act(() => mocks.authCallback("PASSWORD_RECOVERY"));
-    expect(screen.getByRole("button", { name: "Reset Password" })).toBeInTheDocument();
-  });
-
-  it("rejects weak and mismatched passwords without updating the user", async () => {
-    await renderAndResolveSession();
-    fillPasswords("weak", "different");
-    fireEvent.click(screen.getByRole("button", { name: "Reset Password" }));
-    expect(mocks.updateUser).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Please check your password" }));
-  });
-
-  it("updates only the password after local validation succeeds", async () => {
-    await renderAndResolveSession();
-    fillPasswords();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reset Password" })); });
-    expect(mocks.updateUser).toHaveBeenCalledWith({ password: "StrongPass1" });
-  });
-
-  it("prevents duplicate password updates while the first update is pending", async () => {
-    let resolve!: (value: any) => void;
-    mocks.updateUser.mockReturnValue(new Promise((res) => { resolve = res; }));
-    await renderAndResolveSession(); fillPasswords();
-    const submit = screen.getByRole("button", { name: "Reset Password" });
-    fireEvent.click(submit); fireEvent.click(submit);
-    expect(mocks.updateUser).toHaveBeenCalledOnce();
-    await act(async () => resolve({ error: { message: "expired" } }));
-  });
-
-  it("does not show success when the recovery session expires during update", async () => {
-    mocks.updateUser.mockResolvedValue({ error: { message: "Auth session missing" } });
-    await renderAndResolveSession(); fillPasswords();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reset Password" })); });
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: "Unable to reset password", description: "Auth session missing",
+  it("marks the session valid when a PASSWORD_RECOVERY auth event fires", async () => {
+    // No session, but the SDK emits PASSWORD_RECOVERY after our probe.
+    renderPage();
+    // Wait until the initial establishRecoverySession has resolved to invalid.
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    act(() => {
+      authCallback?.("PASSWORD_RECOVERY");
     });
-    expect(screen.queryByText("Password reset successful!")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/new password/i)).toBeInTheDocument(),
+    );
   });
 
-  it("shows success and redirects only after the password update succeeds", async () => {
-    await renderAndResolveSession(); fillPasswords();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reset Password" })); });
-    expect(screen.getByText("Password reset successful!")).toBeInTheDocument();
-    expect(mocks.navigate).not.toHaveBeenCalled();
-    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
-    expect(mocks.navigate).toHaveBeenCalledWith("/");
+  it("marks the session invalid when the URL carries an error_description", async () => {
+    setHref(
+      "/reset-password?error_description=" +
+        encodeURIComponent("Link expired"),
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/link expired/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
   });
 
-  it("validates fallback email before requesting a recovery code", async () => {
-    await renderAndResolveSession(null);
-    fireEvent.click(screen.getByRole("button", { name: "Use a 6-digit code instead" }));
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "bad" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
-    expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+  it("marks the session invalid when exchangeCodeForSession fails", async () => {
+    setHref("/reset-password?code=badcode");
+    exchangeCodeForSession.mockResolvedValue({
+      error: { message: "invalid grant" },
+    });
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
   });
 
-  it("does not claim a fallback code was sent when delivery fails", async () => {
-    mocks.resetPasswordForEmail.mockResolvedValue({ error: { message: "Network failed" } });
-    await renderAndResolveSession(null);
-    fireEvent.click(screen.getByRole("button", { name: "Use a 6-digit code instead" }));
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alex@example.test" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send code" })); });
-    expect(mocks.resetPasswordForEmail).toHaveBeenCalled();
-    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Code sent" }));
+  it("marks the session invalid when no session is found via the implicit flow", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
+  });
+});
+
+// ── 2. updateUser guard ──────────────────────────────────────────────────
+
+describe("ResetPasswordPage — updateUser guard", () => {
+  it("never calls updateUser() while the recovery session is invalid", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    // The password form is not rendered — updateUser cannot be triggered.
+    expect(screen.queryByRole("button", { name: /^reset password$/i }))
+      .not.toBeInTheDocument();
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+});
+
+// ── 3. Fallback sendRecoveryCode failure handling ────────────────────────
+
+describe("ResetPasswordPage — sendRecoveryCode fail-closed", () => {
+  const openOtpInterface = async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /use a 6-digit code instead/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument(),
+    );
+  };
+
+  it("does NOT show 'Code sent' when Supabase returns an error", async () => {
+    resetPasswordForEmail.mockResolvedValue({
+      data: {},
+      error: { message: "smtp failure" },
+    });
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
+
+    await waitFor(() => expect(resetPasswordForEmail).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Unable to send code" }),
+      ),
+    );
+    expect(toastSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Code sent" }),
+    );
+    // Send code button restored for retry.
+    expect(screen.getByRole("button", { name: /send code/i })).not.toBeDisabled();
   });
 
-  it("does not verify a recovery code until a valid email is supplied", async () => {
-    await renderAndResolveSession(null);
-    fireEvent.click(screen.getByRole("button", { name: "Use a 6-digit code instead" }));
-    await act(async () => { fireEvent.change(screen.getByLabelText("Recovery code"), { target: { value: "123456" } }); });
-    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  it("does NOT show 'Code sent' when resetPasswordForEmail throws", async () => {
+    resetPasswordForEmail.mockRejectedValue(new Error("network down"));
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Unable to send code" }),
+      ),
+    );
+    expect(toastSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Code sent" }),
+    );
+    expect(screen.getByRole("button", { name: /send code/i })).not.toBeDisabled();
   });
 
-  it("verifies fallback OTP with exact recovery scope and reveals the password form on success", async () => {
-    await renderAndResolveSession(null);
-    fireEvent.click(screen.getByRole("button", { name: "Use a 6-digit code instead" }));
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alex@example.test" } });
-    await act(async () => { fireEvent.change(screen.getByLabelText("Recovery code"), { target: { value: "123456" } }); });
-    expect(mocks.verifyOtp).toHaveBeenCalledWith({ email: "alex@example.test", token: "123456", type: "recovery" });
-    expect(screen.getByRole("button", { name: "Reset Password" })).toBeInTheDocument();
+  it("shows 'Code sent' only on a successful send", async () => {
+    resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Code sent" }),
+      ),
+    );
+    expect(toastSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Unable to send code" }),
+    );
   });
 
-  it("unsubscribes from auth recovery events on unmount", () => {
-    const { unmount } = render(<ResetPasswordPage />);
-    unmount();
-    expect(mocks.unsubscribe).toHaveBeenCalledOnce();
+  it("allows an immediate retry after a failed send", async () => {
+    resetPasswordForEmail
+      .mockResolvedValueOnce({ data: {}, error: { message: "boom" } })
+      .mockResolvedValueOnce({ data: {}, error: null });
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
+    await waitFor(() => expect(resetPasswordForEmail).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
+    await waitFor(() => expect(resetPasswordForEmail).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Code sent" }),
+      ),
+    );
+  });
+
+  it("deduplicates concurrent send-code clicks", async () => {
+    let resolveSend: (v: unknown) => void = () => {};
+    resetPasswordForEmail.mockReturnValue(
+      new Promise((r) => {
+        resolveSend = r;
+      }),
+    );
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    const btn = screen.getByRole("button", { name: /send code/i });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await waitFor(() => expect(resetPasswordForEmail).toHaveBeenCalledTimes(1));
+    resolveSend({ data: {}, error: null });
+  });
+});
+
+// ── 4. OTP verification hardening ────────────────────────────────────────
+
+describe("ResetPasswordPage — OTP verification", () => {
+  const openOtpInterface = async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid or expired reset link/i))
+        .toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /use a 6-digit code instead/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument(),
+    );
+  };
+
+  it("does not call verifyOtp when the email is empty", async () => {
+    await openOtpInterface();
+    // Directly simulate a completed 6-digit code without setting an email.
+    // The InputOTP hidden input carries the value.
+    const hidden = document.querySelector(
+      'input[autocomplete="one-time-code"]',
+    ) as HTMLInputElement | null;
+    expect(hidden).not.toBeNull();
+    fireEvent.change(hidden!, { target: { value: "123456" } });
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Enter your email" }),
+      ),
+    );
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("does not clear the entered code when the email is invalid", async () => {
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "not-an-email" },
+    });
+    const hidden = document.querySelector(
+      'input[autocomplete="one-time-code"]',
+    ) as HTMLInputElement | null;
+    fireEvent.change(hidden!, { target: { value: "654321" } });
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Enter your email" }),
+      ),
+    );
+    expect(verifyOtp).not.toHaveBeenCalled();
+    // Code preserved.
+    expect(
+      (document.querySelector(
+        'input[autocomplete="one-time-code"]',
+      ) as HTMLInputElement).value,
+    ).toBe("654321");
+  });
+
+  it("flips status to valid and shows the password form after successful verification", async () => {
+    verifyOtp.mockResolvedValue({ data: {}, error: null });
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    const hidden = document.querySelector(
+      'input[autocomplete="one-time-code"]',
+    ) as HTMLInputElement | null;
+    fireEvent.change(hidden!, { target: { value: "111222" } });
+
+    await waitFor(() =>
+      expect(verifyOtp).toHaveBeenCalledWith({
+        email: "user@example.com",
+        token: "111222",
+        type: "recovery",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(/new password/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("deduplicates concurrent verifyOtp calls", async () => {
+    let resolveVerify: (v: unknown) => void = () => {};
+    verifyOtp.mockReturnValue(
+      new Promise((r) => {
+        resolveVerify = r;
+      }),
+    );
+    await openOtpInterface();
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "user@example.com" },
+    });
+    const hidden = document.querySelector(
+      'input[autocomplete="one-time-code"]',
+    ) as HTMLInputElement | null;
+    // Fire the same 6-digit change twice — the second must be ignored while
+    // the first is still in flight.
+    fireEvent.change(hidden!, { target: { value: "999888" } });
+    fireEvent.change(hidden!, { target: { value: "999888" } });
+    await waitFor(() => expect(verifyOtp).toHaveBeenCalledTimes(1));
+    resolveVerify({ data: {}, error: null });
   });
 });

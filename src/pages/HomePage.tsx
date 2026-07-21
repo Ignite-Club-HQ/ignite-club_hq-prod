@@ -8,13 +8,37 @@ import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
-import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
-import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
-import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
-import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
-import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
+// Lazy-loaded to keep them out of the HomePage critical path. Each is only
+// mounted when the user opens a specific dialog / lands on a banner-eligible
+// state, so the chunk fetch happens on demand.
+const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
+const RecurringEventActionDialog = lazy(() => import("@/components/RecurringEventActionDialog").then(m => ({ default: m.RecurringEventActionDialog })));
+const CancelEventConfirmDialog = lazy(() => import("@/components/CancelEventConfirmDialog").then(m => ({ default: m.CancelEventConfirmDialog })));
+const RecurringCancelEventDialog = lazy(() => import("@/components/RecurringCancelEventDialog").then(m => ({ default: m.RecurringCancelEventDialog })));
+const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
+const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
+const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
+const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
+
+// Warm the dialog chunks after first paint so opening them feels instant.
+// idle callback keeps this off the critical path.
+if (typeof window !== "undefined") {
+  const warm = () => {
+    void import("@/components/CancelEventConfirmDialog").catch(() => {});
+    void import("@/components/RecurringCancelEventDialog").catch(() => {});
+    void import("@/components/RecurringEventActionDialog").catch(() => {});
+    void import("@/components/HomeInviteFlow").catch(() => {});
+    void import("@/components/NativeAppDownloadBanner").catch(() => {});
+    void import("@/components/AccountRecoveryBanner").catch(() => {});
+    void import("@/components/RewardClaimQRDialog").catch(() => {});
+  };
+  const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
+  if (typeof w.requestIdleCallback === "function") {
+    w.requestIdleCallback(warm, { timeout: 4000 });
+  } else {
+    window.setTimeout(warm, 2500);
+  }
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,9 +53,9 @@ import { PageLoading } from "@/components/ui/page-loading";
 
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-import GameTimerWidget from "@/components/pitch/GameTimerWidget";
+const GameTimerWidget = lazy(() => import("@/components/pitch/GameTimerWidget"));
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
-import CourtBoardResumeCard from "@/components/home/CourtBoardResumeCard";
+// CourtBoardResumeCard archived (basketball/netball only) — soccer resume handled by GameTimerWidget
 
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
@@ -61,6 +85,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
+import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
@@ -82,8 +108,11 @@ const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import HomeInviteFlow from "@/components/HomeInviteFlow";
+
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
+import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
+import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
+
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
@@ -319,6 +348,20 @@ export default function HomePage() {
     if (!user?.id) return false;
     return localStorage.getItem(installCardDismissedKey) !== 'true';
   });
+
+  // One-time post-signup welcome toast (flag set by CompleteProfilePage).
+  useEffect(() => {
+    try {
+      const name = sessionStorage.getItem("ignite_show_welcome_toast");
+      if (!name) return;
+      sessionStorage.removeItem("ignite_show_welcome_toast");
+      toast({
+        title: `Welcome to Ignite, ${name}! 🎉`,
+        description: "Tap the + button to start a club, team or event — or check your notifications for pending invites.",
+      });
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   const dismissInstallCard = () => {
     setShowInstallCard(false);
@@ -373,6 +416,27 @@ export default function HomePage() {
     () => getCachedNextUp<{ memberships: any; events: Event[]; cachedAt: number }>(user?.id),
     [user?.id],
   );
+
+  // Home perf: mark mount + track primary-query return + first paint. See
+  // src/lib/homeOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // home open report the FIRST open's `query_ms` / `first_paint_ms`.
+  const homeOpenStartRef = useRef<number>(Date.now());
+  const homeMountTsRef = useRef<number>(Date.now());
+  const homeQueryReturnTsRef = useRef<number | null>(null);
+  const homeFirstPaintTsRef = useRef<number | null>(null);
+  const homePerfLoggedRef = useRef(false);
+  useEffect(() => {
+    const now = Date.now();
+    homeOpenStartRef.current = now;
+    homeMountTsRef.current = now;
+    homeQueryReturnTsRef.current = null;
+    homeFirstPaintTsRef.current = null;
+    homePerfLoggedRef.current = false;
+    coldMark("home_mount");
+    return () => { resetHomeOpenLog(); };
+  }, []);
 
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
@@ -465,15 +529,23 @@ export default function HomePage() {
         eventsQuery = eventsQuery.or(eventScopeOr.join(","));
       }
 
-      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
+      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult, activeClubsResult] = await Promise.all([
         teamIds.length > 0
-          ? supabase.from("teams").select("club_id").in("id", teamIds)
-          : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
+          ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
+          : Promise.resolve({ data: [] as { id: string; club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
         eventsQuery,
+        // Filter out soft-deleted clubs from role-derived memberships. Without
+        // this, deleting a club leaves orphan user_roles rows that still make
+        // the user look like a member (empty-state welcome hidden, ghost
+        // carousel entries) because user_roles isn't cleared by the soft-
+        // delete trigger.
+        clubIdsFromRolesArr.length > 0
+          ? supabase.from("clubs").select("id").in("id", clubIdsFromRolesArr).is("deleted_at", null)
+          : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
       ]);
 
       // Same protection on the events fetch — if it failed (RLS race on
@@ -482,24 +554,46 @@ export default function HomePage() {
       if ((eventsResult as any).error) throw (eventsResult as any).error;
       if (!eventsResult.data) throw new Error("events fetch returned null data");
 
-      (teamsResult.data || []).forEach((t: any) => clubIds.add(t.club_id));
+      // Drop soft-deleted role-club ids from the membership sets.
+      const activeClubIdSet = new Set(((activeClubsResult as any).data || []).map((c: any) => c.id as string));
+      const filteredClubIds = new Set<string>();
+      clubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubIds.add(id); });
+      const filteredClubAdmin = new Set<string>();
+      clubAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubAdmin.add(id); });
+      const filteredLeagueAdmin = new Set<string>();
+      leagueAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredLeagueAdmin.add(id); });
+
+      // Team-derived memberships must also be filtered. A deleted club can leave
+      // user_roles rows with team_id populated; counting the raw teamIds keeps
+      // the new-user welcome hidden even after the club itself is filtered out.
+      const filteredTeamIds = new Set<string>();
+      (teamsResult.data || []).forEach((t: any) => {
+        if (!activeClubIdSet.has(t.club_id)) return;
+        filteredTeamIds.add(t.id);
+        filteredClubIds.add(t.club_id);
+      });
 
       const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
       (adminLeaguesResult.data || []).forEach((l: any) => {
         if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
       });
 
+      // Drop role rows whose club has been soft-deleted so downstream
+      // consumers (userRoles derivation, admin gates) don't grant admin
+      // powers on a ghost club.
+      const activeRoles = roles.filter((r: any) => !r.club_id || activeClubIdSet.has(r.club_id));
+
       const memberships = {
-        teamIds,
-        clubIds: Array.from(clubIds),
-        clubAdminClubIds: Array.from(clubAdminClubIds),
-        leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        teamIds: Array.from(filteredTeamIds),
+        clubIds: Array.from(filteredClubIds),
+        clubAdminClubIds: Array.from(filteredClubAdmin),
+        leagueAdminClubIds: Array.from(filteredLeagueAdmin),
         miniLeagueIds,
-        roles: roles as { role: string; club_id: string | null; team_id: string | null }[],
+        roles: activeRoles as { role: string; club_id: string | null; team_id: string | null }[],
       };
 
       // Step 3: Filter events client-side
-      const clubIdsArr = Array.from(clubIds);
+      const clubIdsArr = Array.from(filteredClubIds);
       const nowMs = now.getTime();
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
@@ -699,11 +793,30 @@ export default function HomePage() {
         .from("clubs")
         .select("id, name, sport, points_display_name, points_icon_url")
         .in("id", clubIds)
+        .is("deleted_at", null)
         .order("name");
 
       return clubs || [];
     },
     enabled: !!user && !!userMemberships && (userMemberships?.clubIds?.length ?? 0) > 0,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  // Get user's active (non-deleted) team memberships — used for empty-state gating
+  const { data: activeTeamIds = [] } = useQuery({
+    queryKey: ["user-active-team-ids", user?.id, userMemberships?.teamIds],
+    queryFn: async () => {
+      const teamIds = userMemberships?.teamIds || [];
+      if (teamIds.length === 0) return [];
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .in("id", teamIds)
+        .is("deleted_at", null);
+      return (data || []).map((t: any) => t.id as string);
+    },
+    enabled: !!user && !!userMemberships && (userMemberships?.teamIds?.length ?? 0) > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -725,7 +838,7 @@ export default function HomePage() {
           ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
           : Promise.resolve({ data: [] }),
         teamIds.length > 0
-          ? supabase.from("teams").select("id, is_pro").in("id", teamIds)
+          ? supabase.from("teams").select("id, is_pro").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -1316,6 +1429,11 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport, class_mode_enabled")
+        .is("deleted_at", null)
+        .is("purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Club[];
@@ -1330,7 +1448,16 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
+        .is("deleted_at", null)
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
+        .not("name", "ilike", "%test%")
+        .not("name", "ilike", "%demo%")
+        .not("name", "ilike", "%sample%")
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as Team[];
@@ -1345,7 +1472,12 @@ export default function HomePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, club_id, clubs!club_id (name, sport)")
+        .select("id, name, club_id, clubs!club_id!inner (name, sport, deleted_at, purged_at)")
+        .is("clubs.deleted_at", null)
+        .is("clubs.purged_at", null)
+        .not("clubs.name", "ilike", "%test%")
+        .not("clubs.name", "ilike", "%demo%")
+        .not("clubs.name", "ilike", "%sample%")
         .order("name");
       if (error) throw error;
       return data as MiniLeague[];
@@ -1383,7 +1515,8 @@ export default function HomePage() {
       const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs!club_id (id, name, sport)")
-        .in("id", coachAdminTeamIds);
+        .in("id", coachAdminTeamIds)
+        .is("deleted_at", null);
       
       if (teamsError) throw teamsError;
       
@@ -1461,7 +1594,8 @@ export default function HomePage() {
       // Build query based on roles
       let teamsQuery = supabase
         .from("teams")
-        .select("id, name, club_id, clubs!club_id (id, name, sport)");
+        .select("id, name, club_id, clubs!club_id (id, name, sport)")
+        .is("deleted_at", null);
       
       if (isAppAdmin) {
         // App admin can see all teams (read-only for teams they're not coach/team_admin of)
@@ -2058,6 +2192,74 @@ export default function HomePage() {
   }, [user?.id, activeClubFilter]);
   const showContent = computedShowContent || hasRevealed;
 
+  // Empty-state gate: only show the "Find or Join a Club" welcome once we
+  // authoritatively know the user has zero clubs AND zero teams. The
+  // `userClubs` / `activeTeamIds` queries default to `[]` before their
+  // dependent membership fetch resolves, which caused the welcome card to
+  // flash for users who DO have clubs. Gate on `userMemberships` (from the
+  // primary membership+events query) so we wait for real data.
+  const hasResolvedMemberships = !!userMemberships;
+  const membershipClubCount = userMemberships?.clubIds?.length ?? 0;
+  const membershipTeamCount = userMemberships?.teamIds?.length ?? 0;
+  const isNewUserEmptyState =
+    initialized &&
+    !isLoading &&
+    hasResolvedMemberships &&
+    membershipClubCount === 0 &&
+    membershipTeamCount === 0 &&
+    userClubs.length === 0 &&
+    activeTeamIds.length === 0;
+
+  // Home perf: log once first paint occurs (unified skeleton has been
+  // replaced by real content OR the authoritative empty state).
+  useEffect(() => {
+    if (membershipAndEvents && homeQueryReturnTsRef.current === null) {
+      homeQueryReturnTsRef.current = Date.now();
+      coldMark("home_query_return");
+    }
+  }, [membershipAndEvents]);
+  useEffect(() => {
+    if (homePerfLoggedRef.current) return;
+    if (!user?.id) return;
+    if (!(showContent || isNewUserEmptyState)) return;
+    homePerfLoggedRef.current = true;
+    if (homeFirstPaintTsRef.current === null) {
+      homeFirstPaintTsRef.current = Date.now();
+    }
+    let source: "warm_nav" | "cold_open" | "notification" =
+      nextUpCachedSnapshot ? "warm_nav" : "cold_open";
+    try {
+      const snap = snapshotStages();
+      const notifTap = snap.deltas.notif_tap;
+      const homeMount = snap.deltas.home_mount;
+      if (
+        typeof notifTap === "number" &&
+        typeof homeMount === "number" &&
+        homeMount >= notifTap &&
+        homeMount - notifTap < 10_000
+      ) {
+        source = "notification";
+      }
+    } catch {}
+    void logHomeOpenLatency({
+      userId: user.id,
+      source,
+      startTs: homeOpenStartRef.current,
+      cacheHit: !!nextUpCachedSnapshot,
+      mountTs: homeMountTsRef.current,
+      queryReturnTs: homeQueryReturnTsRef.current,
+      firstPaintTs: homeFirstPaintTsRef.current,
+      primaryClubId: activeClubFilter ?? userClubs[0]?.id ?? null,
+      context: {
+        clubCount: membershipClubCount,
+        teamCount: membershipTeamCount,
+        upcomingEvents: events.length,
+        activeClubFilter: activeClubFilter ?? null,
+        isNewUserEmptyState,
+      },
+    });
+  }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
+
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
@@ -2070,20 +2272,35 @@ export default function HomePage() {
             Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
           </p>
         </div>
-        <HomeQuickActionsFab
-          onInvite={() => setMemberInviteOpen(true)}
-          onJoinTeam={() => setTeamDialogOpen(true)}
-          hasTeams={!!userRoles?.some(r => r.team_id)}
-          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          isAppAdmin={isAppAdmin}
-          activeClubFilter={activeClubFilter}
-          activeClubName={activeClubName}
-          hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
-        />
+        {!isNewUserEmptyState && (
+          <HomeQuickActionsFab
+            onInvite={() => setMemberInviteOpen(true)}
+            onJoinTeam={() => setTeamDialogOpen(true)}
+            hasTeams={!!userRoles?.some(r => r.team_id)}
+            canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+            canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            isAppAdmin={isAppAdmin}
+            activeClubFilter={activeClubFilter}
+            activeClubName={activeClubName}
+            hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
+          />
+        )}
 
       </div>
+
+      {/* New-user empty state — no clubs, no team memberships yet */}
+      {isNewUserEmptyState && (
+        <HomeWelcomeGetStarted
+          firstName={firstName}
+          email={user?.email}
+          onFindOrJoin={() => setTeamDialogOpen(true)}
+        />
+      )}
+
+      {/* Setup progress moved to Club page only — do not surface on Home once
+          a club exists (per product decision). */}
+
 
       <div className="relative">
         {!showContent && <HomeInitialSkeleton />}
@@ -2151,33 +2368,42 @@ export default function HomePage() {
         );
         
         return (
-          <GameTimerWidget 
-            onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
-            readOnly={!hasEditAccess}
-          />
+          <Suspense fallback={null}>
+            <GameTimerWidget
+              onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
+              readOnly={!hasEditAccess}
+            />
+          </Suspense>
         );
+
       })()}
 
-      {/* Resume in-progress basketball / netball game boards.
-          Soccer is already handled by GameTimerWidget above. */}
-      <CourtBoardResumeCard />
+      {/* Court-sport resume card archived — soccer resume handled by GameTimerWidget above. */}
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
 
       {/* Account Recovery Banner */}
       {user && (
-        <AccountRecoveryBanner
-          userId={user.id}
-          onRecovered={() => queryClient.invalidateQueries()}
-        />
+        <Suspense fallback={null}>
+          <AccountRecoveryBanner
+            userId={user.id}
+            onRecovered={() => queryClient.invalidateQueries()}
+          />
+        </Suspense>
       )}
 
       {/* Native App Download Banner - for mobile browser users */}
-      <NativeAppDownloadBanner />
+      <Suspense fallback={null}>
+        <NativeAppDownloadBanner />
+      </Suspense>
 
 
-      <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+      {memberInviteOpen && (
+        <Suspense fallback={null}>
+          <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+        </Suspense>
+      )}
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <LazyMount minHeight={60}>
@@ -2541,17 +2767,19 @@ export default function HomePage() {
       </section>
 
       {/* Reward Claim QR Dialog */}
-      {latestPendingRedemption && user && (
-        <RewardClaimQRDialog
-          open={rewardQROpen}
-          onOpenChange={setRewardQROpen}
-          rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
-          clubName={latestPendingRedemption.clubs?.name || "Club"}
-          redemptionId={latestPendingRedemption.id}
-          qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
-          userName={profile?.display_name || undefined}
-          userId={user.id}
-        />
+      {latestPendingRedemption && user && rewardQROpen && (
+        <Suspense fallback={null}>
+          <RewardClaimQRDialog
+            open={rewardQROpen}
+            onOpenChange={setRewardQROpen}
+            rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
+            clubName={latestPendingRedemption.clubs?.name || "Club"}
+            redemptionId={latestPendingRedemption.id}
+            qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
+            userName={profile?.display_name || undefined}
+            userId={user.id}
+          />
+        </Suspense>
       )}
 
       {/* Rewards Browse Dialog */}
@@ -2882,20 +3110,22 @@ export default function HomePage() {
 
       {/* Delete Event Dialog */}
       {eventToDelete && (eventToDelete.is_recurring || eventToDelete.parent_event_id) ? (
-        <RecurringEventActionDialog
-          open={deleteDialogOpen}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) setEventToDelete(null);
-          }}
-          title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
-          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
-          actionLabel="Delete"
-          actionVariant="destructive"
-          onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
-          onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
-          isPending={deleteEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringEventActionDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              setDeleteDialogOpen(open);
+              if (!open) setEventToDelete(null);
+            }}
+            title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
+            description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            actionLabel="Delete"
+            actionVariant="destructive"
+            onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
+            onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
+            isPending={deleteEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToDelete && (
         <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
           setDeleteDialogOpen(open);
@@ -2923,43 +3153,47 @@ export default function HomePage() {
 
       {/* Cancel Event Dialog */}
       {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
-        <RecurringCancelEventDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onSingleAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          onSeriesAction={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <RecurringCancelEventDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onSingleAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            onSeriesAction={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       ) : eventToCancel && (
-        <CancelEventConfirmDialog
-          open={cancelDialogOpen}
-          onOpenChange={(open) => {
-            setCancelDialogOpen(open);
-            if (!open) setEventToCancel(null);
-          }}
-          eventId={eventToCancel?.id || ""}
-          eventTitle={eventToCancel?.title || ""}
-          teamId={eventToCancel?.team_id}
-          clubId={eventToCancel?.club_id}
-          miniLeagueId={eventToCancel?.mini_league_id}
-          eventType={eventToCancel?.type}
-          onConfirm={(customMessage, sendPushNotification) => 
-            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-          }
-          isPending={cancelEventMutation.isPending}
-        />
+        <Suspense fallback={null}>
+          <CancelEventConfirmDialog
+            open={cancelDialogOpen}
+            onOpenChange={(open) => {
+              setCancelDialogOpen(open);
+              if (!open) setEventToCancel(null);
+            }}
+            eventId={eventToCancel?.id || ""}
+            eventTitle={eventToCancel?.title || ""}
+            teamId={eventToCancel?.team_id}
+            clubId={eventToCancel?.club_id}
+            miniLeagueId={eventToCancel?.mini_league_id}
+            eventType={eventToCancel?.type}
+            onConfirm={(customMessage, sendPushNotification) =>
+              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+            }
+            isPending={cancelEventMutation.isPending}
+          />
+        </Suspense>
       )}
 
       {/* Remind Dialog */}
@@ -3002,6 +3236,7 @@ export default function HomePage() {
       </AlertDialog>
 
       {quickRsvpEvent && (
+        <Suspense fallback={null}>
         <QuickRSVPDialog
           open={!!quickRsvpEvent}
           onOpenChange={(open) => !open && setQuickRsvpEvent(null)}
@@ -3016,6 +3251,7 @@ export default function HomePage() {
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
           eventAmount={quickRsvpEvent.amount}
         />
+        </Suspense>
       )}
 
       {/* Claim Reward Confirmation Dialog */}
