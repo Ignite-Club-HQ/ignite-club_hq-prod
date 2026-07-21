@@ -663,14 +663,15 @@ export default function CreateEventPage() {
     // is unavailable or stale so we never submit an ambiguous combination.
     {
       const check = validateEventTeamClubScope(teamId, teams, clubId);
-      if (!check.ok) {
+      if (check.ok === false) {
+        const reason = check.reason;
         toast({
           title:
-            check.reason === "list_unavailable"
+            reason === "list_unavailable"
               ? "Team list unavailable"
               : "Team does not belong to selected club",
           description:
-            check.reason === "list_unavailable"
+            reason === "list_unavailable"
               ? "Please reselect the club so we can load its teams before creating the event."
               : "The selected team is not part of the selected club. Please choose a team from this club.",
           variant: "destructive",
