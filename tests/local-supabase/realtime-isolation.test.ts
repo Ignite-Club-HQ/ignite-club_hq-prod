@@ -1,0 +1,191 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import { assertSyntheticLocalMarker, createSecurityFixture, service, type SecurityFixture } from "./fixtures";
+
+const realtimeEnabled = process.env.LOCAL_SUPABASE_REALTIME_ENABLED === "true";
+const realtimeDescribe = realtimeEnabled ? describe : describe.skip;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function subscribe(channel: RealtimeChannel) {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Realtime subscription timed out")), 5_000);
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") { clearTimeout(timer); resolve(); }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        clearTimeout(timer); reject(new Error(`Realtime subscription failed: ${status}`));
+      }
+    });
+  });
+  // A freshly provisioned local Realtime tenant can report SUBSCRIBED just
+  // before its Postgres replication listener is ready to deliver the first
+  // change. Allow that listener to settle; authorization is still exercised
+  // by every subsequent database mutation and delivery assertion.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+}
+
+async function expectNoEvent(promise: Promise<unknown>, waitMs = 350) {
+  const sentinel = Symbol("no-event");
+  const outcome = await Promise.race([
+    promise,
+    new Promise<typeof sentinel>((resolve) => setTimeout(() => resolve(sentinel), waitMs)),
+  ]);
+  expect(outcome).toBe(sentinel);
+}
+
+function eventUpdateChannel(client: SupabaseClient, name: string, eventId: string, onEvent: () => void) {
+  return client.channel(name).on(
+    "postgres_changes",
+    { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${eventId}` },
+    onEvent,
+  );
+}
+
+realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
+  let fixture: SecurityFixture;
+  let eventA: string;
+  const channels: Array<{ client: SupabaseClient; channel: RealtimeChannel }> = [];
+
+  beforeAll(async () => {
+    await assertSyntheticLocalMarker();
+    fixture = await createSecurityFixture();
+    const event = await service.from("events").insert({
+      club_id: fixture.clubA,
+      team_id: fixture.teamA,
+      created_by: fixture.adminA.id,
+      title: "Synthetic Realtime Event",
+      type: "training",
+      event_date: "2099-01-01T10:00:00.000Z",
+    }).select("id").single();
+    if (event.error) throw event.error;
+    eventA = event.data.id;
+  });
+
+  afterAll(async () => {
+    await Promise.all(channels.map(({ client, channel }) => client.removeChannel(channel)));
+    await fixture?.cleanup();
+  });
+
+  function track(client: SupabaseClient, channel: RealtimeChannel) {
+    channels.push({ client, channel });
+    return channel;
+  }
+
+  it("delivers an event change to an authorized member", async () => {
+    const received = deferred<void>();
+    const channel = track(fixture.memberA.client, eventUpdateChannel(
+      fixture.memberA.client, `authorized-${crypto.randomUUID()}`, eventA, () => received.resolve(),
+    ));
+    await subscribe(channel);
+    const updated = await service.from("events").update({ description: "authorized delivery" }).eq("id", eventA);
+    expect(updated.error).toBeNull();
+    await expect(received.promise).resolves.toBeUndefined();
+  });
+
+  it("does not deliver another club's change to an unauthorized subscriber", async () => {
+    const authorized = deferred<void>();
+    const unauthorized = deferred<void>();
+    const allowedChannel = track(fixture.adminA.client, eventUpdateChannel(
+      fixture.adminA.client, `positive-control-${crypto.randomUUID()}`, eventA, () => authorized.resolve(),
+    ));
+    const deniedChannel = track(fixture.outsiderB.client, eventUpdateChannel(
+      fixture.outsiderB.client, `cross-club-denied-${crypto.randomUUID()}`, eventA, () => unauthorized.resolve(),
+    ));
+    await Promise.all([subscribe(allowedChannel), subscribe(deniedChannel)]);
+    const updated = await service.from("events").update({ description: "cross-club isolation" }).eq("id", eventA);
+    expect(updated.error).toBeNull();
+    await expect(authorized.promise).resolves.toBeUndefined();
+    await expectNoEvent(unauthorized.promise);
+  });
+
+  it("honours the exact row filter", async () => {
+    const received = deferred<void>();
+    const channel = track(fixture.memberA.client, eventUpdateChannel(
+      fixture.memberA.client, `exact-filter-${crypto.randomUUID()}`, crypto.randomUUID(), () => received.resolve(),
+    ));
+    await subscribe(channel);
+    await service.from("events").update({ description: "different row" }).eq("id", eventA);
+    await expectNoEvent(received.promise);
+  });
+
+  it("stops delivering after the member's access is revoked", async () => {
+    const authorized = deferred<void>();
+    const revoked = deferred<void>();
+    const controlChannel = track(fixture.adminA.client, eventUpdateChannel(
+      fixture.adminA.client, `revocation-control-${crypto.randomUUID()}`, eventA, () => authorized.resolve(),
+    ));
+    const memberChannel = track(fixture.memberA.client, eventUpdateChannel(
+      fixture.memberA.client, `revoked-member-${crypto.randomUUID()}`, eventA, () => revoked.resolve(),
+    ));
+    await Promise.all([subscribe(controlChannel), subscribe(memberChannel)]);
+    const removed = await service.from("user_roles").delete().eq("user_id", fixture.memberA.id).eq("club_id", fixture.clubA);
+    expect(removed.error).toBeNull();
+    const noLongerVisible = await fixture.memberA.client.from("events").select("id").eq("id", eventA);
+    expect(noLongerVisible.error).toBeNull();
+    expect(noLongerVisible.data).toEqual([]);
+    // The database permission is already revoked above. Realtime authorization
+    // propagates asynchronously; enforce a fixed two-second upper allowance
+    // rather than retrying until the assertion happens to pass.
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await service.from("events").update({ description: "after revocation" }).eq("id", eventA);
+    await expect(authorized.promise).resolves.toBeUndefined();
+    await expectNoEvent(revoked.promise);
+  });
+
+  it("denies a refreshed new subscription created after access is revoked", async () => {
+    const refreshed = await fixture.memberA.client.auth.refreshSession();
+    expect(refreshed.error).toBeNull();
+    const authorized = deferred<void>();
+    const denied = deferred<void>();
+    const controlChannel = track(fixture.adminA.client, eventUpdateChannel(
+      fixture.adminA.client, `post-revoke-control-${crypto.randomUUID()}`, eventA, () => authorized.resolve(),
+    ));
+    const deniedChannel = track(fixture.memberA.client, eventUpdateChannel(
+      fixture.memberA.client, `post-revoke-member-${crypto.randomUUID()}`, eventA, () => denied.resolve(),
+    ));
+    await Promise.all([subscribe(controlChannel), subscribe(deniedChannel)]);
+    await service.from("events").update({ description: "new channel after revocation" }).eq("id", eventA);
+    await expect(authorized.promise).resolves.toBeUndefined();
+    await expectNoEvent(denied.promise);
+  });
+
+  it("prevents post-revocation delivery when the client explicitly tears down the scoped channel", async () => {
+    const restored = await service.from("user_roles").insert({
+      user_id: fixture.memberA.id,
+      role: "player",
+      club_id: fixture.clubA,
+      team_id: fixture.teamA,
+    });
+    expect(restored.error).toBeNull();
+    const received = deferred<void>();
+    const memberChannel = eventUpdateChannel(
+      fixture.memberA.client, `explicit-revoke-teardown-${crypto.randomUUID()}`, eventA, () => received.resolve(),
+    );
+    await subscribe(memberChannel);
+    const removed = await service.from("user_roles").delete()
+      .eq("user_id", fixture.memberA.id).eq("club_id", fixture.clubA);
+    expect(removed.error).toBeNull();
+    expect(await fixture.memberA.client.removeChannel(memberChannel)).toBe("ok");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await service.from("events").update({ description: "after explicit revoke teardown" }).eq("id", eventA);
+    await expectNoEvent(received.promise);
+  });
+
+  it("delivers nothing after explicit channel removal", async () => {
+    const received = deferred<void>();
+    const channel = eventUpdateChannel(
+      fixture.adminA.client, `removed-${crypto.randomUUID()}`, eventA, () => received.resolve(),
+    );
+    await subscribe(channel);
+    await fixture.adminA.client.removeChannel(channel);
+    // removeChannel resolves before the local websocket server has always
+    // finished detaching the binding; enforce a short, fixed upper allowance.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await service.from("events").update({ description: "after unsubscribe" }).eq("id", eventA);
+    await expectNoEvent(received.promise);
+  });
+});

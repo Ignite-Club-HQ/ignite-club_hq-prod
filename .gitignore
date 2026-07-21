@@ -12,9 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Disposable state generated only by the isolated local Supabase test stack.
+local-supabase-workspace/supabase/.temp/
+local-supabase-workspace/supabase/.branches/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/tasks.json
 .idea
 .DS_Store
 *.suo

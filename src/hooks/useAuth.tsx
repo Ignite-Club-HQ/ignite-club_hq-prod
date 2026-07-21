@@ -59,7 +59,7 @@ interface CachedProfileData {
 }
 
 // Profile cache now includes userId to prevent cross-user cache collisions
-function getCachedProfile(userId?: string): Profile | null {
+export function getCachedProfile(userId?: string): Profile | null {
   try {
     const cached = localStorage.getItem(PROFILE_CACHE_KEY);
     if (cached) {
@@ -135,7 +135,7 @@ function getInitialAuthState(): {
 // Compute initial state once at module load
 const initialAuthState = getInitialAuthState();
 
-function setCachedProfile(profile: Profile | null, userId?: string) {
+export function setCachedProfile(profile: Profile | null, userId?: string) {
   try {
     if (profile && userId) {
       const cacheData: CachedProfileData = {
