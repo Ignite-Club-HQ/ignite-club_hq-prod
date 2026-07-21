@@ -11337,6 +11337,14 @@ export type Database = {
         Returns: undefined
       }
       release_cron_lock: { Args: { p_key: string }; Returns: undefined }
+      remove_club_member: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: Json
+      }
+      remove_team_member: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: Json
+      }
       request_join_chat_group: {
         Args: { _group_id: string; _message?: string }
         Returns: string
