@@ -513,11 +513,13 @@ export default function TeamChatPage() {
   const handleRemoveSelectedMemberFromTeam = useCallback(async () => {
     if (!teamId || !selectedMember) return;
 
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", selectedMember.userId)
-      .eq("team_id", teamId);
+    // Scoped RPC — see remove_team_member migration. Ensures guardian-derived
+    // access (child_team_assignments) and team-chat group memberships are
+    // revoked atomically alongside the user_roles row.
+    const { error } = await supabase.rpc("remove_team_member", {
+      _team_id: teamId,
+      _user_id: selectedMember.userId,
+    });
 
     if (error) {
       toast.error("Failed to remove member");
@@ -527,6 +529,7 @@ export default function TeamChatPage() {
     toast.success("Member removed from team");
     queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
+    queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
     setSelectedMember(null);
   }, [teamId, selectedMember, queryClient]);
 
