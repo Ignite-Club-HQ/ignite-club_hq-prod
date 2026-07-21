@@ -1581,66 +1581,78 @@ export default function MessagesPage() {
       });
     };
 
+    // Fail-closed filters — drop payload unless membership snapshot is `ready`
+    // AND the scope id is in the authorized set. Empty set + ready => user
+    // has no access to that kind => drop.
+    const isAuthorized = (kind: 'team' | 'club' | 'group' | 'dm', id: string | null | undefined): boolean => {
+      if (!id) return false;
+      if (authStatusRef.current !== 'ready') return false;
+      const set =
+        kind === 'team' ? authTeamIdsRef.current :
+        kind === 'club' ? authClubIdsRef.current :
+        kind === 'group' ? authGroupIdsRef.current :
+        authDmIdsRef.current;
+      return set.has(id);
+    };
+
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(row?.team_id)) return;
-        if (row?.team_id) {
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-          patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
-            author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
-            is_announcement: isAnnouncement,
-          });
-        }
+        if (!isAuthorized('team', row?.team_id)) return;
+        const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+        patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+          author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
+          is_announcement: isAnnouncement,
+        });
         schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(row?.club_id)) return;
-        if (row?.club_id) patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
+        if (!isAuthorized('club', row?.club_id)) return;
+        patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(row?.group_id)) return;
-        if (row?.group_id) patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        if (!isAuthorized('group', row?.group_id)) return;
+        patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
-        if (row?.conversation_id) {
-          queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
-            if (!Array.isArray(old)) return old;
-            const idx = old.findIndex((c: any) => c.id === row.conversation_id);
-            if (idx === -1) return old;
-            const conv = old[idx];
-            const updated = {
-              ...conv,
-              updated_at: row.created_at,
-              last_message: {
-                text: row.text ?? '',
-                image_url: row.image_url ?? null,
-                created_at: row.created_at,
-                author_id: row.author_id,
-              },
-            };
-            const next = old.slice();
-            next.splice(idx, 1);
-            next.unshift(updated);
-            return next;
-          });
-        }
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          const updated = {
+            ...conv,
+            updated_at: row.created_at,
+            last_message: {
+              text: row.text ?? '',
+              image_url: row.image_url ?? null,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            },
+          };
+          const next = old.slice();
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        });
         schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        // Broadcasts have no scope id — RLS on `broadcast_messages` already
+        // decides who receives them. Still gate on `ready` so we don't act
+        // on a stale channel after sign-out.
+        if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
           text: row.text ?? '',
@@ -1653,9 +1665,17 @@ export default function MessagesPage() {
       })
       .subscribe();
 
+    // Register with the realtime channel registry so it's torn down on
+    // membership revocation / sign-out via `revokeAllForUser`.
+    const unregister = registerChannel({
+      key: `messages-inbox-${user.id}`,
+      channel,
+      userId: user.id,
+      scope: { kind: 'user', id: user.id },
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unregister();
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
