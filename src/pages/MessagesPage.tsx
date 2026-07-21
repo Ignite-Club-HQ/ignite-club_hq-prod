@@ -28,6 +28,8 @@ import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
+import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
@@ -1492,6 +1494,27 @@ export default function MessagesPage() {
   useEffect(() => { clubIdsRef.current = new Set((memberClubs ?? []).map((c: any) => c.id)); }, [memberClubs]);
   useEffect(() => { groupIdsRef.current = new Set((chatGroups ?? []).map((g: any) => g.id)); }, [chatGroups]);
 
+  // Fail-closed authorization set for Realtime callbacks (pass b of Realtime
+  // membership audit). We keep the page-driven teams/clubs/groups refs above
+  // for perf (they drive UI patching) but layer the authoritative membership
+  // snapshot on top: payloads are dropped while status !== 'ready' AND when
+  // the scope id is not in the authorized set. Empty set + ready => user has
+  // no access to that scope => drop (previous `ids.size && !ids.has(x)` guard
+  // failed open on empty).
+  const authScopes = useAuthorizedScopes();
+  const authStatusRef = useRef(authScopes.status);
+  const authTeamIdsRef = useRef<ReadonlySet<string>>(authScopes.teamIds);
+  const authClubIdsRef = useRef<ReadonlySet<string>>(authScopes.clubIds);
+  const authGroupIdsRef = useRef<ReadonlySet<string>>(authScopes.groupIds);
+  const authDmIdsRef = useRef<ReadonlySet<string>>(authScopes.dmConversationIds);
+  useEffect(() => {
+    authStatusRef.current = authScopes.status;
+    authTeamIdsRef.current = authScopes.teamIds;
+    authClubIdsRef.current = authScopes.clubIds;
+    authGroupIdsRef.current = authScopes.groupIds;
+    authDmIdsRef.current = authScopes.dmConversationIds;
+  }, [authScopes]);
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -1558,66 +1581,78 @@ export default function MessagesPage() {
       });
     };
 
+    // Fail-closed filters — drop payload unless membership snapshot is `ready`
+    // AND the scope id is in the authorized set. Empty set + ready => user
+    // has no access to that kind => drop.
+    const isAuthorized = (kind: 'team' | 'club' | 'group' | 'dm', id: string | null | undefined): boolean => {
+      if (!id) return false;
+      if (authStatusRef.current !== 'ready') return false;
+      const set =
+        kind === 'team' ? authTeamIdsRef.current :
+        kind === 'club' ? authClubIdsRef.current :
+        kind === 'group' ? authGroupIdsRef.current :
+        authDmIdsRef.current;
+      return set.has(id);
+    };
+
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(row?.team_id)) return;
-        if (row?.team_id) {
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-          patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
-            author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
-            is_announcement: isAnnouncement,
-          });
-        }
+        if (!isAuthorized('team', row?.team_id)) return;
+        const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+        patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+          author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
+          is_announcement: isAnnouncement,
+        });
         schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(row?.club_id)) return;
-        if (row?.club_id) patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
+        if (!isAuthorized('club', row?.club_id)) return;
+        patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(row?.group_id)) return;
-        if (row?.group_id) patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        if (!isAuthorized('group', row?.group_id)) return;
+        patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
-        if (row?.conversation_id) {
-          queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
-            if (!Array.isArray(old)) return old;
-            const idx = old.findIndex((c: any) => c.id === row.conversation_id);
-            if (idx === -1) return old;
-            const conv = old[idx];
-            const updated = {
-              ...conv,
-              updated_at: row.created_at,
-              last_message: {
-                text: row.text ?? '',
-                image_url: row.image_url ?? null,
-                created_at: row.created_at,
-                author_id: row.author_id,
-              },
-            };
-            const next = old.slice();
-            next.splice(idx, 1);
-            next.unshift(updated);
-            return next;
-          });
-        }
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          const updated = {
+            ...conv,
+            updated_at: row.created_at,
+            last_message: {
+              text: row.text ?? '',
+              image_url: row.image_url ?? null,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            },
+          };
+          const next = old.slice();
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        });
         schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        // Broadcasts have no scope id — RLS on `broadcast_messages` already
+        // decides who receives them. Still gate on `ready` so we don't act
+        // on a stale channel after sign-out.
+        if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
           text: row.text ?? '',
@@ -1630,9 +1665,17 @@ export default function MessagesPage() {
       })
       .subscribe();
 
+    // Register with the realtime channel registry so it's torn down on
+    // membership revocation / sign-out via `revokeAllForUser`.
+    const unregister = registerChannel({
+      key: `messages-inbox-${user.id}`,
+      channel,
+      userId: user.id,
+      scope: { kind: 'user', id: user.id },
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unregister();
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
@@ -1752,13 +1795,23 @@ export default function MessagesPage() {
       });
     };
 
+    // Fail-closed authorization filter (native-light channel).
+    const isAuthorized = (kind: 'team' | 'club' | 'group' | 'dm', id: string | null | undefined): boolean => {
+      if (!id) return false;
+      if (authStatusRef.current !== 'ready') return false;
+      const set =
+        kind === 'team' ? authTeamIdsRef.current :
+        kind === 'club' ? authClubIdsRef.current :
+        kind === 'group' ? authGroupIdsRef.current :
+        authDmIdsRef.current;
+      return set.has(id);
+    };
+
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.team_id) return;
-        const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(row.team_id)) return;
+        if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
         const author = isAnnouncement
           ? row.club_announcement_name
@@ -1784,9 +1837,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.club_id) return;
-        const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(row.club_id)) return;
+        if (!isAuthorized('club', row?.club_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
         queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
           if (!old) return old;
@@ -1808,9 +1859,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.group_id) return;
-        const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(row.group_id)) return;
+        if (!isAuthorized('group', row?.group_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
         queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
           if (!old) return old;
@@ -1832,10 +1881,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.conversation_id) return;
-        // For DMs, the "author name" surface is the other_user.display_name on
-        // the conversation row — already populated. Only queue a lookup if
-        // the other_user is missing (rare, e.g. brand-new convo arriving).
+        if (!isAuthorized('dm', row?.conversation_id)) return;
         queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
           if (!Array.isArray(old)) return old;
           const idx = old.findIndex((c: any) => c.id === row.conversation_id);
@@ -1856,7 +1902,6 @@ export default function MessagesPage() {
           next.unshift(updated);
           return next;
         });
-        // If the other participant's name is unknown, queue a lookup.
         const convs = queryClient.getQueryData<any[]>(["dm-conversations", user.id]);
         const conv = convs?.find(c => c.id === row.conversation_id);
         const otherId = conv?.other_user?.id
@@ -1867,6 +1912,7 @@ export default function MessagesPage() {
         bumpUnread('dm', row.conversation_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
           text: row.text ?? '',
@@ -1878,8 +1924,15 @@ export default function MessagesPage() {
       })
       .subscribe();
 
+    const unregister = registerChannel({
+      key: `messages-inbox-light-${user.id}`,
+      channel,
+      userId: user.id,
+      scope: { kind: 'user', id: user.id },
+    });
+
     return () => {
-      supabase.removeChannel(channel);
+      unregister();
       if (flushTimer) clearTimeout(flushTimer);
     };
   }, [user?.id, queryClient]);
