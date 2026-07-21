@@ -1458,11 +1458,15 @@ export default function GroupChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`group-messages-${groupId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `group-messages-${groupId}`, channel, userId: user.id, scope: { kind: "group", id: groupId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id]);
 
 
   // Send message mutation
