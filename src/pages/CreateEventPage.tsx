@@ -657,6 +657,29 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Frontend club/team scope guard — matches the backend
+    // validate_event_team_club_scope trigger. Fail closed if the team list
+    // is unavailable or stale so we never submit an ambiguous combination.
+    if (teamId) {
+      if (!teams || teams.length === 0) {
+        toast({
+          title: "Team list unavailable",
+          description: "Please reselect the club so we can load its teams before creating the event.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const selectedTeam = teams.find((t) => t.id === teamId);
+      if (!selectedTeam || selectedTeam.club_id !== clubId) {
+        toast({
+          title: "Team does not belong to selected club",
+          description: "The selected team is not part of the selected club. Please choose a team from this club.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     if (!address.trim()) {
       setOpenSections((s) => ({ ...s, location: true }));
       toast({
