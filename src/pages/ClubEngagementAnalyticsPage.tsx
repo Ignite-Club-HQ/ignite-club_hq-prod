@@ -1680,3 +1680,129 @@ function LeaderCard({ label, sponsorName, value }: { label: string; sponsorName?
     </Card>
   );
 }
+
+type AdStats = {
+  rows: Array<{
+    ad_id: string;
+    name: string;
+    ad_type: string;
+    is_active: boolean;
+    views: number;
+    clicks: number;
+    reach: number;
+    ctr: number;
+    prev_clicks: number;
+    prev_views: number;
+  }>;
+  contextBreakdown: Array<{ context: string; views: number; clicks: number; ctr: number }>;
+  totalViews: number;
+  totalClicks: number;
+  totalReach: number;
+  ctr: number;
+  prevTotalViews: number;
+  prevTotalClicks: number;
+  activeAds: number;
+};
+
+function AdPerformanceBlock({ stats }: { stats: AdStats }) {
+  if (stats.totalViews === 0 && stats.totalClicks === 0) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <EmptyState
+            label={
+              stats.activeAds === 0
+                ? "No active in-app ads configured."
+                : "No in-app ad activity in this period."
+            }
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const clicksDelta = pctChange(stats.totalClicks, stats.prevTotalClicks);
+  const viewsDelta = pctChange(stats.totalViews, stats.prevTotalViews);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={Eye} label="Impressions" value={stats.totalViews} delta={viewsDelta} />
+        <Metric icon={MousePointerClick} label="Clicks" value={stats.totalClicks} delta={clicksDelta} />
+        <Metric icon={TrendingUp} label="CTR" value={`${stats.ctr}%`} />
+        <Metric icon={Users} label="Unique Reach" value={stats.totalReach} hint="distinct signed-in users" />
+      </div>
+
+      {stats.contextBreakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">By placement</CardTitle>
+            <CardDescription className="text-xs">Where the ad was shown when the event fired</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {stats.contextBreakdown.map((c) => (
+              <div key={c.context} className="grid grid-cols-4 gap-2 text-[11px] border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="font-medium text-sm col-span-1 truncate">{c.context.replace(/_/g, " ")}</div>
+                <div><span className="text-muted-foreground">Views </span><span className="font-semibold">{c.views.toLocaleString()}</span></div>
+                <div><span className="text-muted-foreground">Clicks </span><span className="font-semibold">{c.clicks.toLocaleString()}</span></div>
+                <div><span className="text-muted-foreground">CTR </span><span className="font-semibold text-primary">{c.ctr}%</span></div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Ad leaderboard</CardTitle>
+          <CardDescription className="text-xs">Per-ad views, clicks, CTR and reach</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {stats.rows.map((r) => {
+            const delta = pctChange(r.clicks, r.prev_clicks);
+            return (
+              <div key={r.ad_id} className="border border-border rounded-md p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{r.name}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      {r.ad_type}{!r.is_active && " · inactive"}
+                    </div>
+                  </div>
+                  {delta !== null && (
+                    <span className={cn(
+                      "text-[10px] flex items-center gap-0.5 shrink-0",
+                      delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                      {delta > 0 ? "+" : ""}{delta}% clicks
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[11px]">
+                  <div>
+                    <div className="text-muted-foreground">Reach</div>
+                    <div className="font-semibold">{r.reach.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Views</div>
+                    <div className="font-semibold">{r.views.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Clicks</div>
+                    <div className="font-semibold">{r.clicks.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">CTR</div>
+                    <div className="font-semibold text-primary">{r.ctr}%</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
