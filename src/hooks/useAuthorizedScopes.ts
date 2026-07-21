@@ -49,24 +49,36 @@ interface MembershipRow {
 }
 
 async function fetchMemberships(userId: string): Promise<MembershipRow> {
-  const [clubs, teams, groups, dms] = await Promise.all([
-    supabase.from("club_members").select("club_id").eq("user_id", userId),
-    supabase.from("team_members").select("team_id").eq("user_id", userId),
-    supabase.from("chat_group_members").select("group_id").eq("user_id", userId),
-    supabase.from("dm_participants").select("conversation_id").eq("user_id", userId),
+  // `user_roles` is the single source of truth for club + team membership
+  // (see mem://user-roles). `group_members` gates chat groups. DM access is
+  // participant_1/participant_2 on `direct_conversations`.
+  const [roles, groups, dms] = await Promise.all([
+    supabase.from("user_roles").select("club_id, team_id").eq("user_id", userId),
+    supabase.from("group_members").select("group_id").eq("user_id", userId),
+    supabase
+      .from("direct_conversations")
+      .select("id, participant_1, participant_2")
+      .or(`participant_1.eq.${userId},participant_2.eq.${userId}`),
   ]);
 
-  // Fail-closed: if any query errored, surface as failure. Callers will treat
-  // `failed` the same as `loading` and drop payloads.
-  if (clubs.error || teams.error || groups.error || dms.error) {
-    throw clubs.error || teams.error || groups.error || dms.error;
+  // Fail-closed: any query error surfaces as failure. Callers treat `failed`
+  // the same as `loading` and drop payloads.
+  if (roles.error || groups.error || dms.error) {
+    throw roles.error || groups.error || dms.error;
+  }
+
+  const clubIds = new Set<string>();
+  const teamIds = new Set<string>();
+  for (const r of (roles.data ?? []) as Array<{ club_id: string | null; team_id: string | null }>) {
+    if (r.club_id) clubIds.add(r.club_id);
+    if (r.team_id) teamIds.add(r.team_id);
   }
 
   return {
-    clubIds: (clubs.data ?? []).map((r: { club_id: string }) => r.club_id),
-    teamIds: (teams.data ?? []).map((r: { team_id: string }) => r.team_id),
-    groupIds: (groups.data ?? []).map((r: { group_id: string }) => r.group_id),
-    dmConversationIds: (dms.data ?? []).map((r: { conversation_id: string }) => r.conversation_id),
+    clubIds: Array.from(clubIds),
+    teamIds: Array.from(teamIds),
+    groupIds: ((groups.data ?? []) as Array<{ group_id: string }>).map((r) => r.group_id),
+    dmConversationIds: ((dms.data ?? []) as Array<{ id: string }>).map((r) => r.id),
   };
 }
 
