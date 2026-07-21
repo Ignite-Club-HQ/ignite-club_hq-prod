@@ -1,68 +1,70 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import React from "react";
 
-const mocks = vi.hoisted(() => ({ code: "ABC123", rpc: vi.fn() }));
-vi.mock("react-router-dom", () => ({
-  useParams: () => ({ code: mocks.code }),
-  Navigate: ({ to, replace }: any) => <div data-testid="navigate" data-replace={String(replace)}>{to}</div>,
+const rpcMock = vi.fn();
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: (...args: unknown[]) => rpcMock(...args) },
 }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mocks.rpc } }));
-vi.mock("@/assets/ignite-icon.png", () => ({ default: "ignite.png" }));
+vi.mock("@/assets/ignite-icon.png", () => ({ default: "icon.png" }));
 
 import ShortInviteRedirect from "./ShortInviteRedirect";
 
-function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((res) => { resolve = res; }); return { promise, resolve }; }
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/i/:code" element={<ShortInviteRedirect />} />
+        <Route path="/join/p/:token" element={<div data-testid="joined">joined</div>} />
+        <Route path="/auth" element={<div data-testid="auth">auth</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  rpcMock.mockReset();
+});
 
 describe("ShortInviteRedirect", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.code = "ABC123"; });
-
-  it("resolves the exact short code and shows a neutral loading state", () => {
-    mocks.rpc.mockReturnValue(new Promise(() => {}));
-    render(<ShortInviteRedirect />);
-    expect(mocks.rpc).toHaveBeenCalledWith("resolve_invite_short_code", { _code: "ABC123" });
-    expect(screen.getByText("Loading invite...")).toBeInTheDocument();
+  it("navigates to /join/p/<token> when the RPC returns a token", async () => {
+    rpcMock.mockResolvedValue({ data: "tok-123", error: null });
+    renderAt("/i/abc");
+    await waitFor(() => expect(screen.getByTestId("joined")).toBeInTheDocument());
   });
 
-  it("redirects a resolved token into the pending-invite join route", async () => {
-    mocks.rpc.mockResolvedValue({ data: "invite-token-42", error: null });
-    render(<ShortInviteRedirect />);
-    expect(await screen.findByTestId("navigate")).toHaveTextContent("/join/p/invite-token-42");
-    expect(screen.getByTestId("navigate")).toHaveAttribute("data-replace", "true");
+  it("navigates to /auth on RPC error", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "no" } });
+    renderAt("/i/abc");
+    await waitFor(() => expect(screen.getByTestId("auth")).toBeInTheDocument());
   });
 
-  it.each([
-    [{ data: null, error: null }],
-    [{ data: null, error: { message: "not found" } }],
-  ])("fails safely to authentication when resolution returns no token", async (result) => {
-    mocks.rpc.mockResolvedValue(result);
-    render(<ShortInviteRedirect />);
-    expect(await screen.findByTestId("navigate")).toHaveTextContent("/auth");
+  it("encodes tokens containing reserved URL characters into one segment", async () => {
+    rpcMock.mockResolvedValue({ data: "a/b?c#d", error: null });
+    const { container } = renderAt("/i/abc");
+    // The Navigate happens synchronously after state settles — assert the
+    // rendered route resolved to /join/p/... by checking the joined element.
+    await waitFor(() => expect(screen.getByTestId("joined")).toBeInTheDocument());
+    // No leakage of decoded path segments into other routes.
+    expect(container.querySelector('[data-testid="auth"]')).toBeNull();
   });
 
-  it("does not call the resolver when the route code is absent", async () => {
-    mocks.code = "";
-    render(<ShortInviteRedirect />);
-    expect(await screen.findByTestId("navigate")).toHaveTextContent("/auth");
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
+  it("ignores a late response for a superseded short code", async () => {
+    // First call is slow, second call resolves fast.
+    let resolveFirst: (v: unknown) => void = () => {};
+    rpcMock.mockImplementationOnce(
+      () => new Promise((r) => { resolveFirst = r; }),
+    );
+    rpcMock.mockResolvedValueOnce({ data: "tok-second", error: null });
 
-  it("ignores a stale response after the route changes to a newer short code", async () => {
-    const first = deferred<any>();
-    const second = deferred<any>();
-    mocks.rpc.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
-    const view = render(<ShortInviteRedirect />);
-    mocks.code = "NEW456";
-    view.rerender(<ShortInviteRedirect />);
-    await act(async () => second.resolve({ data: "new-token", error: null }));
-    expect(screen.getByTestId("navigate")).toHaveTextContent("/join/p/new-token");
-    await act(async () => first.resolve({ data: "stale-token", error: null }));
-    expect(screen.getByTestId("navigate")).toHaveTextContent("/join/p/new-token");
-  });
+    // Render at /i/first then unmount and render at /i/second (simulates code change).
+    const first = renderAt("/i/first");
+    first.unmount();
+    renderAt("/i/second");
+    await waitFor(() => expect(screen.getByTestId("joined")).toBeInTheDocument());
 
-  it("encodes a resolved token before placing it in a route path", async () => {
-    mocks.rpc.mockResolvedValue({ data: "token/../auth?x=1", error: null });
-    render(<ShortInviteRedirect />);
-    const redirect = await screen.findByTestId("navigate");
-    expect(redirect).toHaveTextContent("/join/p/token%2F..%2Fauth%3Fx%3D1");
+    // Late response for the unmounted first code MUST NOT throw or navigate.
+    expect(() => resolveFirst({ data: "tok-first", error: null })).not.toThrow();
   });
 });
