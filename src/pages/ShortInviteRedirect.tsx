@@ -10,15 +10,28 @@ export default function ShortInviteRedirect() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    // Reset transient state whenever the route's short code changes so a
+    // stale "not found" or previously-resolved token from an earlier code
+    // never leaks into the render for the current code.
+    setInviteToken(null);
+    setNotFound(false);
+
     if (!code) {
       setNotFound(true);
       return;
     }
 
+    // Capture the code this effect run is resolving; a late response for an
+    // older code must never replace the state for the current code.
+    const resolvingCode = code;
+    let cancelled = false;
+
     const resolve = async () => {
       const { data, error } = await supabase.rpc("resolve_invite_short_code", {
-        _code: code,
+        _code: resolvingCode,
       });
+
+      if (cancelled || resolvingCode !== code) return;
 
       if (error || !data) {
         setNotFound(true);
@@ -29,6 +42,10 @@ export default function ShortInviteRedirect() {
     };
 
     resolve();
+
+    return () => {
+      cancelled = true;
+    };
   }, [code]);
 
   if (notFound) {
@@ -36,7 +53,9 @@ export default function ShortInviteRedirect() {
   }
 
   if (inviteToken) {
-    return <Navigate to={`/join/p/${inviteToken}`} replace />;
+    // Encode the token so any reserved-URL characters ("/", "?", "#", "..",
+    // etc.) stay inside a single path segment.
+    return <Navigate to={`/join/p/${encodeURIComponent(inviteToken)}`} replace />;
   }
 
   return (
