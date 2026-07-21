@@ -103,6 +103,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
