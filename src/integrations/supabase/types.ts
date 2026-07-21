@@ -11524,6 +11524,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_event_series: {
+        Args: {
+          p_event_id: string
+          p_selected_end_time: string
+          p_selected_event_date: string
+          p_selected_start_time: string
+          p_updates: Json
+        }
+        Returns: undefined
+      }
       update_user_activity_duration: {
         Args: { _activity_log_id: string; _duration_seconds: number }
         Returns: undefined
