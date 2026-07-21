@@ -192,6 +192,9 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter(queryClient);
+// Wire the Realtime channel registry to the QueryClient so revoked channels
+// can evict their react-query caches (pass b of Realtime membership audit).
+import("@/lib/realtimeChannelRegistry").then((m) => m.bindRealtimeRegistryQueryClient(queryClient));
 // Web equivalent (native adapter early-returns off-native): scoped invalidator
 // for photos / Pro-access on reconnect + tab-focus so Media doesn't stall.
 installWebReconnectInvalidator(queryClient);
