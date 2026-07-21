@@ -810,11 +810,15 @@ export default function BroadcastChatPage() {
       )
       .subscribe();
     noteChannelSubscribed("broadcast-messages-realtime");
+    const unregister = user?.id
+      ? registerChannel({ key: "broadcast-messages-realtime", channel, userId: user.id, scope: { kind: "global", id: "" } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved("broadcast-messages-realtime");
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient]);
+  }, [queryClient, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
