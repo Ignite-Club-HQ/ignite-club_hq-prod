@@ -21,6 +21,7 @@ import {
   MousePointerClick,
   RefreshCcw,
   AlertTriangle,
+  Megaphone as MegaphoneIcon,
 } from "lucide-react";
 import {
   format,
