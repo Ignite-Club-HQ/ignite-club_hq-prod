@@ -1213,11 +1213,15 @@ export default function ClubChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`club-messages-${clubId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `club-messages-${clubId}`, channel, userId: user.id, scope: { kind: "club", id: clubId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient, clubRealtimeMode]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
