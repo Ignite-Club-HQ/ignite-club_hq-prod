@@ -628,6 +628,167 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // ---------- In-app Ad Performance (house ads served to Free clubs) ----------
+  // Aligns with sponsor metrics (views, clicks, CTR, unique reach) so the
+  // platform admin can compare in-house ad performance vs. AdMob (which is
+  // reported separately in the Google AdMob console).
+  const { data: appAds = [] } = useQuery({
+    queryKey: ["engagement-app-ads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ads")
+        .select("id, name, headline, ad_type, is_active")
+        .order("display_order", { ascending: true })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as Array<{
+        id: string;
+        name: string | null;
+        headline: string | null;
+        ad_type: string | null;
+        is_active: boolean;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const { data: appAdAnalyticsRaw = [] } = useQuery({
+    queryKey: [
+      "engagement-app-ad-analytics",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      isPlatform,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ad_analytics")
+        .select("ad_id, event_type, context, user_id")
+        .gte("created_at", range.start.toISOString())
+        .lte("created_at", range.end.toISOString())
+        .limit(50000);
+      if (error) throw error;
+      return (data || []) as Array<{
+        ad_id: string;
+        event_type: string;
+        context: string | null;
+        user_id: string | null;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const { data: prevAppAdAnalyticsRaw = [] } = useQuery({
+    queryKey: [
+      "engagement-app-ad-analytics-prev",
+      prevRange.start.toISOString(),
+      prevRange.end.toISOString(),
+      isPlatform,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ad_analytics")
+        .select("ad_id, event_type")
+        .gte("created_at", prevRange.start.toISOString())
+        .lte("created_at", prevRange.end.toISOString())
+        .limit(50000);
+      if (error) throw error;
+      return (data || []) as Array<{ ad_id: string; event_type: string }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const adStats = useMemo(() => {
+    const byAd = new Map<
+      string,
+      { views: number; clicks: number; reach: Set<string> }
+    >();
+    const byContext = new Map<string, { views: number; clicks: number }>();
+    const allReach = new Set<string>();
+    let totalViews = 0;
+    let totalClicks = 0;
+
+    for (const r of appAdAnalyticsRaw) {
+      const entry =
+        byAd.get(r.ad_id) || { views: 0, clicks: 0, reach: new Set<string>() };
+      if (r.event_type === "view") {
+        entry.views += 1;
+        totalViews += 1;
+      } else if (r.event_type === "click") {
+        entry.clicks += 1;
+        totalClicks += 1;
+      }
+      if (r.user_id) {
+        entry.reach.add(r.user_id);
+        allReach.add(r.user_id);
+      }
+      byAd.set(r.ad_id, entry);
+
+      const ctxKey = r.context || "unknown";
+      const ctx = byContext.get(ctxKey) || { views: 0, clicks: 0 };
+      if (r.event_type === "view") ctx.views += 1;
+      else if (r.event_type === "click") ctx.clicks += 1;
+      byContext.set(ctxKey, ctx);
+    }
+
+    const prevByAd = new Map<string, { views: number; clicks: number }>();
+    let prevTotalViews = 0;
+    let prevTotalClicks = 0;
+    for (const r of prevAppAdAnalyticsRaw) {
+      const entry = prevByAd.get(r.ad_id) || { views: 0, clicks: 0 };
+      if (r.event_type === "view") {
+        entry.views += 1;
+        prevTotalViews += 1;
+      } else if (r.event_type === "click") {
+        entry.clicks += 1;
+        prevTotalClicks += 1;
+      }
+      prevByAd.set(r.ad_id, entry);
+    }
+
+    const rows = Array.from(byAd.entries()).map(([adId, v]) => {
+      const meta = appAds.find((a) => a.id === adId);
+      const prev = prevByAd.get(adId) || { views: 0, clicks: 0 };
+      return {
+        ad_id: adId,
+        name: meta?.headline || meta?.name || "Untitled ad",
+        ad_type: meta?.ad_type || "banner",
+        is_active: meta?.is_active ?? false,
+        views: v.views,
+        clicks: v.clicks,
+        reach: v.reach.size,
+        ctr: v.views ? Math.round((v.clicks / v.views) * 1000) / 10 : 0,
+        prev_clicks: prev.clicks,
+        prev_views: prev.views,
+      };
+    });
+    rows.sort(
+      (a, b) => b.clicks - a.clicks || b.views - a.views,
+    );
+
+    const contextBreakdown = Array.from(byContext.entries())
+      .map(([context, v]) => ({
+        context,
+        views: v.views,
+        clicks: v.clicks,
+        ctr: v.views ? Math.round((v.clicks / v.views) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.views - a.views);
+
+    return {
+      rows,
+      contextBreakdown,
+      totalViews,
+      totalClicks,
+      totalReach: allReach.size,
+      ctr: totalViews
+        ? Math.round((totalClicks / totalViews) * 1000) / 10
+        : 0,
+      prevTotalViews,
+      prevTotalClicks,
+      activeAds: appAds.filter((a) => a.is_active).length,
+    };
+  }, [appAdAnalyticsRaw, prevAppAdAnalyticsRaw, appAds]);
+
 
 
   // ---------- Engagement score (composite 0-100) ----------
