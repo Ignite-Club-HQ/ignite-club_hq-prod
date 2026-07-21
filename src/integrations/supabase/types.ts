@@ -1744,6 +1744,42 @@ export type Database = {
           },
         ]
       }
+      club_member_exclusions: {
+        Row: {
+          club_id: string
+          excluded_at: string
+          excluded_by: string | null
+          user_id: string
+        }
+        Insert: {
+          club_id: string
+          excluded_at?: string
+          excluded_by?: string | null
+          user_id: string
+        }
+        Update: {
+          club_id?: string
+          excluded_at?: string
+          excluded_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_member_exclusions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_member_exclusions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_messages: {
         Row: {
           author_id: string
@@ -8574,6 +8610,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "team_invites_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_member_exclusions: {
+        Row: {
+          excluded_at: string
+          excluded_by: string | null
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          excluded_at?: string
+          excluded_by?: string | null
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          excluded_at?: string
+          excluded_by?: string | null
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_exclusions_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
