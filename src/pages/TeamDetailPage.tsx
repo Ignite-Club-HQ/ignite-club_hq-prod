@@ -2666,13 +2666,15 @@ export default function TeamDetailPage() {
             <AlertDialogAction
               onClick={async () => {
                 if (!removeMember || !id) return;
-                const { error } = await supabase
-                  .from("user_roles")
-                  .delete()
-                  .eq("user_id", removeMember.userId)
-                  .eq("team_id", id);
+                // Use scoped RPC so team role, child assignments to this team,
+                // and team-chat group memberships are revoked atomically.
+                // child_guardians and access to unrelated teams are preserved.
+                const { error } = await supabase.rpc("remove_team_member", {
+                  _team_id: id,
+                  _user_id: removeMember.userId,
+                });
                 if (error) {
-                  toast({ title: "Failed to remove member", variant: "destructive" });
+                  toast({ title: "Failed to remove member", description: error.message, variant: "destructive" });
                 } else {
                   await supabase.from("notifications").insert({
                     user_id: removeMember.userId,
@@ -2681,6 +2683,8 @@ export default function TeamDetailPage() {
                     related_id: id,
                   });
                   queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                  queryClient.invalidateQueries({ queryKey: ["chat-members", "team", id] });
+                  queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
                   toast({ title: "Member removed" });
                 }
                 setRemoveMember(null);
