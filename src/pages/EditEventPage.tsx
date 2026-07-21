@@ -48,6 +48,7 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
+import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 
 type EventType = "game" | "training" | "social";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
