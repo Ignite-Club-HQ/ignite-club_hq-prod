@@ -93,6 +93,13 @@ export function installSupabaseAuthRetry() {
         const aborted = (err as any)?.name === "AbortError";
         maybeLogSlowFetch({ url, durationMs: performance.now() - startedAt, status: null, aborted });
       }
+      // Nudge the native adapter to re-check connectivity and kick errored
+      // queries. Android WebView often skips the `networkStatusChange`
+      // callback on brief drops, so observed fetch failures are our most
+      // reliable signal that the network state may have changed. Safe on
+      // web (nudge is undefined) and safe for auth-shaped errors (which
+      // don't throw — they return a 401 response).
+      try { (window as any).__igniteNudgeNetworkCheck?.("supabase-fetch-throw"); } catch { /* noop */ }
       throw err;
     }
     if (timeoutId !== null) clearTimeout(timeoutId);

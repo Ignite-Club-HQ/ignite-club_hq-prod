@@ -404,19 +404,48 @@ serve(async (req) => {
       emailsSent = emailResults.filter(Boolean).length;
     }
 
-    // Send push notifications in parallel
+    // Send push notifications in parallel.
+    // We must pass `notificationType: "event_view_reminder"` so
+    // send-push-notification maps it to the `events_enabled` preference and
+    // fail-closes on users who have opted out. Without the type the backend
+    // treats the preference as "unknown" and allows delivery, bypassing the
+    // member's opt-out.
     if (sendPush) {
+      // Pre-load event notification preferences so we don't hit the push
+      // pipeline (and record a spurious "pending" log) for users who have
+      // events pushes disabled. Failures here are treated as "unknown" and
+      // we still defer to send-push-notification's per-user check.
+      let optedOut = new Set<string>();
+      try {
+        const { data: prefs } = await supabase.rpc("get_members_events_enabled", {
+          member_ids: userIds,
+        });
+        for (const row of prefs || []) {
+          if (row?.events_enabled === false) optedOut.add(row.user_id);
+        }
+      } catch (prefError) {
+        console.warn("[event-view-reminder] preference preload failed", prefError);
+      }
+
       const pushPromises = userIds.map(async (userId) => {
         const userMsgs = getMessagesForUser(userId);
         try {
-          // Insert notification and check for push subscriptions AND FCM tokens in parallel
+          // Still record the in-app notification even when push is skipped —
+          // the bell UI is a separate channel from push delivery.
+          const notifInsert = supabase.from("notifications").insert({
+            user_id: userId,
+            type: "event_view_reminder",
+            message: userMsgs.notifMessage,
+            related_id: event.id,
+          });
+
+          if (optedOut.has(userId)) {
+            await notifInsert;
+            return false;
+          }
+
           const [, { data: webSubscriptions }, { data: fcmTokens }] = await Promise.all([
-            supabase.from("notifications").insert({
-              user_id: userId,
-              type: "event_view_reminder",
-              message: userMsgs.notifMessage,
-              related_id: event.id,
-            }),
+            notifInsert,
             supabase
               .from("push_subscriptions")
               .select("id")
@@ -432,19 +461,31 @@ serve(async (req) => {
           const hasWebPush = webSubscriptions && webSubscriptions.length > 0;
           const hasFcm = fcmTokens && fcmTokens.length > 0;
 
-          if (hasWebPush || hasFcm) {
-            await supabase.functions.invoke("send-push-notification", {
+          if (!(hasWebPush || hasFcm)) return false;
+
+          const { data: pushResult, error: pushInvokeError } = await supabase.functions.invoke(
+            "send-push-notification",
+            {
               body: {
                 userId,
-                 title: userMsgs.pushTitle,
-                 body: userMsgs.pushBody,
+                title: userMsgs.pushTitle,
+                body: userMsgs.pushBody,
                 url: `/events/${event.id}`,
                 tag: `event-view-${event.id}`,
+                // Critical: enables preference enforcement in the push edge fn.
+                notificationType: "event_view_reminder",
               },
-            });
-            return true;
+            },
+          );
+
+          if (pushInvokeError) {
+            console.error(`Push invoke failed for ${userId}:`, pushInvokeError);
+            return false;
           }
-          return false;
+          // Count only actual deliveries — skipped/failed/preference-blocked
+          // pushes must not inflate the "pushSent" tally we return to the UI.
+          const sent = Number((pushResult as any)?.sent ?? 0);
+          return sent > 0;
         } catch (pushError) {
           console.error(`Failed to send push to ${userId}:`, pushError);
           return false;

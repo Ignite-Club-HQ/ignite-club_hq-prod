@@ -23,6 +23,29 @@ import { Capacitor } from '@capacitor/core';
 export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   if (!Capacitor.isNativePlatform()) return;
 
+  // Expose a nudge so `supabaseAuthRetry.ts` can trip recovery whenever a
+  // Supabase fetch fails with a network-shaped error (TypeError / AbortError
+  // from our own 25s timeout). Android WebView frequently does NOT fire the
+  // `networkStatusChange` callback on brief carrier drops, so relying on the
+  // OS event alone leaves pages (Media, Schedule, AppHeader club theme)
+  // stuck on the failed query even after connectivity returns. This gives us
+  // a second recovery trigger driven by observed request failures.
+  try {
+    (window as any).__igniteNudgeNetworkCheck = (reason?: string) => {
+      // Cancel any current backoff and probe right away. If the probe
+      // succeeds it will flip online + kick errored queries. If we're
+      // already online, just kick errored queries directly so a hung page
+      // (that errored during the drop) refetches now.
+      if (onlineManager.isOnline()) {
+        recoverErroredQueries(reason || 'fetch-failure-nudge');
+      } else {
+        probeDelay = 500;
+        clearProbe();
+        runProbe();
+      }
+    };
+  } catch { /* noop */ }
+
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 
   let probeTimer: ReturnType<typeof setTimeout> | null = null;

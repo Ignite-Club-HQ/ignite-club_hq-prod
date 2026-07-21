@@ -1,6 +1,9 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
+import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
@@ -97,7 +100,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-import { PlayHQClubSyncCard } from "@/components/PlayHQClubSyncCard";
+
 
 type ClubRole = "club_admin";
 
@@ -111,8 +114,24 @@ export default function ClubDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [openSections, setOpenSections] = useState<string[]>([]);
+
+  // Deep-link to accordion section via hash (e.g. #branding)
+  useEffect(() => {
+    const hash = location.hash?.replace("#", "");
+    if (!hash) return;
+    setOpenSections((prev) => (prev.includes(hash) ? prev : [...prev, hash]));
+    // Wait for accordion to expand before scrolling
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-section-anchor="${hash}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [location.hash]);
+
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
@@ -785,17 +804,28 @@ export default function ClubDetailPage() {
     }
 
     // Soft-delete: set deleted_at instead of hard delete
+    const deletedAt = new Date().toISOString();
     const { error } = await supabase.from("clubs").update({
-      deleted_at: new Date().toISOString(),
+      deleted_at: deletedAt,
       deleted_by: user?.id,
     } as any).eq("id", id!);
 
     // Also soft-delete all teams in the club
     if (!error && teamIds.length > 0) {
       await supabase.from("teams").update({
-        deleted_at: new Date().toISOString(),
+        deleted_at: deletedAt,
         deleted_by: user?.id,
       } as any).in("id", teamIds);
+    }
+
+    // Also soft-delete chat_groups scoped to this club or any of its teams
+    if (!error) {
+      const orClauses = [`club_id.eq.${id!}`];
+      if (teamIds.length > 0) orClauses.push(`team_id.in.(${teamIds.join(",")})`);
+      await supabase.from("chat_groups").update({
+        deleted_at: deletedAt,
+        deleted_by: user?.id,
+      } as any).or(orClauses.join(",")).is("deleted_at", null);
     }
 
     setIsDeleting(false);
@@ -809,6 +839,7 @@ export default function ClubDetailPage() {
     }
 
     setShowDeleteDialog(false);
+    clearClubSetupLocalState(id!);
     toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
     navigate("/clubs");
   };
@@ -825,6 +856,19 @@ export default function ClubDetailPage() {
         deleted_at: null,
         deleted_by: null,
       } as any).eq("club_id", id!);
+
+      // Restore chat_groups scoped to this club or any of its teams
+      const { data: teamRows } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", id!);
+      const teamIdList = (teamRows || []).map((t: any) => t.id);
+      const orClauses = [`club_id.eq.${id!}`];
+      if (teamIdList.length > 0) orClauses.push(`team_id.in.(${teamIdList.join(",")})`);
+      await supabase.from("chat_groups").update({
+        deleted_at: null,
+        deleted_by: null,
+      } as any).or(orClauses.join(","));
     }
 
     if (error) {
@@ -1112,6 +1156,11 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Setup progress — only visible to club admins of THIS club */}
+      {userRole === "club_admin" && id && (
+        <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
+      )}
+
       {/* Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
         <Card className={`border-amber-500/30 ${(clubSubscription as any)?.cancelled_at ? 'bg-gradient-to-r from-muted/50 to-muted/30' : 'bg-gradient-to-r from-amber-500/5 to-amber-500/10'}`}>
@@ -1155,8 +1204,8 @@ export default function ClubDetailPage() {
       {/* Recent Games — basketball + netball only, hides itself if empty */}
       
 
-      {/* Primary Sponsor Display */}
-      {club?.primary_sponsor_id && (
+      {/* Primary Sponsor Display — only shown while club is on Pro */}
+      {club?.primary_sponsor_id && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
         <PrimarySponsorDisplay sponsorId={club.primary_sponsor_id} variant="full" context="club_page" />
       )}
 
@@ -1572,8 +1621,13 @@ export default function ClubDetailPage() {
         </Accordion>
       )}
 
-      {/* Competitions Section */}
-      <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} />
+      {/* Competitions Section - Pro only */}
+      {(() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
+          <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} hasProAccess={hasProAccess} />
+        );
+      })()}
 
       {/* Mini Leagues Section - Pro Football clubs only, hidden for class-mode clubs */}
       {isSoccerClub && hasProFootball && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
@@ -1689,9 +1743,10 @@ export default function ClubDetailPage() {
       {/* Club Members and Admin Accordion */}
       <Accordion 
         type="multiple" 
-        defaultValue={[]} 
+        value={openSections}
         className="space-y-4"
         onValueChange={(value) => {
+          setOpenSections(value);
           if (value.includes("members")) {
             setMembersExpanded(true);
             // Auto-refresh members list when expanding if empty
@@ -1868,31 +1923,34 @@ export default function ClubDetailPage() {
           </AccordionItem>
         )}
 
-      {/* Sponsors - Pro only, Admin only, hidden for class-mode clubs */}
-      {isAdmin && !club?.class_mode_enabled && (
+      {/* Sponsors — Admin only, hidden for class-mode clubs.
+          Configuration is available on the free plan; display surfaces only
+          light up once the club is on Pro (see the amber note + disabled toggles below). */}
+      {isAdmin && !club?.class_mode_enabled && (() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
         <AccordionItem 
           value="sponsors" 
           className="border rounded-lg px-4"
-          disabled={!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override)}
         >
-          <AccordionTrigger 
-            className="hover:no-underline"
-            disabled={!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override)}
-          >
+          <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Sponsors</span>
-              {!isAppAdmin && !(clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-                <div className="flex items-center gap-1.5 ml-2">
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
-                </div>
+              {!hasProAccess && (
+                <Badge variant="outline" className="text-xs font-normal ml-2">Configure now, activates on Pro</Badge>
               )}
             </div>
           </AccordionTrigger>
-          {(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-            <AccordionContent>
-              <div className="pt-2 space-y-4">
+          <AccordionContent>
+            <div className="pt-2 space-y-4">
+              {!hasProAccess && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                  You can add sponsors and assign them to teams now — they'll appear across the app (club page, media, chat, events) automatically once your club is on the <strong>Pro</strong> plan.
+                </div>
+              )}
+              {/* Display-surface toggles — only functional on Pro */}
+              <fieldset disabled={!hasProAccess} className={cn("space-y-4", !hasProAccess && "opacity-60")}>
                 {/* Media sponsors toggle — defaults to OFF */}
                 <div className="flex items-start justify-between gap-3 rounded-md border p-3">
                   <div className="space-y-0.5">
@@ -1993,17 +2051,19 @@ export default function ClubDetailPage() {
                     }}
                   />
                 </div>
-                <SponsorsManager 
-                  clubId={id!} 
-                  currentPrimarySponsorId={club?.primary_sponsor_id || null}
-                  onPrimaryChange={() => queryClient.invalidateQueries({ queryKey: ["club", id] })}
-                />
-                <ClubTeamSponsorAllocator clubId={id!} />
-              </div>
-            </AccordionContent>
-          )}
+              </fieldset>
+              <SponsorsManager 
+                clubId={id!} 
+                currentPrimarySponsorId={club?.primary_sponsor_id || null}
+                onPrimaryChange={() => queryClient.invalidateQueries({ queryKey: ["club", id] })}
+              />
+              <ClubTeamSponsorAllocator clubId={id!} />
+            </div>
+          </AccordionContent>
         </AccordionItem>
-      )}
+        );
+      })()}
+
 
       {/* Rewards - Pro only, Admin only */}
       {isAdmin && (
@@ -2224,24 +2284,34 @@ export default function ClubDetailPage() {
                 </Card>
               </Link>
 
-              <PlayHQClubSyncCard clubId={id!} />
+              
             </div>
 
           </AccordionContent>
         </AccordionItem>
       )}
 
-      {/* Club Branding - Pro only */}
-      {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
-        <AccordionItem value="branding" className="border rounded-lg px-4">
+      {/* Club Branding - configurable by all admins; colours only apply on Pro */}
+      {isAdmin && (() => {
+        const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+        return (
+        <AccordionItem value="branding" data-section-anchor="branding" className="border rounded-lg px-4 scroll-mt-20">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Club Branding</span>
+              {!hasProAccess && (
+                <Badge variant="outline" className="text-xs font-normal ml-2">Configure now, activates on Pro</Badge>
+              )}
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
+              {!hasProAccess && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                  You can configure your club colours and logo now, but branding will only be applied across the app once your club is on the <strong>Pro</strong> plan. Your saved settings will activate automatically when you upgrade or start a trial.
+                </div>
+              )}
               <ClubThemeEditor
                 clubId={id!}
                 clubLogoUrl={club.logo_url}
@@ -2263,7 +2333,8 @@ export default function ClubDetailPage() {
             </div>
           </AccordionContent>
         </AccordionItem>
-      )}
+        );
+      })()}
 
       {/* App Admin Section */}
       {isAppAdmin && (

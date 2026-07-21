@@ -13,7 +13,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
 import { AccessibilityPrefsProvider } from "@/hooks/useAccessibilityPrefs";
-import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
+const GlobalSubMonitorGate = lazy(() => import("@/components/pitch/GlobalSubMonitorGate"));
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
 
@@ -32,12 +32,17 @@ import { Loader2 } from "lucide-react";
 
 // OAuth callback capture is now handled in main.tsx (runs earlier)
 
-// Eagerly loaded pages (initial load)
-import AuthPage from "./pages/AuthPage";
-import CompleteProfilePage from "./pages/CompleteProfilePage";
+// Eagerly loaded pages (initial load) — keep this list tight; every import
+// here lands in the main bundle and lengthens cold-start parse time on
+// Android. Auth-adjacent pages are lazy because logged-in users (the vast
+// majority of cold opens) never hit them.
 import HomePage from "./pages/HomePage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import SignupProPage from "./pages/SignupProPage";
+import VerifyResetCodePage from "./pages/VerifyResetCodePage";
+const AuthPage = lazy(() => import("./pages/AuthPage"));
+const CompleteProfilePage = lazy(() => import("./pages/CompleteProfilePage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const SignupProPage = lazy(() => import("./pages/SignupProPage"));
+
 
 // Lazy loaded pages (code splitting)
 const EventsPage = lazy(() => import("./pages/EventsPage"));
@@ -48,6 +53,7 @@ const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
 const ClubsPage = lazy(() => import("./pages/ClubsPage"));
 const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
 const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
+const ClubSetupWizardPage = lazy(() => import("./pages/ClubSetupWizardPage"));
 const StartPage = lazy(() => import("./pages/StartPage"));
 const StartTeamPage = lazy(() => import("./pages/StartTeamPage"));
 const EditClubPage = lazy(() => import("./pages/EditClubPage"));
@@ -144,7 +150,7 @@ const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
 const ClaimTeamPage = lazy(() => import("./pages/ClaimTeamPage"));
 const CompetitionJoinPage = lazy(() => import("./pages/CompetitionJoinPage"));
 const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
-const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
+// WatchLiveTeamPage archived: only served basketball/netball spectator view (archive/sports/pages/)
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -186,6 +192,9 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter(queryClient);
+// Wire the Realtime channel registry to the QueryClient so revoked channels
+// can evict their react-query caches (pass b of Realtime membership audit).
+import("@/lib/realtimeChannelRegistry").then((m) => m.bindRealtimeRegistryQueryClient(queryClient));
 // Web equivalent (native adapter early-returns off-native): scoped invalidator
 // for photos / Pro-access on reconnect + tab-focus so Media doesn't stall.
 installWebReconnectInvalidator(queryClient);
@@ -353,7 +362,7 @@ const App = () => {
           <BrowserRouter>
             <ScrollToTop />
             <PWAPendingInviteHandler />
-            <GlobalSubMonitorGate />
+            <Suspense fallback={null}><GlobalSubMonitorGate /></Suspense>
             <PitchBoardResumeRedirect />
             <MessagesBootstrapPrefetcher />
 
@@ -363,6 +372,7 @@ const App = () => {
                 {/* Public routes */}
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/verify-reset-code" element={<VerifyResetCodePage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
                 <Route path="/join/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
                 <Route path="/join/p/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
@@ -396,6 +406,7 @@ const App = () => {
                   <Route path="/start" element={<StartPage />} />
                   <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
+                  <Route path="/clubs/:clubId/setup" element={<ClubSetupWizardPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
                   <Route path="/clubs/:clubId/roles" element={<ManageRolesPage />} />
@@ -405,7 +416,7 @@ const App = () => {
                   <Route path="/clubs/:clubId/stripe" element={<StripeSettingsPage />} />
                   <Route path="/clubs/:clubId/enrol" element={<ClassEnrolmentPage />} />
                   <Route path="/teams/:id" element={<TeamDetailPage />} />
-                  <Route path="/watch/team/:teamId" element={<WatchLiveTeamPage />} />
+                  {/* /watch/team/:teamId route archived with WatchLiveTeamPage (court-sports only) */}
                   <Route path="/teams/:id/edit" element={<EditTeamPage />} />
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />

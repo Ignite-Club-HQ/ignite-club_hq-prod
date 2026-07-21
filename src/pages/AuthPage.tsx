@@ -201,7 +201,17 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       if (!isAuthInputFocused()) return;
-      setNativeKeyboardHeight(keyboardHeight || 0);
+      // Single source of truth: Capacitor's reported `keyboardHeight` (CSS px).
+      // Do NOT mix in `visualViewport.height` — the app runs with
+      // `Keyboard.resize: 'none'`, so `visualViewport` either doesn't shrink
+      // on Android (→ under-report → keyboard covers form) or shrinks
+      // partially on some OEM WebViews (→ Math.min collapses to that partial
+      // value → same bug). Just clamp to a sanity ceiling (60% of window).
+      const raw = keyboardHeight || 0;
+      const winH = typeof window !== 'undefined' ? window.innerHeight : raw;
+      const ceiling = Math.floor(winH * 0.6);
+      const safe = Math.max(0, Math.min(raw, ceiling));
+      setNativeKeyboardHeight(safe);
       setNativeKeyboardVisible(true);
     }).then(handle => {
       keyboardShowListener = handle;
@@ -221,7 +231,7 @@ export default function AuthPage() {
   }, [isNativePlatform]);
 
   useEffect(() => {
-    if (authMode !== "signin" || !isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") {
+    if (!isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") {
       return;
     }
 
@@ -245,7 +255,7 @@ export default function AuthPage() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [authMode, isNativePlatform, nativeKeyboardVisible]);
+  }, [isNativePlatform, nativeKeyboardVisible]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -280,28 +290,26 @@ export default function AuthPage() {
   }, []);
 
   const isSignInMode = authMode === "signin";
-  const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
-  // On Android with adjustResize, window.innerHeight already excludes the keyboard,
-  // so --stable-vh shrinks when the keyboard opens. Using --stable-vh - keyboardHeight
-  // would double-subtract the keyboard. Instead, use innerHeight directly when keyboard
-  // is open on Android, or just use --stable-vh (which stays stable on iOS).
+  const isFormKeyboardOpen = isNativePlatform && nativeKeyboardVisible;
+  const isSignInKeyboardOpen = isSignInMode && isFormKeyboardOpen;
+  const isSignupKeyboardOpen = !isSignInMode && isFormKeyboardOpen;
   const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-  // On Android, --stable-vh can be momentarily stale right after logout (e.g.
-  // the previous screen had the soft keyboard open, so innerHeight was small).
-  // Using it here causes the auth shell to render short and then visibly grow
-  // — pulling the centered content upward. Use 100vh on Android so the shell
-  // is always full-screen; the WebView's adjustResize handles keyboard insets.
-  const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
+  // Android auth must not subtract the keyboard height from `100vh`: on modern
+  // WebViews the CSS viewport may already be keyboard-reduced even when
+  // Keyboard.resize is `none`, so subtracting again causes the huge blank-gap /
+  // clipped-button bug. Use the app's locked viewport var instead of raw `vh`
+  // so OEM resize drift doesn't collapse the shell mid-keyboard animation.
+  const authViewportHeight = isFormKeyboardOpen && nativeKeyboardHeight > 0
     ? isAndroid
-      ? '100vh' // Android adjustResize already shrinks the viewport — don't subtract again
+      ? 'var(--visual-vh, 100vh)'
       : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
     : isAndroid
-      ? '100vh'
+      ? 'var(--visual-vh, 100vh)'
       : 'var(--stable-vh, 100dvh)';
   const authShellStyle = {
     height: authViewportHeight,
     paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',
-    paddingBottom: isSignInKeyboardOpen
+    paddingBottom: isFormKeyboardOpen
       ? '0px'
       : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
   };
@@ -359,8 +367,14 @@ export default function AuthPage() {
       console.log('[AuthPage] Authenticated, redirecting to:', redirectPath);
       return <Navigate to={redirectPath} replace />;
     }
-    if (!profile?.display_name) {
-      console.log('[AuthPage] Authenticated, redirecting to complete-profile');
+    // Route to /complete-profile if display_name is missing (all users)
+    // OR if a brand-new signup (< 10 min old) still has no avatar — this
+    // catches Google OAuth users whose display_name auto-populates but who
+    // never picked an avatar, so invites they send have a friendly identity.
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isFreshSignup = createdAt > 0 && (Date.now() - createdAt) < 10 * 60 * 1000;
+    if (!profile?.display_name || (isFreshSignup && !profile?.avatar_url)) {
+      console.log('[AuthPage] Authenticated, redirecting to complete-profile', { hasName: !!profile?.display_name, hasAvatar: !!profile?.avatar_url, isFreshSignup });
       return <Navigate to="/complete-profile" replace />;
     }
     // Default to home - clear any stale invite flow context since we're not in a flow
@@ -530,10 +544,18 @@ export default function AuthPage() {
     ? isSignInKeyboardOpen
       ? 'space-y-4 py-2'
       : `${shouldLowerDefaultSignIn ? 'translate-y-4' : ''} space-y-8 py-6`
-    : 'space-y-8 py-8 my-auto';
+    : isSignupKeyboardOpen
+      ? 'space-y-4 py-2'
+      : 'space-y-8 py-8 my-auto';
   const signInCardContentClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFormClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
   const signInFieldClassName = isSignInKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
+  const signupCardContentClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signupFormClassName = isSignupKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signupFieldClassName = isSignupKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
+  const authCardClassName = isAndroid && isFormKeyboardOpen
+    ? 'border-border/50 bg-card/95'
+    : 'border-border/50 bg-card/50 backdrop-blur-sm';
 
   return (
     <div
@@ -554,15 +576,15 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-y-auto' : ''}`}
+        className={`flex-1 flex flex-col items-center overflow-y-auto px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
-        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
-          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
-            <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
+        <div className={`flex flex-col items-center transition-all duration-200 ${isFormKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isFormKeyboardOpen ? 'p-2' : 'p-4'}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${isFormKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
-          {!isSignInKeyboardOpen && (
+          {!isFormKeyboardOpen && (
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           )}
         </div>
@@ -583,7 +605,7 @@ export default function AuthPage() {
           </div>
         )}
 
-        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+        <Card className={authCardClassName}>
           {authMode === "signin" ? (
             <>
               <CardHeader className={isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
@@ -740,15 +762,17 @@ export default function AuthPage() {
             </>
           ) : (
             <>
-              <CardHeader className="pb-2">
-                <h2 className="text-xl font-semibold text-center">Create Account</h2>
+              <CardHeader className={isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+                <h2 className={`font-semibold text-center ${isSignupKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Create Account</h2>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <CardDescription className="text-center">
-                  Create an account to get started.
-                </CardDescription>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+              <CardContent className={signupCardContentClassName}>
+                {!isSignupKeyboardOpen && (
+                  <CardDescription className="text-center">
+                    Create an account to get started.
+                  </CardDescription>
+                )}
+                <div className={signupFormClassName}>
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -762,7 +786,7 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -784,7 +808,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                     {password && (
-                      <div className="space-y-1 mt-2">
+                      <div className={`${isSignupKeyboardOpen ? 'space-y-0.5 mt-1' : 'space-y-1 mt-2'}`}>
                         {passwordRequirements.map((req, idx) => {
                           const met = req.test(password);
                           return (
@@ -816,7 +840,7 @@ export default function AuthPage() {
                       </div>
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className={signupFieldClassName}>
                     <Label htmlFor="signup-confirm-password">Confirm Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -844,8 +868,9 @@ export default function AuthPage() {
                       id="accept-terms"
                       checked={acceptedTerms}
                       onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                      className="mt-0.5 shrink-0"
                     />
-                    <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                    <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-snug cursor-pointer flex-1">
                       I agree to the{" "}
                       <Link to="/terms" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Terms of Service</Link>
                       {" "}and{" "}
@@ -909,7 +934,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign in link - only shown when NOT in invite flow */}
-                  {!isInInviteFlow && (
+                  {!isInInviteFlow && !isSignupKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
                       <button
@@ -935,7 +960,7 @@ export default function AuthPage() {
         />
 
         {/* Footer Links — hidden when keyboard is open on native sign-in */}
-        {!isSignInKeyboardOpen && (
+        {!isFormKeyboardOpen && (
           <div className="text-center text-xs text-muted-foreground space-y-2">
             <div className="flex justify-center gap-4">
               {Capacitor.isNativePlatform() ? (

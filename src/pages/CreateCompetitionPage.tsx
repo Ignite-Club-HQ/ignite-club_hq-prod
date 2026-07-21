@@ -61,6 +61,7 @@ export default function CreateCompetitionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     if (!user || !name.trim() || !organizerClubId) return;
     setSaving(true);
 
@@ -72,42 +73,50 @@ export default function CreateCompetitionPage() {
       return;
     }
 
-    let clubIdToUse = organizerClubId;
+    const trimmedName = name.trim();
+    const trimmedDesc = description.trim() || null;
+    const trimmedSport = sport || null;
+    const trimmedSeason = season.trim() || null;
 
     if (organizerClubId === PERSONAL_ORGANISER) {
+      // Atomic personal-organiser creation via transactional RPC.
       const { data: profile } = await selectCachedProfileById(user.id);
       const who = profile?.display_name?.trim() || "My";
       const shellName = `${who}'s competitions`;
 
-      const { data: shell, error: shellErr } = await supabase
-        .from("clubs")
-        .insert({ name: shellName, kind: "shell", created_by: user.id })
-        .select("id")
-        .single();
-      if (shellErr || !shell) {
-        setSaving(false);
-        toast({ title: "Could not create organiser", description: shellErr?.message, variant: "destructive" });
+      const { data, error } = await supabase.rpc("create_personal_competition", {
+        p_name: trimmedName,
+        p_description: trimmedDesc,
+        p_sport: trimmedSport,
+        p_season: trimmedSeason,
+        p_visibility: visibility,
+        p_shell_name: shellName,
+      });
+      setSaving(false);
+      if (error) {
+        toast({ title: "Could not create competition", description: error.message, variant: "destructive" });
         return;
       }
-      const { error: roleErr } = await supabase
-        .from("user_roles")
-        .insert({ user_id: user.id, club_id: shell.id, role: "club_admin" });
-      if (roleErr) {
-        setSaving(false);
-        toast({ title: "Couldn't set you as organiser admin", description: roleErr.message, variant: "destructive" });
+      const row = Array.isArray(data) ? data[0] : data;
+      const newId = row?.competition_id;
+      if (!newId) {
+        toast({ title: "Could not create competition", description: "Unexpected response from server.", variant: "destructive" });
         return;
       }
-      clubIdToUse = shell.id;
+      toast({ title: "Competition created" });
+      navigate(`/competitions/${newId}`);
+      return;
     }
 
+    // Existing behaviour: competition created under an existing organiser club.
     const { data, error } = await supabase
       .from("competitions")
       .insert({
-        name: name.trim(),
-        description: description.trim() || null,
-        sport: sport || null,
-        season: season.trim() || null,
-        organizer_club_id: clubIdToUse,
+        name: trimmedName,
+        description: trimmedDesc,
+        sport: trimmedSport,
+        season: trimmedSeason,
+        organizer_club_id: organizerClubId,
         visibility,
         status: "draft",
         created_by: user.id,

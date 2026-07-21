@@ -63,6 +63,7 @@ import { Capacitor } from "@capacitor/core";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -861,9 +862,15 @@ export default function ClubAdminChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`club-admin-chat-${conversationId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `club-admin-chat-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      : null;
 
-    return () => { supabase.removeChannel(channel); noteChannelRemoved(`club-admin-chat-${conversationId}`); };
-  }, [conversationId, queryClient, queryKey]);
+    return () => {
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`club-admin-chat-${conversationId}`);
+    };
+  }, [conversationId, queryClient, queryKey, user?.id]);
 
   // Visibility change handler
   useEffect(() => {
@@ -1039,7 +1046,7 @@ export default function ClubAdminChatPage() {
 
       {/* Input area */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

@@ -28,6 +28,8 @@ import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
+import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
@@ -170,7 +172,8 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { id: string; name: string; logo_url: string | null; sport: string | null };
+  deleted_at?: string | null;
+  clubs: { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
 }
 
 interface Club {
@@ -229,7 +232,7 @@ export default function MessagesPage() {
 
   // Gate Chat Recap to the active club context so a free active club can't
   // borrow Pro access from another club the user belongs to.
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
+  const { hasAICatchUpClub, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -277,14 +280,47 @@ export default function MessagesPage() {
 
   // Inbox perf: mark mount + track bootstrap RPC return + first paint. See
   // src/lib/inboxOpenLatency.ts. Best-effort; one sample per open.
+  // We capture per-open timestamps locally because `coldMark` is
+  // first-write-wins per JS session — relying on it made every subsequent
+  // inbox open report the FIRST open's `bootstrap_ms` / `first_paint_ms`.
   const inboxOpenStartRef = useRef<number>(Date.now());
+  const inboxMountTsRef = useRef<number>(Date.now());
+  const inboxBootstrapReturnTsRef = useRef<number | null>(null);
+  const inboxFirstPaintTsRef = useRef<number | null>(null);
   useEffect(() => {
-    inboxOpenStartRef.current = Date.now();
+    const now = Date.now();
+    inboxMountTsRef.current = now;
+    inboxBootstrapReturnTsRef.current = null;
+    inboxFirstPaintTsRef.current = null;
+    // For a true cold open, anchor tap_to_paint_ms to the earliest signal we
+    // have (notif_tap if it fired, otherwise boot/performance.timeOrigin) so
+    // the top-level metric captures the pre-mount prefix (native webview
+    // init, auth resolve, chunk fetch, route settle) — not just mount → paint.
+    let startTs = now;
+    try {
+      const snap = snapshotStages();
+      if (snap.anchor !== null) {
+        const notifTapDelta = snap.deltas.notif_tap;
+        if (typeof notifTapDelta === "number") {
+          startTs = snap.anchor + notifTapDelta;
+        } else if (typeof performance !== "undefined" && performance.timeOrigin) {
+          // Prefer timeOrigin (native process start) over the `boot` mark so
+          // cold_open captures webview/JS bundle parse time too.
+          startTs = Math.min(now, Math.round(performance.timeOrigin));
+        } else {
+          startTs = snap.anchor;
+        }
+      }
+    } catch {}
+    inboxOpenStartRef.current = startTs;
     coldMark("inbox_mount");
     return () => { resetInboxOpenLog(); };
   }, []);
   useEffect(() => {
-    if (bootstrapQ.data) coldMark("inbox_bootstrap_return");
+    if (bootstrapQ.data && inboxBootstrapReturnTsRef.current === null) {
+      inboxBootstrapReturnTsRef.current = Date.now();
+      coldMark("inbox_bootstrap_return");
+    }
   }, [bootstrapQ.data]);
 
 
@@ -546,12 +582,20 @@ export default function MessagesPage() {
           id,
           name,
           logo_url,
-          clubs!club_id (id, name, logo_url, sport)
+          deleted_at,
+          clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
         `)
-        .in("id", teamIds);
+        .in("id", teamIds)
+        .is("deleted_at", null);
 
       if (error) throw error;
-      const teams = data as Team[];
+      const teams = ((data || []) as Team[]).filter((team: any) => {
+        if (team.deleted_at) return false;
+        if (team.clubs?.deleted_at || team.clubs?.purged_at) return false;
+        return true;
+      });
+      const activeTeamIds = teams.map((team) => team.id);
+      if (activeTeamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
       
       // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
@@ -560,7 +604,7 @@ export default function MessagesPage() {
       try {
         const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
           "get_inbox_latest_team_messages",
-          { _team_ids: teamIds }
+          { _team_ids: activeTeamIds }
         );
         if (rpcErr) throw rpcErr;
         for (const row of (rpcRows ?? []) as any[]) {
@@ -869,14 +913,19 @@ export default function MessagesPage() {
 
       let query = supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs!club_id(name, logo_url), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (accessibleIds) query = query.in("id", accessibleIds);
       const { data, error } = await query;
 
       
-      const groups = data || [];
+      const groups = ((data || []) as any[]).filter((group: any) => {
+        if (group.deleted_at) return false;
+        if (group.clubs?.deleted_at || group.clubs?.purged_at) return false;
+        if (group.teams?.deleted_at) return false;
+        return true;
+      });
       
       // M1 perf: batch profile lookups for all group last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
@@ -1445,6 +1494,27 @@ export default function MessagesPage() {
   useEffect(() => { clubIdsRef.current = new Set((memberClubs ?? []).map((c: any) => c.id)); }, [memberClubs]);
   useEffect(() => { groupIdsRef.current = new Set((chatGroups ?? []).map((g: any) => g.id)); }, [chatGroups]);
 
+  // Fail-closed authorization set for Realtime callbacks (pass b of Realtime
+  // membership audit). We keep the page-driven teams/clubs/groups refs above
+  // for perf (they drive UI patching) but layer the authoritative membership
+  // snapshot on top: payloads are dropped while status !== 'ready' AND when
+  // the scope id is not in the authorized set. Empty set + ready => user has
+  // no access to that scope => drop (previous `ids.size && !ids.has(x)` guard
+  // failed open on empty).
+  const authScopes = useAuthorizedScopes();
+  const authStatusRef = useRef(authScopes.status);
+  const authTeamIdsRef = useRef<ReadonlySet<string>>(authScopes.teamIds);
+  const authClubIdsRef = useRef<ReadonlySet<string>>(authScopes.clubIds);
+  const authGroupIdsRef = useRef<ReadonlySet<string>>(authScopes.groupIds);
+  const authDmIdsRef = useRef<ReadonlySet<string>>(authScopes.dmConversationIds);
+  useEffect(() => {
+    authStatusRef.current = authScopes.status;
+    authTeamIdsRef.current = authScopes.teamIds;
+    authClubIdsRef.current = authScopes.clubIds;
+    authGroupIdsRef.current = authScopes.groupIds;
+    authDmIdsRef.current = authScopes.dmConversationIds;
+  }, [authScopes]);
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -1511,66 +1581,78 @@ export default function MessagesPage() {
       });
     };
 
+    // Fail-closed filters — drop payload unless membership snapshot is `ready`
+    // AND the scope id is in the authorized set. Empty set + ready => user
+    // has no access to that kind => drop.
+    const isAuthorized = (kind: 'team' | 'club' | 'group' | 'dm', id: string | null | undefined): boolean => {
+      if (!id) return false;
+      if (authStatusRef.current !== 'ready') return false;
+      const set =
+        kind === 'team' ? authTeamIdsRef.current :
+        kind === 'club' ? authClubIdsRef.current :
+        kind === 'group' ? authGroupIdsRef.current :
+        authDmIdsRef.current;
+      return set.has(id);
+    };
+
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(row?.team_id)) return;
-        if (row?.team_id) {
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-          patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
-            author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
-            is_announcement: isAnnouncement,
-          });
-        }
+        if (!isAuthorized('team', row?.team_id)) return;
+        const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+        patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+          author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
+          is_announcement: isAnnouncement,
+        });
         schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(row?.club_id)) return;
-        if (row?.club_id) patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
+        if (!isAuthorized('club', row?.club_id)) return;
+        patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
-        const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(row?.group_id)) return;
-        if (row?.group_id) patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        if (!isAuthorized('group', row?.group_id)) return;
+        patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
-        if (row?.conversation_id) {
-          queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
-            if (!Array.isArray(old)) return old;
-            const idx = old.findIndex((c: any) => c.id === row.conversation_id);
-            if (idx === -1) return old;
-            const conv = old[idx];
-            const updated = {
-              ...conv,
-              updated_at: row.created_at,
-              last_message: {
-                text: row.text ?? '',
-                image_url: row.image_url ?? null,
-                created_at: row.created_at,
-                author_id: row.author_id,
-              },
-            };
-            const next = old.slice();
-            next.splice(idx, 1);
-            next.unshift(updated);
-            return next;
-          });
-        }
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          const updated = {
+            ...conv,
+            updated_at: row.created_at,
+            last_message: {
+              text: row.text ?? '',
+              image_url: row.image_url ?? null,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            },
+          };
+          const next = old.slice();
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        });
         schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
         bumpUnread();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        // Broadcasts have no scope id — RLS on `broadcast_messages` already
+        // decides who receives them. Still gate on `ready` so we don't act
+        // on a stale channel after sign-out.
+        if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
           text: row.text ?? '',
@@ -1583,9 +1665,17 @@ export default function MessagesPage() {
       })
       .subscribe();
 
+    // Register with the realtime channel registry so it's torn down on
+    // membership revocation / sign-out via `revokeAllForUser`.
+    const unregister = registerChannel({
+      key: `messages-inbox-${user.id}`,
+      channel,
+      userId: user.id,
+      scope: { kind: 'user', id: user.id },
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unregister();
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
@@ -1705,13 +1795,23 @@ export default function MessagesPage() {
       });
     };
 
+    // Fail-closed authorization filter (native-light channel).
+    const isAuthorized = (kind: 'team' | 'club' | 'group' | 'dm', id: string | null | undefined): boolean => {
+      if (!id) return false;
+      if (authStatusRef.current !== 'ready') return false;
+      const set =
+        kind === 'team' ? authTeamIdsRef.current :
+        kind === 'club' ? authClubIdsRef.current :
+        kind === 'group' ? authGroupIdsRef.current :
+        authDmIdsRef.current;
+      return set.has(id);
+    };
+
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.team_id) return;
-        const ids = teamIdsRef.current;
-        if (ids.size && !ids.has(row.team_id)) return;
+        if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
         const author = isAnnouncement
           ? row.club_announcement_name
@@ -1737,9 +1837,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.club_id) return;
-        const ids = clubIdsRef.current;
-        if (ids.size && !ids.has(row.club_id)) return;
+        if (!isAuthorized('club', row?.club_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
         queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
           if (!old) return old;
@@ -1761,9 +1859,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.group_id) return;
-        const ids = groupIdsRef.current;
-        if (ids.size && !ids.has(row.group_id)) return;
+        if (!isAuthorized('group', row?.group_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
         queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
           if (!old) return old;
@@ -1785,10 +1881,7 @@ export default function MessagesPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
-        if (!row?.conversation_id) return;
-        // For DMs, the "author name" surface is the other_user.display_name on
-        // the conversation row — already populated. Only queue a lookup if
-        // the other_user is missing (rare, e.g. brand-new convo arriving).
+        if (!isAuthorized('dm', row?.conversation_id)) return;
         queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
           if (!Array.isArray(old)) return old;
           const idx = old.findIndex((c: any) => c.id === row.conversation_id);
@@ -1809,7 +1902,6 @@ export default function MessagesPage() {
           next.unshift(updated);
           return next;
         });
-        // If the other participant's name is unknown, queue a lookup.
         const convs = queryClient.getQueryData<any[]>(["dm-conversations", user.id]);
         const conv = convs?.find(c => c.id === row.conversation_id);
         const otherId = conv?.other_user?.id
@@ -1820,6 +1912,7 @@ export default function MessagesPage() {
         bumpUnread('dm', row.conversation_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
           text: row.text ?? '',
@@ -1831,8 +1924,15 @@ export default function MessagesPage() {
       })
       .subscribe();
 
+    const unregister = registerChannel({
+      key: `messages-inbox-light-${user.id}`,
+      channel,
+      userId: user.id,
+      scope: { kind: 'user', id: user.id },
+    });
+
     return () => {
-      supabase.removeChannel(channel);
+      unregister();
       if (flushTimer) clearTimeout(flushTimer);
     };
   }, [user?.id, queryClient]);
@@ -1901,7 +2001,10 @@ export default function MessagesPage() {
   const displayTeams = teams || cachedData?.teams || [];
   const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
+  // Important: an empty fresh chat-group result is authoritative. Falling back
+  // to cached groups when `chatGroups.length === 0` kept soft-deleted/purged
+  // club chats visible forever after the server correctly returned no rows.
+  const allChatGroups = chatGroups ?? (cachedData?.chatGroups as any) ?? [];
   
   // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
@@ -2426,12 +2529,19 @@ export default function MessagesPage() {
         inboxSource = "notification";
       }
     } catch {}
+    if (inboxFirstPaintTsRef.current === null) {
+      inboxFirstPaintTsRef.current = Date.now();
+    }
     void logInboxOpenLatency({
       userId: user.id,
       source: inboxSource,
       startTs: inboxOpenStartRef.current,
       cacheHit: !!cachedData,
       bootstrapEnabled: isMessagesBootstrapEnabled(),
+      mountTs: inboxMountTsRef.current,
+      bootstrapReturnTs: inboxBootstrapReturnTsRef.current,
+      firstPaintTs: inboxFirstPaintTsRef.current,
+      primaryClubId: (memberClubs?.[0] as any)?.id ?? null,
       sectionCounts: {
         teams: filteredTeams.length,
         clubs: filteredClubs.length,
@@ -2689,34 +2799,19 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              if (hasAICatchUpClub) {
-                setShowGlobalRecap(true);
-              } else {
-                toast({
-                  title: "Chat Recap is a Pro feature",
-                  description: "Upgrade your club to unlock AI-powered summaries across all your chats.",
-                });
-                if (upgradeClubId) {
-                  navigate(`/clubs/${upgradeClubId}/upgrade`);
-                } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                  navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                } else if (effectiveClubFilter) {
-                  navigate(`/clubs/${effectiveClubFilter}/upgrade`);
-                } else {
-                  navigate("/clubs");
-                }
-              }
-            }}
-            className="h-10 w-10 relative"
-            aria-label="Recap all chats"
-            title={hasAICatchUpClub ? "Recap all unread chats" : "Chat Recap (Pro)"}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
+          {aiCatchUpResolved && hasAICatchUpClub && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowGlobalRecap(true)}
+              className="h-10 w-10 relative"
+              aria-label="Recap all chats"
+              title="Recap all unread chats"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          )}
+
 
           <Button
             variant="outline"

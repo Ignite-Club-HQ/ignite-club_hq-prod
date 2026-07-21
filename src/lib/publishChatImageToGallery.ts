@@ -23,6 +23,8 @@ export interface PublishChatImageArgs {
   teamId: string | null;
   clubId: string | null;
   caption?: string | null;
+  /** Optional album to group this photo under (for batch "Publish all"). */
+  albumId?: string | null;
 }
 
 export interface PublishChatImageResult {
@@ -46,12 +48,15 @@ function inferExtension(blob: Blob, fallback = "jpg"): string {
 export async function publishChatImageToGallery(
   args: PublishChatImageArgs,
 ): Promise<PublishChatImageResult> {
-  const { imageUrl, uploaderId, teamId, clubId, caption } = args;
+  const { imageUrl, uploaderId, teamId, clubId, caption, albumId } = args;
   if (!imageUrl) throw new Error("imageUrl is required");
   if (!uploaderId) throw new Error("uploaderId is required");
   if (!teamId && !clubId) throw new Error("teamId or clubId is required");
 
   // 1. Idempotency — has this exact image already been published by this user?
+  // Fail-closed: if the lookup errors (RLS, connectivity, server), we cannot
+  // safely determine whether the image is already published. Continuing would
+  // risk duplicate storage objects and duplicate gallery rows, so abort.
   const { data: existing, error: existingError } = await supabase
     .from("photos")
     .select("id")
@@ -60,7 +65,11 @@ export async function publishChatImageToGallery(
     .is("deleted_at", null)
     .maybeSingle();
   if (existingError) {
-    console.warn("[publishChatImageToGallery] existing lookup failed", existingError);
+    console.error("[publishChatImageToGallery] existing lookup failed", existingError);
+    throw new Error(
+      existingError.message ||
+        "Could not check whether this image is already published",
+    );
   }
   if (existing?.id) {
     return { photoId: existing.id, alreadyPublished: true };
@@ -112,6 +121,7 @@ export async function publishChatImageToGallery(
       file_size: blob.size,
       caption: caption || null,
       title: caption || null,
+      album_id: albumId ?? null,
     })
     .select("id")
     .single();

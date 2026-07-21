@@ -24,6 +24,14 @@ serve(async (req: Request): Promise<Response> => {
   const authErr = requireServiceRoleAuth(req, corsHeaders);
   if (authErr) return authErr;
 
+  // Photo email notifications are permanently disabled at the platform level.
+  // Users receive photo notifications via push only.
+  return new Response(
+    JSON.stringify({ success: true, skipped: true, reason: 'photo_emails_disabled_globally' }),
+    { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+  );
+  // eslint-disable-next-line no-unreachable
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -178,7 +186,7 @@ serve(async (req: Request): Promise<Response> => {
     // Send email via send-email function
     const { error: emailError } = await supabase.functions.invoke('send-email', {
       body: {
-        to: recipientAuth.user.email,
+        to: recipientEmail,
         subject: `📷 New photo in ${contextName}`,
         template: 'photo-uploaded',
         templateData: {
@@ -200,7 +208,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`Photo notification email sent successfully to ${recipientAuth.user.email}`);
+    console.log(`Photo notification email sent successfully to ${recipientEmail}`);
 
     return new Response(
       JSON.stringify({ success: true }),

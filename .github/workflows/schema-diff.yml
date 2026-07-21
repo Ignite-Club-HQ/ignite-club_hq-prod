@@ -1,0 +1,143 @@
+name: Schema Diff (dev vs prod)
+
+# Manual workflow: dumps the LIVE dev and prod schemas, compares them, and
+# reports a clear ✅/❌ result in the GitHub Actions log. Also uploads all files
+# as an artifact so you can inspect them locally if you want.
+#
+# Why not `supabase db diff --linked`?
+#   `db diff --linked` provisions an empty shadow DB and replays every
+#   local migration from scratch. Because we baselined prod (929 pre-clone
+#   migrations marked applied without executing), the local migration
+#   files reference tables (e.g. `public.teams`) that only exist in the
+#   pre-clone baseline — the shadow replay fails on the first file.
+#   Dumping the live schemas sidesteps the shadow DB entirely.
+#
+# Trigger: Actions tab → "Schema Diff (dev vs prod)" → Run workflow.
+#
+# Required secrets:
+#   SUPABASE_ACCESS_TOKEN        (same for dev and prod organisations)
+#   SUPABASE_PROD_PROJECT_REF    (e.g. yabcfiuntwqjwvschnji)
+#   SUPABASE_PROD_DB_PASSWORD
+#   SUPABASE_DEV_PROJECT_REF     (e.g. ecsdwrarzfexssxtrymj)
+#   SUPABASE_DEV_DB_PASSWORD
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diff:
+    name: Compare dev vs prod schemas
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # ---------- PROD ----------
+      - name: Link to PROD
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Migration list (PROD)
+        run: supabase migration list --linked | tee migration-list-prod.txt
+
+      - name: Dump PROD schema (public)
+        run: |
+          set -euo pipefail
+          supabase db dump --linked --schema public -f schema-prod.sql
+          wc -l schema-prod.sql
+          echo "✅ Prod schema dumped to schema-prod.sql"
+
+      - name: Dump PROD roles
+        run: supabase db dump --linked --role-only -f roles-prod.sql || true
+
+      # ---------- DEV ----------
+      - name: Link to DEV
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+        run: |
+          rm -f supabase/.temp/* 2>/dev/null || true
+          supabase link --project-ref "$PROJECT_REF"
+
+      - name: Migration list (DEV)
+        run: supabase migration list --linked | tee migration-list-dev.txt
+
+      - name: Dump DEV schema (public)
+        run: |
+          set -euo pipefail
+          supabase db dump --linked --schema public -f schema-dev.sql
+          wc -l schema-dev.sql
+          echo "✅ Dev schema dumped to schema-dev.sql"
+
+      - name: Dump DEV roles
+        run: supabase db dump --linked --role-only -f roles-dev.sql || true
+
+      # ---------- COMPARE ----------
+      - name: Compare schemas and write summary
+        id: compare
+        run: |
+          set -euo pipefail
+
+          # Normalize: remove the timestamp comment that db dump puts at the top
+          # so the diff isn't noisy just because the dump times differ.
+          tail -n +2 schema-prod.sql > schema-prod-normalized.sql
+          tail -n +2 schema-dev.sql  > schema-dev-normalized.sql
+
+          PROD_LINES=$(wc -l < schema-prod.sql)
+          DEV_LINES=$(wc -l < schema-dev.sql)
+          PROD_MIGRATIONS=$(grep -cE '^[0-9]{14}' migration-list-prod.txt || true)
+          DEV_MIGRATIONS=$(grep -cE '^[0-9]{14}' migration-list-dev.txt || true)
+
+          echo ""
+          echo "================== SCHEMA DIFF SUMMARY =================="
+          echo "Prod schema lines:  $PROD_LINES"
+          echo "Dev schema lines:   $DEV_LINES"
+          echo "Prod migrations:    $PROD_MIGRATIONS"
+          echo "Dev migrations:     $DEV_MIGRATIONS"
+          echo ""
+
+          if diff -u schema-prod-normalized.sql schema-dev-normalized.sql > schema-diff.txt; then
+            echo "✅ RESULT: Dev and prod schemas MATCH."
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "Schemas are identical (ignoring dump timestamp header)."
+            echo "================== END SUMMARY =================="
+            echo "0" > schema-diff-lines.txt
+          else
+            DIFF_LINES=$(wc -l < schema-diff.txt)
+            echo "❌ RESULT: Dev and prod schemas DO NOT MATCH."
+            echo "match=false" >> "$GITHUB_OUTPUT"
+            echo "Diff lines: $DIFF_LINES"
+            echo "Inspect the schema-diff artifact for details."
+            echo "================== END SUMMARY =================="
+            echo "$DIFF_LINES" > schema-diff-lines.txt
+            # Still exit 0 so the artifact upload step runs
+            exit 0
+          fi
+
+      # ---------- ARTIFACTS ----------
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schema-diff-${{ github.run_id }}
+          path: |
+            schema-prod.sql
+            schema-prod-normalized.sql
+            schema-dev.sql
+            schema-dev-normalized.sql
+            schema-diff.txt
+            roles-prod.sql
+            roles-dev.sql
+            migration-list-prod.txt
+            migration-list-dev.txt
+            schema-diff-lines.txt
+          retention-days: 14
+          if-no-files-found: warn

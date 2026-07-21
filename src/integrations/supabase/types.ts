@@ -2172,6 +2172,8 @@ export type Database = {
           points_icon_url: string | null
           primary_sponsor_id: string | null
           proposed_tier: string | null
+          purged_at: string | null
+          purged_by: string | null
           recognition_gold_threshold: number
           recognition_silver_threshold: number
           seeking_advertiser: boolean
@@ -2257,6 +2259,8 @@ export type Database = {
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
+          purged_at?: string | null
+          purged_by?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
           seeking_advertiser?: boolean
@@ -2342,6 +2346,8 @@ export type Database = {
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
+          purged_at?: string | null
+          purged_by?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
           seeking_advertiser?: boolean
@@ -4922,6 +4928,51 @@ export type Database = {
           },
         ]
       }
+      home_open_perf: {
+        Row: {
+          cache_hit: boolean
+          context: Json | null
+          created_at: string
+          first_paint_ms: number | null
+          id: string
+          platform: string | null
+          primary_club_id: string | null
+          query_ms: number | null
+          source: string
+          stages: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          primary_club_id?: string | null
+          query_ms?: number | null
+          source: string
+          stages?: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          primary_club_id?: string | null
+          query_ms?: number | null
+          source?: string
+          stages?: Json | null
+          tap_to_paint_ms?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       iap_transactions: {
         Row: {
           created_at: string
@@ -4970,6 +5021,7 @@ export type Database = {
           first_paint_ms: number | null
           id: string
           platform: string | null
+          primary_club_id: string | null
           section_counts: Json | null
           source: string
           stages: Json | null
@@ -4984,6 +5036,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           section_counts?: Json | null
           source: string
           stages?: Json | null
@@ -4998,6 +5051,7 @@ export type Database = {
           first_paint_ms?: number | null
           id?: string
           platform?: string | null
+          primary_club_id?: string | null
           section_counts?: Json | null
           source?: string
           stages?: Json | null
@@ -7893,6 +7947,51 @@ export type Database = {
           },
         ]
       }
+      schedule_open_perf: {
+        Row: {
+          cache_hit: boolean
+          context: Json | null
+          created_at: string
+          first_paint_ms: number | null
+          id: string
+          platform: string | null
+          primary_club_id: string | null
+          query_ms: number | null
+          source: string
+          stages: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          primary_club_id?: string | null
+          query_ms?: number | null
+          source: string
+          stages?: Json | null
+          tap_to_paint_ms: number
+          user_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          context?: Json | null
+          created_at?: string
+          first_paint_ms?: number | null
+          id?: string
+          platform?: string | null
+          primary_club_id?: string | null
+          query_ms?: number | null
+          source?: string
+          stages?: Json | null
+          tap_to_paint_ms?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       scheduled_messages: {
         Row: {
           attempted_at: string | null
@@ -9803,6 +9902,10 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      accept_guardian_parent_invite: {
+        Args: { _invite_id: string }
+        Returns: Json
+      }
       acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
@@ -10229,6 +10332,20 @@ export type Database = {
           p_year_of_birth?: number
         }
         Returns: string
+      }
+      create_personal_competition: {
+        Args: {
+          p_description?: string
+          p_name: string
+          p_season?: string
+          p_shell_name?: string
+          p_sport?: string
+          p_visibility?: string
+        }
+        Returns: {
+          club_id: string
+          competition_id: string
+        }[]
       }
       create_photo_album: {
         Args: {
@@ -10843,6 +10960,7 @@ export type Database = {
           total: number
         }[]
       }
+      hard_delete_club: { Args: { _club_id: string }; Returns: undefined }
       has_active_pro_for_club: { Args: { _club_id: string }; Returns: boolean }
       has_active_pro_for_team: { Args: { _team_id: string }; Returns: boolean }
       has_role: {
@@ -11405,6 +11523,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_event_series: {
+        Args: {
+          p_event_id: string
+          p_selected_end_time: string
+          p_selected_event_date: string
+          p_selected_start_time: string
+          p_updates: Json
+        }
+        Returns: undefined
       }
       update_user_activity_duration: {
         Args: { _activity_log_id: string; _duration_seconds: number }

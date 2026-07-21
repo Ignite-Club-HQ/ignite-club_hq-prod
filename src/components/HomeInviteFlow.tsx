@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Loader2, Trophy, UserPlus, Users, Shield } from "lucide-react";
@@ -14,8 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { getCachedRoles } from "@/lib/rolesCache";
-import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
-import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
+const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 
 interface HomeInviteFlowProps {
   open: boolean;
@@ -509,6 +509,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       )}
 
       {target?.kind === "team" && (
+        <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={target.id}
           teamName={target.name}
@@ -518,9 +519,11 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
+        </Suspense>
       )}
 
       {target?.kind === "mini_league" && (
+        <Suspense fallback={null}>
         <AddMiniLeagueMemberSheet
           miniLeagueId={target.id}
           miniLeagueName={target.name}
@@ -528,6 +531,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
+        </Suspense>
       )}
     </>
   );

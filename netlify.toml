@@ -1,3 +1,37 @@
+# ---------------------------------------------------------------------------
+# PROD web build (mirrors codemagic android-workflow / ios-workflow pattern)
+#
+# Netlify's "production" context = whichever branch is set as the Production
+# branch in Site settings → Build & deploy → Branches. Set that to `prod`.
+#
+# This block rewrites .env at build time so Vite bakes the PROD Supabase
+# URL + anon key into the shipped bundle, regardless of what the committed
+# dev .env contains. All other branches/PRs keep using the committed dev .env
+# (matches android-debug-workflow / ios-debug-workflow behaviour).
+#
+# Required Netlify env var (Site settings → Environment variables,
+# scope = "Production" only):
+#   VITE_SUPABASE_PUBLISHABLE_KEY = <prod anon key from yabcfiuntwqjwvschnji>
+# ---------------------------------------------------------------------------
+[context.production.environment]
+  LOVABLE_ENV = "prod"
+  VITE_SUPABASE_URL = "https://yabcfiuntwqjwvschnji.supabase.co"
+  VITE_SUPABASE_PROJECT_ID = "yabcfiuntwqjwvschnji"
+
+[context.production]
+  command = """
+    set -euo pipefail
+    if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+      echo '::error:: VITE_SUPABASE_PUBLISHABLE_KEY not set in Netlify (Production scope) — aborting so we do not ship a dev bundle to prod'
+      exit 1
+    fi
+    printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_PROJECT_ID=%s\nVITE_SUPABASE_PUBLISHABLE_KEY=%s\n' \
+      "$VITE_SUPABASE_URL" "$VITE_SUPABASE_PROJECT_ID" "$VITE_SUPABASE_PUBLISHABLE_KEY" > .env
+    echo '=== .env rewritten for PROD ==='
+    grep -v PUBLISHABLE_KEY .env
+    npm run build
+  """
+
 [[edge_functions]]
   function = "share"
   path = "/share"
@@ -6,3 +40,28 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ---------------------------------------------------------------------------
+# Security headers (added by security audit — 2026-07-15)
+# Applied to every response served by Netlify. Edge functions and the
+# `_headers` file can still override on a per-path basis.
+# ---------------------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Force HTTPS for 2 years, include subdomains, allow preload list
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    # Prevent MIME sniffing
+    X-Content-Type-Options = "nosniff"
+    # Deny framing (clickjacking protection). Change to SAMEORIGIN only if you embed the app in an iframe on your own domain.
+    X-Frame-Options = "DENY"
+    # Modern equivalent of X-Frame-Options + XSS-Protection
+    Content-Security-Policy = "frame-ancestors 'none'"
+    # Don't leak referrer URLs cross-origin
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Lock down powerful browser APIs we don't use
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self), payment=(self), usb=(), magnetometer=(), accelerometer=(), gyroscope=()"
+    # Legacy header — ignored by modern browsers but harmless
+    X-XSS-Protection = "0"
+    # Cross-origin isolation (safe defaults; relax if you embed 3rd-party widgets)
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"

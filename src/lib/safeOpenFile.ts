@@ -2,37 +2,55 @@ import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "./safeOpenUrl";
 
 /**
+ * Recognized Supabase storage URL forms that require authorization before
+ * download/open. Kept in sync with the classifier used by resolveSignedUrl.
+ */
+const PRIVATE_STORAGE_MARKERS = [
+  "/storage/v1/object/public/",
+  "/storage/v1/object/sign/",
+  "/storage/v1/object/authenticated/",
+  "/storage/v1/render/image/public/",
+  "/storage/v1/render/image/sign/",
+];
+
+function isSupabaseStorageUrl(url: string): boolean {
+  const clean = url.split("?")[0].split("#")[0];
+  return PRIVATE_STORAGE_MARKERS.some((m) => clean.includes(m));
+}
+
+/**
  * Open a remote file (PDF, docx, etc.) in the most user-friendly way.
  *
- * On native: download the file to the cache directory and hand it off to the
- * system's native viewer via @capacitor-community/file-opener. This avoids
- * showing the raw Supabase storage URL in an in-app browser chrome (which
- * looks unbranded and exposes internal URLs to the user).
- *
- * On web (or if the native open fails): fall back to safeOpenUrl which
- * handles signed-URL resolution + Capacitor Browser / window.open.
+ * Security: for recognized Supabase storage URLs we resolve to an authorized
+ * signed URL BEFORE any download or browser operation. If signing fails we
+ * fail closed — the raw private URL is never downloaded, opened, or passed to
+ * the browser fallback, and no tokens or private URLs are included in errors.
  */
 export async function safeOpenFile(
   url: string,
   opts: { fileName?: string; mimeType?: string } = {},
 ): Promise<void> {
   const isNative = Capacitor.isNativePlatform();
+  const isStorageUrl = isSupabaseStorageUrl(url);
 
-  if (!isNative) {
-    await safeOpenUrl(url);
-    return;
-  }
-
-  // Resolve signed URL up-front for private Supabase buckets so the download
-  // request is actually authorized.
+  // Resolve signed URL up-front for Supabase storage URLs. Fail closed on
+  // signing errors so we never expose or download the raw private URL.
   let resolvedUrl = url;
-  try {
-    if (url.includes("/storage/v1/object/")) {
+  if (isStorageUrl) {
+    try {
       const { resolveSignedUrl } = await import("@/hooks/useSignedPhotoUrl");
       resolvedUrl = await resolveSignedUrl(url);
+    } catch {
+      // Do not include the raw URL, tokens, or the underlying error message
+      // (which may contain sensitive query params) in the thrown error.
+      console.warn("[safeOpenFile] signing failed; refusing to open private file");
+      throw new Error("This file could not be authorized for viewing. Please try again.");
     }
-  } catch (err) {
-    console.warn("[safeOpenFile] failed to resolve signed URL:", err);
+  }
+
+  if (!isNative) {
+    await safeOpenUrl(resolvedUrl);
+    return;
   }
 
   try {
@@ -61,6 +79,10 @@ export async function safeOpenFile(
       openWithDefault: true,
     });
   } catch (err) {
+    // Fall back to browser using the RESOLVED URL only — never the raw
+    // private URL. For successfully signed private URLs this passes the
+    // signed URL along; for external/public URLs this preserves the
+    // existing behaviour.
     console.warn("[safeOpenFile] native open failed, falling back to browser:", err);
     await safeOpenUrl(resolvedUrl);
   }

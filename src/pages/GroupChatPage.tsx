@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, lazy, Suspense } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
@@ -70,6 +70,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -94,14 +95,15 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
-import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
+import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -532,6 +534,7 @@ export default function GroupChatPage() {
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ["group-messages", groupId],
     queryFn: async () => {
+      markChatFetch();
       // If offline, return cached messages using the shared online manager
       // so native app resume does not incorrectly fall back to stale cache.
       if (!isOnline) {
@@ -1231,9 +1234,21 @@ export default function GroupChatPage() {
     };
   }, [targetMessageId, targetJumpNonce, groupId, authReady]);
 
+  // Free-tier polling switch (only applies to groups scoped to a club).
+  const { mode: groupRealtimeMode, intervalMs: groupPollIntervalMs } = useClubRealtimeMode(group?.club_id ?? null);
+
+  useEffect(() => {
+    if (!groupId || groupRealtimeMode !== "polling") return;
+    const id = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+    }, groupPollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient]);
+
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
     if (!groupId) return;
+    if (groupRealtimeMode === "polling") return;
 
     const channel = supabase
       .channel(`group-messages-${groupId}`)
@@ -1443,11 +1458,15 @@ export default function GroupChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`group-messages-${groupId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `group-messages-${groupId}`, channel, userId: user.id, scope: { kind: "group", id: groupId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id]);
 
 
   // Send message mutation
@@ -2262,13 +2281,17 @@ export default function GroupChatPage() {
             </span>
             <ChevronRight className="h-4 w-4 text-primary/70 shrink-0" strokeWidth={2.25} />
           </button>
-          <AddMiniLeagueMemberSheet
-            miniLeagueId={group.mini_league_id}
-            miniLeagueName={miniLeagueInfo?.name || group.name}
-            clubId={group.club_id}
-            externalOpen={miniLeagueInviteOpen}
-            onExternalOpenChange={setMiniLeagueInviteOpen}
-          />
+          {miniLeagueInviteOpen && (
+            <Suspense fallback={null}>
+            <AddMiniLeagueMemberSheet
+              miniLeagueId={group.mini_league_id}
+              miniLeagueName={miniLeagueInfo?.name || group.name}
+              clubId={group.club_id}
+              externalOpen={miniLeagueInviteOpen}
+              onExternalOpenChange={setMiniLeagueInviteOpen}
+            />
+            </Suspense>
+          )}
         </>
       )}
 
@@ -2414,7 +2437,7 @@ export default function GroupChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

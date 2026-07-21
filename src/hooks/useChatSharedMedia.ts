@@ -68,8 +68,16 @@ export function useChatSharedMedia(
   chatId: string | undefined,
   options?: { limit?: number; enabled?: boolean }
 ) {
-  const limit = options?.limit ?? DEFAULT_LIMIT;
+  const rawLimit = options?.limit;
+  // Defensive normalisation: fall back to the default for any non-positive,
+  // non-finite or fractional value so callers can never trigger an unbounded
+  // query or receive an unexpected result count.
+  const limit =
+    typeof rawLimit === "number" && Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.floor(rawLimit)
+      : DEFAULT_LIMIT;
   const enabled = (options?.enabled ?? true) && !!chatId;
+
 
   return useQuery({
     queryKey: ["chat-shared-media", chatType, chatId, limit],
@@ -234,7 +242,13 @@ export function useChatSharedMedia(
       // Sort newest first, keep stable order
       items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      return items;
+      // Enforce the caller-requested result cap AFTER derivation. A single
+      // source message can produce multiple items (photo + links + vault
+      // refs), so bounding only the source-message query is not enough —
+      // callers rely on the returned length being <= limit for chat's
+      // fixed-size Shared Media strips.
+      return items.slice(0, limit);
+
     },
     enabled,
     staleTime: 60 * 1000,

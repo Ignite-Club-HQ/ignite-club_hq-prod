@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +87,8 @@ export default function GameFinishedDialog({
   const { saveGameStats, isSaving } = useGameStats();
   const { save: saveGameResult } = useSaveGameResult();
   const [statsSaved, setStatsSaved] = useState(false);
+  const [finishInProgress, setFinishInProgress] = useState(false);
+  const finishInProgressRef = useRef(false);
   
   // Sort players by minutes played (descending)
   const sortedPlayers = [...players].sort((a, b) => (b.minutesPlayed || 0) - (a.minutesPlayed || 0));
@@ -101,6 +103,15 @@ export default function GameFinishedDialog({
   };
 
   const handleFinish = async () => {
+    // Synchronous, component-local guard against duplicate submissions.
+    // The `isSaving` prop updates asynchronously after the first click, so
+    // rapid taps can otherwise slip past the disabled state and run the
+    // full save + cleanup workflow multiple times.
+    if (finishInProgressRef.current) return;
+    finishInProgressRef.current = true;
+    setFinishInProgress(true);
+
+    try {
     // Auto-save stats if linked to an event and not already saved
     if (linkedEventId && teamId && !statsSaved) {
       try {
@@ -246,6 +257,13 @@ export default function GameFinishedDialog({
       }
     }
     onClose();
+    } catch (err) {
+      // Unexpected failure: allow the user to retry only if the dialog is
+      // still open. Reset the guard so the button becomes actionable again.
+      console.error('handleFinish failed:', err);
+      finishInProgressRef.current = false;
+      setFinishInProgress(false);
+    }
   };
 
   return (
@@ -334,8 +352,8 @@ export default function GameFinishedDialog({
         </div>
         
         <DialogFooter>
-          <Button onClick={handleFinish} className="w-full" disabled={isSaving}>
-            {isSaving ? (
+          <Button onClick={handleFinish} className="w-full" disabled={isSaving || finishInProgress}>
+            {(isSaving || finishInProgress) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Saving Stats...

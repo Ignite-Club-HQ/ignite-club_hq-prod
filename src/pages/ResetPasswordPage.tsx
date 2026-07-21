@@ -50,8 +50,15 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Explicit recovery-session lifecycle. The password form MUST NOT render
+  // until we've confirmed a real recovery session exists (PKCE code exchange,
+  // existing recovery session, OTP verification, or PASSWORD_RECOVERY event).
+  const [recoverySessionStatus, setRecoverySessionStatus] = useState<
+    "checking" | "valid" | "invalid"
+  >("checking");
   const [showOtpRecovery, setShowOtpRecovery] = useState(false);
   const [otpEmail, setOtpEmail] = useState("");
+  const [otpEmailError, setOtpEmailError] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -60,13 +67,35 @@ export default function ResetPasswordPage() {
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const resetScrollRef = useRef<HTMLDivElement>(null);
+  const otpEmailInputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
+  const sendOtpInFlightRef = useRef(false);
+  const verifyOtpInFlightRef = useRef(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const isNativePlatform = Capacitor.isNativePlatform();
   const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === "android";
 
   useEffect(() => {
     let cancelled = false;
+
+    const markInvalid = (message: string) => {
+      if (cancelled || !mountedRef.current) return;
+      setError(message);
+      setRecoverySessionStatus("invalid");
+    };
+    const markValid = () => {
+      if (cancelled || !mountedRef.current) return;
+      setError(null);
+      setRecoverySessionStatus("valid");
+    };
 
     const establishRecoverySession = async () => {
       try {
@@ -78,7 +107,7 @@ export default function ResetPasswordPage() {
           new URLSearchParams(url.hash.replace(/^#/, "")).get("error_description");
 
         if (errorDescription) {
-          if (!cancelled) setError(decodeURIComponent(errorDescription));
+          markInvalid(decodeURIComponent(errorDescription));
           return;
         }
 
@@ -86,13 +115,13 @@ export default function ResetPasswordPage() {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             console.error("[ResetPassword] exchangeCodeForSession error:", exchangeError);
-            if (!cancelled) {
-              setError("Invalid or expired reset link. Please request a new password reset.");
-            }
+            markInvalid("Invalid or expired reset link. Please request a new password reset.");
             return;
           }
           // Clean the URL so a refresh doesn't try to re-exchange the code
           window.history.replaceState({}, document.title, "/reset-password");
+          markValid();
+          return;
         }
 
         // Case 2: implicit/hash flow — Supabase auto-detects via detectSessionInUrl.
@@ -102,14 +131,14 @@ export default function ResetPasswordPage() {
         if (cancelled) return;
 
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session && !cancelled) {
-          setError("Invalid or expired reset link. Please request a new password reset.");
+        if (session) {
+          markValid();
+        } else {
+          markInvalid("Invalid or expired reset link. Please request a new password reset.");
         }
       } catch (err) {
         console.error("[ResetPassword] session setup failed:", err);
-        if (!cancelled) {
-          setError("Invalid or expired reset link. Please request a new password reset.");
-        }
+        markInvalid("Invalid or expired reset link. Please request a new password reset.");
       }
     };
 
@@ -117,8 +146,9 @@ export default function ResetPasswordPage() {
 
     // Also listen for PASSWORD_RECOVERY in case the SDK fires it after our check
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" && !cancelled) {
+      if (event === "PASSWORD_RECOVERY" && !cancelled && mountedRef.current) {
         setError(null);
+        setRecoverySessionStatus("valid");
       }
     });
 
@@ -228,56 +258,125 @@ export default function ResetPasswordPage() {
   const sendRecoveryCode = async () => {
     const validation = emailSchema.safeParse(otpEmail);
     if (!validation.success) {
+      const message = validation.error.errors[0].message;
+      if (mountedRef.current) setOtpEmailError(message);
+      otpEmailInputRef.current?.focus();
       toast({
         title: "Invalid email",
-        description: validation.error.errors[0].message,
+        description: message,
       });
       return;
     }
-    setSendingOtp(true);
-    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail, {
-      redirectTo: getPasswordResetRedirectUrl(otpEmail),
-    });
-    setSendingOtp(false);
-    if (sendError) {
-      console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
+
+    // Prevent duplicate send-code requests while one is active.
+    if (sendOtpInFlightRef.current) return;
+    sendOtpInFlightRef.current = true;
+
+    if (mountedRef.current) {
+      setOtpEmailError(null);
+      setSendingOtp(true);
     }
-    toast({
-      title: "Code sent",
-      description: "Check your email for a 6-digit code.",
-    });
+    try {
+      // Fail closed: any thrown exception or Supabase error is treated the
+      // same — we do NOT show "Code sent" and do NOT reveal whether the email
+      // belongs to an account.
+      let sendError: unknown = null;
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(otpEmail, {
+          redirectTo: getPasswordResetRedirectUrl(otpEmail),
+        });
+        sendError = error ?? null;
+      } catch (thrown) {
+        sendError = thrown;
+      }
+
+      if (sendError) {
+        console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
+        if (!mountedRef.current) return;
+        toast({
+          title: "Unable to send code",
+          description:
+            "We couldn't send the verification code. Check your connection and try again.",
+        });
+        // Stay on the recovery-code interface, keep Send code enabled, allow retry.
+        return;
+      }
+
+      if (!mountedRef.current) return;
+      toast({
+        title: "Code sent",
+        description: "Check your email for a 6-digit code.",
+      });
+    } finally {
+      sendOtpInFlightRef.current = false;
+      if (mountedRef.current) setSendingOtp(false);
+    }
   };
 
   const verifyRecoveryCode = async (token: string) => {
-    setVerifyingOtp(true);
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: otpEmail,
-      token,
-      type: "recovery",
-    });
-    setVerifyingOtp(false);
-    if (verifyError) {
+    // Never invoke Supabase with an empty or malformed email — verifyOtp with
+    // an empty email silently fails and confuses the user.
+    const validation = emailSchema.safeParse(otpEmail);
+    if (!validation.success) {
+      const message = validation.error.errors[0].message;
+      if (mountedRef.current) setOtpEmailError(message);
+      otpEmailInputRef.current?.focus();
       toast({
-        title: "Invalid or expired code",
-        description: "Double-check the code or request a new one.",
+        title: "Enter your email",
+        description: "We need your email to verify the code.",
       });
-      setOtpCode("");
+      // Do NOT clear the entered code — user may want to retry after fixing email.
       return;
     }
-    // Now in a recovery session — clear the error to show password form
-    setError(null);
-    setShowOtpRecovery(false);
-    setOtpCode("");
+
+    // Prevent concurrent verify calls.
+    if (verifyOtpInFlightRef.current) return;
+    verifyOtpInFlightRef.current = true;
+
+    if (mountedRef.current) setVerifyingOtp(true);
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: otpEmail,
+        token,
+        type: "recovery",
+      });
+      if (verifyError) {
+        if (!mountedRef.current) return;
+        toast({
+          title: "Invalid or expired code",
+          description: "Double-check the code or request a new one.",
+        });
+        setOtpCode("");
+        return;
+      }
+      if (!mountedRef.current) return;
+      // Now in a real recovery session — flip status to valid so the form renders.
+      setError(null);
+      setShowOtpRecovery(false);
+      setOtpCode("");
+      setRecoverySessionStatus("valid");
+    } finally {
+      verifyOtpInFlightRef.current = false;
+      if (mountedRef.current) setVerifyingOtp(false);
+    }
   };
 
   const handleOtpChange = (value: string) => {
     setOtpCode(value);
-    if (value.length === 6 && !verifyingOtp) {
+    if (value.length === 6 && !verifyingOtp && !verifyOtpInFlightRef.current) {
       void verifyRecoveryCode(value);
     }
   };
 
   const handleResetPassword = async () => {
+    // Synchronous guard: refuse to call updateUser() unless the recovery
+    // session has been confirmed. Supabase remains the authoritative security
+    // boundary, but this prevents the form from ever submitting during the
+    // checking / invalid states.
+    if (recoverySessionStatus !== "valid") {
+      return;
+    }
+
     const validation = passwordSchema.safeParse({ password, confirmPassword });
     if (!validation.success) {
       const strengthMessage = getPasswordStrengthMessage(password);
@@ -287,6 +386,7 @@ export default function ResetPasswordPage() {
       });
       return;
     }
+
 
     setLoading(true);
     
@@ -335,7 +435,42 @@ export default function ResetPasswordPage() {
 
   };
 
-  if (error) {
+  if (recoverySessionStatus === "checking") {
+    return (
+      <div
+        className="flex flex-col bg-background overflow-hidden"
+        data-lock-keyboard-scroll="true"
+        style={resetShellStyle}
+      >
+        <div
+          ref={resetScrollRef}
+          className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}
+        >
+          <div className={`w-full max-w-md ${resetStackClassName}`}>
+            <div className="flex flex-col items-center gap-3">
+              <div className="p-4 rounded-2xl bg-primary glow-emerald">
+                <Flame className="h-10 w-10 text-primary-foreground" />
+              </div>
+              <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
+            </div>
+            <Card
+              className="border-border/50 bg-card/50 backdrop-blur-sm"
+              data-testid="reset-password-checking"
+            >
+              <CardContent className="pt-6 text-center space-y-3">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto" />
+                <p className="text-sm text-muted-foreground">
+                  Verifying your reset link…
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (recoverySessionStatus === "invalid") {
     return (
       <div className="flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true" style={resetShellStyle}>
         <div ref={resetScrollRef} className={`flex-1 flex flex-col items-center px-4 ${resetViewportClassName}`}>
@@ -383,15 +518,30 @@ export default function ResetPasswordPage() {
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
+                        ref={otpEmailInputRef}
                         id="otp-email"
                         type="email"
                         placeholder="you@example.com"
                         className="pl-10"
                         value={otpEmail}
-                        onChange={(e) => setOtpEmail(e.target.value)}
+                        aria-invalid={otpEmailError ? "true" : undefined}
+                        aria-describedby={otpEmailError ? "otp-email-error" : undefined}
+                        onChange={(e) => {
+                          setOtpEmail(e.target.value);
+                          if (otpEmailError) setOtpEmailError(null);
+                        }}
                       />
                     </div>
+                    {otpEmailError && (
+                      <p
+                        id="otp-email-error"
+                        className="text-xs text-destructive"
+                      >
+                        {otpEmailError}
+                      </p>
+                    )}
                   </div>
+
                   <Button
                     onClick={sendRecoveryCode}
                     disabled={sendingOtp}

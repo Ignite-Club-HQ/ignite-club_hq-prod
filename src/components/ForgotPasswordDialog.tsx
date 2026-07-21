@@ -43,6 +43,15 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
   const { toast } = useToast();
   const navigate = useNavigate();
   const cooldownRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -64,24 +73,55 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
       return;
     }
 
-    setSending(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: getPasswordResetRedirectUrl(email),
-    });
-    setSending(false);
+    // Prevent concurrent initial-send / resend operations. Uses a ref so the
+    // guard is synchronous (React state updates would race with rapid clicks).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
-    if (error) {
-      console.error("[ForgotPassword] resetPasswordForEmail error:", error);
-    }
+    if (mountedRef.current) setSending(true);
+    try {
+      // Fail closed: any thrown exception or Supabase error is treated the
+      // same — we do NOT advance to the code step, do NOT start the cooldown,
+      // and do NOT reveal whether the email belongs to an account.
+      let sendError: unknown = null;
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: getPasswordResetRedirectUrl(email),
+        });
+        sendError = error ?? null;
+      } catch (thrown) {
+        sendError = thrown;
+      }
 
-    setStep("code");
-    setResendCooldown(45);
+      if (sendError) {
+        // eslint-disable-next-line no-console
+        console.error("[ForgotPassword] resetPasswordForEmail error:", sendError);
+        if (!mountedRef.current) return;
+        toast({
+          title: "Unable to send code",
+          description:
+            "We couldn't send the verification code. Check your connection and try again.",
+        });
+        // Stay on current step, do not start/restart cooldown, do not clear code.
+        return;
+      }
 
-    if (isResend) {
-      toast({
-        title: "Code resent",
-        description: "Check your email for a new 6-digit code.",
-      });
+      if (!mountedRef.current) return;
+
+      // Success path — unchanged UX. Success is reported uniformly regardless
+      // of whether the email maps to a real account (prevents enumeration).
+      setStep("code");
+      setResendCooldown(45);
+
+      if (isResend) {
+        toast({
+          title: "Code resent",
+          description: "Check your email for a new 6-digit code.",
+        });
+      }
+    } finally {
+      inFlightRef.current = false;
+      if (mountedRef.current) setSending(false);
     }
   };
 

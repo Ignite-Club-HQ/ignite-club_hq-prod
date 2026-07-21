@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint, Smartphone, Monitor, Tablet, Trash2, Loader2, Plus } from "lucide-react";
+import { Fingerprint, Smartphone, Monitor, Tablet, Trash2, Loader2, Plus, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,8 +65,31 @@ function getDeviceName(deviceType: string | null) {
   }
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+/**
+ * Safely extract a user-facing message from an unknown error value.
+ *
+ * Supabase's PostgREST client commonly rejects with plain objects such as
+ * `{ message: "Delete denied", code: "..." }` (not Error instances). Reading
+ * only `error instanceof Error ? error.message : fallback` swallows those
+ * messages and shows "Please try again." to the user.
+ *
+ * Rules:
+ *   - Error instances → return `.message`.
+ *   - Plain objects with a non-empty string `message` → return it.
+ *   - Everything else (null, undefined, arrays, numbers, objects with
+ *     non-string message, empty strings) → return the caller's fallback.
+ *   - Never stringify unknown objects — that risks leaking stack traces,
+ *     tokens or diagnostic fields into the UI.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message && error.message.trim() !== "" ? error.message : fallback;
+  }
+  if (error && typeof error === "object") {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === "string" && msg.trim() !== "") return msg;
+  }
+  return fallback;
 }
 
 export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagementDialogProps) {
@@ -102,7 +125,12 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
 
 
 
-  const { data: passkeys, isLoading } = useQuery({
+  const {
+    data: passkeys,
+    isLoading,
+    isError: passkeysErrored,
+    refetch: refetchPasskeys,
+  } = useQuery({
     queryKey: ["user-passkeys", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -290,6 +318,25 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
+            ) : passkeysErrored ? (
+              // Query failed — DO NOT claim the user has no passkeys. Show a
+              // neutral error state with a Retry that re-runs the same query.
+              // Hide "Add New Passkey" so nothing implies the current list is
+              // authoritative.
+              <div className="text-center py-8" role="alert">
+                <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-3" />
+                <p className="font-medium">Unable to load your passkeys.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Check your connection and try again.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => refetchPasskeys()}
+                >
+                  Retry
+                </Button>
+              </div>
             ) : passkeys && passkeys.length > 0 ? (
               <div className="space-y-3">
                 {passkeys.map((passkey) => {
@@ -353,23 +400,27 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               </div>
             )}
 
-            <Button
-              onClick={handleAddPasskey}
-              disabled={registerLoading}
-              className="w-full"
-            >
-              {registerLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Setting up...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Passkey
-                </>
-              )}
-            </Button>
+            {/* Only offer "Add New Passkey" when we successfully know the
+                current list. On error, the user retries first. */}
+            {!passkeysErrored && (
+              <Button
+                onClick={handleAddPasskey}
+                disabled={registerLoading}
+                className="w-full"
+              >
+                {registerLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Passkey
+                  </>
+                )}
+              </Button>
+            )}
           </div>
           )}
         </DialogContent>

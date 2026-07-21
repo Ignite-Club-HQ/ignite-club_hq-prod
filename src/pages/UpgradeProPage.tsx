@@ -31,8 +31,8 @@ import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 const PRO_FEATURES = [
   "Team & club chat (club-wide messaging)",
   "DMs & custom groups",
-  "Unlimited photo & media uploads (Free: 20/month)",
-  "Unlimited file storage (Free: 10 files / 100 MB)",
+  "Unlimited photo & media uploads (Free: 10/month)",
+  "Unlimited file storage (Free: 10 files / 25 MB)",
   "Unlimited polls (Free: 2/month)",
   "Scheduled messages",
   "Pinned vault files in chat",

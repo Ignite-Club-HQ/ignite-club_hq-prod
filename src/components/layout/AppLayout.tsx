@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
-import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
+const PendingInviteWelcomeDialog = lazy(() => import("@/components/PendingInviteWelcomeDialog").then(m => ({ default: m.PendingInviteWelcomeDialog })));
 import { useAdMobInit } from "@/hooks/useAdMob";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
+import { mark as coldMark } from "@/lib/coldStartMarks";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
@@ -157,6 +158,9 @@ export function AppLayout() {
     );
   }
 
+  // Gate has released: auth + profile + theme all ready, <Outlet /> can render.
+  try { coldMark("app_layout_gate_open"); } catch {}
+
   // Check if there's a pending OAuth callback that needs to be processed
   // This prevents redirecting to /auth before the OAuth code can be handled
   const hasPendingOAuth = typeof window !== 'undefined' && (
@@ -289,7 +293,7 @@ export function AppLayout() {
       <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
-      <PendingInviteWelcomeDialog />
+      <Suspense fallback={null}><PendingInviteWelcomeDialog /></Suspense>
     </div>
   );
 }

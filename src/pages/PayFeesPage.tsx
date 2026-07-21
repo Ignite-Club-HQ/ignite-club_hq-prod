@@ -183,6 +183,7 @@ export default function PayFeesPage() {
         title: `Membership Fees - ${club?.name || "Club"} (${currentYear})`,
         amount_cents: amountCents,
         type: "subscription",
+        interval: "year",
         payer_email: user.email || undefined,
         description: parts.join(", "),
         success_url: isNative

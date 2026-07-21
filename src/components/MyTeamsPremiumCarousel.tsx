@@ -507,6 +507,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
               .from("teams")
               .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
+              .is("deleted_at", null)
           : Promise.resolve({ data: [] as TeamQueryRow[] }),
         supabase
           .from("mini_league_players")
@@ -741,7 +742,14 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
         const signed = await getSignedPhotoUrls(rawUrls);
         for (const entry of entries) {
-          map[entry.teamId].push({ id: entry.id, url: signed[entry.rawUrl] || entry.rawUrl });
+          const resolved = signed[entry.rawUrl];
+          if (!resolved) {
+            // Private URL that failed signing — skip rather than expose raw URL.
+            if (entry.rawUrl.includes("/storage/v1/object/")) continue;
+            map[entry.teamId].push({ id: entry.id, url: entry.rawUrl });
+            continue;
+          }
+          map[entry.teamId].push({ id: entry.id, url: resolved });
         }
       }
 
@@ -905,10 +913,17 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         const avatars: string[] = [];
         for (const uid of userIds) {
           const raw = profileMap.get(uid);
-          if (raw) {
-            avatars.push(signed[raw] || raw);
-            if (avatars.length >= 3) break;
+          if (!raw) continue;
+          const resolved = signed[raw];
+          if (!resolved) {
+            // Private avatar URL that couldn't be signed — skip rather than
+            // hand the raw private URL to the <img>.
+            if (raw.includes("/storage/v1/object/")) continue;
+            avatars.push(raw);
+          } else {
+            avatars.push(resolved);
           }
+          if (avatars.length >= 3) break;
         }
         map[teamId] = { count: userIds.length, avatars };
       }

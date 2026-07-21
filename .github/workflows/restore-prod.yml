@@ -1,0 +1,176 @@
+name: Disaster Restore PROD
+
+# One-click disaster recovery: restore the PROD Supabase database from a
+# backup artifact produced by either:
+#   - promote-to-prod.yml (schema + roles only)  -> "prod-schema-backup-*"
+#   - nightly-backup.yml (schema + roles + data) -> "prod-full-backup-*"
+#
+# HOW TO RUN
+# ----------
+# 1. GitHub -> Actions -> "Disaster Restore PROD" -> Run workflow
+# 2. Fill in inputs:
+#      artifact_name: exact artifact name from the source run (e.g.
+#                     "prod-full-backup-20260710T020000Z.tar.gz")
+#      source_run_id: the run ID that produced the artifact
+#                     (open the run in Actions, copy the number from the URL)
+#      restore_data:  true  -> also restore row data (requires a "full" artifact)
+#                     false -> schema + roles only
+#      confirm:       must type exactly RESTORE-PROD to proceed
+#
+# WHAT IT DOES NOT RESTORE
+# ------------------------
+# - auth.users (logins, sessions) -> requires Supabase PITR
+# - storage.objects (files)       -> run restore-storage.yml separately
+# - Edge function secrets         -> re-set manually if lost
+#
+# AFTER RUNNING
+# -------------
+# - Revert the bad merge commit on the `prod` branch so the frontend matches
+#   the restored schema. Netlify + Codemagic rebuild automatically.
+# - Verify a login, a read, and a write before telling users.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: 'Exact artifact name (e.g. prod-full-backup-20260710T020000Z.tar.gz)'
+        required: true
+        type: string
+      source_run_id:
+        description: 'GitHub Actions run ID that produced the artifact'
+        required: true
+        type: string
+      restore_data:
+        description: 'Also restore row data? (requires a full backup, not schema-only)'
+        required: true
+        default: false
+        type: boolean
+      confirm:
+        description: 'Type RESTORE-PROD to confirm (this OVERWRITES prod)'
+        required: true
+        type: string
+
+concurrency:
+  group: restore-prod
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore prod from artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+    steps:
+      - name: Guard - confirmation phrase
+        run: |
+          if [ "${{ inputs.confirm }}" != "RESTORE-PROD" ]; then
+            echo "::error::You must type RESTORE-PROD in the confirm field. Aborting."
+            exit 1
+          fi
+
+      - name: Verify required secrets are present
+        run: |
+          missing=0
+          for var in SUPABASE_DB_PASSWORD PROJECT_REF; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required secret: $var"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then exit 1; fi
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Download backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ./backup
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract archive
+        run: |
+          set -euo pipefail
+          cd backup
+          ARCHIVE=$(ls *.tar.gz | head -n1)
+          echo "Extracting $ARCHIVE"
+          tar xzf "$ARCHIVE"
+          ls -lh
+
+      - name: Snapshot current prod BEFORE restore (safety net)
+        id: presnap
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          FILE="prod-pre-restore-snapshot-${STAMP}.tar.gz"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+          pg_dump "$DB_URL" --schema-only -f pre-restore-schema.sql || true
+          pg_dump "$DB_URL" --data-only  -f pre-restore-data.sql   || true
+          tar czf "$FILE" pre-restore-schema.sql pre-restore-data.sql || true
+          ls -lh "$FILE" || true
+
+      - name: Upload pre-restore snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.presnap.outputs.file }}
+          path: ${{ steps.presnap.outputs.file }}
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Restore roles
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+          if [ -f backup/prod-roles.sql ]; then
+            echo "→ Restoring roles"
+            psql "$DB_URL" -v ON_ERROR_STOP=0 -f backup/prod-roles.sql
+          else
+            echo "No prod-roles.sql in archive — skipping"
+          fi
+
+      - name: Restore schema
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+          if [ -f backup/prod-schema.sql ]; then
+            echo "→ Restoring schema (this will overwrite public schema objects)"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -f backup/prod-schema.sql
+          else
+            echo "::error::prod-schema.sql not found in archive"
+            exit 1
+          fi
+
+      - name: Restore data
+        if: inputs.restore_data == true
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+          if [ ! -f backup/prod-data.sql ]; then
+            echo "::error::restore_data=true but prod-data.sql is not in this archive."
+            echo "         Use a full backup from nightly-backup.yml, not a schema-only backup."
+            exit 1
+          fi
+          echo "→ Restoring row data in a single transaction"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f backup/prod-data.sql
+
+      - name: Done
+        run: |
+          echo "✅ Restore complete."
+          echo ""
+          echo "NEXT STEPS:"
+          echo "  1. Revert the bad merge commit on the 'prod' branch so the"
+          echo "     frontend matches the restored schema."
+          echo "  2. If files were affected, run 'Restore Supabase Storage from GCS'."
+          echo "  3. auth.users was NOT restored (needs PITR)."
+          echo "  4. Verify: log in, load chat, send a message."
+          echo ""
+          echo "SAFETY NET: the pre-restore snapshot was uploaded as an artifact"
+          echo "on this run in case you need to undo this restore."

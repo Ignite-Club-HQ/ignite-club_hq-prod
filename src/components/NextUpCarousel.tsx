@@ -735,6 +735,14 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
     return () => onNeedsRsvpChange?.(id, false);
   }, [event.id, onNeedsRsvpChange]);
 
+  // Only render the amber "RSVP Required" pill / primary-tinted border once
+  // the underlying RSVP queries have truly settled. Otherwise the 1500 ms
+  // `heroReadyTimedOut` fallback can force the card to reveal with
+  // `myRsvp === undefined` / `childRsvps === undefined`, which momentarily
+  // satisfies `needsRsvp` even for events the user has already RSVP'd to —
+  // producing the ~1s flash of "RSVP Required" on cold start.
+  const showNeedsRsvp = needsRsvp && rsvpDataFullySettled;
+
   const needsRsvpPillLabel = hasGuardianChildren
     ? (guardianUnrespondedCount === 1
         ? `${(guardianUnrespondedChildren[0].name.split(" ")[0] || guardianUnrespondedChildren[0].name)} needs RSVP`
@@ -747,7 +755,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 min-h-[340px] h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 min-h-[340px] h-full flex flex-col ${event.is_cancelled ? "opacity-60 border-border/50" : showNeedsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -762,7 +770,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       />
       {/* Right-edge tap affordance — hidden when RSVP pill is shown to avoid
           competing with the high-emphasis action marker. */}
-      {!needsRsvp && (
+      {!showNeedsRsvp && (
         <ChevronRight
           className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
           aria-hidden="true"
@@ -770,9 +778,9 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       )}
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 h-full flex flex-col">
         {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
-        {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
+        {(isToday || event.is_cancelled || event.is_bye || showNeedsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
-            {needsRsvp && !event.is_cancelled && !event.is_bye && (
+            {showNeedsRsvp && !event.is_cancelled && !event.is_bye && (
               <span
                 role="status"
                 aria-label="RSVP required"

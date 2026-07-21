@@ -60,7 +60,7 @@ import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
-import { useChatPerfMarks } from "@/hooks/useChatPerfMarks";
+import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -73,6 +73,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -475,6 +476,7 @@ export default function DirectMessagePage() {
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: dmQueryKey,
     queryFn: async () => {
+      markChatFetch();
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
         .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
@@ -554,7 +556,10 @@ export default function DirectMessagePage() {
         hasOlderMessages: hasMore,
       };
     },
-    enabled: !!conversationId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
+    // Gate on `authReady` (user + initialized) — firing before auth is fully
+    // restored on notification-tap cold starts caused RLS to return 0 rows,
+    // leaving the thread visibly blank until a manual navigation.
+    enabled: !!conversationId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
@@ -582,6 +587,26 @@ export default function DirectMessagePage() {
     if (!conversationId || !authReady) return;
     queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
   }, [conversationId, authReady, queryClient]);
+
+  // Belt-and-braces: if the first fetch returned zero messages while auth was
+  // still settling (notification-tap cold start), retry once after a short
+  // delay. Prevents the "blank thread on push tap" bug even if the gate above
+  // is bypassed by a stale render.
+  const emptyRetriedRef = useRef(false);
+  useEffect(() => {
+    if (emptyRetriedRef.current) return;
+    if (!conversationId || !authReady) return;
+    if (messagesLoading) return;
+    if (!messagesData) return;
+    const list = Array.isArray(messagesData) ? messagesData : messagesData.messages;
+    if (list && list.length === 0) {
+      emptyRetriedRef.current = true;
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
@@ -1291,11 +1316,15 @@ export default function DirectMessagePage() {
       )
       .subscribe();
     noteChannelSubscribed(`dm-${conversationId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `dm-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`dm-${conversationId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, user?.id]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,
@@ -1557,7 +1586,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef} data-chat-chrome="true"
+             ref={composerRef} data-chat-chrome="true" data-chat-composer="true"
              className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
@@ -1570,7 +1599,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef} data-chat-chrome="true"
+             ref={composerRef} data-chat-chrome="true" data-chat-composer="true"
              className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
