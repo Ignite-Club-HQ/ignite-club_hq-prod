@@ -1148,6 +1148,20 @@ export default function ClubEngagementAnalyticsPage({
       <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
       <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} totalUniqueReach={totalUniqueReach} />
 
+      {/* Section 6b: In-app Ad Performance (platform-wide only — house ads served to Free clubs).
+          AdMob-mediated impressions/revenue are reported separately in the Google AdMob console. */}
+      {isPlatform && (
+        <>
+          <SectionHeader
+            icon={Megaphone}
+            title="Ad Performance (In-App)"
+            description="House ads served to Free clubs. AdMob revenue is reported in the Google AdMob console."
+          />
+          <AdPerformanceBlock stats={adStats} />
+        </>
+      )}
+
+
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
       <RetentionBlock activityRows={activityRows} prevActivityRows={prevActivityRows} />
