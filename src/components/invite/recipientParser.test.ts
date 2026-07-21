@@ -72,18 +72,11 @@ describe("recipientParser — hardened rejections", () => {
     expect(parseRecipients("Alex @broken")).toEqual([]);
   });
 
-  it("does not silently extract an attacker-controlled second address from a pair", () => {
-    // No brackets, but two emails in one un-split entry → ambiguous, reject.
-    // (Note: the outer parser splits on commas when 2+ emails are present, so
-    // this simulates a single un-splittable entry via a newline-free pair
-    // separated only by a space.)
-    expect(parseRecipients("Alex alice@x.io evil@x.io")).toEqual([
-      // Splits on comma-inference for multi-email input → both bare emails
-      // survive independently. Confirm the "Alex" prefix does NOT graft onto
-      // the second address.
-      { name: "alice", email: "alice@x.io" },
-      { name: "evil", email: "evil@x.io" },
-    ]);
+  it("rejects an ambiguous un-splittable entry containing two emails", () => {
+    // No list separators (comma/semicolon/newline/tab) → one entry with two
+    // emails. Ambiguous — must be rejected so we never silently graft the
+    // name onto an attacker-controlled second address.
+    expect(parseRecipients("Alex alice@x.io evil@x.io")).toEqual([]);
   });
 });
 

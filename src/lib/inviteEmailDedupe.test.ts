@@ -27,7 +27,7 @@ describe("isPlausibleInvitableEmail", () => {
     ["missing TLD", "x@example"],
     ["short TLD", "x@example.c"],
     ["internal space", "a b@example.com"],
-    ["trailing space", "a@example.com "], // trimmed by caller, but raw fails; caller trims first
+    ["embedded space", "a @example.com"],
     ["two @", "a@b@c.com"],
     ["double dot local", "a..b@example.com"],
     ["leading dot", ".a@example.com"],
