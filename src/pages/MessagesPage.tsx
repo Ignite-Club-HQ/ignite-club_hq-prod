@@ -1514,6 +1514,8 @@ export default function MessagesPage() {
     authGroupIdsRef.current = authScopes.groupIds;
     authDmIdsRef.current = authScopes.dmConversationIds;
   }, [authScopes]);
+
+  useEffect(() => {
     if (!user?.id) return;
 
     // HARD-STOP PERF GUARD (native): the inbox realtime fanout was the single
