@@ -51,6 +51,7 @@ import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { cn } from "@/lib/utils";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
+import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 
 type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
