@@ -540,6 +540,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // cross-account data leak.
               try {
                 clearUserScopedCaches();
+                if (previousUserId) revokeAllForUser(previousUserId);
               } catch { /* noop */ }
 
               setIsFreshLogin(true);
