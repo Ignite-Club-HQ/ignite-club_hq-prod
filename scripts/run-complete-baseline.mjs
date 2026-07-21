@@ -9,6 +9,8 @@ const LOCAL_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 const LOCAL_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 const LOCAL_WORKSPACE = resolve(process.cwd(), "local-supabase-workspace");
 const EXPECTED_LOCAL_PROJECT = 'project_id = "ignite-club-local-security-tests"';
+const TEST_BRANCH = "codespaces-review";
+const TEST_REMOTE = "origin";
 
 // Never pass hosted Supabase configuration into any child test process.
 const safeEnvironment = Object.fromEntries(
@@ -22,6 +24,84 @@ Object.assign(safeEnvironment, {
 });
 
 const results = [];
+
+function git(args, options = {}) {
+  return spawnSync("git", args, {
+    cwd: process.cwd(),
+    env: safeEnvironment,
+    encoding: "utf8",
+    shell: false,
+    ...options,
+  });
+}
+
+async function updateTestBranch() {
+  console.log("\n========== Test branch update preflight ==========");
+
+  const branch = git(["branch", "--show-current"]);
+  const currentBranch = branch.stdout?.trim();
+  if (branch.status !== 0 || currentBranch !== TEST_BRANCH) {
+    console.error(`Refusing update: expected branch ${TEST_BRANCH}, found ${currentBranch || "unknown"}.`);
+    console.error("No fetch, merge, pull, push, or test command was run.");
+    return false;
+  }
+
+  const status = git(["status", "--porcelain"]);
+  if (status.status !== 0 || status.stdout.trim()) {
+    console.error("Refusing update: the worktree is not clean. Commit or stash changes first.");
+    console.error("No fetch, merge, pull, push, or test command was run.");
+    return false;
+  }
+
+  console.log(`Fetching only ${TEST_REMOTE}/${TEST_BRANCH}; this does not push or modify main.`);
+  const fetch = git(["fetch", TEST_REMOTE, TEST_BRANCH], { stdio: "inherit" });
+  if ((fetch.status ?? 1) !== 0) {
+    console.error("Unable to fetch the test branch; no source files were changed.");
+    return false;
+  }
+
+  const remoteRef = `refs/remotes/${TEST_REMOTE}/${TEST_BRANCH}`;
+  const relation = git(["rev-list", "--left-right", "--count", `HEAD...${remoteRef}`]);
+  if (relation.status !== 0) {
+    console.error(`Unable to compare HEAD with ${TEST_REMOTE}/${TEST_BRANCH}.`);
+    return false;
+  }
+  const [ahead, behind] = relation.stdout.trim().split(/\s+/).map(Number);
+
+  if (ahead > 0 && behind > 0) {
+    console.error(`Refusing automatic update: branches have diverged (${ahead} local, ${behind} remote commits).`);
+    console.error("Resolve the branch history manually; no merge was attempted.");
+    return false;
+  }
+  if (behind === 0) {
+    console.log(`Already up to date with ${TEST_REMOTE}/${TEST_BRANCH}.`);
+    return true;
+  }
+  if (!stdin.isTTY) {
+    console.error(`Branch is ${behind} commit(s) behind ${TEST_REMOTE}/${TEST_BRANCH}.`);
+    console.error("Interactive approval is required before updating source files.");
+    return false;
+  }
+
+  console.log(`Branch is ${behind} commit(s) behind ${TEST_REMOTE}/${TEST_BRANCH}.`);
+  console.log(`Exact command: git merge --ff-only ${remoteRef}`);
+  console.log(`Effect: fast-forward ${TEST_BRANCH} only. This cannot modify or push to main.`);
+  const prompt = createInterface({ input: stdin, output: stdout });
+  const approval = await prompt.question('Type "APPROVE TEST BRANCH UPDATE" to continue: ');
+  prompt.close();
+  if (approval !== "APPROVE TEST BRANCH UPDATE") {
+    console.error("Test branch update was not approved; tests will not run against stale code.");
+    return false;
+  }
+
+  const merge = git(["merge", "--ff-only", remoteRef], { stdio: "inherit" });
+  if ((merge.status ?? 1) !== 0) {
+    console.error("Fast-forward update failed; tests will not run.");
+    return false;
+  }
+  console.log(`${TEST_BRANCH} is now up to date. No push was performed.`);
+  return true;
+}
 
 function runStage(name, command, args, environment = safeEnvironment) {
   console.log(`\n========== ${name} ==========`);
@@ -45,6 +125,8 @@ async function isLocalStackHealthy() {
     return false;
   }
 }
+
+if (!(await updateTestBranch())) process.exit(1);
 
 let localHealthy = await isLocalStackHealthy();
 if (!localHealthy) {
