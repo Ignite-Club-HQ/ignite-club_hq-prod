@@ -103,6 +103,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -1457,11 +1458,15 @@ export default function GroupChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`group-messages-${groupId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `group-messages-${groupId}`, channel, userId: user.id, scope: { kind: "group", id: groupId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id]);
 
 
   // Send message mutation

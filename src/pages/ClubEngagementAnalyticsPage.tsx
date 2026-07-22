@@ -628,6 +628,167 @@ export default function ClubEngagementAnalyticsPage({
     enabled: queryReady && !!access?.isAdmin,
   });
 
+  // ---------- In-app Ad Performance (house ads served to Free clubs) ----------
+  // Aligns with sponsor metrics (views, clicks, CTR, unique reach) so the
+  // platform admin can compare in-house ad performance vs. AdMob (which is
+  // reported separately in the Google AdMob console).
+  const { data: appAds = [] } = useQuery({
+    queryKey: ["engagement-app-ads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ads")
+        .select("id, name, headline, ad_type, is_active")
+        .order("display_order", { ascending: true })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as Array<{
+        id: string;
+        name: string | null;
+        headline: string | null;
+        ad_type: string | null;
+        is_active: boolean;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const { data: appAdAnalyticsRaw = [] } = useQuery({
+    queryKey: [
+      "engagement-app-ad-analytics",
+      range.start.toISOString(),
+      range.end.toISOString(),
+      isPlatform,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ad_analytics")
+        .select("ad_id, event_type, context, user_id")
+        .gte("created_at", range.start.toISOString())
+        .lte("created_at", range.end.toISOString())
+        .limit(50000);
+      if (error) throw error;
+      return (data || []) as Array<{
+        ad_id: string;
+        event_type: string;
+        context: string | null;
+        user_id: string | null;
+      }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const { data: prevAppAdAnalyticsRaw = [] } = useQuery({
+    queryKey: [
+      "engagement-app-ad-analytics-prev",
+      prevRange.start.toISOString(),
+      prevRange.end.toISOString(),
+      isPlatform,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_ad_analytics")
+        .select("ad_id, event_type")
+        .gte("created_at", prevRange.start.toISOString())
+        .lte("created_at", prevRange.end.toISOString())
+        .limit(50000);
+      if (error) throw error;
+      return (data || []) as Array<{ ad_id: string; event_type: string }>;
+    },
+    enabled: queryReady && !!access?.isAdmin && isPlatform,
+  });
+
+  const adStats = useMemo(() => {
+    const byAd = new Map<
+      string,
+      { views: number; clicks: number; reach: Set<string> }
+    >();
+    const byContext = new Map<string, { views: number; clicks: number }>();
+    const allReach = new Set<string>();
+    let totalViews = 0;
+    let totalClicks = 0;
+
+    for (const r of appAdAnalyticsRaw) {
+      const entry =
+        byAd.get(r.ad_id) || { views: 0, clicks: 0, reach: new Set<string>() };
+      if (r.event_type === "view") {
+        entry.views += 1;
+        totalViews += 1;
+      } else if (r.event_type === "click") {
+        entry.clicks += 1;
+        totalClicks += 1;
+      }
+      if (r.user_id) {
+        entry.reach.add(r.user_id);
+        allReach.add(r.user_id);
+      }
+      byAd.set(r.ad_id, entry);
+
+      const ctxKey = r.context || "unknown";
+      const ctx = byContext.get(ctxKey) || { views: 0, clicks: 0 };
+      if (r.event_type === "view") ctx.views += 1;
+      else if (r.event_type === "click") ctx.clicks += 1;
+      byContext.set(ctxKey, ctx);
+    }
+
+    const prevByAd = new Map<string, { views: number; clicks: number }>();
+    let prevTotalViews = 0;
+    let prevTotalClicks = 0;
+    for (const r of prevAppAdAnalyticsRaw) {
+      const entry = prevByAd.get(r.ad_id) || { views: 0, clicks: 0 };
+      if (r.event_type === "view") {
+        entry.views += 1;
+        prevTotalViews += 1;
+      } else if (r.event_type === "click") {
+        entry.clicks += 1;
+        prevTotalClicks += 1;
+      }
+      prevByAd.set(r.ad_id, entry);
+    }
+
+    const rows = Array.from(byAd.entries()).map(([adId, v]) => {
+      const meta = appAds.find((a) => a.id === adId);
+      const prev = prevByAd.get(adId) || { views: 0, clicks: 0 };
+      return {
+        ad_id: adId,
+        name: meta?.headline || meta?.name || "Untitled ad",
+        ad_type: meta?.ad_type || "banner",
+        is_active: meta?.is_active ?? false,
+        views: v.views,
+        clicks: v.clicks,
+        reach: v.reach.size,
+        ctr: v.views ? Math.round((v.clicks / v.views) * 1000) / 10 : 0,
+        prev_clicks: prev.clicks,
+        prev_views: prev.views,
+      };
+    });
+    rows.sort(
+      (a, b) => b.clicks - a.clicks || b.views - a.views,
+    );
+
+    const contextBreakdown = Array.from(byContext.entries())
+      .map(([context, v]) => ({
+        context,
+        views: v.views,
+        clicks: v.clicks,
+        ctr: v.views ? Math.round((v.clicks / v.views) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.views - a.views);
+
+    return {
+      rows,
+      contextBreakdown,
+      totalViews,
+      totalClicks,
+      totalReach: allReach.size,
+      ctr: totalViews
+        ? Math.round((totalClicks / totalViews) * 1000) / 10
+        : 0,
+      prevTotalViews,
+      prevTotalClicks,
+      activeAds: appAds.filter((a) => a.is_active).length,
+    };
+  }, [appAdAnalyticsRaw, prevAppAdAnalyticsRaw, appAds]);
+
 
 
   // ---------- Engagement score (composite 0-100) ----------
@@ -986,6 +1147,20 @@ export default function ClubEngagementAnalyticsPage({
       {/* Section 6: Sponsor Performance */}
       <SectionHeader icon={Trophy} title="Sponsor Performance" description="Unique reach, profile views, clicks and CTR" />
       <SponsorPerformanceBlock rows={sponsorPerf} totalSponsors={sponsorRows.length} totalUniqueReach={totalUniqueReach} />
+
+      {/* Section 6b: In-app Ad Performance (platform-wide only — house ads served to Free clubs).
+          AdMob-mediated impressions/revenue are reported separately in the Google AdMob console. */}
+      {isPlatform && (
+        <>
+          <SectionHeader
+            icon={Megaphone}
+            title="Ad Performance (In-App)"
+            description="House ads served to Free clubs. AdMob revenue is reported in the Google AdMob console."
+          />
+          <AdPerformanceBlock stats={adStats} />
+        </>
+      )}
+
 
       {/* Section 7: Retention */}
       <SectionHeader icon={RefreshCcw} title="Retention" description="Repeat activity within the selected period" />
@@ -1505,3 +1680,129 @@ function LeaderCard({ label, sponsorName, value }: { label: string; sponsorName?
     </Card>
   );
 }
+
+type AdStats = {
+  rows: Array<{
+    ad_id: string;
+    name: string;
+    ad_type: string;
+    is_active: boolean;
+    views: number;
+    clicks: number;
+    reach: number;
+    ctr: number;
+    prev_clicks: number;
+    prev_views: number;
+  }>;
+  contextBreakdown: Array<{ context: string; views: number; clicks: number; ctr: number }>;
+  totalViews: number;
+  totalClicks: number;
+  totalReach: number;
+  ctr: number;
+  prevTotalViews: number;
+  prevTotalClicks: number;
+  activeAds: number;
+};
+
+function AdPerformanceBlock({ stats }: { stats: AdStats }) {
+  if (stats.totalViews === 0 && stats.totalClicks === 0) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <EmptyState
+            label={
+              stats.activeAds === 0
+                ? "No active in-app ads configured."
+                : "No in-app ad activity in this period."
+            }
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const clicksDelta = pctChange(stats.totalClicks, stats.prevTotalClicks);
+  const viewsDelta = pctChange(stats.totalViews, stats.prevTotalViews);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Metric icon={Eye} label="Impressions" value={stats.totalViews} delta={viewsDelta} />
+        <Metric icon={MousePointerClick} label="Clicks" value={stats.totalClicks} delta={clicksDelta} />
+        <Metric icon={TrendingUp} label="CTR" value={`${stats.ctr}%`} />
+        <Metric icon={Users} label="Unique Reach" value={stats.totalReach} hint="distinct signed-in users" />
+      </div>
+
+      {stats.contextBreakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">By placement</CardTitle>
+            <CardDescription className="text-xs">Where the ad was shown when the event fired</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {stats.contextBreakdown.map((c) => (
+              <div key={c.context} className="grid grid-cols-4 gap-2 text-[11px] border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="font-medium text-sm col-span-1 truncate">{c.context.replace(/_/g, " ")}</div>
+                <div><span className="text-muted-foreground">Views </span><span className="font-semibold">{c.views.toLocaleString()}</span></div>
+                <div><span className="text-muted-foreground">Clicks </span><span className="font-semibold">{c.clicks.toLocaleString()}</span></div>
+                <div><span className="text-muted-foreground">CTR </span><span className="font-semibold text-primary">{c.ctr}%</span></div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Ad leaderboard</CardTitle>
+          <CardDescription className="text-xs">Per-ad views, clicks, CTR and reach</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {stats.rows.map((r) => {
+            const delta = pctChange(r.clicks, r.prev_clicks);
+            return (
+              <div key={r.ad_id} className="border border-border rounded-md p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{r.name}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      {r.ad_type}{!r.is_active && " · inactive"}
+                    </div>
+                  </div>
+                  {delta !== null && (
+                    <span className={cn(
+                      "text-[10px] flex items-center gap-0.5 shrink-0",
+                      delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                      {delta > 0 ? "+" : ""}{delta}% clicks
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[11px]">
+                  <div>
+                    <div className="text-muted-foreground">Reach</div>
+                    <div className="font-semibold">{r.reach.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Views</div>
+                    <div className="font-semibold">{r.views.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Clicks</div>
+                    <div className="font-semibold">{r.clicks.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">CTR</div>
+                    <div className="font-semibold text-primary">{r.ctr}%</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

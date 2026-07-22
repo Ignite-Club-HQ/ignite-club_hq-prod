@@ -36,7 +36,7 @@ import { Loader2 } from "lucide-react";
 // here lands in the main bundle and lengthens cold-start parse time on
 // Android. Auth-adjacent pages are lazy because logged-in users (the vast
 // majority of cold opens) never hit them.
-import HomePage from "./pages/HomePage";
+const HomePage = lazy(() => import("./pages/HomePage"));
 import VerifyResetCodePage from "./pages/VerifyResetCodePage";
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 const CompleteProfilePage = lazy(() => import("./pages/CompleteProfilePage"));
@@ -192,6 +192,9 @@ const queryClient = new QueryClient({
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter(queryClient);
+// Wire the Realtime channel registry to the QueryClient so revoked channels
+// can evict their react-query caches (pass b of Realtime membership audit).
+import("@/lib/realtimeChannelRegistry").then((m) => m.bindRealtimeRegistryQueryClient(queryClient));
 // Web equivalent (native adapter early-returns off-native): scoped invalidator
 // for photos / Pro-access on reconnect + tab-focus so Media doesn't stall.
 installWebReconnectInvalidator(queryClient);

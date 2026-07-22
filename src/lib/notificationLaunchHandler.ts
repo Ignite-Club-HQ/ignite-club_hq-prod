@@ -78,6 +78,22 @@ export function clearPendingNotificationNavigation() {
   navigationHandled = true;
 }
 
+/**
+ * Drop any stashed pending notification navigation AND reset the
+ * module-level "handled" gate without treating it as a successful launch.
+ * Used by `clearUserScopedCaches()` on sign-out / cross-user sign-in so
+ * User A's pending push route cannot survive into User B's session in the
+ * same tab. Also clears the force-update prompt, which is device-level but
+ * safe to re-derive from the next push.
+ */
+export function clearPendingNotificationLaunchState() {
+  pendingNavigationUrl = null;
+  clearPersistedPendingNav();
+  navigationHandled = false;
+  pendingForceUpdatePrompt = null;
+}
+
+
 export function peekPendingNotificationNavigation(): string | null {
   return pendingNavigationUrl || readPersistedPendingNav();
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -85,12 +85,31 @@ export interface PasskeyAccount {
   addedAt: string;
 }
 
-// Get all stored passkey accounts
+// Get all stored passkey accounts.
+// Defensive: reject non-array payloads and malformed entries so callers only
+// ever see well-formed PasskeyAccount records. Never throws.
 export function getStoredPasskeyAccounts(): PasskeyAccount[] {
   try {
+    if (typeof localStorage === 'undefined') return [];
     const stored = localStorage.getItem(PASSKEY_ACCOUNTS_KEY);
     if (!stored) return [];
-    return JSON.parse(stored) as PasskeyAccount[];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    const valid: PasskeyAccount[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const email = rec.email;
+      const addedAt = rec.addedAt;
+      if (typeof email !== 'string' || email.length === 0) continue;
+      if (typeof addedAt !== 'string' || addedAt.length === 0) continue;
+      const displayName = rec.displayName;
+      if (displayName !== undefined && typeof displayName !== 'string') continue;
+      const clean: PasskeyAccount = { email, addedAt };
+      if (typeof displayName === 'string') clean.displayName = displayName;
+      valid.push(clean);
+    }
+    return valid;
   } catch {
     return [];
   }
@@ -198,6 +217,8 @@ export function setRememberMe(value: boolean) {
   }
 }
 
+export const PASSKEY_IN_PROGRESS_ERROR = 'A passkey operation is already in progress';
+
 export function usePasskey() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
@@ -205,6 +226,10 @@ export function usePasskey() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nativeBiometricInfo, setNativeBiometricInfo] = useState<BiometricAvailability | null>(null);
+  // Synchronous re-entry guard — set BEFORE any await so concurrent callers
+  // are rejected without invoking Edge Functions, opening WebAuthn or
+  // mutating any state on the active operation.
+  const operationInFlightRef = useRef(false);
 
   // Refresh accounts list
   const refreshAccounts = useCallback(async () => {
@@ -234,6 +259,12 @@ export function usePasskey() {
   // Register a new passkey for the current user (WebAuthn - web only)
   // For native, use storeCredentialsForNativeBiometric instead
   const registerPasskey = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    // Synchronous concurrency guard — reject before touching state, Edge
+    // Functions, or WebAuthn.
+    if (operationInFlightRef.current) {
+      return { success: false, error: PASSKEY_IN_PROGRESS_ERROR };
+    }
+    operationInFlightRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -323,15 +354,16 @@ export function usePasskey() {
       setLastUsedAccount(email);
       refreshAccounts();
       
-      setLoading(false);
       return { success: true };
     } catch (err: any) {
       const message = err.name === 'NotAllowedError' 
         ? 'Passkey registration was cancelled or timed out'
         : err.message || 'Failed to register passkey';
       setError(message);
-      setLoading(false);
       return { success: false, error: message };
+    } finally {
+      setLoading(false);
+      operationInFlightRef.current = false;
     }
   }, [refreshAccounts]);
 
@@ -342,6 +374,13 @@ export function usePasskey() {
     error?: string;
     userEmail?: string;
   }> => {
+    // Synchronous concurrency guard — reject before touching state, Edge
+    // Functions, or WebAuthn. Blocked callers must not open biometric
+    // prompts or mutate the active operation.
+    if (operationInFlightRef.current) {
+      return { success: false, error: PASSKEY_IN_PROGRESS_ERROR };
+    }
+    operationInFlightRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -372,13 +411,10 @@ export function usePasskey() {
           throw signInError;
         }
         
-        setLoading(false);
         return { success: true, userEmail: result.email };
       }
       
       // Web: Use WebAuthn passkeys
-      // Get authentication options from server
-      // If no email, use discoverable credentials mode
       const { data: optionsData, error: optionsError } = await supabase.functions.invoke(
         'passkey-authenticate',
         {
@@ -406,7 +442,7 @@ export function usePasskey() {
                 type: cred.type,
                 transports: cred.transports,
               }))
-            : undefined, // Empty/undefined enables discoverable credentials
+            : undefined,
           timeout: options.timeout || 60000,
           userVerification: 'required',
         },
@@ -418,14 +454,12 @@ export function usePasskey() {
 
       const response = credential.response as AuthenticatorAssertionResponse;
 
-      // Send credential to server for verification and get session
-      // Email is optional now - server will find user from credential ID
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
         'passkey-authenticate',
         {
           body: {
             action: 'verify',
-            email: email, // May be undefined for discoverable credentials
+            email: email,
             credential: {
               id: credential.id,
               rawId: arrayBufferToBase64(credential.rawId),
@@ -445,33 +479,43 @@ export function usePasskey() {
         throw new Error(verifyData?.error || 'Failed to verify passkey');
       }
 
-      // Set session from the returned tokens
-      if (verifyData.session) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: verifyData.session.access_token,
-          refresh_token: verifyData.session.refresh_token,
-        });
-        
-        if (sessionError) {
-          throw new Error('Failed to establish session');
-        }
+      // A verified passkey MUST be accompanied by a full Supabase session.
+      // If the backend does not return usable access/refresh tokens, or if
+      // setSession rejects them, treat the whole attempt as an authentication
+      // failure — do NOT mark success, do NOT update last-used account.
+      const sess = verifyData.session;
+      const accessToken = sess?.access_token;
+      const refreshToken = sess?.refresh_token;
+      if (
+        !sess ||
+        typeof accessToken !== 'string' || accessToken.length === 0 ||
+        typeof refreshToken !== 'string' || refreshToken.length === 0
+      ) {
+        throw new Error('Passkey verification succeeded but no valid session was returned');
       }
 
-      // If we authenticated with discoverable credentials, add to localStorage
-      // The email will come from the session after login
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) {
+        throw new Error('Passkey verification succeeded but no valid session was returned');
+      }
+
       if (email) {
         setLastUsedAccount(email);
       }
-      
-      setLoading(false);
+
       return { success: true, userEmail: verifyData.userEmail };
     } catch (err: any) {
       const message = err.name === 'NotAllowedError'
         ? 'Passkey authentication was cancelled or timed out'
         : err.message || 'Failed to authenticate with passkey';
       setError(message);
-      setLoading(false);
       return { success: false, error: message };
+    } finally {
+      setLoading(false);
+      operationInFlightRef.current = false;
     }
   }, [refreshAccounts]);
 

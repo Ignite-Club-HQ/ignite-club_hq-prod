@@ -51,18 +51,49 @@ export default function NotificationPreferencesPage() {
     queryKey: ["notification-stats"],
     queryFn: async (): Promise<NotificationStats> => {
       const [profilesRes, pushRes, prefsRes] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        // Fetch profile IDs (not just a head count) so we can defensively
+        // dedupe preference rows against the *current* set of users. This
+        // prevents duplicate preference rows or rows belonging to deleted
+        // users from producing negative "email enabled" counts.
+        supabase.from("profiles").select("id"),
         supabase.from("push_subscriptions").select("user_id"),
         supabase.from("notification_preferences").select("user_id, email_messages_enabled"),
       ]);
 
-      const uniquePushUsers = new Set(pushRes.data?.map(p => p.user_id) || []);
-      const disabledEmailUsers = prefsRes.data?.filter(p => p.email_messages_enabled === false).length || 0;
+      const currentProfileIds = new Set(
+        (profilesRes.data ?? [])
+          .map((p) => p.id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      );
+
+      // Unique push users, scoped to current profiles, ignoring null user_ids.
+      const uniquePushUsers = new Set<string>();
+      for (const p of pushRes.data ?? []) {
+        if (p.user_id && currentProfileIds.has(p.user_id)) {
+          uniquePushUsers.add(p.user_id);
+        }
+      }
+
+      // Count each user at most once. Ignore orphan rows (unknown user_id)
+      // and rows with a null user_id. Missing preference row = enabled.
+      const disabledCurrentUserIds = new Set<string>();
+      for (const p of prefsRes.data ?? []) {
+        if (!p.user_id) continue;
+        if (!currentProfileIds.has(p.user_id)) continue;
+        if (p.email_messages_enabled === false) {
+          disabledCurrentUserIds.add(p.user_id);
+        }
+      }
 
       return {
-        totalUsers: profilesRes.count || 0,
+        totalUsers: currentProfileIds.size,
         usersWithPush: uniquePushUsers.size,
-        usersWithEmailEnabled: (profilesRes.count || 0) - disabledEmailUsers,
+        // Clamp to zero — a negative statistic should never render even if
+        // upstream data is inconsistent.
+        usersWithEmailEnabled: Math.max(
+          0,
+          currentProfileIds.size - disabledCurrentUserIds.size,
+        ),
       };
     },
     enabled: !!isAdmin,

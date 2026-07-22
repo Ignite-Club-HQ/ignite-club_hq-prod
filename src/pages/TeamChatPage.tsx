@@ -89,6 +89,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -512,11 +513,13 @@ export default function TeamChatPage() {
   const handleRemoveSelectedMemberFromTeam = useCallback(async () => {
     if (!teamId || !selectedMember) return;
 
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", selectedMember.userId)
-      .eq("team_id", teamId);
+    // Scoped RPC — see remove_team_member migration. Ensures guardian-derived
+    // access (child_team_assignments) and team-chat group memberships are
+    // revoked atomically alongside the user_roles row.
+    const { error } = await supabase.rpc("remove_team_member", {
+      _team_id: teamId,
+      _user_id: selectedMember.userId,
+    });
 
     if (error) {
       toast.error("Failed to remove member");
@@ -526,6 +529,7 @@ export default function TeamChatPage() {
     toast.success("Member removed from team");
     queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
+    queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
     setSelectedMember(null);
   }, [teamId, selectedMember, queryClient]);
 
@@ -1462,11 +1466,15 @@ export default function TeamChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`team-messages-${teamId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `team-messages-${teamId}`, channel, userId: user.id, scope: { kind: "team", id: teamId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

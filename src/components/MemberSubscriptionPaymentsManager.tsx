@@ -336,11 +336,14 @@ export default function MemberSubscriptionPaymentsManager({
         ? `Club Subscription - ${paymentPeriod}` 
         : `Uniform Fee - ${paymentPeriod}`;
 
+      const isSubscription = activeTab === "subscription";
       const result = await createMemberCheckout({
         club_id: clubId,
         title,
         amount_cents: amountCents,
-        type: activeTab === "subscription" ? "subscription" : "event",
+        type: isSubscription ? "subscription" : "event",
+        // Yearly billing — paymentPeriod is a calendar year string.
+        ...(isSubscription ? { interval: "year" as const } : {}),
         payer_email: user.email || undefined,
         description: `${activeTab === "subscription" ? "Subscription" : "Uniform"} payment for ${paymentPeriod}`,
         success_url: isNative 

@@ -63,6 +63,7 @@ import { Capacitor } from "@capacitor/core";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -861,9 +862,15 @@ export default function ClubAdminChatPage() {
       )
       .subscribe();
     noteChannelSubscribed(`club-admin-chat-${conversationId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `club-admin-chat-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      : null;
 
-    return () => { supabase.removeChannel(channel); noteChannelRemoved(`club-admin-chat-${conversationId}`); };
-  }, [conversationId, queryClient, queryKey]);
+    return () => {
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`club-admin-chat-${conversationId}`);
+    };
+  }, [conversationId, queryClient, queryKey, user?.id]);
 
   // Visibility change handler
   useEffect(() => {

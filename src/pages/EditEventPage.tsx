@@ -48,6 +48,7 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
+import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 
 type EventType = "game" | "training" | "social";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -505,6 +506,28 @@ export default function EditEventPage() {
       return;
     }
 
+    // Frontend club/team scope guard — matches backend
+    // validate_event_team_club_scope trigger. Fail closed if the team list
+    // is unavailable or stale so we never submit an ambiguous combination.
+    {
+      const check = validateEventTeamClubScope(selectedTeamId, userTeams, selectedClubId);
+      if (check.ok === false) {
+        const reason = check.reason;
+        toast({
+          title:
+            reason === "list_unavailable"
+              ? "Team list unavailable"
+              : "Team does not belong to selected club",
+          description:
+            reason === "list_unavailable"
+              ? "Please reselect the club so we can load its teams before saving."
+              : "The selected team is not part of the selected club. Please choose a team from this club.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Validate recurring settings if converting to recurring
     if (enableRecurring && !isRecurring && !recurrenceEndDate) {
       toast({
@@ -623,46 +646,18 @@ export default function EditEventPage() {
           description: `Created ${dates.length} event${dates.length > 1 ? 's' : ''} in the series.`,
         });
       } else if (updateSeries) {
-        // Update this event (with new date/time). Every update in the
-        // entire-series path MUST inspect its returned `error` — otherwise
-        // a partial failure would silently continue, invalidate caches and
-        // navigate as though the edit succeeded (see regression test
-        // `does not report success or navigate when the selected series
-        // update fails`).
-        const { error: selectedError } = await supabase
-          .from("events")
-          .update({
-            ...updateData,
-            event_date: parsedDateTime.toISOString(),
-            start_time: newStartIso,
-            end_time: newEndIso,
-          })
-          .eq("id", id!);
-        if (selectedError) throw selectedError;
-
-        // If this is a child event, update parent and siblings (except date/time)
-        if (event?.parent_event_id) {
-          const { error: parentUpdateError } = await supabase
-            .from("events")
-            .update(updateData)
-            .eq("id", event.parent_event_id);
-          if (parentUpdateError) throw parentUpdateError;
-
-          const { error: siblingError } = await supabase
-            .from("events")
-            .update(updateData)
-            .eq("parent_event_id", event.parent_event_id)
-            .neq("id", id!);
-          if (siblingError) throw siblingError;
-        }
-        // If this is the parent event, update all children (except date/time)
-        else if (event?.is_recurring) {
-          const { error: childrenError } = await supabase
-            .from("events")
-            .update(updateData)
-            .eq("parent_event_id", id!);
-          if (childrenError) throw childrenError;
-        }
+        // Route the entire-series update through a transactional RPC so the
+        // selected event, its parent, and all siblings either all succeed or
+        // all roll back. The RPC verifies caller permission server-side and
+        // preserves each sibling's own event_date / start_time / end_time.
+        const { error: rpcError } = await supabase.rpc("update_event_series", {
+          p_event_id: id!,
+          p_updates: updateData as any,
+          p_selected_event_date: parsedDateTime.toISOString(),
+          p_selected_start_time: newStartIso,
+          p_selected_end_time: newEndIso,
+        });
+        if (rpcError) throw rpcError;
       } else {
         // Just update this single event — keep start_time/end_time aligned with the new event_date
         const { error } = await supabase

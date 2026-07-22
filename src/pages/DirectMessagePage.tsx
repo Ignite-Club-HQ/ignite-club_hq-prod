@@ -73,6 +73,7 @@ import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
+import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
@@ -1315,11 +1316,15 @@ export default function DirectMessagePage() {
       )
       .subscribe();
     noteChannelSubscribed(`dm-${conversationId}`);
+    const unregister = user?.id
+      ? registerChannel({ key: `dm-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      : null;
 
     return () => {
-      supabase.removeChannel(channel); noteChannelRemoved(`dm-${conversationId}`);
+      if (unregister) unregister(); else supabase.removeChannel(channel);
+      noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, user?.id]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,9 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 
 const emailSchema = z.string().email("Please enter a valid email address");
+// Server-side verification is authoritative; this is the last-line client
+// gate so we never send anything but a 6-digit numeric token to Supabase.
+const SIX_DIGIT_CODE = /^\d{6}$/;
 
 export default function VerifyResetCodePage() {
   usePageTitle("Verify Reset Code");
@@ -29,12 +33,16 @@ export default function VerifyResetCodePage() {
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+  // Synchronous guard: React state updates lag, so a rapid paste/URL flow
+  // could otherwise fire verifyOtp() twice before `verifying` flips true.
+  const verifyInFlightRef = useRef(false);
 
-  // If both email and code are provided in the URL, attempt verification automatically.
+  // If both email and code are provided in the URL, attempt verification
+  // automatically — but only for a strictly numeric 6-digit token.
   useEffect(() => {
     const urlCode = searchParams.get("code");
     const urlEmail = searchParams.get("email");
-    if (urlEmail && urlCode && urlCode.length === 6 && /^\d{6}$/.test(urlCode)) {
+    if (urlEmail && urlCode && SIX_DIGIT_CODE.test(urlCode)) {
       setEmail(urlEmail);
       setCode(urlCode);
       void verifyCode(urlEmail, urlCode);
@@ -43,6 +51,17 @@ export default function VerifyResetCodePage() {
   }, []);
 
   const verifyCode = async (emailValue: string, token: string) => {
+    // Numeric-code gate BEFORE any Supabase call. Rejects alphabetic,
+    // mixed alphanumeric, symbols, blanks, and any length != 6.
+    if (!SIX_DIGIT_CODE.test(token)) {
+      toast({
+        title: "Invalid code",
+        description: "Enter the 6-digit numeric code from your email.",
+      });
+      setCode("");
+      return;
+    }
+
     const validation = emailSchema.safeParse(emailValue);
     if (!validation.success) {
       toast({
@@ -52,31 +71,40 @@ export default function VerifyResetCodePage() {
       return;
     }
 
+    if (verifyInFlightRef.current) return;
+    verifyInFlightRef.current = true;
     setVerifying(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email: emailValue,
-      token,
-      type: "recovery",
-    });
-    setVerifying(false);
-
-    if (error) {
-      toast({
-        title: "Invalid or expired code",
-        description: "Double-check the code or request a new one.",
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: emailValue,
+        token,
+        type: "recovery",
       });
-      setCode("");
-      return;
-    }
 
-    // verifyOtp puts the user in a recovery session — ResetPasswordPage
-    // detects the session and shows the new-password form.
-    navigate("/reset-password");
+      if (error) {
+        toast({
+          title: "Invalid or expired code",
+          description: "Double-check the code or request a new one.",
+        });
+        setCode("");
+        return;
+      }
+
+      // verifyOtp puts the user in a recovery session — ResetPasswordPage
+      // detects the session and shows the new-password form.
+      navigate("/reset-password");
+    } finally {
+      verifyInFlightRef.current = false;
+      setVerifying(false);
+    }
   };
 
   const handleCodeChange = (value: string) => {
     setCode(value);
-    if (value.length === 6 && !verifying) {
+    // input-otp's pattern={REGEXP_ONLY_DIGITS} silently filters non-digit
+    // characters at the input layer, but we still gate here for paste flows
+    // and defence-in-depth.
+    if (value.length === 6 && !verifying && !verifyInFlightRef.current) {
       void verifyCode(email, value);
     }
   };
@@ -148,6 +176,8 @@ export default function VerifyResetCodePage() {
             <div className="flex justify-center pt-1">
               <InputOTP
                 maxLength={6}
+                pattern={REGEXP_ONLY_DIGITS}
+                inputMode="numeric"
                 value={code}
                 onChange={handleCodeChange}
                 disabled={verifying}

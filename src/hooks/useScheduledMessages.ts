@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
@@ -106,13 +111,22 @@ export function useThreadScheduledMessages(target: ScheduleTarget | null) {
       const { data, error } = await q;
       if (error) {
         console.error("[scheduled-messages] thread fetch error", error);
-        return [];
+        // Reject rather than return `[]` so React Query enters an error
+        // state — the UI must warn that existing scheduled messages may
+        // still send, instead of implying the schedule is empty.
+        const e = new Error(error.message || "Failed to load scheduled messages");
+        (e as any).code = "scheduled_messages_read_failed";
+        throw e;
       }
       return (data || []) as unknown as ScheduledMessageRow[];
     },
     enabled: !!user?.id && !!target,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
+    // Keep previously loaded rows visible during a background refetch that
+    // fails, so a transient error doesn't blank the banner and tempt users
+    // into recreating the same message.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -134,12 +148,15 @@ export function useAllScheduledMessages(statuses: ScheduledMessageStatus[] = ["p
         .order("scheduled_for", { ascending: true });
       if (error) {
         console.error("[scheduled-messages] all fetch error", error);
-        return [];
+        const e = new Error(error.message || "Failed to load scheduled messages");
+        (e as any).code = "scheduled_messages_read_failed";
+        throw e;
       }
       return (data || []) as unknown as ScheduledMessageRow[];
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -151,6 +168,7 @@ async function invokeWrite(body: Record<string, unknown>) {
     // Surface server-provided error payload when possible.
     const ctx: any = (error as any).context;
     let serverMsg: string | undefined;
+    let httpStatus: number | undefined = typeof ctx?.status === "number" ? ctx.status : undefined;
     try {
       const parsed = ctx && typeof ctx.json === "function" ? await ctx.json() : undefined;
       if (parsed?.error === "pro_required") {
@@ -163,7 +181,16 @@ async function invokeWrite(body: Record<string, unknown>) {
     } catch (inner) {
       if ((inner as any)?.code === "pro_required") throw inner;
     }
-    throw new Error(serverMsg || error.message || "Request failed");
+    const combined = `${serverMsg || ""} ${error.message || ""}`.toLowerCase();
+    const isSessionExpired =
+      httpStatus === 401 ||
+      /not authenticated|unauthori[sz]ed|jwt|session/i.test(combined);
+    const outMsg = isSessionExpired
+      ? "Your session has expired. Please sign in again."
+      : serverMsg || error.message || "Request failed";
+    const e = new Error(outMsg);
+    if (isSessionExpired) (e as any).code = "session_expired";
+    throw e;
   }
   return data;
 }
