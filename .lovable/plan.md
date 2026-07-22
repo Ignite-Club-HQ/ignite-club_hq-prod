@@ -1,129 +1,81 @@
-# Archive Basketball & Netball Code
+# Fix: Remove Member does not revoke guardian-derived team/club access
 
-Goal: remove ~14,850 LOC of unused sport code from the app bundle while keeping git history intact and giving us a one-command rollback path.
+## Confirmed root cause
 
-## Rollback strategy (built in first, before touching anything)
+`public.is_team_member(uid, team_id)` and `public.is_club_member(uid, club_id)` grant membership through THREE independent paths:
 
-1. **Single commit / single PR** — every file move and edit lands in one atomic change. Revert = one click in GitHub or one Lovable history revert.
-2. **`git mv` (not delete + recreate)** — preserves file history so `git log --follow archive/sports/...` still shows the full past.
-3. **Tag before, tag after** — `pre-sport-archive` and `post-sport-archive` tags for instant `git reset` if needed.
-4. **Archive lives in-repo** at `archive/sports/` with a `README.md` documenting exact restore steps (which files to `git mv` back, which imports to re-add).
+1. `user_roles` row scoped to the team/club
+2. `children.parent_id` + `child_team_assignments` (biological/legal parent)
+3. `child_guardians.guardian_id` + `child_team_assignments` (invited guardian)
 
-## Scope of changes
+The current "Remove Member" flow in `TeamDetailPage.tsx` (line 2668-2686) only deletes the scoped `user_roles` row. If the removed user is a guardian (or parent) of a child still assigned to that team, paths (2) or (3) keep returning `true`, so RLS on `events`, `rsvps`, chat groups, etc. still lets them read/write. Realtime channels stay valid until token refresh + membership re-check.
 
-**Move to `archive/sports/`** (invisible to Vite/TS, ~14,850 LOC):
-- `src/components/basketball/` → `archive/sports/components/basketball/`
-- `src/components/netball/` → `archive/sports/components/netball/`
-- `src/hooks/useBasketball*.ts`, `useNetballGameSync.ts`, `useCourtBoardDefaults.ts`, `useCourtSpectator.ts` (+ tests)
-- `src/components/scoreboard/BasketballSpectatorView.tsx`, `NetballSpectatorView.tsx`, `CentrePassIndicator.tsx`, `TimeoutsPanel.tsx`, `FoulFatigueWatchlist.tsx`, `QuarterAutoSubControlPanel.tsx`, `SubConfirmDialog.tsx`, `CuesToggle.tsx`, `GameSummaryDialog.tsx` (court-specific ones only — keep `SoccerSpectatorView.tsx`)
-- `src/components/home/CourtBoardResumeCard.tsx`
+The same shortfall exists in `ChatParticipantsList.tsx` `removeMemberMutation` and any other direct `user_roles` deletes.
 
-**Edit in place** (~46 shared files) to remove basketball/netball branches:
-- `src/lib/sportDetection.ts` — force `'football'` return, keep `Sport` type union intact for DB compatibility
-- `src/lib/sportScoreConfig.ts`, `sportEmojis.ts`, `gameCues.ts`, `periodTypes.ts`, `gameSyncSignature.ts` — drop non-football branches
-- `src/hooks/useActiveGameSync.ts`, `useSaveGameResult.ts`, `useAutoSubNotify.ts` — remove court-sport code paths
-- `src/components/chat/BoardPickerSheet.tsx`, `BoardViewerDialog.tsx`, `BoardLinkCard.tsx`, `ChatImageInput.tsx` — football-only board sharing
-- `src/components/scoreboard/spectatorTypes.ts`, `SoccerSpectatorView.tsx` — narrow types
-- `src/components/history/TeamGameHistoryTab.tsx`, `ClubRecentGames.tsx` — soccer-only rendering
-- `src/pages/*.tsx` (`HomePage`, `TeamDetailPage`, `ClubDetailPage`, `EventDetailPage`, `AdminActiveGamesPage`, `WatchLiveTeamPage`) — remove court-board resume / spectator hooks
-- `src/components/NextUpCarousel.tsx`, `src/components/pitch/GameFinishedDialog.tsx`, `pitchBoardNotifyFlags.ts` — football-only
-- `src/lib/syncWriteRateMonitor.ts` — drop court-game monitoring
+## Chosen permission model
 
-**Do NOT touch:**
-- DB schema — `clubs.sport`, `competitions.sport`, `game_results.sport` all stay. Clubs stay tagged with their sport for branding.
-- The `Sport` type union stays as `'football' | 'basketball' | 'netball' | ...` so DB reads don't crash on legacy values.
+**Keep the current three-path membership model** (it's load-bearing for the parent/guardian UX — parents legitimately access team events without their own `parent` role in some legacy data), but make removal **scoped and explicit**:
 
-## Testing checklist (rigorous)
+- Add a new SECURITY DEFINER RPC `public.remove_team_member(_team_id uuid, _user_id uuid)` that, in a single transaction:
+  1. Authorises caller (`team_admin` of the team, `club_admin` of the team's club, or `app_admin`) — else raise.
+  2. Deletes `user_roles` rows for `(_user_id, _team_id)`.
+  3. For every child of `_user_id` (as `children.parent_id` OR `child_guardians.guardian_id`) that is assigned to `_team_id`: delete only the `child_team_assignments` row for that child+team. Guardian relationships and assignments to OTHER teams are preserved.
+  4. Deletes any team-scoped `group_members` rows for `_user_id` in chat groups whose `team_id = _team_id`.
+  5. Writes an `audit_logs` entry.
+  6. Returns a summary `{ roles_removed, child_assignments_removed, group_memberships_removed }`.
+- Add `public.remove_club_member(_club_id uuid, _user_id uuid)` mirroring the same shape at club scope (removes all user_roles for the club, all child_team_assignments to teams in that club for the user's children/guardianed children, all group_members in club-scoped groups). Used by existing club-level removal flows.
+- **Do NOT** touch `child_guardians` rows — a guardianship is a person-to-person relationship that can span teams/clubs. Removing a guardian from one team must not sever their guardianship of the child in other contexts.
+- **Do NOT** weaken `is_team_member` / `is_club_member` — other flows (parent-of-child access to a team they were never explicitly added to) rely on the derived paths.
 
-Run in this order — each gate must pass before the next:
+Frontend removal entry points (`TeamDetailPage`, `ChatParticipantsList`, and any equivalent in club participant management) all call the new RPC — no direct `.delete()` on `user_roles` from client code for member removal.
 
-1. **Static** — `tsgo` typecheck clean, `bun run build` clean, `knip` shows no new orphans.
-2. **Unit tests** — `bunx vitest run` full suite green.
-3. **Grep audit** — `rg "basketball|netball" src/` returns only intentional references (Sport type union, DB value tolerance).
-4. **Playwright smoke** on running dev server, screenshotted at each step:
-   - Auth → home loads
-   - Open a football team → schedule → event detail
-   - Create a football event
-   - Open pitch board on a football event → verify it renders
-   - Open chat → attach a board link → verify picker shows only football
-   - Open a club that has `sport = 'basketball'` in DB → verify it loads without crashing (just no board features)
-   - Inbox → open a chat thread
-5. **Console/network check** during smoke — no red errors, no 500s.
-6. **Bundle size diff** — capture `dist/` size before/after, expect ~15% JS reduction.
+## Data-migration implications
 
-## Rollout
+- No destructive backfill. The new RPC is forward-only; historical removals that left dangling `child_team_assignments` are surfaced by a **read-only** audit query the migration ships as a comment (not executed) so the operator can review and re-run removal per team.
+- Report (not delete) rows where `user_roles` was deleted historically but a `child_team_assignments` still grants derived access to the same (user, team). These need human review — a legitimate co-parent may still belong.
 
-1. Do all the work on a feature branch, not main.
-2. Deploy the branch to Lovable preview.
-3. Manual smoke on preview device (Android + iOS Codemagic debug build).
-4. Only after both native builds pass smoke → merge → prod promotion.
+## Affected frontend flows
 
-## Rollback triggers
+- `src/pages/TeamDetailPage.tsx` (Remove Member confirm at ~2668) → call `remove_team_member` RPC.
+- `src/components/chat/ChatParticipantsList.tsx` (`removeMemberMutation` ~157, `handleRemoveMember` ~614) → call the appropriate RPC based on group scope (team vs club vs manual group). Manual `group_members`-only groups keep the existing direct delete.
+- `src/pages/TeamChatPage.tsx` remove path (~523) → same routing.
+- Any club-participant removal UI → `remove_club_member`.
 
-If any of these hit in the 48h after merge:
-- Sentry/console errors mentioning removed modules
-- User report of missing feature
-- Build failure on either native platform
+Guardian-management dialog (`ManageGuardiansDialog.removeGuardian`) is unchanged — that is intentionally a guardianship edit, not a team removal.
 
-→ Execute: `git revert <archive-commit-sha>` → push → done. All archived files are already in `archive/sports/` so no restore needed, just move back with `git mv` when re-enabling.
+## Rollback strategy
 
-## Estimated effort
+- Migration is additive: two new RPCs + audit-log entries. No existing columns/functions modified.
+- Rollback = `DROP FUNCTION` the two RPCs and revert the client changes. `user_roles`/`child_team_assignments` deletions performed by the RPC are the same shape the app already produces, so nothing to unwind at the data layer.
 
-- Coding: 2-3 hours
-- Testing: 1-2 hours
-- Total: half a day, single PR
+## Tests (Deliverable: acceptance criteria mapping)
 
----
+Add:
 
-# Follow-up: Atomic `replace_game_stats` RPC
+- **DB-level (pgTAP-style via `supabase--read_query` fixtures in a new `src/edge-functions/removeMember.integration.test.ts` using a service-role client against the migration):**
+  - Non-admin caller → RPC raises (AC 12).
+  - Cross-club admin → raises (AC 13).
+  - Guardian invitation acceptance creates exactly one scoped role + one guardian link (AC 2).
+  - Before invite: guardian cannot read team events (AC 1).
+  - After accept: guardian can read intended team, not another club (AC 3, 4).
+  - After `remove_team_member`: `is_team_member` = false, guardian cannot read events, cannot insert RSVP (AC 5, 6, 7).
+  - Guardian's access to an **unrelated** team of the same child is preserved (AC 9, "Access to unrelated teams is preserved").
+  - `child_guardians` row is preserved (AC 10).
+  - Repeated call is idempotent (AC 11).
+  - Partial failure inside the RPC rolls back the whole transaction (AC 14) — simulated by wrapping in a `SAVEPOINT` test.
+- **Frontend (`TeamDetailPage.removeMember.test.tsx`, `ChatParticipantsList.removeMember.test.tsx`):**
+  - Clicking Remove Member invokes the RPC with correct args, shows success toast, and refreshes membership queries.
+  - Error path surfaces toast, does not close the confirm.
+- Realtime revocation (AC 8) is already covered by `useAuthorizedScopes` + `realtimeChannelRegistry` tests; add one case asserting a `remove_team_member` call invalidates the `authorized-scopes` query and triggers `revokeScope`.
 
-## Context
-`useGameStats.ts` currently performs three sequential Supabase calls when saving a game:
-1. `game_summaries` upsert
-2. `game_player_stats` delete (by `event_id`)
-3. `game_player_stats` insert (new rows)
+## Why the fix cannot remove access from unrelated teams/clubs
 
-Each call now checks its own error (fix shipped), but the three are **not atomic**. A crash, network drop, or RLS failure between steps 2 and 3 can leave the event with a written summary and **zero player stats rows** until the user retries.
+The RPC filters every delete by `_team_id` (or `_club_id`) and by the target `_user_id`. `child_team_assignments` are joined through the removed user's children, and only rows with `team_id = _team_id` (or team's `club_id = _club_id`) are deleted. `child_guardians` is never touched. Other teams the guardian is legitimately linked to therefore still resolve `true` through `is_team_member`.
 
-## Proposed change
-Wrap the delete + insert (and optionally the summary upsert) in a single Postgres function:
+## Deliverables after implementation
 
-```sql
-create or replace function public.replace_game_stats(
-  _event_id uuid,
-  _team_id uuid,
-  _summary jsonb,
-  _player_stats jsonb  -- array of row objects
-) returns void
-language plpgsql
-security invoker  -- keep RLS enforcement on the caller
-as $$
-begin
-  insert into public.game_summaries (...) values (...)
-  on conflict (event_id) do update set ...;
-
-  delete from public.game_player_stats where event_id = _event_id;
-
-  insert into public.game_player_stats
-  select * from jsonb_populate_recordset(null::public.game_player_stats, _player_stats);
-end;
-$$;
-```
-
-Client becomes one `supabase.rpc('replace_game_stats', {...})` call with one error check.
-
-## Risks / considerations
-- **RLS**: keep `security invoker` so the caller's policies still apply — do NOT use `security definer` unless we deliberately want to bypass RLS.
-- **Triggers on `game_player_stats`**: audit existing triggers (row-level `AFTER INSERT/DELETE`) — they still fire per row inside the function, so behaviour should be identical, but confirm nothing assumes a specific client context.
-- **Deploy order**: ship the migration first, then the client change in a follow-up release. Old clients keep working against the new schema.
-- **Test coverage**: replicate the current `useGameStats.test.tsx` scenarios against the mocked `rpc` call. Add a Postgres-level test (or manual check) that a mid-function failure rolls back the summary write.
-
-## Not doing now
-Bundling this into the current false-success fix would mix an unrelated schema change into a hotfix. Ship separately with its own tests and trigger review.
-
-## Estimated effort
-- Migration + function: 30 min
-- Client swap + test rewrite: 30 min
-- Trigger audit + manual verification: 30 min
-- Total: ~1.5 hours, single PR
-
+- Migration adding `remove_team_member` + `remove_club_member` RPCs and audit hook.
+- Production files changed: `TeamDetailPage.tsx`, `ChatParticipantsList.tsx`, `TeamChatPage.tsx` (removal call sites only).
+- New tests listed above.
+- Test results (target: all green, plus existing baseline unchanged).
+- Report of historical `(user, team)` pairs where `user_roles` was removed but derived access remains — for operator review.
