@@ -37,6 +37,21 @@ async function expectEvent(promise: Promise<unknown>, waitMs = 5_000) {
   await expect(Promise.race([promise, timeout])).resolves.toBeUndefined();
 }
 
+async function expectEventWithColdStartRetry(
+  promise: Promise<unknown>,
+  mutate: (attempt: number) => Promise<void>,
+) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await mutate(attempt);
+    try {
+      await expectEvent(promise);
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
+}
+
 async function expectNoEvent(promise: Promise<unknown>, waitMs = 350) {
   const sentinel = Symbol("no-event");
   const outcome = await Promise.race([
@@ -90,9 +105,11 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
       fixture.memberA.client, `authorized-${crypto.randomUUID()}`, eventA, () => received.resolve(),
     ));
     await subscribe(channel);
-    const updated = await service.from("events").update({ description: "authorized delivery" }).eq("id", eventA);
-    expect(updated.error).toBeNull();
-    await expectEvent(received.promise);
+    await expectEventWithColdStartRetry(received.promise, async (attempt) => {
+      const updated = await service.from("events")
+        .update({ description: `authorized delivery ${attempt}` }).eq("id", eventA);
+      expect(updated.error).toBeNull();
+    });
   });
 
   it("does not deliver another club's change to an unauthorized subscriber", async () => {

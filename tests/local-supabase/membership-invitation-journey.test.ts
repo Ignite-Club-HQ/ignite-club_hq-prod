@@ -67,18 +67,21 @@ function eventChannel(client: SupabaseClient, eventId: string, onEvent: () => vo
 describe("local journey: guardian invitation, access and removal", () => {
   let fixture: SecurityFixture;
   let invitee: SyntheticUser;
+  let secondGuardian: SyntheticUser;
   const channels: Array<{ client: SupabaseClient; channel: RealtimeChannel }> = [];
 
   beforeAll(async () => {
     await assertSyntheticLocalMarker();
     fixture = await createSecurityFixture();
     invitee = await createSyntheticUser("guardian-invitee");
+    secondGuardian = await createSyntheticUser("second-guardian");
   });
 
   afterAll(async () => {
     await Promise.all(channels.map(({ client, channel }) => client.removeChannel(channel)));
     await fixture?.cleanup();
     if (invitee?.id) await service.auth.admin.deleteUser(invitee.id);
+    if (secondGuardian?.id) await service.auth.admin.deleteUser(secondGuardian.id);
   });
 
   it("grants exact access atomically, then removes database and Realtime access", async () => {
@@ -152,18 +155,41 @@ describe("local journey: guardian invitation, access and removal", () => {
       .eq("user_id", invitee.id).eq("role", "parent").eq("team_id", fixture.teamA);
     expect(rolesAfterRetry.data).toHaveLength(1);
 
-    const removed = await fixture.adminA.client.from("user_roles").delete()
-      .eq("user_id", invitee.id).eq("team_id", fixture.teamA).select("id");
-    expect(removed.error).toBeNull();
-    expect(removed.data).toHaveLength(1);
+    const secondInvitation = await service.from("pending_invites").insert({
+      role: "parent",
+      invited_by_user_id: fixture.adminA.id,
+      invited_user_id: secondGuardian.id,
+      club_id: fixture.clubA,
+      team_id: fixture.teamA,
+      invite_token: crypto.randomUUID(),
+      metadata: { guardian_child_id: fixture.childA },
+    }).select("id").single();
+    expect(secondInvitation.error).toBeNull();
+    const secondAccepted = await secondGuardian.client.rpc("accept_guardian_invite", {
+      _invite_id: secondInvitation.data!.id,
+      _child_id: fixture.childA,
+    });
+    expect(secondAccepted.error).toBeNull();
 
-    const [noLongerVisible, deniedWrite] = await Promise.all([
+    const removed = await fixture.adminA.client.rpc("remove_team_member", {
+      _team_id: fixture.teamA,
+      _user_id: invitee.id,
+    });
+    expect(removed.error).toBeNull();
+    expect(removed.data).toEqual(expect.objectContaining({ roles_removed: 1, exclusion_added: true }));
+
+    const [noLongerVisible, deniedWrite, secondStillVisible, assignmentAfterFirstRemoval] = await Promise.all([
       invitee.client.from("events").select("id").eq("id", eventA),
       invitee.client.from("rsvps").insert({ event_id: eventA, user_id: invitee.id, status: "going" }),
+      secondGuardian.client.from("events").select("id").eq("id", eventA),
+      service.from("child_team_assignments").select("id")
+        .eq("child_id", fixture.childA).eq("team_id", fixture.teamA),
     ]);
     expect(noLongerVisible.error).toBeNull();
     expect(noLongerVisible.data).toEqual([]);
     expect(deniedWrite.error).not.toBeNull();
+    expect(secondStillVisible.data).toEqual([{ id: eventA }]);
+    expect(assignmentAfterFirstRemoval.data).toHaveLength(1);
 
     const refreshed = await invitee.client.auth.refreshSession();
     expect(refreshed.error).toBeNull();
@@ -182,9 +208,29 @@ describe("local journey: guardian invitation, access and removal", () => {
     await expectEvent(controlReceived.promise);
     await expectNoEvent(removedMemberReceived.promise);
 
-    const repeatedRemoval = await fixture.adminA.client.from("user_roles").delete()
-      .eq("user_id", invitee.id).eq("team_id", fixture.teamA).select("id");
+    const secondRemoval = await fixture.adminA.client.rpc("remove_team_member", {
+      _team_id: fixture.teamA,
+      _user_id: secondGuardian.id,
+    });
+    expect(secondRemoval.error).toBeNull();
+    expect(secondRemoval.data).toEqual(expect.objectContaining({ roles_removed: 1, exclusion_added: true }));
+
+    const [secondNoLongerVisible, assignmentAfterBothRemovals, guardianLinksRemain] = await Promise.all([
+      secondGuardian.client.from("events").select("id").eq("id", eventA),
+      service.from("child_team_assignments").select("id")
+        .eq("child_id", fixture.childA).eq("team_id", fixture.teamA),
+      service.from("child_guardians").select("guardian_id")
+        .eq("child_id", fixture.childA).in("guardian_id", [invitee.id, secondGuardian.id]),
+    ]);
+    expect(secondNoLongerVisible.data).toEqual([]);
+    expect(assignmentAfterBothRemovals.data).toHaveLength(1);
+    expect(guardianLinksRemain.data).toHaveLength(2);
+
+    const repeatedRemoval = await fixture.adminA.client.rpc("remove_team_member", {
+      _team_id: fixture.teamA,
+      _user_id: invitee.id,
+    });
     expect(repeatedRemoval.error).toBeNull();
-    expect(repeatedRemoval.data).toEqual([]);
+    expect(repeatedRemoval.data).toEqual(expect.objectContaining({ roles_removed: 0, exclusion_added: false }));
   });
 });
