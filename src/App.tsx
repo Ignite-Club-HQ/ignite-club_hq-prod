@@ -36,7 +36,7 @@ import { Loader2 } from "lucide-react";
 // here lands in the main bundle and lengthens cold-start parse time on
 // Android. Auth-adjacent pages are lazy because logged-in users (the vast
 // majority of cold opens) never hit them.
-import HomePage from "./pages/HomePage";
+const HomePage = lazy(() => import("./pages/HomePage"));
 import VerifyResetCodePage from "./pages/VerifyResetCodePage";
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 const CompleteProfilePage = lazy(() => import("./pages/CompleteProfilePage"));

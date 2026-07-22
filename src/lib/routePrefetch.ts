@@ -6,7 +6,7 @@
 type Loader = () => Promise<unknown>;
 
 const loaders: Record<string, Loader> = {
-  "/": () => import("@/pages/Index"),
+  "/": () => import("@/pages/HomePage"),
   "/messages": () => import("@/pages/MessagesPage"),
   "/events": () => import("@/pages/EventsPage"),
   "/media": () => import("@/pages/MediaPage"),
