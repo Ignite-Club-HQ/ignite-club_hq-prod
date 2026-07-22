@@ -10,12 +10,15 @@ import {
   LOCAL_VOLUMES,
   assertOnlyAllowedLocalNames,
   expectedMigrationVersions,
+  findUnreviewedMirroredMigrations,
   migrationLedgersMatch,
   parseLocalGatewayKeys,
+  validateCurrentLocalParity,
 } from "./local-baseline-safety.mjs";
 
 const LOCAL_WORKSPACE = resolve(process.cwd(), "local-supabase-workspace");
 const LOCAL_MIGRATIONS = resolve(LOCAL_WORKSPACE, "supabase/migrations");
+const PRODUCTION_MIGRATIONS = resolve(process.cwd(), "supabase/migrations");
 const LOCAL_SUPABASE_CLI = "supabase@2.71.0";
 const EXPECTED_LOCAL_PROJECT = `project_id = "${LOCAL_PROJECT}"`;
 const TEST_BRANCH = "codespaces-review";
@@ -133,6 +136,31 @@ async function updateTestBranch() {
     && git(["merge", "--ff-only", remoteRef], { stdio: "inherit" }).status === 0;
 }
 
+function verifyMirroredContractParity() {
+  console.log("\n========== Synthetic contract parity preflight ==========");
+  const productionMigrations = readdirSync(PRODUCTION_MIGRATIONS)
+    .filter((name) => /^\d{14}_[a-zA-Z0-9_-]+\.sql$/.test(name))
+    .map((name) => ({ name, sql: readFileSync(resolve(PRODUCTION_MIGRATIONS, name), "utf8") }));
+  const unreviewed = findUnreviewedMirroredMigrations(productionMigrations);
+  if (unreviewed.length) {
+    console.error("Refusing local test startup: merged backend migrations touch mirrored security contracts:");
+    for (const name of unreviewed) console.error(`  - supabase/migrations/${name}`);
+    console.error("Review those files, update the synthetic local contract if required, then advance LOCAL_PARITY_REVIEWED_THROUGH.");
+    return false;
+  }
+  const localSql = readdirSync(LOCAL_MIGRATIONS)
+    .filter((name) => name.endsWith(".sql"))
+    .map((name) => readFileSync(resolve(LOCAL_MIGRATIONS, name), "utf8"))
+    .join("\n");
+  const missing = validateCurrentLocalParity(localSql);
+  if (missing.length) {
+    console.error(`Refusing local test startup: synthetic baseline is missing ${missing.join(", ")}.`);
+    return false;
+  }
+  console.log("PASS: mirrored security contracts are reviewed and represented locally.");
+  return true;
+}
+
 async function isLocalStackHealthy() {
   try {
     const response = await fetch(`${LOCAL_URL}/auth/v1/health`, { signal: AbortSignal.timeout(3_000) });
@@ -188,6 +216,7 @@ let config = "";
 try { config = readFileSync(configPath, "utf8"); } catch { /* checked below */ }
 
 if (!(await updateTestBranch())) process.exit(1);
+if (!verifyMirroredContractParity()) process.exit(1);
 if (!config.includes(EXPECTED_LOCAL_PROJECT)) {
   console.error(`Refusing local test session: isolated config missing at ${configPath}.`);
   process.exit(1);

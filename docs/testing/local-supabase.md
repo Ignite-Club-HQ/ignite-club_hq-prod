@@ -65,8 +65,11 @@ schema work must be independently reviewed.
    local gateway; inherited Supabase and database variables are removed.
 7. It compares every migration filename with the local migration ledger and
    refuses integration tests unless they match exactly.
-8. The runner executes frontend, Playwright, and local integration stages.
-9. In a final cleanup (including failures and interruption), it removes and
+8. Before Docker starts, a file-only parity guard scans newly merged production
+   migrations for changes to mirrored competition and membership contracts. It
+   stops with the exact migration names when a deliberate local review is needed.
+9. The runner executes frontend, Playwright, and local integration stages.
+10. In a final cleanup (including failures and interruption), it removes and
    verifies absence of all allowlisted local containers and volumes. Cleanup is
    a required result in the summary.
 

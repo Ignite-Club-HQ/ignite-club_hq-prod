@@ -47,3 +47,33 @@ export function assertOnlyAllowedLocalNames(names, allowedNames) {
     throw new Error(`Refusing local lifecycle action for unexpected target(s): ${unexpected.join(", ")}`);
   }
 }
+
+export const LOCAL_PARITY_REVIEWED_THROUGH =
+  "20260722043149_f3190ddb-a99d-4b8f-8bef-dc43e39a7bf0.sql";
+
+const MIRRORED_CONTRACT_PATTERN = new RegExp([
+  "can_view_competition",
+  "competitions[^a-z_]+for\\s+select",
+  "remove_team_member",
+  "remove_club_member",
+  "team_member_exclusions",
+  "club_member_exclusions",
+  "is_team_member",
+  "is_club_member",
+].join("|"), "i");
+
+export function findUnreviewedMirroredMigrations(migrations, reviewedThrough = LOCAL_PARITY_REVIEWED_THROUGH) {
+  return migrations
+    .filter(({ name, sql }) => name > reviewedThrough && MIRRORED_CONTRACT_PATTERN.test(sql))
+    .map(({ name }) => name)
+    .sort();
+}
+
+export function validateCurrentLocalParity(localSql) {
+  const required = [
+    { label: "direct competition creator visibility", pattern: /created_by\s*=\s*\(select\s+auth\.uid\(\)\)/i },
+    { label: "scoped team-member removal RPC", pattern: /function\s+public\.remove_team_member\s*\(/i },
+    { label: "guardian-derived membership exclusions", pattern: /table\s+public\.team_member_exclusions/i },
+  ];
+  return required.filter(({ pattern }) => !pattern.test(localSql)).map(({ label }) => label);
+}

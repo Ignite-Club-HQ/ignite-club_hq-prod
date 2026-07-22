@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   assertOnlyAllowedLocalNames,
   expectedMigrationVersions,
+  findUnreviewedMirroredMigrations,
   migrationLedgersMatch,
   parseLocalGatewayKeys,
+  validateCurrentLocalParity,
 } from "../../scripts/local-baseline-safety.mjs";
 
 describe("complete baseline local lifecycle safety", () => {
@@ -39,5 +43,42 @@ describe("complete baseline local lifecycle safety", () => {
     expect(() => assertOnlyAllowedLocalNames(["safe-local"], ["safe-local"])).not.toThrow();
     expect(() => assertOnlyAllowedLocalNames(["safe-local", "unexpected"], ["safe-local"]))
       .toThrow(/unexpected/);
+  });
+
+  it("flags only newer production migrations that touch mirrored contracts", () => {
+    expect(findUnreviewedMirroredMigrations([
+      { name: "20260722043149_current.sql", sql: "create function can_view_competition()" },
+      { name: "20260723000000_unrelated.sql", sql: "alter table public.sponsors add column url text" },
+      { name: "20260724000000_membership.sql", sql: "create function remove_team_member()" },
+    ], "20260722043149_current.sql")).toEqual(["20260724000000_membership.sql"]);
+  });
+
+  it("requires the critical mirrored behaviours in the synthetic SQL", () => {
+    const complete = `
+      create table public.team_member_exclusions (team_id uuid);
+      create function public.remove_team_member(_team_id uuid) returns void;
+      create policy competitions_select on public.competitions for select
+        using (created_by = (select auth.uid()));
+    `;
+    expect(validateCurrentLocalParity(complete)).toEqual([]);
+    expect(validateCurrentLocalParity("select 1")).toEqual([
+      "direct competition creator visibility",
+      "scoped team-member removal RPC",
+      "guardian-derived membership exclusions",
+    ]);
+  });
+
+  it("confirms the checked-in production and synthetic contracts are currently aligned", () => {
+    const productionDirectory = resolve(process.cwd(), "supabase/migrations");
+    const localDirectory = resolve(process.cwd(), "local-supabase-workspace/supabase/migrations");
+    const production = readdirSync(productionDirectory)
+      .filter((name) => name.endsWith(".sql"))
+      .map((name) => ({ name, sql: readFileSync(resolve(productionDirectory, name), "utf8") }));
+    const localSql = readdirSync(localDirectory)
+      .filter((name) => name.endsWith(".sql"))
+      .map((name) => readFileSync(resolve(localDirectory, name), "utf8"))
+      .join("\n");
+    expect(findUnreviewedMirroredMigrations(production)).toEqual([]);
+    expect(validateCurrentLocalParity(localSql)).toEqual([]);
   });
 });
