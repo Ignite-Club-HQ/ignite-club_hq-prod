@@ -5,6 +5,7 @@ import {
   assertOnlyAllowedLocalNames,
   expectedMigrationVersions,
   findUnreviewedMirroredMigrations,
+  hasExplicitLocalSessionApproval,
   migrationLedgersMatch,
   parseLocalGatewayKeys,
   validateCurrentLocalParity,
@@ -80,5 +81,14 @@ describe("complete baseline local lifecycle safety", () => {
       .join("\n");
     expect(findUnreviewedMirroredMigrations(production)).toEqual([]);
     expect(validateCurrentLocalParity(localSql)).toEqual([]);
+  });
+
+  it("accepts exactly one deliberate local-session approval flag", () => {
+    expect(hasExplicitLocalSessionApproval(["--approved-local-session"])).toBe(true);
+    expect(hasExplicitLocalSessionApproval([])).toBe(false);
+    expect(hasExplicitLocalSessionApproval(["--approve"])).toBe(false);
+    expect(hasExplicitLocalSessionApproval([
+      "--approved-local-session", "--approved-local-session",
+    ])).toBe(false);
   });
 });

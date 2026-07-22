@@ -77,3 +77,9 @@ export function validateCurrentLocalParity(localSql) {
   ];
   return required.filter(({ pattern }) => !pattern.test(localSql)).map(({ label }) => label);
 }
+
+export const LOCAL_SESSION_APPROVAL_FLAG = "--approved-local-session";
+
+export function hasExplicitLocalSessionApproval(args) {
+  return args.filter((arg) => arg === LOCAL_SESSION_APPROVAL_FLAG).length === 1;
+}

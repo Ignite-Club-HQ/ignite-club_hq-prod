@@ -73,6 +73,17 @@ schema work must be independently reviewed.
    verifies absence of all allowlisted local containers and volumes. Cleanup is
    a required result in the summary.
 
+For an approval already given immediately before execution, use the single-command form:
+
+```bash
+npm run test:baseline -- --approved-local-session
+```
+
+That one approval covers the safe branch fast-forward and the displayed local
+Supabase startup/cleanup lifecycle. Without the exact flag, the runner retains
+its interactive approval prompt. Diverged branches, dirty worktrees, stale
+contract parity, or unexpected Docker targets still stop rather than proceeding.
+
 Startup uses the pinned CLI version embedded in the runner. Cleanup uses an
 explicit immutable allowlist of Docker resources whose names end in
 `ignite-club-local-security-tests`. The action and targets are shown before

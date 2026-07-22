@@ -11,6 +11,7 @@ import {
   assertOnlyAllowedLocalNames,
   expectedMigrationVersions,
   findUnreviewedMirroredMigrations,
+  hasExplicitLocalSessionApproval,
   migrationLedgersMatch,
   parseLocalGatewayKeys,
   validateCurrentLocalParity,
@@ -25,6 +26,7 @@ const TEST_BRANCH = "codespaces-review";
 const TEST_REMOTE = "origin";
 const DB_CONTAINER = `supabase_db_${LOCAL_PROJECT}`;
 const KONG_CONTAINER = `supabase_kong_${LOCAL_PROJECT}`;
+const commandLineSessionApproved = hasExplicitLocalSessionApproval(process.argv.slice(2));
 
 // Hosted Supabase configuration is never inherited by lifecycle or test children.
 const safeEnvironment = Object.fromEntries(
@@ -127,8 +129,11 @@ async function updateTestBranch() {
     return false;
   }
   if (behind === 0) return true;
-  if (!stdin.isTTY) return false;
   console.log(`Exact command: git merge --ff-only ${remoteRef}`);
+  if (commandLineSessionApproved) {
+    return git(["merge", "--ff-only", remoteRef], { stdio: "inherit" }).status === 0;
+  }
+  if (!stdin.isTTY) return false;
   const prompt = createInterface({ input: stdin, output: stdout });
   const approval = await prompt.question('Type "APPROVE TEST BRANCH UPDATE" to continue: ');
   prompt.close();
@@ -199,12 +204,16 @@ function runStage(name, executable, args, environment = safeEnvironment) {
 }
 
 async function approveLocalSession() {
-  if (!stdin.isTTY) return false;
   console.log("\n========== Local Supabase test-session approval ==========");
   console.log(`Exact startup command: cd ${LOCAL_WORKSPACE} && npx --yes ${LOCAL_SUPABASE_CLI} start`);
   console.log(`Exact cleanup targets: only the ${LOCAL_PROJECT} container and volume allowlists.`);
   console.log("The cleanup removes synthetic local data so every run replays all migrations from scratch.");
   console.log("Hosted Supabase variables are stripped; no hosted URL, credential, or project reference is used.");
+  if (commandLineSessionApproved) {
+    console.log("PASS: this lifecycle was explicitly approved with the one-command approval flag.");
+    return true;
+  }
+  if (!stdin.isTTY) return false;
   const prompt = createInterface({ input: stdin, output: stdout });
   const approval = await prompt.question('Type "APPROVE LOCAL TEST SESSION" to continue: ');
   prompt.close();
