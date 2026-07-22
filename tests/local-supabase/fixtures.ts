@@ -25,7 +25,7 @@ export type SecurityFixture = {
   cleanup: () => Promise<void>;
 };
 
-async function createSyntheticUser(label: string): Promise<SyntheticUser> {
+export async function createSyntheticUser(label: string): Promise<SyntheticUser> {
   const nonce = crypto.randomUUID();
   const email = `${label}.${nonce}@local.invalid`;
   const password = `Local-only-${nonce}!`;

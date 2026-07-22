@@ -8,9 +8,14 @@ if (!parsed || parsed.protocol !== "http:" || !localHosts.has(parsed.hostname) |
   console.error("Refusing to run: LOCAL_SUPABASE_URL must be local HTTP on port 54321.");
   process.exit(2);
 }
-for (const name of ["LOCAL_SUPABASE_ANON_KEY", "LOCAL_SUPABASE_SERVICE_ROLE_KEY"]) {
-  if (!process.env[name] || process.env[name].split(".").length !== 3) {
-    console.error(`Refusing to run: ${name} must contain a local JWT.`);
+const keyContracts = [
+  ["LOCAL_SUPABASE_ANON_KEY", "sb_publishable_"],
+  ["LOCAL_SUPABASE_SERVICE_ROLE_KEY", "sb_secret_"],
+];
+for (const [name, modernPrefix] of keyContracts) {
+  const value = process.env[name];
+  if (!value || (value.split(".").length !== 3 && !value.startsWith(modernPrefix))) {
+    console.error(`Refusing to run: ${name} must contain a local JWT or ${modernPrefix} API key.`);
     process.exit(2);
   }
 }

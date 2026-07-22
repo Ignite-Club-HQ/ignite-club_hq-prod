@@ -1,16 +1,27 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const baseline = readFileSync("local-supabase-workspace/supabase/migrations/20260721000000_local_test_baseline.sql", "utf8");
-const storage = readFileSync("local-supabase-workspace/supabase/migrations/20260721001000_local_storage_baseline.sql", "utf8");
 const config = readFileSync("local-supabase-workspace/supabase/config.toml", "utf8");
-const combined = `${baseline}\n${storage}\n${config}`;
+const migrationDirectory = "local-supabase-workspace/supabase/migrations";
+const migrations = readdirSync(migrationDirectory)
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) => readFileSync(`${migrationDirectory}/${name}`, "utf8"));
+const combined = `${migrations.join("\n")}\n${config}`;
 
 describe("local baseline: static drift and remote-target safety", () => {
   it("contains no hosted Supabase URL, database URL or JWT", () => {
     expect(combined).not.toMatch(/https?:\/\/[^\s"']+\.supabase\.co/i);
     expect(combined).not.toMatch(/postgres(?:ql)?:\/\//i);
     expect(combined).not.toMatch(/eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/);
+  });
+
+  it("contains no hosted API keys, Riverside data or non-local project reference", () => {
+    expect(combined).not.toMatch(/sb_(?:secret|publishable)_[A-Za-z0-9_-]+/);
+    expect(combined).not.toMatch(/riverside/i);
+    const projectIds = [...config.matchAll(/^project_id\s*=\s*"([^"]+)"/gm)].map((match) => match[1]);
+    expect(projectIds).toEqual(["ignite-club-local-security-tests"]);
   });
 
   it("contains no remote migration or project-linking command", () => {
@@ -24,7 +35,7 @@ describe("local baseline: static drift and remote-target safety", () => {
   });
 
   it("pins security-definer helper search paths", () => {
-    const definitions = baseline.match(/security definer[^;]+/gi) ?? [];
+    const definitions = migrations.flatMap((migration) => migration.match(/security definer[^;]+/gi) ?? []);
     expect(definitions.length).toBeGreaterThan(5);
     for (const definition of definitions) expect(definition).toMatch(/set search_path\s*=/i);
   });

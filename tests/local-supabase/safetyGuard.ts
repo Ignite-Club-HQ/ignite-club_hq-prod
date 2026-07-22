@@ -24,8 +24,12 @@ function requireLocalUrl(raw: string | undefined) {
   return url.origin;
 }
 
-function requireJwt(value: string | undefined, label: string) {
-  if (!value || value.split(".").length !== 3) throw new Error(`${label} must be a local JWT`);
+function requireLocalApiKey(value: string | undefined, label: string, modernPrefix: string) {
+  const isLegacyJwt = value?.split(".").length === 3;
+  const isModernLocalKey = value?.startsWith(modernPrefix) && value.length > modernPrefix.length + 16;
+  if (!isLegacyJwt && !isModernLocalKey) {
+    throw new Error(`${label} must be a local JWT or ${modernPrefix} API key`);
+  }
   return value;
 }
 
@@ -34,8 +38,7 @@ export function assertLocalSupabaseEnvironment(
 ): LocalSupabaseEnvironment {
   return {
     url: requireLocalUrl(source.LOCAL_SUPABASE_URL),
-    anonKey: requireJwt(source.LOCAL_SUPABASE_ANON_KEY, "LOCAL_SUPABASE_ANON_KEY"),
-    serviceRoleKey: requireJwt(source.LOCAL_SUPABASE_SERVICE_ROLE_KEY, "LOCAL_SUPABASE_SERVICE_ROLE_KEY"),
+    anonKey: requireLocalApiKey(source.LOCAL_SUPABASE_ANON_KEY, "LOCAL_SUPABASE_ANON_KEY", "sb_publishable_"),
+    serviceRoleKey: requireLocalApiKey(source.LOCAL_SUPABASE_SERVICE_ROLE_KEY, "LOCAL_SUPABASE_SERVICE_ROLE_KEY", "sb_secret_"),
   };
 }
-

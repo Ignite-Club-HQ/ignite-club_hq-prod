@@ -17,21 +17,17 @@ The test runner accepts only `http://127.0.0.1:54321` or
 application Supabase configuration.
 
 Realtime, Storage, local email capture, and Edge Runtime are configured in the
-isolated workspace because they support required later test layers. The initial
-start command may still exclude them while validating the core schema. Each
-service is included only by a separately reviewed start command and its tests
-remain opt-in until that service is confirmed local.
+isolated workspace because they support the required integration layers.
 
 Studio, analytics/log shipping, image transformation, connection pooling, and
 database administration metadata remain disabled or excluded. They do not add
 business-behaviour test coverage. Image transformation can be reviewed later if
 the application begins relying on transformed-media authorization.
 
-The Realtime suite is already designed in `tests/local-supabase/realtime-isolation.test.ts`.
-It remains skipped unless the local stack was deliberately started with
-Realtime and `LOCAL_SUPABASE_REALTIME_ENABLED=true` is supplied to the guarded
-runner. It covers authorized delivery, cross-club denial, exact row filtering,
-revocation and unsubscribe cleanup.
+The Realtime suite in `tests/local-supabase/realtime-isolation.test.ts` runs in
+the complete baseline with `LOCAL_SUPABASE_REALTIME_ENABLED=true`. It covers
+authorized delivery, cross-club denial, exact row filtering, revocation and
+unsubscribe cleanup.
 
 Storage integration tests will cover private bucket upload, authorized signed
 access, cross-club denial, deletion, and post-revocation denial. Edge Runtime
@@ -48,7 +44,9 @@ The baseline intentionally contains only the schema required to test:
 - exact-club Free/Pro entitlements;
 - atomic guardian invitation acceptance;
 - event and RSVP permissions; and
-- minimal private-media authorization.
+- minimal private-media authorization;
+- competition creation, invitation and response; and
+- notification preferences, isolation and read state.
 
 The schema was reconstructed from repository-controlled types and migrations.
 It is not proof that the hosted schema is identical. Any later production
@@ -61,15 +59,22 @@ schema work must be independently reviewed.
 3. Review the exact local start and cleanup commands printed by the runner,
    then approve the complete local test session.
 4. Verify every reported URL uses localhost.
-5. The runner supplies only its fixed local API URL and local demo keys to the
-   integration process; inherited Supabase and database variables are removed.
-6. The runner executes frontend, Playwright, and local integration stages.
-7. The runner stops the local stack after all stages, including when a test
-   stage fails, and reports cleanup as a required result in its summary.
+5. The runner removes only its explicitly allowlisted local containers and
+   volumes so every run starts with empty synthetic state.
+6. It discovers the generated publishable and secret keys from the isolated
+   local gateway; inherited Supabase and database variables are removed.
+7. It compares every migration filename with the local migration ledger and
+   refuses integration tests unless they match exactly.
+8. The runner executes frontend, Playwright, and local integration stages.
+9. In a final cleanup (including failures and interruption), it removes and
+   verifies absence of all allowlisted local containers and volumes. Cleanup is
+   a required result in the summary.
 
-Start and cleanup use the pinned CLI version embedded in the runner. Both exact
-commands are shown before execution and covered by one explicit local-session
-approval; neither command contains hosted configuration or a remote target.
+Startup uses the pinned CLI version embedded in the runner. Cleanup uses an
+explicit immutable allowlist of Docker resources whose names end in
+`ignite-club-local-security-tests`. The action and targets are shown before
+execution and covered by one explicit local-session approval; no lifecycle
+command contains hosted configuration or a remote target.
 
 ## Rollback
 
