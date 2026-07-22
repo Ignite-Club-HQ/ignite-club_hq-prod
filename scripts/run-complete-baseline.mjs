@@ -27,6 +27,7 @@ const TEST_REMOTE = "origin";
 const DB_CONTAINER = `supabase_db_${LOCAL_PROJECT}`;
 const KONG_CONTAINER = `supabase_kong_${LOCAL_PROJECT}`;
 const commandLineSessionApproved = hasExplicitLocalSessionApproval(process.argv.slice(2));
+const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
 
 // Hosted Supabase configuration is never inherited by lifecycle or test children.
 const safeEnvironment = Object.fromEntries(
@@ -107,6 +108,15 @@ process.once("SIGTERM", () => cleanupAfterSignal("SIGTERM"));
 
 async function updateTestBranch() {
   console.log("\n========== Test branch update preflight ==========");
+  if (isGitHubActions) {
+    const refName = process.env.GITHUB_REF_NAME;
+    if (refName !== TEST_BRANCH) {
+      console.error(`Refusing GitHub Actions run: expected ref ${TEST_BRANCH}, found ${refName || "unknown"}.`);
+      return false;
+    }
+    console.log(`PASS: GitHub Actions checked out the immutable ${TEST_BRANCH} workflow commit.`);
+    return true;
+  }
   const branch = git(["branch", "--show-current"]);
   const currentBranch = branch.stdout?.trim();
   if (branch.status !== 0 || currentBranch !== TEST_BRANCH) {
