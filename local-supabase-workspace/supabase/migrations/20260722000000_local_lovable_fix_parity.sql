@@ -112,7 +112,6 @@ returns boolean language sql stable security definer set search_path = public as
     select 1 from public.competitions c
     where c.id = _competition_id and (
       c.visibility = 'public'
-      or c.created_by = _user_id
       or public.is_competition_admin(_user_id, c.id)
       or exists (
         select 1 from public.competition_entries ce
@@ -121,3 +120,12 @@ returns boolean language sql stable security definer set search_path = public as
     )
   );
 $$;
+
+-- INSERT ... RETURNING must evaluate creator visibility directly against the
+-- new row rather than through a helper subquery over public.competitions.
+drop policy if exists competitions_select on public.competitions;
+create policy competitions_select on public.competitions for select
+  using (
+    created_by = (select auth.uid())
+    or public.can_view_competition((select auth.uid()), id)
+  );
