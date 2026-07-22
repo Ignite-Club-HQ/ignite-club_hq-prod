@@ -55,6 +55,8 @@ function extractBearerToken(authHeader: string | null): string | null {
   const lower = token.toLowerCase();
   if (lower === "undefined" || lower === "null") return null;
   return token;
+}
+
 
 async function checkRateLimit(
   supabase: any,
