@@ -15,6 +15,7 @@
     "test:gestures": "vitest run \"src/components/chat/FullscreenImageViewer.*.test.tsx\"",
     "test:matrix": "vitest run --config vitest.matrix.config.ts",
     "test:capacitor-upgrade": "CAPACITOR_UPGRADE_CANDIDATE=true vitest run src/test/capacitorUpgradeSafety.test.ts",
+    "test:fabric-upgrade": "FABRIC_UPGRADE_CANDIDATE=true vitest run src/test/fabricUpgradeSafety.test.ts src/hooks/useLazyFabric.test.tsx src/components/pitch/hooks/usePitchBoardDrawing.test.tsx src/components/pitch/pitchOrchestration.sim.test.ts src/hooks/usePitchBoardNotifications.test.tsx",
     "test:e2e-baseline": "playwright test --config playwright.baseline.config.ts",
     "test:baseline": "node scripts/run-complete-baseline.mjs",
     "test:local-supabase": "node scripts/run-local-supabase-tests.mjs",
