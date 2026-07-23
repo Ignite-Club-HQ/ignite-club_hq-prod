@@ -53,7 +53,7 @@ export function useChatPinnedVault(
   useEffect(() => {
     if (!chatId || !enabledOpt) return;
     const channel = supabase
-      .channel(`chat-pinned-vault-${chatType}-${chatId}`)
+      .channel(`chat-pinned-vault-${chatType}-${chatId}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         {
