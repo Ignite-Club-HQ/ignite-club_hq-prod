@@ -25,7 +25,8 @@ Deno.test("event title with img/onerror is escaped, no element or handler is cre
     eventTitle: `<img src="x" onerror="alert(1)">`,
   });
   assert(!/<img\b[^>]*onerror/i.test(html), "must not render an <img> with onerror");
-  assert(!/\sonerror\s*=/i.test(html), "must not render a raw onerror attribute");
+  // The literal text "onerror=" may appear as escaped body text; the important
+  // guarantee is that it is not part of a real HTML tag/attribute.
   assertStringIncludes(html, "&lt;img");
   assertStringIncludes(html, "onerror=&quot;alert(1)&quot;");
 });
