@@ -911,21 +911,36 @@ export default function EditEventPage() {
 
                 ) : (
                   <MobileCardSelect
-                    value={selectedTeamId || (type === "social" ? "__none__" : "")}
+                    value={selectedTeamId || ((type === "social" || type === "game") ? "__none__" : "")}
                     onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
                     options={[
-                      ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__none__", label: "Club-wide event" }]
+                        : []),
                       ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
+                    placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
                     label="Team"
-                    required={type !== "social"}
+                    required={type === "training"}
                   />
                 )}
-                {type === "social" && (
+                {(type === "social" || type === "game") && (
                   <p className="text-xs text-muted-foreground">
-                    Leave blank for club-wide events.
+                    Leave blank for a club-wide event.
                   </p>
+                )}
+                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
+                  />
                 )}
               </div>
 
