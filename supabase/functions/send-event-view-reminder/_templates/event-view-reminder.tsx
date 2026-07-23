@@ -199,7 +199,7 @@ export const EventViewReminderEmail = ({
           <Section style={footerSection}>
             <Text style={footerText}>
               This reminder was sent by {clubName}. 
-              <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
+              <Link href={normalizedEventLink} style={{ color: safePrimaryColor }}> Manage your notification preferences</Link>
             </Text>
             <Text style={photoConsentText}>
               📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite Club HQ. 
