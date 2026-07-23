@@ -140,6 +140,7 @@ export default function CreateEventPage() {
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
+  const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -650,10 +651,11 @@ export default function CreateEventPage() {
     // Remember last used event type
     localStorage.setItem("lastEventType", type);
 
-    if ((type === "game" || type === "training") && !teamId) {
+    // Training always requires a team. Games can be "All Club" (club-wide match).
+    if (type === "training" && !teamId) {
       toast({
         title: "Team required",
-        description: "Please select a team for games and training sessions.",
+        description: "Please select a team for training sessions.",
       });
       return;
     }
@@ -761,7 +763,9 @@ export default function CreateEventPage() {
       restricted_to_roles:
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       adults_only: adultsOnly,
-    };
+      rsvp_grouping:
+        !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+    } as any;
 
     try {
       if (isRecurring) {
@@ -1138,16 +1142,33 @@ export default function CreateEventPage() {
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
                   <MobileCardSelect
-                    value={teamId || (type === "social" ? "__all__" : "")}
+                    value={teamId || ((type === "social" || type === "game") ? "__all__" : "")}
                     onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
                     options={[
-                      ...(type === "social" ? [{ value: "__all__", label: "All Club" }] : []),
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__all__", label: "All Club" }]
+                        : []),
                       ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={type === "social" ? "All Club" : "Select team"}
+                    placeholder={(type === "social" || type === "game") ? "All Club" : "Select team"}
                     label="Team"
                     disabled={!clubId}
-                    required={type !== "social"}
+                    required={type === "training"}
+                  />
+                )}
+
+                {/* RSVP grouping - only for club-wide game/social events */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
                   />
                 )}
                 

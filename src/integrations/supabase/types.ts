@@ -4118,6 +4118,7 @@ export type Database = {
           requires_payment: boolean | null
           restricted_to_roles: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience: string | null
+          rsvp_grouping: string | null
           start_time: string | null
           state: string | null
           suburb: string | null
@@ -4172,6 +4173,7 @@ export type Database = {
           requires_payment?: boolean | null
           restricted_to_roles?: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience?: string | null
+          rsvp_grouping?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
@@ -4226,6 +4228,7 @@ export type Database = {
           requires_payment?: boolean | null
           restricted_to_roles?: Database["public"]["Enums"]["app_role"][] | null
           rsvp_audience?: string | null
+          rsvp_grouping?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
