@@ -591,7 +591,11 @@ export default function EditEventPage() {
         restricted_to_roles:
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
         adults_only: adultsOnly,
-      };
+        rsvp_grouping:
+          !selectedTeamId && (type === "game" || type === "social") && rsvpGrouping
+            ? rsvpGrouping
+            : null,
+      } as any;
 
       // If converting single event to recurring series
       if (enableRecurring && !isRecurring) {
