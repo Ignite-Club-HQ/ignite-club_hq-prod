@@ -59,6 +59,13 @@ async function installSyntheticSession(page: import("@playwright/test").Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // These journeys exercise authentication and account/club boundaries, not
+  // the delayed app-install promotion. Mark that unrelated prompt as recently
+  // dismissed so it cannot cover an interaction on a slower CI runner.
+  await page.addInitScript(() => {
+    localStorage.setItem("ios-install-prompt-dismissed", Date.now().toString());
+  });
+
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (!LOOPBACK_HOSTS.has(url.hostname)) {
