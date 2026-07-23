@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import * as React from "npm:react@18.3.1";
-import { EventViewReminderEmail } from "./event-view-reminder.tsx";
+import { EventViewReminderEmail } from "./_templates/event-view-reminder.tsx";
 
 async function render(props: Record<string, unknown>): Promise<string> {
   // deno-lint-ignore no-explicit-any
@@ -100,7 +100,7 @@ Deno.test("template contains no dangerouslySetInnerHTML output artefacts", async
 });
 
 Deno.test("source file no longer references dangerouslySetInnerHTML", async () => {
-  const src = await Deno.readTextFile(new URL("./event-view-reminder.tsx", import.meta.url));
+  const src = await Deno.readTextFile(new URL("./_templates/event-view-reminder.tsx", import.meta.url));
   assert(
     !src.includes("dangerouslySetInnerHTML"),
     "event-view-reminder.tsx must not use dangerouslySetInnerHTML",
