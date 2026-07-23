@@ -651,10 +651,11 @@ export default function CreateEventPage() {
     // Remember last used event type
     localStorage.setItem("lastEventType", type);
 
-    if ((type === "game" || type === "training") && !teamId) {
+    // Training always requires a team. Games can be "All Club" (club-wide match).
+    if (type === "training" && !teamId) {
       toast({
         title: "Team required",
-        description: "Please select a team for games and training sessions.",
+        description: "Please select a team for training sessions.",
       });
       return;
     }
