@@ -19,4 +19,7 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
+  build: {
+    target: ["es2020", "safari15"],
+  },
 }));
