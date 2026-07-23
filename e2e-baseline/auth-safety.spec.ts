@@ -183,14 +183,26 @@ test("sign-out clears the previous account's local caches but preserves unrelate
     localStorage.setItem("ignite_message_cache_team_private-team", JSON.stringify([{ id: "private-message" }]));
     localStorage.setItem("ignite_active_club_theme_00000000-0000-4000-8000-000000000001", "private-club");
     localStorage.setItem("third_party_consent", "preserve-me");
+    localStorage.setItem("ios-install-prompt-dismissed", Date.now().toString());
   });
   await page.goto("/events");
 
+  // The header is rendered before membership and schedule loading completes.
+  // Wait for the page's observable ready state so an initial rerender cannot
+  // replace the open menu between pointer-down and selection.
+  await expect(page.getByText("No upcoming events", { exact: true })).toBeVisible();
+
   const profileButton = page.locator("header button").last();
   await profileButton.click();
-  await page.getByText("Sign Out", { exact: true }).click();
+  const signOutMenuItem = page.getByRole("menuitem", { name: "Sign Out" });
+  await expect(signOutMenuItem).toBeEnabled();
+  await signOutMenuItem.click();
 
-  await expect(page).toHaveURL(/\/auth(?:\?|$)/);
+  // Sign-out awaits session revocation before clearing user state. Under a
+  // loaded CI worker that transition can legitimately exceed Playwright's
+  // five-second assertion default, so allow this one async boundary enough
+  // time without weakening the required destination or storage assertions.
+  await expect(page).toHaveURL(/\/auth(?:\?|$)/, { timeout: 12_000 });
   const storage = await page.evaluate(() => ({
     igniteKeys: Object.keys(localStorage).filter((key) => key.startsWith("ignite_")),
     unrelated: localStorage.getItem("third_party_consent"),
