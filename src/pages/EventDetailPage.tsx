@@ -74,6 +74,7 @@ import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponso
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
+import { ClubWideRsvpBreakdown } from "@/components/event/ClubWideRsvpBreakdown";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
@@ -3566,6 +3567,16 @@ export default function EventDetailPage() {
                 </div>
               );
             })()}
+            {!event?.team_id && event?.club_id &&
+              ((event as any).rsvp_grouping === "level" || (event as any).rsvp_grouping === "team") && (
+                <div className="mb-3">
+                  <ClubWideRsvpBreakdown
+                    eventId={id!}
+                    clubId={event.club_id}
+                    grouping={(event as any).rsvp_grouping}
+                  />
+                </div>
+              )}
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}

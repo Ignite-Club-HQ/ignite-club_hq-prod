@@ -46,7 +46,7 @@ function sanitizeError(error: unknown): string {
 
 // Reject missing, empty, whitespace-only, "undefined" / "null" or malformed
 // bearer tokens BEFORE any downstream call.
-function extractBearerToken(authHeader: string | null): string | null {
+export function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader || typeof authHeader !== "string") return null;
   const trimmed = authHeader.trim();
   if (!trimmed.toLowerCase().startsWith("bearer ")) return null;
@@ -55,6 +55,8 @@ function extractBearerToken(authHeader: string | null): string | null {
   const lower = token.toLowerCase();
   if (lower === "undefined" || lower === "null") return null;
   return token;
+}
+
 
 async function checkRateLimit(
   supabase: any,
