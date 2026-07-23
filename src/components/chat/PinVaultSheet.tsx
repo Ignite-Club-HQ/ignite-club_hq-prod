@@ -52,6 +52,9 @@ export function PinVaultSheet({
   const { record, save, isSaving, toggleEnabled, remove } = useChatPinnedVault(
     chatType,
     chatId,
+    // Sheet is a secondary consumer — only run the query while open, and never
+    // own the realtime channel (the parent chat page already subscribes).
+    { enabled: open, subscribe: false },
   );
 
   // Local working copy
