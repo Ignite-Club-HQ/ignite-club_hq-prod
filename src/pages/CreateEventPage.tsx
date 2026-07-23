@@ -1142,16 +1142,33 @@ export default function CreateEventPage() {
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
                   <MobileCardSelect
-                    value={teamId || (type === "social" ? "__all__" : "")}
+                    value={teamId || ((type === "social" || type === "game") ? "__all__" : "")}
                     onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
                     options={[
-                      ...(type === "social" ? [{ value: "__all__", label: "All Club" }] : []),
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__all__", label: "All Club" }]
+                        : []),
                       ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={type === "social" ? "All Club" : "Select team"}
+                    placeholder={(type === "social" || type === "game") ? "All Club" : "Select team"}
                     label="Team"
                     disabled={!clubId}
-                    required={type !== "social"}
+                    required={type === "training"}
+                  />
+                )}
+
+                {/* RSVP grouping - only for club-wide game/social events */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
                   />
                 )}
                 
