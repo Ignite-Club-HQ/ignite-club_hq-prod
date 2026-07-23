@@ -126,9 +126,81 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("a signed-out visitor cannot remain on a protected route", async ({ page }) => {
-  await page.goto("/events");
+  const protectedDestination = "/events?view=calendar#upcoming";
+  await page.goto(protectedDestination);
   await expect(page).toHaveURL(/\/auth(?:\?|$)/);
   await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("redirectAfterAuth"))).toBe(
+    protectedDestination,
+  );
+});
+
+test("password-recovery deep links remain public and preserve their email parameter", async ({ page }) => {
+  await page.goto("/verify-reset-code?email=member%2Bparent%40example.test");
+
+  await expect(
+    page.getByRole("heading", { name: "Enter your reset code" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveValue("member+parent@example.test");
+  await expect(page).toHaveURL(
+    /\/verify-reset-code\?email=member%2Bparent%40example\.test$/,
+  );
+});
+
+test("an auth URL containing a hostile redirect value cannot leave the app origin", async ({ page }) => {
+  await page.goto(
+    "/auth?redirect=%5C%5Cattacker.example%2Fphishing%3Fsession%3Dstolen",
+  );
+
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  const current = new URL(page.url());
+  expect(LOOPBACK_HOSTS.has(current.hostname)).toBe(true);
+  expect(current.pathname).toBe("/auth");
+});
+
+test("authentication returns to the protected deep link without corrupting browser history", async ({ page }) => {
+  const priorPublicLocation =
+    "/verify-reset-code?email=history%40example.test";
+  await page.goto(priorPublicLocation);
+  await expect(
+    page.getByRole("heading", { name: "Enter your reset code" }),
+  ).toBeVisible();
+
+  const protectedDestination = "/events?view=calendar#upcoming";
+  await page.goto(protectedDestination);
+  await expect(page).toHaveURL(/\/auth(?:\?|$)/);
+  expect(await page.evaluate(() => sessionStorage.getItem("redirectAfterAuth"))).toBe(
+    protectedDestination,
+  );
+
+  const accessToken = syntheticJwt();
+  await page.evaluate(
+    ({ user, token }) => {
+      localStorage.setItem("sb-127-auth-token", JSON.stringify({
+        access_token: token,
+        refresh_token: "synthetic-refresh-token",
+        expires_at: 4_102_444_800,
+        expires_in: 3600,
+        token_type: "bearer",
+        user,
+      }));
+    },
+    { user: syntheticUser, token: accessToken },
+  );
+  await page.reload();
+
+  await expect(page).toHaveURL(
+    /\/events\?view=calendar#upcoming$/,
+    { timeout: 12_000 },
+  );
+  expect(await page.evaluate(() => sessionStorage.getItem("redirectAfterAuth"))).toBeNull();
+
+  await page.goBack();
+  await expect(page).toHaveURL(
+    /\/verify-reset-code\?email=history%40example\.test$/,
+  );
+  await page.goForward();
+  await expect(page).toHaveURL(/\/events\?view=calendar#upcoming$/);
 });
 
 test("invalid sign-in input is rejected without an authentication request", async ({ page }) => {

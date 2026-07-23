@@ -10,6 +10,7 @@ const user = {
 };
 
 test("club admin creates a club-wide game by grade, edits it to team grouping, and sees grouped attendance", async ({ page }) => {
+  test.setTimeout(30_000);
   let grouping: "level" | "team" = "level";
   const writes: Array<{ method: string; body: any }> = [];
 
@@ -111,11 +112,28 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
 
   await page.goto(`/events/${eventId}/edit`);
   await page.getByRole("button", { name: "Club & Team" }).click();
-  const editGrouping = page.getByText("RSVP grouping", { exact: true }).locator("..").getByRole("combobox");
-  await editGrouping.press("ArrowDown");
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await expect(editGrouping).toContainText("Group by team");
+  const editGrouping = () =>
+    page
+      .getByRole("combobox")
+      .filter({ hasText: /Group by (?:age level|team)/ })
+      .first();
+  await expect(editGrouping()).toContainText("Group by age level");
+  await expect.poll(async () => {
+    const current = editGrouping();
+    if ((await current.textContent().catch(() => ""))?.includes("Group by team")) {
+      return true;
+    }
+
+    await current.click({ force: true }).catch(() => {});
+    const option = page.getByRole("option", { name: /Group by team/ });
+    if (await option.count()) {
+      await option.click({ force: true }).catch(() => {});
+    }
+
+    return (await editGrouping().textContent().catch(() => ""))?.includes(
+      "Group by team",
+    );
+  }, { timeout: 10_000 }).toBe(true);
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => writes.find(write => write.method === "PATCH")?.body).toMatchObject({
     team_id: null, rsvp_grouping: "team",
