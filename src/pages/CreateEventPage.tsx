@@ -763,7 +763,9 @@ export default function CreateEventPage() {
       restricted_to_roles:
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       adults_only: adultsOnly,
-    };
+      rsvp_grouping:
+        !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+    } as any;
 
     try {
       if (isRecurring) {
