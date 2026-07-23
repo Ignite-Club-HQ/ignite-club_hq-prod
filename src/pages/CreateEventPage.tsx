@@ -140,6 +140,7 @@ export default function CreateEventPage() {
   const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
+  const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
