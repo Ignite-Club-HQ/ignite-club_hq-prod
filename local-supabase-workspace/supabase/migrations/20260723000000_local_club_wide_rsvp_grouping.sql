@@ -29,7 +29,7 @@ create policy events_admin_insert on public.events for insert with check (
     ))
     or (
       public.has_role(auth.uid(), 'committee_member', club_id, null)
-      and type = 'social' and team_id is null
+      and type in ('social', 'game') and team_id is null
     )
   )
 );
@@ -43,6 +43,16 @@ create policy events_admin_update on public.events for update using (
   ))
   or (
     public.has_role(auth.uid(), 'committee_member', club_id, null)
-    and type = 'social' and team_id is null
+    and type in ('social', 'game') and team_id is null
+  )
+) with check (
+  public.has_role(auth.uid(), 'club_admin', club_id, null)
+  or (team_id is not null and (
+    public.has_role(auth.uid(), 'team_admin', null, team_id)
+    or public.has_role(auth.uid(), 'coach', null, team_id)
+  ))
+  or (
+    public.has_role(auth.uid(), 'committee_member', club_id, null)
+    and type in ('social', 'game') and team_id is null
   )
 );

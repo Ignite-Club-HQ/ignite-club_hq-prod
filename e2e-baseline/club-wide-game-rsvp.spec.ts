@@ -41,8 +41,16 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     if (url.pathname === "/rest/v1/user_roles") {
       const select = url.searchParams.get("select") || "";
       if (select === "club_id") return json([{ club_id: clubId }]);
-      if (select.includes("team_id")) return json([]);
-      return json([{ id: "role-1", role: "club_admin", club_id: clubId, user_id: userId }]);
+      if (select === "team_id") return json([]);
+      return json([{
+        id: "role-1", role: "club_admin", club_id: clubId, user_id: userId,
+        team_id: "team-u8-blue",
+        profiles: { id: userId, display_name: "Synthetic Admin" },
+      }, {
+        id: "role-2", role: "coach", club_id: clubId, user_id: "synthetic-coach-u10",
+        team_id: "team-u10-red",
+        profiles: { id: "synthetic-coach-u10", display_name: "Synthetic U10 Coach" },
+      }]);
     }
     if (url.pathname === "/rest/v1/clubs") return json([{
       id: clubId, name: "Synthetic Riverside FC",
@@ -65,12 +73,16 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       grouping = body.rsvp_grouping;
       return json([{ id: eventId, ...body }]);
     }
-    if (url.pathname === "/rest/v1/events") return json([{
+    if (url.pathname === "/rest/v1/events") {
+      const event = {
       id: eventId, club_id: clubId, team_id: null, created_by: userId,
       title: "Synthetic Club Game", type: "game", event_date: "2099-08-01T10:00:00Z",
       address: "Synthetic Oval", rsvp_grouping: grouping, is_cancelled: false,
       clubs: { name: "Synthetic Riverside FC" }, teams: null, mini_leagues: null,
-    }]);
+      };
+      const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
+      return json(singular ? event : [event]);
+    }
     if (url.pathname === "/rest/v1/profiles") return json([{
       id: userId, display_name: "Synthetic Admin",
     }]);
@@ -98,9 +110,16 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   });
 
   await page.goto(`/events/${eventId}/edit`);
+  await page.getByRole("button", { name: "Club & Team" }).click();
   const editGrouping = page.getByText("RSVP grouping", { exact: true }).locator("..").getByRole("combobox");
   await editGrouping.click();
-  await page.getByRole("option", { name: /Group by team/ }).click();
+  const teamOption = page.getByRole("option", { name: /Group by team/ });
+  await expect(teamOption).toBeVisible();
+  await page.evaluate(() => {
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(node => node.textContent?.includes("Group by team"));
+    option?.click();
+  });
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => writes.find(write => write.method === "PATCH")?.body).toMatchObject({
     team_id: null, rsvp_grouping: "team",
