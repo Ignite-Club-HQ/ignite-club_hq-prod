@@ -14,6 +14,7 @@
     "test:ci": "CI=true TZ=UTC vitest run",
     "test:gestures": "vitest run \"src/components/chat/FullscreenImageViewer.*.test.tsx\"",
     "test:matrix": "vitest run --config vitest.matrix.config.ts",
+    "test:capacitor-upgrade": "CAPACITOR_UPGRADE_CANDIDATE=true vitest run src/test/capacitorUpgradeSafety.test.ts",
     "test:e2e-baseline": "playwright test --config playwright.baseline.config.ts",
     "test:baseline": "node scripts/run-complete-baseline.mjs",
     "test:local-supabase": "node scripts/run-local-supabase-tests.mjs",
