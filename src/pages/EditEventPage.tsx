@@ -124,6 +124,7 @@ export default function EditEventPage() {
   const [teamDefaultRsvpAudience, setTeamDefaultRsvpAudience] = useState<RsvpAudience | null>(null);
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
+  const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -461,6 +462,8 @@ export default function EditEventPage() {
       const rr = (event as any).restricted_to_roles;
       setRestrictedRoles(Array.isArray(rr) ? (rr as ClubEventRole[]) : []);
       setAdultsOnly((event as any).adults_only === true);
+      const grp = (event as any).rsvp_grouping;
+      setRsvpGrouping(grp === "level" || grp === "team" ? grp : "");
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -588,7 +591,11 @@ export default function EditEventPage() {
         restricted_to_roles:
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
         adults_only: adultsOnly,
-      };
+        rsvp_grouping:
+          !selectedTeamId && (type === "game" || type === "social") && rsvpGrouping
+            ? rsvpGrouping
+            : null,
+      } as any;
 
       // If converting single event to recurring series
       if (enableRecurring && !isRecurring) {
@@ -904,21 +911,36 @@ export default function EditEventPage() {
 
                 ) : (
                   <MobileCardSelect
-                    value={selectedTeamId || (type === "social" ? "__none__" : "")}
+                    value={selectedTeamId || ((type === "social" || type === "game") ? "__none__" : "")}
                     onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
                     options={[
-                      ...(type === "social" ? [{ value: "__none__", label: "Club-wide event" }] : []),
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__none__", label: "Club-wide event" }]
+                        : []),
                       ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={type === "social" ? "Club-wide (optional)" : "Select team"}
+                    placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
                     label="Team"
-                    required={type !== "social"}
+                    required={type === "training"}
                   />
                 )}
-                {type === "social" && (
+                {(type === "social" || type === "game") && (
                   <p className="text-xs text-muted-foreground">
-                    Leave blank for club-wide events.
+                    Leave blank for a club-wide event.
                   </p>
+                )}
+                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
+                  />
                 )}
               </div>
 
