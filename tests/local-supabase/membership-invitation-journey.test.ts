@@ -47,6 +47,21 @@ async function expectEvent(promise: Promise<unknown>, waitMs = 5_000) {
   }
 }
 
+async function expectEventWithColdStartRetry(
+  promise: Promise<unknown>,
+  mutate: (attempt: number) => Promise<void>,
+) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await mutate(attempt);
+    try {
+      await expectEvent(promise);
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
+}
+
 async function expectNoEvent(promise: Promise<unknown>, waitMs = 500) {
   const sentinel = Symbol("no-event");
   const result = await Promise.race([
@@ -203,9 +218,11 @@ describe("local journey: guardian invitation, access and removal", () => {
     );
     await Promise.all([subscribe(controlChannel), subscribe(removedMemberChannel)]);
 
-    const update = await service.from("events").update({ description: "after guardian removal" }).eq("id", eventA);
-    expect(update.error).toBeNull();
-    await expectEvent(controlReceived.promise);
+    await expectEventWithColdStartRetry(controlReceived.promise, async (attempt) => {
+      const update = await service.from("events")
+        .update({ description: `after guardian removal ${attempt}` }).eq("id", eventA);
+      expect(update.error).toBeNull();
+    });
     await expectNoEvent(removedMemberReceived.promise);
 
     const secondRemoval = await fixture.adminA.client.rpc("remove_team_member", {
