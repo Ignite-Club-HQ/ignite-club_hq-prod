@@ -405,9 +405,15 @@ export default function CreateEventPage() {
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
-  // Auto-set social type for committee-only users (but never override mini league)
+  // Committee-only users may create club-wide games or socials.
+  // Force them off training / mini_league only.
   useEffect(() => {
-    if (isCommitteeOnlyForClub && type !== "social" && !isFromMiniLeague) {
+    if (
+      isCommitteeOnlyForClub &&
+      type !== "social" &&
+      type !== "game" &&
+      !isFromMiniLeague
+    ) {
       setType("social");
     }
   }, [isCommitteeOnlyForClub, type, isFromMiniLeague]);
@@ -995,10 +1001,10 @@ export default function CreateEventPage() {
           ))}
         </div>
       ) : (
-      <div className={cn("grid gap-2", isCommitteeOnlyForClub ? "grid-cols-1 max-w-[120px]" : "grid-cols-3")}>
+      <div className={cn("grid gap-2", isCommitteeOnlyForClub ? "grid-cols-2 max-w-[240px]" : "grid-cols-3")}>
         {EVENT_TYPES.map((eventType) => {
-          // Committee-only users can only create social events
-          if (isCommitteeOnlyForClub && eventType.value !== "social") return null;
+          // Committee-only users can create club-wide games or socials.
+          if (isCommitteeOnlyForClub && eventType.value !== "social" && eventType.value !== "game") return null;
 
           
           return (
@@ -1717,7 +1723,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg"
           onClick={() => handleSubmit()}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || ((type === "game" || type === "training") && !teamId)}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />

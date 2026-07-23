@@ -499,12 +499,12 @@ export default function EditEventPage() {
       return;
     }
 
-    // Require team selection for games and training, except mini-league events
+    // Training requires a team. Games can be club-wide ("All Club").
     const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
-    if ((type === "game" || type === "training") && !selectedTeamId && !isMiniLeagueEvent) {
+    if (type === "training" && !selectedTeamId && !isMiniLeagueEvent) {
       toast({
         title: "Team required",
-        description: "Please select a team for games and training sessions.",
+        description: "Please select a team for training sessions.",
       });
       return;
     }
