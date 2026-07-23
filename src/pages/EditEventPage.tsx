@@ -462,6 +462,8 @@ export default function EditEventPage() {
       const rr = (event as any).restricted_to_roles;
       setRestrictedRoles(Array.isArray(rr) ? (rr as ClubEventRole[]) : []);
       setAdultsOnly((event as any).adults_only === true);
+      const grp = (event as any).rsvp_grouping;
+      setRsvpGrouping(grp === "level" || grp === "team" ? grp : "");
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
