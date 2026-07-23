@@ -112,14 +112,10 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await page.goto(`/events/${eventId}/edit`);
   await page.getByRole("button", { name: "Club & Team" }).click();
   const editGrouping = page.getByText("RSVP grouping", { exact: true }).locator("..").getByRole("combobox");
-  await editGrouping.click();
-  const teamOption = page.getByRole("option", { name: /Group by team/ });
-  await expect(teamOption).toBeVisible();
-  await page.evaluate(() => {
-    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-      .find(node => node.textContent?.includes("Group by team"));
-    option?.click();
-  });
+  await editGrouping.press("ArrowDown");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await expect(editGrouping).toContainText("Group by team");
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => writes.find(write => write.method === "PATCH")?.body).toMatchObject({
     team_id: null, rsvp_grouping: "team",
