@@ -28,10 +28,14 @@ export function pinnedVaultKey(chatType: PinnedVaultChatType, chatId: string) {
 export function useChatPinnedVault(
   chatType: PinnedVaultChatType,
   chatId: string | undefined,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; subscribe?: boolean },
 ) {
   const qc = useQueryClient();
   const enabledOpt = options?.enabled ?? true;
+  // Owns the realtime channel. Default true preserves existing behaviour for
+  // page-level consumers; secondary consumers (e.g. PinVaultSheet) pass false
+  // to avoid a duplicate channel-name collision when both mount simultaneously.
+  const subscribeOpt = options?.subscribe ?? true;
 
   const query = useQuery({
     queryKey: pinnedVaultKey(chatType, chatId ?? ""),
@@ -51,7 +55,7 @@ export function useChatPinnedVault(
   });
 
   useEffect(() => {
-    if (!chatId || !enabledOpt) return;
+    if (!chatId || !enabledOpt || !subscribeOpt) return;
     const channel = supabase
       .channel(`chat-pinned-vault-${chatType}-${chatId}`)
       .on(
@@ -70,7 +74,7 @@ export function useChatPinnedVault(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [chatType, chatId, qc, enabledOpt]);
+  }, [chatType, chatId, qc, enabledOpt, subscribeOpt]);
 
   const save = useMutation({
     mutationFn: async (input: PinnedVaultTarget & { enabled?: boolean }) => {
