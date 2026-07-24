@@ -41,6 +41,20 @@ const signupPasswordSchema = z.string()
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
   .regex(/[0-9]/, "Password must contain at least one number");
+/**
+ * Sanitize a stored `redirectAfterAuth` value. Only permit same-origin,
+ * single-slash-prefixed paths. Rejects external URLs (`https://…`,
+ * `//evil.example`), non-string values, and empty/`/`/`/auth` destinations
+ * that would either loop or leak away from the app origin.
+ */
+function sanitizeRedirectAfterAuth(raw: string | null): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  if (!raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null; // protocol-relative
+  if (raw.startsWith("/\\")) return null;
+  if (raw === "/" || raw === "/auth" || raw.startsWith("/auth?") || raw.startsWith("/auth#")) return null;
+  return raw;
+}
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
