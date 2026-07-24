@@ -167,6 +167,55 @@ jobs:
           fi
           echo "✅ Guard passed."
 
+      - name: Detect changed edge functions
+        if: github.event_name == 'push'
+        id: edge_functions
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+
+          CHANGED=$(git diff --name-only "$BEFORE" HEAD -- 'supabase/functions/**' \
+            | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' \
+            | sort -u)
+
+          if [ -z "$CHANGED" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "deploy_all=false" >> "$GITHUB_OUTPUT"
+            echo "functions=" >> "$GITHUB_OUTPUT"
+            echo "✅ No edge function changes detected for this push."
+            exit 0
+          fi
+
+          if echo "$CHANGED" | grep -qx '_shared'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_all=true" >> "$GITHUB_OUTPUT"
+            echo "functions=" >> "$GITHUB_OUTPUT"
+            echo "⚠️  supabase/functions/_shared changed — deploy step will redeploy all functions after migrations pass."
+            exit 0
+          fi
+
+          FUNCS=""
+          for name in $CHANGED; do
+            if [ -f "supabase/functions/$name/index.ts" ]; then
+              FUNCS="$FUNCS $name"
+            else
+              echo "ℹ️  '$name' changed but has no index.ts on disk — likely deleted; deploy step will skip it."
+            fi
+          done
+          FUNCS=$(echo $FUNCS | xargs || true)
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "deploy_all=false" >> "$GITHUB_OUTPUT"
+          echo "functions=$FUNCS" >> "$GITHUB_OUTPUT"
+          if [ -z "$FUNCS" ]; then
+            echo "✅ Edge function paths changed, but no deployable function directories remain."
+          else
+            echo "Edge functions queued for deploy after migrations pass: $FUNCS"
+          fi
+
 
       - name: Skip dev-only migrations in PROD
         # Files whose first 5 lines contain:  -- prod-skip: dev-only
@@ -224,41 +273,20 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          BEFORE="${{ github.event.before }}"
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            BEFORE="HEAD^"
-          fi
+          CHANGED="${{ steps.edge_functions.outputs.changed }}"
+          DEPLOY_ALL="${{ steps.edge_functions.outputs.deploy_all }}"
+          FUNCS="${{ steps.edge_functions.outputs.functions }}"
 
-          # Collect distinct function directory names that had any file
-          # added/modified/deleted under supabase/functions/<name>/… in this push.
-          # Shared code under supabase/functions/_shared/ is treated as a
-          # dependency of every function — if it changes, redeploy all.
-          CHANGED=$(git diff --name-only "$BEFORE" HEAD -- 'supabase/functions/**' \
-            | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' \
-            | sort -u)
-
-          if [ -z "$CHANGED" ]; then
+          if [ "$CHANGED" != "true" ]; then
             echo "✅ No edge function changes in this push — skipping deploy."
             exit 0
           fi
 
-          if echo "$CHANGED" | grep -qx '_shared'; then
+          if [ "$DEPLOY_ALL" = "true" ]; then
             echo "⚠️  supabase/functions/_shared changed — redeploying ALL functions."
             supabase functions deploy --project-ref "$PROJECT_REF"
             exit 0
           fi
-
-          # Filter to functions that still exist on disk (skip deletions;
-          # use supabase--delete_edge_functions for removals).
-          FUNCS=""
-          for name in $CHANGED; do
-            if [ -f "supabase/functions/$name/index.ts" ]; then
-              FUNCS="$FUNCS $name"
-            else
-              echo "ℹ️  Skipping '$name' (no index.ts on disk — likely deleted)."
-            fi
-          done
-          FUNCS=$(echo $FUNCS | xargs || true)
 
           if [ -z "$FUNCS" ]; then
             echo "✅ No deployable function directories remain — nothing to do."
