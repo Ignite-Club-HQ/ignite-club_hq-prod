@@ -16,11 +16,11 @@ const corsHeaders = {
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("notify-join-request-decision");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     const authHeader = req.headers.get('Authorization');

@@ -120,11 +120,11 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-fcm-notification");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     const { userId, title, body, url, notificationId, tag, data, notificationType } = await req.json();

@@ -716,11 +716,11 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-email");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     // Check request size to prevent memory exhaustion

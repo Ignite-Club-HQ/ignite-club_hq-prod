@@ -9,11 +9,11 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-enrolment-notification-email");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   const authErr = requireServiceRoleAuth(req, corsHeaders);
   if (authErr) return authErr;

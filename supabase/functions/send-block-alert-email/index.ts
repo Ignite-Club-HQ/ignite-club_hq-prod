@@ -9,11 +9,11 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders }
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-block-alert-email");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");

@@ -60,11 +60,11 @@ async function getRecipients(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("notify-game-kickoff");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   const cronSecret = req.headers.get("x-cron-secret");
   const expected = Deno.env.get("CRON_SECRET");

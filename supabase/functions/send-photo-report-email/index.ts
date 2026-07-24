@@ -18,11 +18,11 @@ interface PhotoReportRequest {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders }
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-photo-report-email");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     const authHeader = req.headers.get("Authorization");

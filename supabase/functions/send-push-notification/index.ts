@@ -578,11 +578,11 @@ async function checkUserPreference(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   const __outboundBlocked = outboundBlockedResponse("send-push-notification");
-  if (__outboundBlocked) return __outboundBlocked;);
-  }
+  if (__outboundBlocked) return __outboundBlocked;
   
   try {
     const { userId, title, body, url, notificationId, tag, notificationType, data } = await req.json();
