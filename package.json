@@ -15,6 +15,7 @@
     "test:gestures": "vitest run \"src/components/chat/FullscreenImageViewer.*.test.tsx\"",
     "test:matrix": "vitest run --config vitest.matrix.config.ts",
     "test:capacitor-upgrade": "CAPACITOR_UPGRADE_CANDIDATE=true vitest run src/test/capacitorUpgradeSafety.test.ts",
+    "test:xmldom-upgrade": "XMLDOM_SECURITY_UPGRADE_CANDIDATE=true vitest run src/test/xmldomSecurityUpgradeSafety.test.ts src/test/capacitorUpgradeSafety.test.ts",
     "test:fabric-upgrade": "FABRIC_UPGRADE_CANDIDATE=true vitest run src/test/fabricUpgradeSafety.test.ts src/hooks/useLazyFabric.test.tsx src/components/pitch/hooks/usePitchBoardDrawing.test.tsx src/components/pitch/pitchOrchestration.sim.test.ts src/hooks/usePitchBoardNotifications.test.tsx",
     "test:vite-upgrade": "VITE_UPGRADE_CANDIDATE=true vitest run src/test/viteUpgradeSafety.test.ts src/test/transitiveSecurityUpgradeSafety.test.ts src/components/PushNotificationManager.test.tsx src/hooks/usePushSubscriptionHealth.test.tsx",
     "test:react-router-upgrade": "REACT_ROUTER_UPGRADE_CANDIDATE=true vitest run src/test/reactRouterUpgradeSafety.test.tsx src/components/layout/AppLayout.routing.test.tsx src/components/RouteErrorBoundary.routing.test.tsx src/pages/AuthPage.test.tsx src/pages/ShortInviteRedirect.test.tsx src/pages/CompetitionJoinPage.test.tsx src/components/PushNotificationManager.test.tsx",
