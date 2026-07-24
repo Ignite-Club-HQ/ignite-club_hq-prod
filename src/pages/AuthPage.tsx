@@ -163,6 +163,61 @@ export default function AuthPage() {
   // would see empty storage and fall through to `/`, overwriting the intended
   // destination before the first <Navigate> had committed.
   const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null);
+
+  // Resolve the post-auth destination exactly once, after auth + profile
+  // state has settled. Consuming `redirectAfterAuth` here (rather than during
+  // render) guarantees the pending destination is removed on the same commit
+  // as the target is stored in React state, so a subsequent re-render cannot
+  // observe empty storage and mistakenly default to `/`.
+  useEffect(() => {
+    if (postAuthTarget) return;
+    if (!user) return;
+    // Wait until auth is fully settled — matches shouldHoldAuthenticatedRedirect.
+    if (!initialized || profileLoading) return;
+    if (!profileResolved && !profileError) return;
+
+    if (profileError) {
+      setPostAuthTarget("/");
+      return;
+    }
+
+    const stored = sessionStorage.getItem("redirectAfterAuth");
+    const safe = sanitizeRedirectAfterAuth(stored);
+    if (safe) {
+      sessionStorage.removeItem("redirectAfterAuth");
+      console.log("[AuthPage] Authenticated, redirecting to:", safe);
+      setPostAuthTarget(safe);
+      return;
+    }
+    // Storage held nothing usable — clear any garbage/hostile value so a
+    // later sign-in can't inherit it.
+    if (stored) sessionStorage.removeItem("redirectAfterAuth");
+
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isFreshSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
+    if (!profile?.display_name || (isFreshSignup && !profile?.avatar_url)) {
+      console.log("[AuthPage] Authenticated, redirecting to complete-profile", {
+        hasName: !!profile?.display_name,
+        hasAvatar: !!profile?.avatar_url,
+        isFreshSignup,
+      });
+      setPostAuthTarget("/complete-profile");
+      return;
+    }
+
+    console.log("[AuthPage] Authenticated, redirecting to home");
+    clearInviteFlowContext();
+    setPostAuthTarget("/");
+  }, [
+    user,
+    initialized,
+    profileLoading,
+    profileResolved,
+    profileError,
+    profile,
+    postAuthTarget,
+  ]);
+
   const { 
     isAvailable, 
     isRegistered,
