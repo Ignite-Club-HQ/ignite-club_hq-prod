@@ -145,6 +145,7 @@
   },
   "overrides": {
     "@grpc/grpc-js": "^1.9.16",
+    "@xmldom/xmldom": "0.8.13",
     "dompurify": "^3.4.12",
     "lodash": "^4.18.1",
     "protobufjs": "^7.6.5",

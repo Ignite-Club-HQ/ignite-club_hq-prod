@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +14,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const __outboundBlocked = outboundBlockedResponse("notify-new-member-events");
+  if (__outboundBlocked) return __outboundBlocked;
 
   try {
     const { userId, teamId, clubId } = await req.json();
