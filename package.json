@@ -143,6 +143,11 @@
     "undici": "^7.28.0",
     "websocket-driver": "^0.7.5",
     "workbox-build": "^7.4.1",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "vite": "$vite",
+    "postcss": "$postcss",
+    "vitest": {
+      "picomatch": "4.0.5"
+    }
   }
 }
