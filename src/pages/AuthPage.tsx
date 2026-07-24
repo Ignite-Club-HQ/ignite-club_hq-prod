@@ -41,6 +41,20 @@ const signupPasswordSchema = z.string()
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
   .regex(/[0-9]/, "Password must contain at least one number");
+/**
+ * Sanitize a stored `redirectAfterAuth` value. Only permit same-origin,
+ * single-slash-prefixed paths. Rejects external URLs (`https://…`,
+ * `//evil.example`), non-string values, and empty/`/`/`/auth` destinations
+ * that would either loop or leak away from the app origin.
+ */
+function sanitizeRedirectAfterAuth(raw: string | null): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  if (!raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null; // protocol-relative
+  if (raw.startsWith("/\\")) return null;
+  if (raw === "/" || raw === "/auth" || raw.startsWith("/auth?") || raw.startsWith("/auth#")) return null;
+  return raw;
+}
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -140,6 +154,70 @@ export default function AuthPage() {
     signInWithGoogle,
     loading: authLoading,
   } = useAuth();
+
+  // Post-auth navigation target is resolved exactly once, in an effect, so
+  // that the pending `redirectAfterAuth` in sessionStorage is consumed
+  // synchronously with committing the target into React state. Reading +
+  // removing during render (React Router 7's <Navigate> defers navigation to
+  // useEffect) previously produced a race: an extra render after removal
+  // would see empty storage and fall through to `/`, overwriting the intended
+  // destination before the first <Navigate> had committed.
+  const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null);
+
+  // Resolve the post-auth destination exactly once, after auth + profile
+  // state has settled. Consuming `redirectAfterAuth` here (rather than during
+  // render) guarantees the pending destination is removed on the same commit
+  // as the target is stored in React state, so a subsequent re-render cannot
+  // observe empty storage and mistakenly default to `/`.
+  useEffect(() => {
+    if (postAuthTarget) return;
+    if (!user) return;
+    // Wait until auth is fully settled — matches shouldHoldAuthenticatedRedirect.
+    if (!initialized || profileLoading) return;
+    if (!profileResolved && !profileError) return;
+
+    if (profileError) {
+      setPostAuthTarget("/");
+      return;
+    }
+
+    const stored = sessionStorage.getItem("redirectAfterAuth");
+    const safe = sanitizeRedirectAfterAuth(stored);
+    if (safe) {
+      sessionStorage.removeItem("redirectAfterAuth");
+      console.log("[AuthPage] Authenticated, redirecting to:", safe);
+      setPostAuthTarget(safe);
+      return;
+    }
+    // Storage held nothing usable — clear any garbage/hostile value so a
+    // later sign-in can't inherit it.
+    if (stored) sessionStorage.removeItem("redirectAfterAuth");
+
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const isFreshSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
+    if (!profile?.display_name || (isFreshSignup && !profile?.avatar_url)) {
+      console.log("[AuthPage] Authenticated, redirecting to complete-profile", {
+        hasName: !!profile?.display_name,
+        hasAvatar: !!profile?.avatar_url,
+        isFreshSignup,
+      });
+      setPostAuthTarget("/complete-profile");
+      return;
+    }
+
+    console.log("[AuthPage] Authenticated, redirecting to home");
+    clearInviteFlowContext();
+    setPostAuthTarget("/");
+  }, [
+    user,
+    initialized,
+    profileLoading,
+    profileResolved,
+    profileError,
+    profile,
+    postAuthTarget,
+  ]);
+
   const { 
     isAvailable, 
     isRegistered,
@@ -355,33 +433,23 @@ export default function AuthPage() {
     );
   }
 
-  if (user && profileError) {
-    return <Navigate to="/" replace />;
+  if (user && postAuthTarget) {
+    return <Navigate to={postAuthTarget} replace />;
   }
 
   if (user) {
-    // Check for pending redirect (e.g., from invite link) before going to default
-    const redirectPath = sessionStorage.getItem("redirectAfterAuth");
-    if (redirectPath) {
-      sessionStorage.removeItem("redirectAfterAuth");
-      console.log('[AuthPage] Authenticated, redirecting to:', redirectPath);
-      return <Navigate to={redirectPath} replace />;
-    }
-    // Route to /complete-profile if display_name is missing (all users)
-    // OR if a brand-new signup (< 10 min old) still has no avatar — this
-    // catches Google OAuth users whose display_name auto-populates but who
-    // never picked an avatar, so invites they send have a friendly identity.
-    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
-    const isFreshSignup = createdAt > 0 && (Date.now() - createdAt) < 10 * 60 * 1000;
-    if (!profile?.display_name || (isFreshSignup && !profile?.avatar_url)) {
-      console.log('[AuthPage] Authenticated, redirecting to complete-profile', { hasName: !!profile?.display_name, hasAvatar: !!profile?.avatar_url, isFreshSignup });
-      return <Navigate to="/complete-profile" replace />;
-    }
-    // Default to home - clear any stale invite flow context since we're not in a flow
-    console.log('[AuthPage] Authenticated, redirecting to home');
-    clearInviteFlowContext();
-    return <Navigate to="/" replace />;
+    // Auth is resolved but the post-auth target hasn't been committed yet.
+    // The resolver effect below runs on the same commit as this render, so
+    // the very next render will pick a target. Show the "Finishing sign in"
+    // loader instead of rendering the sign-in form to a logged-in user.
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Finishing sign in...</p>
+      </div>
+    );
   }
+
 
   const handleAuth = async (mode: "signin" | "signup") => {
     // For signin, use basic validation
