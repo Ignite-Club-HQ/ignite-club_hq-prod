@@ -145,7 +145,7 @@
     "workbox-build": "^7.4.1",
     "ws": "^8.21.1",
     "vite": "7.3.6",
-    "postcss": "8.5.22",
+    "postcss": "^8.5.22",
     "vitest": {
       "picomatch": "4.0.5"
     }
