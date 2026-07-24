@@ -311,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // MESSAGE_NOTIFICATION_TYPES imported from @/lib/notificationTypes
 
-  const fetchUnreadCount = async (userId: string) => {
+  const fetchUnreadCount = useCallback(async (userId: string) => {
     const [allResult, messageCounts] = await Promise.all([
       supabase
         .from("notifications")
@@ -320,10 +320,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("is_read", false),
       fetchUnreadMessageCounts(userId),
     ]);
-    
+
     setUnreadCount(allResult.count || 0);
     setUnreadMessagesCount(getTotalUnreadMessageCount(messageCounts));
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -848,7 +848,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-global:${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -1065,28 +1065,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnreadMessagesCount(0);
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchProfile(user.id);
     }
-  };
+  }, [user, fetchProfile]);
 
-  const refreshUnreadCount = async () => {
+  const refreshUnreadCount = useCallback(async () => {
     if (user) {
       await fetchUnreadCount(user.id);
     }
-  };
+  }, [user, fetchUnreadCount]);
 
-  const clearUnreadCount = () => {
+  const clearUnreadCount = useCallback(() => {
     setUnreadCount(0);
     setUnreadMessagesCount(0);
-  };
+  }, []);
 
-  const decrementUnreadCount = (n: number) => {
+  const decrementUnreadCount = useCallback((n: number) => {
     if (!n || n <= 0) return;
     setUnreadCount((prev) => Math.max(0, prev - n));
     setUnreadMessagesCount((prev) => Math.max(0, prev - n));
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{
