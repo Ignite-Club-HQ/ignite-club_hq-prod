@@ -304,8 +304,14 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (!user) return;
 
+    // Channel name is scoped to the user id AND to this page. `useAuth` runs
+    // its own global `notifications-realtime` subscription for unread-count
+    // updates; if this page reused the same channel name, supabase-js would
+    // return the already-subscribed channel from its registry and adding
+    // `.on('postgres_changes', ...)` here would throw
+    // "cannot add postgres_changes callbacks after subscribe()".
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-page-${user.id}`)
       .on(
         'postgres_changes',
         {
