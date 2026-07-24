@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
+import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
 
 type EventType = "game" | "training" | "social";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -1136,12 +1137,18 @@ export default function EditEventPage() {
                 </>
               )}
 
-              {/* Show info if already recurring */}
-              {isRecurring && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                  <Repeat className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">This is part of a recurring series</span>
-                </div>
+              {/* Show info + end-date editor if already recurring */}
+              {isRecurring && event && (
+                <SeriesEndDateEditor
+                  eventId={id!}
+                  parentEventId={event.parent_event_id ?? id!}
+                  canEdit={!!canEdit}
+                  onUpdated={() => {
+                    queryClient.invalidateQueries({ queryKey: ["event-edit", id] });
+                    queryClient.invalidateQueries({ queryKey: ["events"] });
+                    queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+                  }}
+                />
               )}
             </CardContent>
           </CollapsibleContent>
@@ -1422,9 +1429,11 @@ export default function EditEventPage() {
       <AlertDialog open={showSeriesDialog} onOpenChange={setShowSeriesDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Edit Recurring Event</AlertDialogTitle>
+            <AlertDialogTitle>Apply changes to…</AlertDialogTitle>
             <AlertDialogDescription>
-              This event is part of a recurring series. Would you like to edit just this event or the entire series?
+              This event is part of a recurring series. Apply your edits (title, time, location, duties, etc.) to just this occurrence or every event in the series?
+              <br /><br />
+              <span className="text-xs text-muted-foreground">Note: series end-date changes are saved separately from the "Recurring" section and are not affected by this choice.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
