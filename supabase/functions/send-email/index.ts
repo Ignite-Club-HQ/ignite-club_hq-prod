@@ -21,6 +21,7 @@ import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
 import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
 import { JoinRequestResponseEmail } from "./_templates/join-request-response.tsx";
 import { sportEmoji, swapTrailingSportEmoji } from "./_templates/sport-meta.ts";
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 /**
  * Look up the club's sport and the team's team_type for sport-aware /
@@ -715,7 +716,10 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  const __outboundBlocked = outboundBlockedResponse("send-email");
+  if (__outboundBlocked) return __outboundBlocked;);
   }
 
   try {

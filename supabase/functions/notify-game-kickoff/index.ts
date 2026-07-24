@@ -6,6 +6,7 @@
 // (type='game_kickoff', related_id=event.id).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,7 +60,10 @@ async function getRecipients(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  const __outboundBlocked = outboundBlockedResponse("notify-game-kickoff");
+  if (__outboundBlocked) return __outboundBlocked;);
   }
 
   const cronSecret = req.headers.get("x-cron-secret");

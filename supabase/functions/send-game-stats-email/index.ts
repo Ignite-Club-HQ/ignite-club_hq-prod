@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireServiceRoleAuth } from '../_shared/internal-auth.ts';
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +19,10 @@ interface GameStatsEmailRequest {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  const __outboundBlocked = outboundBlockedResponse("send-game-stats-email");
+  if (__outboundBlocked) return __outboundBlocked;);
   }
 
   const authErr = requireServiceRoleAuth(req, corsHeaders);

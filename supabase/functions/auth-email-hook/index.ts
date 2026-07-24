@@ -8,6 +8,7 @@ import { MagicLinkEmail } from '../_shared/email-templates/magic-link.tsx'
 import { RecoveryEmail } from '../_shared/email-templates/recovery.tsx'
 import { EmailChangeEmail } from '../_shared/email-templates/email-change.tsx'
 import { ReauthenticationEmail } from '../_shared/email-templates/reauthentication.tsx'
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -129,7 +130,10 @@ async function handlePreview(req: Request): Promise<Response> {
   }
 
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: previewCorsHeaders })
+    return new Response(null, { headers: previewCorsHeaders }
+
+  const __outboundBlocked = outboundBlockedResponse("auth-email-hook");
+  if (__outboundBlocked) return __outboundBlocked;)
   }
 
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
