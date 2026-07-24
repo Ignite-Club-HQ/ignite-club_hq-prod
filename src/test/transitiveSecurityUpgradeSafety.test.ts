@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { jsPDF } from "jspdf";
+import picomatch from "picomatch";
 
 const root = path.resolve(import.meta.dirname, "../..");
 
@@ -99,6 +100,27 @@ describe("security-sensitive transitive dependency boundaries", () => {
     expect(main).toContain("navigator.serviceWorker.register");
     expect(serviceWorker).toContain("self.addEventListener('push'");
     expect(serviceWorker).toContain("self.addEventListener('notificationclick'");
+  });
+
+  it("preserves the test-file glob behaviour used by the Vitest toolchain", () => {
+    const includeTest = picomatch("src/**/*.{test,spec}.{ts,tsx}");
+    const excludeDependencies = picomatch("**/node_modules/**");
+
+    expect(includeTest("src/hooks/useAuth.test.tsx")).toBe(true);
+    expect(includeTest("src/pages/AuthPage.spec.ts")).toBe(true);
+    expect(includeTest("src/pages/AuthPage.tsx")).toBe(false);
+    expect(excludeDependencies("node_modules/pkg/index.test.ts")).toBe(true);
+    expect(excludeDependencies("src/lib/security.test.ts")).toBe(false);
+  });
+
+  it("handles ordinary POSIX character classes without method-like pattern injection", () => {
+    const numericFixture = picomatch("fixtures/[[:digit:]][[:digit:]].json");
+    const sourceFixture = picomatch("src/**/[[:alpha:]]*.test.ts");
+
+    expect(numericFixture("fixtures/42.json")).toBe(true);
+    expect(numericFixture("fixtures/ab.json")).toBe(false);
+    expect(sourceFixture("src/lib/auth.test.ts")).toBe(true);
+    expect(sourceFixture("src/lib/42.test.ts")).toBe(false);
   });
 });
 

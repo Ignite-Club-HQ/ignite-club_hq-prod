@@ -41,6 +41,17 @@ const compareVersions = (leftVersion: string, rightVersion: string): number => {
   return 0;
 };
 
+const packageResolutions = (
+  packageName: string,
+): Array<{ path: string; version: string }> =>
+  Object.entries<Record<string, any>>(packageLock.packages ?? {})
+    .filter(([lockPath, entry]) =>
+      (lockPath === `node_modules/${packageName}`
+        || lockPath.endsWith(`/node_modules/${packageName}`))
+      && typeof entry?.version === "string"
+    )
+    .map(([lockPath, entry]) => ({ path: lockPath, version: entry.version }));
+
 describe("Vite build contracts that must survive an upgrade", () => {
   it("keeps React, alias and runtime deduplication configuration", () => {
     expect(viteConfig).toContain('import react from "@vitejs/plugin-react"');
@@ -64,6 +75,41 @@ describe("Vite build contracts that must survive an upgrade", () => {
     expect(serviceWorker).toContain("self.addEventListener('notificationclick'");
     expect(viteConfig).not.toContain("VitePWA");
     expect(viteConfig).not.toContain("vite-plugin-pwa");
+  });
+});
+
+describe("nested Vite toolchain security resolutions", () => {
+  it("keeps every Vite 8 copy at 8.0.16 or newer", () => {
+    const vite8 = packageResolutions("vite").filter(
+      ({ version }) => versionTuple(version)[0] === 8,
+    );
+    const vulnerable = vite8.filter(
+      ({ version }) => compareVersions(version, "8.0.16") < 0,
+    );
+
+    expect(
+      vulnerable,
+      `Vulnerable nested Vite 8 resolutions remain:\n${vulnerable
+        .map(({ path: lockPath, version }) => `${lockPath}: ${version}`)
+        .join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("keeps every Picomatch 4 copy at 4.0.4 or newer", () => {
+    const picomatch4 = packageResolutions("picomatch").filter(
+      ({ version }) => versionTuple(version)[0] === 4,
+    );
+    expect(picomatch4.length).toBeGreaterThan(0);
+    const vulnerable = picomatch4.filter(
+      ({ version }) => compareVersions(version, "4.0.4") < 0,
+    );
+
+    expect(
+      vulnerable,
+      `Vulnerable Picomatch 4 resolutions remain:\n${vulnerable
+        .map(({ path: lockPath, version }) => `${lockPath}: ${version}`)
+        .join("\n")}`,
+    ).toEqual([]);
   });
 });
 
