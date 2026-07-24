@@ -144,8 +144,8 @@
     "websocket-driver": "^0.7.5",
     "workbox-build": "^7.4.1",
     "ws": "^8.21.1",
-    "vite": "$vite",
-    "postcss": "$postcss",
+    "vite": "7.3.6",
+    "postcss": "8.5.22",
     "vitest": {
       "picomatch": "4.0.5"
     }
