@@ -133,9 +133,6 @@ async function handlePreview(req: Request): Promise<Response> {
     return new Response(null, { headers: previewCorsHeaders })
   }
 
-  const __outboundBlocked = outboundBlockedResponse("auth-email-hook");
-  if (__outboundBlocked) return __outboundBlocked;
-
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
   const authHeader = req.headers.get('Authorization')
 
