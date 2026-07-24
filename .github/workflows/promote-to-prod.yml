@@ -220,9 +220,57 @@ jobs:
         if: github.event_name == 'push'
         run: supabase db push --linked
 
-      - name: Deploy edge functions to PROD
+      - name: Deploy changed edge functions to PROD
         if: github.event_name == 'push'
-        run: supabase functions deploy --project-ref "$PROJECT_REF"
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+
+          # Collect distinct function directory names that had any file
+          # added/modified/deleted under supabase/functions/<name>/… in this push.
+          # Shared code under supabase/functions/_shared/ is treated as a
+          # dependency of every function — if it changes, redeploy all.
+          CHANGED=$(git diff --name-only "$BEFORE" HEAD -- 'supabase/functions/**' \
+            | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' \
+            | sort -u)
+
+          if [ -z "$CHANGED" ]; then
+            echo "✅ No edge function changes in this push — skipping deploy."
+            exit 0
+          fi
+
+          if echo "$CHANGED" | grep -qx '_shared'; then
+            echo "⚠️  supabase/functions/_shared changed — redeploying ALL functions."
+            supabase functions deploy --project-ref "$PROJECT_REF"
+            exit 0
+          fi
+
+          # Filter to functions that still exist on disk (skip deletions;
+          # use supabase--delete_edge_functions for removals).
+          FUNCS=""
+          for name in $CHANGED; do
+            if [ -f "supabase/functions/$name/index.ts" ]; then
+              FUNCS="$FUNCS $name"
+            else
+              echo "ℹ️  Skipping '$name' (no index.ts on disk — likely deleted)."
+            fi
+          done
+          FUNCS=$(echo $FUNCS | xargs || true)
+
+          if [ -z "$FUNCS" ]; then
+            echo "✅ No deployable function directories remain — nothing to do."
+            exit 0
+          fi
+
+          echo "Deploying only changed functions to PROD: $FUNCS"
+          for name in $FUNCS; do
+            echo "→ $name"
+            supabase functions deploy "$name" --project-ref "$PROJECT_REF"
+          done
+
 
       - name: Post-migration state
         if: github.event_name == 'push'
