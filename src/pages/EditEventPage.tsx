@@ -1429,9 +1429,11 @@ export default function EditEventPage() {
       <AlertDialog open={showSeriesDialog} onOpenChange={setShowSeriesDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Edit Recurring Event</AlertDialogTitle>
+            <AlertDialogTitle>Apply changes to…</AlertDialogTitle>
             <AlertDialogDescription>
-              This event is part of a recurring series. Would you like to edit just this event or the entire series?
+              This event is part of a recurring series. Apply your edits (title, time, location, duties, etc.) to just this occurrence or every event in the series?
+              <br /><br />
+              <span className="text-xs text-muted-foreground">Note: series end-date changes are saved separately from the "Recurring" section and are not affected by this choice.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
