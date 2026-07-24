@@ -9,6 +9,7 @@
 // teams.auto_rsvp_push_enabled.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,6 +86,9 @@ function formatWhen(eventDate: string, startTime: string | null): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const __outboundBlocked = outboundBlockedResponse("auto-rsvp-push-cron");
+  if (__outboundBlocked) return __outboundBlocked;
 
   // Optional shared-secret auth (mirrors auto-rsvp-dm-cron).
   const cronSecret = Deno.env.get("AUTO_RSVP_DM_CRON_SECRET");
