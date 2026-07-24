@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireServiceRoleAuth } from "../_shared/internal-auth.ts";
+import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,9 @@ serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const __outboundBlocked = outboundBlockedResponse("send-message-notification-email");
+  if (__outboundBlocked) return __outboundBlocked;
 
   const authErr = requireServiceRoleAuth(req, corsHeaders);
   if (authErr) return authErr;
