@@ -140,6 +140,15 @@ export default function AuthPage() {
     signInWithGoogle,
     loading: authLoading,
   } = useAuth();
+
+  // Post-auth navigation target is resolved exactly once, in an effect, so
+  // that the pending `redirectAfterAuth` in sessionStorage is consumed
+  // synchronously with committing the target into React state. Reading +
+  // removing during render (React Router 7's <Navigate> defers navigation to
+  // useEffect) previously produced a race: an extra render after removal
+  // would see empty storage and fall through to `/`, overwriting the intended
+  // destination before the first <Navigate> had committed.
+  const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null);
   const { 
     isAvailable, 
     isRegistered,
