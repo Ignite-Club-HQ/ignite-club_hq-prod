@@ -288,6 +288,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const __outboundBlocked = outboundBlockedResponse("auth-email-hook");
+  if (__outboundBlocked) return __outboundBlocked;
+
+
   // Route to preview handler for /preview path
   if (url.pathname.endsWith('/preview')) {
     return handlePreview(req)
