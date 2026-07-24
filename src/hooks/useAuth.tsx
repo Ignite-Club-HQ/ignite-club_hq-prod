@@ -848,7 +848,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-global:${user.id}`)
       .on(
         'postgres_changes',
         {
