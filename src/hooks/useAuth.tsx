@@ -311,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // MESSAGE_NOTIFICATION_TYPES imported from @/lib/notificationTypes
 
-  const fetchUnreadCount = async (userId: string) => {
+  const fetchUnreadCount = useCallback(async (userId: string) => {
     const [allResult, messageCounts] = await Promise.all([
       supabase
         .from("notifications")
@@ -320,10 +320,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("is_read", false),
       fetchUnreadMessageCounts(userId),
     ]);
-    
+
     setUnreadCount(allResult.count || 0);
     setUnreadMessagesCount(getTotalUnreadMessageCount(messageCounts));
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
