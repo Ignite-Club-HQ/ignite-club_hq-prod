@@ -1136,12 +1136,18 @@ export default function EditEventPage() {
                 </>
               )}
 
-              {/* Show info if already recurring */}
-              {isRecurring && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                  <Repeat className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">This is part of a recurring series</span>
-                </div>
+              {/* Show info + end-date editor if already recurring */}
+              {isRecurring && event && (
+                <SeriesEndDateEditor
+                  eventId={id!}
+                  parentEventId={event.parent_event_id ?? id!}
+                  canEdit={!!canEdit}
+                  onUpdated={() => {
+                    queryClient.invalidateQueries({ queryKey: ["event-edit", id] });
+                    queryClient.invalidateQueries({ queryKey: ["events"] });
+                    queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+                  }}
+                />
               )}
             </CardContent>
           </CollapsibleContent>
