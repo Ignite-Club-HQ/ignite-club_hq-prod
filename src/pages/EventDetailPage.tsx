@@ -3345,63 +3345,116 @@ export default function EventDetailPage() {
             ) || []);
 
 
-        const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => (
-          <div className="divide-y divide-border/50">
-            {rsvpList.map((rsvp: any) => (
-              <AttendeeCard
-                key={rsvp.id}
-                rsvp={rsvp}
-                hasPaid={status !== "not_going" ? paidUserIds.has(rsvp.user_id) : undefined}
-                isAdmin={isAdmin || isAppAdmin}
-                showPrice={status !== "not_going" && !!showPaymentStatus}
-                onTogglePayment={status !== "not_going" ? () => togglePaymentMutation.mutate({
-                  userId: rsvp.user_id,
-                  isPaid: paidUserIds.has(rsvp.user_id)
-                }) : undefined}
-                isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
-                isMiniLeague={isMiniLeagueEvent}
-                currentStatus={status}
-                onChangeStatus={(newStatus) => adminUpdateRsvpMutation.mutate({
-                  rsvpId: rsvp.id,
-                  status: newStatus,
-                  playerName: rsvp.mini_league_player_id
-                    ? rsvp.mini_league_players?.name
-                    : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
-                })}
-                memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
-                  ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
-                  : undefined}
-                isCaptain={
-                  isGameEvent && (
-                    (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
-                    (!!rsvp.child_id && rsvp.child_id === captainChildId)
-                  )
-                }
-                isPotm={
-                  isGameEvent && (
-                    (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
-                    (!!rsvp.child_id && rsvp.child_id === potmChildId)
-                  )
-                }
-                isGoalkeeper={
-                  isGameEvent && (
-                    (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
-                    (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
-                  )
-                }
-              />
-            ))}
-            {includeGuests && eventGuests?.map((guest: any) => (
-              <AttendanceRow
-                key={guest.id}
-                name={guest.guest_name}
-                roleLabel="Guest"
-                roleTone="guest"
-                secondaryLine={`Guest of ${guest.added_by_name}`}
-              />
-            ))}
-          </div>
+        const renderAttendee = (rsvp: any, status: RsvpStatus) => (
+          <AttendeeCard
+            key={rsvp.id}
+            rsvp={rsvp}
+            hasPaid={status !== "not_going" ? paidUserIds.has(rsvp.user_id) : undefined}
+            isAdmin={isAdmin || isAppAdmin}
+            showPrice={status !== "not_going" && !!showPaymentStatus}
+            onTogglePayment={status !== "not_going" ? () => togglePaymentMutation.mutate({
+              userId: rsvp.user_id,
+              isPaid: paidUserIds.has(rsvp.user_id)
+            }) : undefined}
+            isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+            isMiniLeague={isMiniLeagueEvent}
+            currentStatus={status}
+            onChangeStatus={(newStatus) => adminUpdateRsvpMutation.mutate({
+              rsvpId: rsvp.id,
+              status: newStatus,
+              playerName: rsvp.mini_league_player_id
+                ? rsvp.mini_league_players?.name
+                : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
+            })}
+            memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
+              ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
+              : undefined}
+            isCaptain={
+              isGameEvent && (
+                (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
+                (!!rsvp.child_id && rsvp.child_id === captainChildId)
+              )
+            }
+            isPotm={
+              isGameEvent && (
+                (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
+                (!!rsvp.child_id && rsvp.child_id === potmChildId)
+              )
+            }
+            isGoalkeeper={
+              isGameEvent && (
+                (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
+                (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
+              )
+            }
+          />
         );
+
+        const guestNodes = eventGuests?.map((guest: any) => (
+          <AttendanceRow
+            key={guest.id}
+            name={guest.guest_name}
+            roleLabel="Guest"
+            roleTone="guest"
+            secondaryLine={`Guest of ${guest.added_by_name}`}
+          />
+        ));
+
+        // Group key for an RSVP row. Prefer child_id (including linked
+        // mini-league players) so parents responding on behalf of a child
+        // land in that child's team/level group, not the parent's.
+        const rsvpGroupKey = (rsvp: any) => {
+          const childId = rsvp.child_id || rsvp.mini_league_players?.child_id || null;
+          return groupMap.groupOf({
+            userId: childId ? null : rsvp.user_id,
+            childId,
+          });
+        };
+
+        const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => {
+          if (!groupMap.isActive) {
+            return (
+              <div className="divide-y divide-border/50">
+                {rsvpList.map((rsvp: any) => renderAttendee(rsvp, status))}
+                {includeGuests && guestNodes}
+              </div>
+            );
+          }
+          const buckets = new Map<string, any[]>();
+          for (const r of rsvpList) {
+            const g = rsvpGroupKey(r);
+            const arr = buckets.get(g.key) ?? [];
+            arr.push(r);
+            buckets.set(g.key, arr);
+          }
+          return (
+            <div className="space-y-3">
+              {groupMap.orderedGroups.map((g) => {
+                const items = buckets.get(g.key) ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <div key={g.key}>
+                    <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {g.label} <span className="text-muted-foreground/70">({items.length})</span>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {items.map((rsvp: any) => renderAttendee(rsvp, status))}
+                    </div>
+                  </div>
+                );
+              })}
+              {includeGuests && (guestNodes?.length ?? 0) > 0 && (
+                <div>
+                  <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Guests
+                  </div>
+                  <div className="divide-y divide-border/50">{guestNodes}</div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
 
         const notRespondedNode = (
           <div className="divide-y divide-border/50">
