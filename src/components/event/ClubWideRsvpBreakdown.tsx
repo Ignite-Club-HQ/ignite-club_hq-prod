@@ -28,13 +28,18 @@ interface Props {
   targetTeamIds?: string[] | null;
 }
 
+interface Attendee {
+  name: string;
+  team: string | null;
+}
+
 interface GroupRow {
   key: string;
   label: string;
-  going: string[];
-  maybe: string[];
-  not_going: string[];
-  no_response: string[];
+  going: Attendee[];
+  maybe: Attendee[];
+  not_going: Attendee[];
+  no_response: Attendee[];
 }
 
 const AGE_LEVEL_RE = /u\s*(\d+)/i;
@@ -111,8 +116,8 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       teamMeta.set(t.id, { name: t.name, age_group: t.age_group });
     }
 
-    // Members: [{ id, name, groupKey, groupLabel }]
-    type Member = { id: string; name: string; groupKey: string; groupLabel: string };
+    // Members: [{ id, name, groupKey, groupLabel, team }]
+    type Member = { id: string; name: string; groupKey: string; groupLabel: string; team: string | null };
     const members: Member[] = [];
     const seenIds = new Set<string>();
 
@@ -138,7 +143,7 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       const key = `${id}::${groupKey}`;
       if (seenIds.has(key)) continue;
       seenIds.add(key);
-      members.push({ id, name: profile.display_name || "Member", groupKey, groupLabel });
+      members.push({ id, name: profile.display_name || "Member", groupKey, groupLabel, team: meta?.name || null });
     }
 
     // Children from team assignments
@@ -160,7 +165,7 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       const key = `${id}::${groupKey}`;
       if (seenIds.has(key)) continue;
       seenIds.add(key);
-      members.push({ id, name: child.name || "Player", groupKey, groupLabel });
+      members.push({ id, name: child.name || "Player", groupKey, groupLabel, team: meta?.name || null });
     }
 
     // RSVP status per attendee (child_id preferred, else user_id)
@@ -188,10 +193,11 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       }
       const grp = groupMap.get(m.groupKey)!;
       const status = rsvpStatus.get(m.id);
-      if (status === "going") grp.going.push(m.name);
-      else if (status === "maybe") grp.maybe.push(m.name);
-      else if (status === "not_going") grp.not_going.push(m.name);
-      else grp.no_response.push(m.name);
+      const attendee: Attendee = { name: m.name, team: m.team };
+      if (status === "going") grp.going.push(attendee);
+      else if (status === "maybe") grp.maybe.push(attendee);
+      else if (status === "not_going") grp.not_going.push(attendee);
+      else grp.no_response.push(attendee);
     }
 
     const sortedKeys = sortGroupKeys([...groupMap.keys()]);
@@ -220,14 +226,14 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       </CardHeader>
       <CardContent className="space-y-2">
         {groups.map((g) => (
-          <GroupRowItem key={g.key} group={g} />
+          <GroupRowItem key={g.key} group={g} showTeamTag={grouping === "level"} />
         ))}
       </CardContent>
     </Card>
   );
 }
 
-function GroupRowItem({ group }: { group: GroupRow }) {
+function GroupRowItem({ group, showTeamTag }: { group: GroupRow; showTeamTag: boolean }) {
   const [open, setOpen] = useState(false);
   const total =
     group.going.length + group.maybe.length + group.not_going.length + group.no_response.length;
@@ -268,10 +274,10 @@ function GroupRowItem({ group }: { group: GroupRow }) {
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-3">
-        <NameBlock title="Going" names={group.going} tone="going" />
-        <NameBlock title="Maybe" names={group.maybe} tone="maybe" />
-        <NameBlock title="Not Going" names={group.not_going} tone="no" />
-        <NameBlock title="No Response" names={group.no_response} tone="nr" />
+        <NameBlock title="Going" people={group.going} tone="going" showTeamTag={showTeamTag} />
+        <NameBlock title="Maybe" people={group.maybe} tone="maybe" showTeamTag={showTeamTag} />
+        <NameBlock title="Not Going" people={group.not_going} tone="no" showTeamTag={showTeamTag} />
+        <NameBlock title="No Response" people={group.no_response} tone="nr" showTeamTag={showTeamTag} />
       </CollapsibleContent>
     </Collapsible>
   );
@@ -279,14 +285,16 @@ function GroupRowItem({ group }: { group: GroupRow }) {
 
 function NameBlock({
   title,
-  names,
+  people,
   tone,
+  showTeamTag,
 }: {
   title: string;
-  names: string[];
+  people: Attendee[];
   tone: "going" | "maybe" | "no" | "nr";
+  showTeamTag: boolean;
 }) {
-  if (names.length === 0) return null;
+  if (people.length === 0) return null;
   const toneClass =
     tone === "going"
       ? "text-emerald-700 dark:text-emerald-300"
@@ -298,10 +306,20 @@ function NameBlock({
   return (
     <div className="mt-2">
       <div className={cn("text-xs font-semibold mb-1", toneClass)}>
-        {title} ({names.length})
+        {title} ({people.length})
       </div>
-      <div className="text-sm text-foreground/90 leading-relaxed">
-        {names.join(", ")}
+      <div className="text-sm text-foreground/90 leading-relaxed flex flex-wrap gap-x-2 gap-y-1.5">
+        {people.map((p, i) => (
+          <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1">
+            <span>{p.name}</span>
+            {showTeamTag && p.team && (
+              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-tight bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+                {p.team}
+              </span>
+            )}
+            {i < people.length - 1 && <span className="text-muted-foreground">,</span>}
+          </span>
+        ))}
       </div>
     </div>
   );
