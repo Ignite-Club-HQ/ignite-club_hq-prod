@@ -116,8 +116,8 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       teamMeta.set(t.id, { name: t.name, age_group: t.age_group });
     }
 
-    // Members: [{ id, name, groupKey, groupLabel }]
-    type Member = { id: string; name: string; groupKey: string; groupLabel: string };
+    // Members: [{ id, name, groupKey, groupLabel, team }]
+    type Member = { id: string; name: string; groupKey: string; groupLabel: string; team: string | null };
     const members: Member[] = [];
     const seenIds = new Set<string>();
 
@@ -143,7 +143,7 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       const key = `${id}::${groupKey}`;
       if (seenIds.has(key)) continue;
       seenIds.add(key);
-      members.push({ id, name: profile.display_name || "Member", groupKey, groupLabel });
+      members.push({ id, name: profile.display_name || "Member", groupKey, groupLabel, team: meta?.name || null });
     }
 
     // Children from team assignments
@@ -165,7 +165,7 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       const key = `${id}::${groupKey}`;
       if (seenIds.has(key)) continue;
       seenIds.add(key);
-      members.push({ id, name: child.name || "Player", groupKey, groupLabel });
+      members.push({ id, name: child.name || "Player", groupKey, groupLabel, team: meta?.name || null });
     }
 
     // RSVP status per attendee (child_id preferred, else user_id)
@@ -193,10 +193,11 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       }
       const grp = groupMap.get(m.groupKey)!;
       const status = rsvpStatus.get(m.id);
-      if (status === "going") grp.going.push(m.name);
-      else if (status === "maybe") grp.maybe.push(m.name);
-      else if (status === "not_going") grp.not_going.push(m.name);
-      else grp.no_response.push(m.name);
+      const attendee: Attendee = { name: m.name, team: m.team };
+      if (status === "going") grp.going.push(attendee);
+      else if (status === "maybe") grp.maybe.push(attendee);
+      else if (status === "not_going") grp.not_going.push(attendee);
+      else grp.no_response.push(attendee);
     }
 
     const sortedKeys = sortGroupKeys([...groupMap.keys()]);
