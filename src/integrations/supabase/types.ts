@@ -10509,6 +10509,10 @@ export type Database = {
         Args: { _team_id: string }
         Returns: undefined
       }
+      event_has_target_team_restriction: {
+        Args: { _event_id: string }
+        Returns: boolean
+      }
       extract_mentioned_user_ids: {
         Args: { message_text: string }
         Returns: string[]
