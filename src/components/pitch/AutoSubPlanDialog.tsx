@@ -3027,14 +3027,23 @@ export function createSubPlan(
         const eqSim = simulateOutfieldPlan(eqResult.plan);
         const eqSpread = eqSim.valid ? fairnessSpread(eqSim.times) : Number.POSITIVE_INFINITY;
 
-        // Improvement threshold: 30 s (one chunk). Adopt when equal-time is
-        // strictly better OR current is already wider than the user-set cap.
-        const improvement = currentSpread - eqSpread;
-        const adoptionWorthwhile =
-          eqSim.valid &&
-          (improvement > 30 || (currentSpread > maxSpreadMinutes * 60 && eqSpread < currentSpread));
+        // Lexicographic selection:
+        //   1. Both must sim valid (already checked for `eq`; guard current).
+        //   2. Prefer whichever meets the user-configured max-spread cap.
+        //   3. Otherwise prefer strictly smaller spread.
+        //   4. Ties resolved in favour of the equal-time plan (deterministic).
+        const capSec = maxSpreadMinutes * 60;
+        const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
+        const eqMeetsCap = eqSim.valid && eqSpread <= capSec;
 
-        if (adoptionWorthwhile) {
+        let adopt = false;
+        if (eqSim.valid) {
+          if (eqMeetsCap && !currentMeetsCap) adopt = true;
+          else if (eqMeetsCap === currentMeetsCap && eqSpread < currentSpread) adopt = true;
+          else if (!currentSim.valid) adopt = true;
+        }
+
+        if (adopt) {
           plan.length = 0;
           plan.push(...eqResult.plan);
           sortPlan();
