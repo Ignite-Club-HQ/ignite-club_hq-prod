@@ -74,7 +74,7 @@ import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponso
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
-import { ClubWideRsvpBreakdown } from "@/components/event/ClubWideRsvpBreakdown";
+import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
