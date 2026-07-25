@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
+import { TargetTeamsPicker } from "@/components/event/TargetTeamsPicker";
 import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { format, parseISO } from "date-fns";
@@ -126,6 +127,7 @@ export default function EditEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
+  const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -430,6 +432,20 @@ export default function EditEventPage() {
     enabled: !!user,
   });
 
+  // All teams in the selected club — used by the target-teams picker.
+  const { data: allClubTeams } = useQuery({
+    queryKey: ["all-club-teams-for-edit-target", selectedClubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", selectedClubId)
+        .order("name");
+      return data ?? [];
+    },
+    enabled: !!selectedClubId,
+  });
+
   // Populate form with existing data
   useEffect(() => {
     if (event) {
@@ -465,6 +481,8 @@ export default function EditEventPage() {
       setAdultsOnly((event as any).adults_only === true);
       const grp = (event as any).rsvp_grouping;
       setRsvpGrouping(grp === "level" || grp === "team" ? grp : "");
+      const tti = (event as any).target_team_ids;
+      setTargetTeamIds(Array.isArray(tti) && tti.length > 0 ? (tti as string[]) : null);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -595,6 +613,10 @@ export default function EditEventPage() {
         rsvp_grouping:
           !selectedTeamId && (type === "game" || type === "social") && rsvpGrouping
             ? rsvpGrouping
+            : null,
+        target_team_ids:
+          !selectedTeamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+            ? targetTeamIds
             : null,
       } as any;
 
@@ -941,6 +963,13 @@ export default function EditEventPage() {
                     ]}
                     placeholder="No grouping"
                     label="RSVP grouping"
+                  />
+                )}
+                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                  <TargetTeamsPicker
+                    teams={allClubTeams ?? undefined}
+                    value={targetTeamIds}
+                    onChange={setTargetTeamIds}
                   />
                 )}
               </div>

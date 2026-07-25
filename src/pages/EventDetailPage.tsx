@@ -3574,7 +3574,9 @@ export default function EventDetailPage() {
                     eventId={id!}
                     clubId={event.club_id}
                     grouping={(event as any).rsvp_grouping}
+                    targetTeamIds={(event as any).target_team_ids ?? null}
                   />
+
                 </div>
               )}
             <AttendanceSection
