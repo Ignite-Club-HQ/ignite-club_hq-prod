@@ -146,10 +146,7 @@ describe("Capacitor native-build contracts", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.CAPACITOR_UPGRADE_CANDIDATE === "true" ? describe : describe.skip;
-
-describeUpgradeCandidate("Capacitor CLI security acceptance gate", () => {
+describe("Capacitor CLI security acceptance gate", () => {
   it("uses the reviewed Capacitor CLI release or newer within major 8", () => {
     const cliVersion = resolvedVersion("@capacitor/cli");
     expect(versionTuple(cliVersion)[0]).toBe(8);

@@ -18,7 +18,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
 );
-const candidateMode = process.env.REACT_ROUTER_UPGRADE_CANDIDATE === "true";
 
 function LocationProbe() {
   const location = useLocation();
@@ -263,7 +262,7 @@ function ParameterInviteToken() {
   );
 }
 
-describe.runIf(candidateMode)("React Router 7 security-upgrade candidate gates", () => {
+describe("React Router 7 security-upgrade acceptance gates", () => {
   it("uses the patched React Router line required by current advisories", () => {
     const version =
       packageJson.dependencies?.["react-router-dom"] ??

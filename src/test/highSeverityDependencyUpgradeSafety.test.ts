@@ -128,12 +128,7 @@ describe("high-severity dependency compatibility", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.HIGH_SECURITY_UPGRADE_CANDIDATE === "true"
-    ? describe
-    : describe.skip;
-
-describeUpgradeCandidate("high-severity dependency acceptance gate", () => {
+describe("high-severity dependency acceptance gate", () => {
   const minimumVersions: Record<string, string> = {
     flatted: "3.4.3",
     "js-yaml": "4.3.0",

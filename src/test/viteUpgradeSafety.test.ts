@@ -113,10 +113,7 @@ describe("nested Vite toolchain security resolutions", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.VITE_UPGRADE_CANDIDATE === "true" ? describe : describe.skip;
-
-describeUpgradeCandidate("Vite 7 security and compatibility acceptance gate", () => {
+describe("Vite 7 security and compatibility acceptance gate", () => {
   it("uses a patched Vite 7 release without crossing into Vite 8", () => {
     const viteVersion = resolvedVersion("vite");
     expect(compareVersions(viteVersion, "7.3.5")).toBeGreaterThanOrEqual(0);

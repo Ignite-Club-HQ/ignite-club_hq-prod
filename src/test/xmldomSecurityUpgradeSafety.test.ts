@@ -84,10 +84,7 @@ describe("xmldom/Capacitor plist compatibility", () => {
   });
 });
 
-const describeSecurityCandidate =
-  process.env.XMLDOM_SECURITY_UPGRADE_CANDIDATE === "true" ? describe : describe.skip;
-
-describeSecurityCandidate("xmldom 0.8.13 security acceptance gate", () => {
+describe("xmldom 0.8.13 security acceptance gate", () => {
   it("resolves every xmldom copy to the reviewed patched version", () => {
     const resolutions = xmldomResolutions();
     expect(resolutions.length).toBeGreaterThan(0);

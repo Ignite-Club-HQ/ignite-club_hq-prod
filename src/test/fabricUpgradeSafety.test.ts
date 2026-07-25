@@ -14,7 +14,7 @@ function runtimeFiles(directory: string): string[] {
 }
 
 describe("Fabric security and upgrade acceptance boundary", () => {
-  it.runIf(process.env.FABRIC_UPGRADE_CANDIDATE === "true")(
+  it(
     "pins Fabric at or above the version that fixes CVE-2026-44311",
     () => {
       const version = packageJson.dependencies.fabric.replace(/^[^\d]*/, "");
