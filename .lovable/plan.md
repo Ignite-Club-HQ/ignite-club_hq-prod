@@ -1,114 +1,83 @@
-## Goal
-Fix the two confirmed defects in club-wide `game`/`social` targeting (`events.target_team_ids`):
 
-1. **Picker cannot be activated** — `TargetTeamsPicker` treats `[]` as "all club" so clicking "Only selected teams" from `null` immediately snaps back.
-2. **Targeting is not an authorization boundary** — RLS on `events`/`rsvps`, series RPC, and notification/reminder fan-out do not honor `target_team_ids`. Non-targeted same-club members can see, open, RSVP, and receive reminders.
+Two independent defects, both fixable in frontend/business logic. The spec explicitly asks me to explain root cause before implementing — plan first, code after your approval.
 
-## Mode semantics (locked)
-- `target_team_ids = NULL` → all eligible club members (all-club mode).
-- `target_team_ids = []` or any array → selected-team **editing** mode. Submission requires `>= 2` distinct UUIDs; otherwise the frontend blocks with the existing warning.
-- Single-team events must use `events.team_id` instead.
-- Only `game` and `social` types can carry `target_team_ids`.
+## Defect 1 — Timer resets to 0:00 after lock/resume
 
-## 1. Frontend picker fix (`TargetTeamsPicker.tsx`)
-- Change "active" from `value.length > 0` to `Array.isArray(value)`.
-- "All club members" button → `onChange(null)`.
-- "Only selected teams" button → `onChange(Array.isArray(value) ? value : [])` (opens checklist even when empty).
-- Toggle logic: dedupe via `Set`, never mutate input, never fall back to `null` when the last team is removed (stay in selected-team mode with warning shown).
-- Preserve `disabled` behavior.
+### Root cause
 
-## 2. Frontend guardrails
-- `CreateEventPage` / `EditEventPage`:
-  - Only submit `target_team_ids` when it is `null` **or** `length >= 2` (dedup + validate against club teams).
-  - When team dropdown changes to a direct team, or type flips away from game/social, or `club_id` changes → clear `target_team_ids` to `null` in state.
-  - EditEventPage: load existing target IDs; allow returning to all-club by submitting `null`.
-  - Recurring create: pass the same `target_team_ids` to every child (already inherited by `inherit_parent_event_scope`; verify column is copied — add if missing).
-  - Entire-series edit: send `target_team_ids` through `update_event_series` (already whitelisted in prior migration; verify).
-- `EventDetailPage`: continue passing target IDs to grouped attendance; **remove client-side visibility gating** — rely on backend.
-- Query-cache keys: include the current user's club/team membership already; targeted events naturally disappear when RLS excludes them, so no key changes required for cross-user leakage. Confirm no `events` list query is loaded with a service-role-like path.
+`GameTimer.applyServerSnapshot` (`src/components/pitch/GameTimer.tsx`) unconditionally overwrites local state with whatever `pitch-timer-read` returns. Two failure modes hit the same code path:
 
-## 3. Backend — new forward-only migration
-Create `supabase/migrations/<ts>_targeted_events_authorization.sql`. Forward-only; no edits to deployed migrations.
+1. On lock/resume `reconcileAfterResume` calls `readServerTimer`, gets a **stale** response (edge-function cold-start delay, replica lag, or an out-of-order fetch that races a newer read), and applies it — snapping a live 16:00 clock back to 0:00.
+2. Multiple listeners (`visibilitychange`, `pageshow`, `focus`, `resume`, Capacitor `appStateChange`) all fire in quick succession on Android resume and each kicks off its own async read. The last response to arrive wins even if it was the *first* one dispatched (races).
 
-**Validation trigger** (replace/extend existing `validate_event_target_team_ids`):
-- `target_team_ids IS NULL` → allowed.
-- Otherwise: `array_length >= 2`, all elements distinct, all elements exist in `public.teams` with `club_id = events.club_id`, `events.team_id IS NULL`, `events.type IN ('game','social')`.
-- Normalize empty array to NULL, or reject (choose reject — clearer contract; frontend never submits `[]`).
-- Fires on INSERT and on UPDATE of `club_id`, `team_id`, `type`, `target_team_ids` (revalidates whole relationship).
+There is no comparison of the incoming server snapshot against either (a) the last accepted server snapshot's `last_event_at`, or (b) the currently displayed timer state.
 
-**Recurring inheritance**: ensure `inherit_parent_event_scope` copies `target_team_ids` to child rows on generation (add if missing).
+### Fix (single centralised guard)
 
-**SECURITY DEFINER helper** `public.can_access_targeted_event(_user_id uuid, _event_id uuid) returns boolean`:
-- `SET search_path = public`, `REVOKE EXECUTE FROM PUBLIC, anon`, `GRANT EXECUTE TO authenticated`.
-- Returns true when any of:
-  - app admin
-  - club admin / committee member for `events.club_id` (via existing helpers)
-  - `events.target_team_ids IS NULL` **and** user is an eligible club member (reuse existing club-visibility helper)
-  - `events.target_team_ids` overlaps user's team memberships (player/coach/team admin) via existing membership helpers
-  - user is an authorized guardian of a child assigned to any targeted team (reuse existing guardian helper — no new definitions)
-- No arbitrary membership enumeration; scoped strictly to `_user_id`, `events.club_id`, and target teams.
+Introduce `shouldAcceptServerSnapshot(prev, incoming, local)` in `src/lib/serverTimer.ts`:
 
-**RLS updates** (audit + adjust — never weaken existing protections):
-- `events` SELECT: for rows where `target_team_ids IS NOT NULL`, require `can_access_targeted_event(auth.uid(), id)`. Rows where it's NULL keep current behavior.
-- `events` INSERT/UPDATE: unchanged managerial checks; validation trigger enforces the shape.
-- `rsvps` SELECT/INSERT/UPDATE: for RSVPs referencing a targeted event, require `can_access_targeted_event(auth.uid(), event_id)` in addition to existing ownership/guardian rules. Child RSVP creation/update uses the same helper on behalf of the guardian's authorized child.
-- `update_event_series` RPC: already whitelists `target_team_ids`; add per-caller authorization check reusing existing "can manage event" helper (no change to signature).
+- Accept when there is no `prev` (first hydrate).
+- Accept when `incoming.last_event_at > prev.last_event_at` (strictly newer authoritative event).
+- Accept when `incoming.last_event_at === prev.last_event_at` AND `is_running`/`current_half`/`is_game_finished` are unchanged (idempotent re-read, safe to reapply).
+- Accept explicit newer resets: a snapshot where `is_running===false`, `half_started_at===null`, `current_half===1` AND `last_event_at > prev.last_event_at` is a legitimate manual reset.
+- **Reject** otherwise — in particular, a snapshot older-or-equal to `prev.last_event_at` that would move the derived elapsed backwards while the local timer is running or advanced.
 
-## 4. Notifications & reminders
-Audit and constrain recipient selection everywhere a club-wide event fan-out is built:
-- Event-created notifications, RSVP reminders, attendance reminders, event digest emails, push fan-out.
-- Recipient query: when `event.target_team_ids IS NOT NULL`, restrict to union of (targeted-team members, authorized guardians of children in targeted teams, event managers/admins). Non-targeted club members receive nothing (no title/time/location/deep-link leakage).
-- Changing target teams must not leave scheduled/queued reminders addressed to removed users — invalidate/reselect at send time (recompute recipients from live `target_team_ids` rather than using stored recipient snapshots). Do not delete historical notifications.
+Wire it into `GameTimer.tsx`:
 
-## 5. Tests
+- Track `lastAcceptedEventAt` and the team-id under which it was captured in refs.
+- Wrap `applyServerSnapshot` with the guard; drop rejected snapshots with an audit log.
+- Capture the active team-id at the start of every async read; discard the response if `teamId` changed before it resolved (prevents cross-team leakage).
+- Preserve existing behaviour: manual `resetTimer`, `set_minutes`, half transitions, and offline localStorage fallback all continue to work — they either mutate through `sendTimerEvent` (returns a strictly newer `last_event_at`) or the localStorage path (unchanged).
 
-**Unit (vitest):**
-- `src/components/event/TargetTeamsPicker.test.tsx` (new): 7 required cases —
-  1. From `null`, clicking "Only selected teams" opens checklist with `value=[]`.
-  2. Warning shown while `< 2` selected.
-  3. Selecting a second team fires `onChange([id1,id2])` with unique IDs.
-  4. Clicking "All club members" fires `onChange(null)`.
-  5. No mutation of input array.
-  6. Duplicate IDs never emitted.
-  7. `disabled` blocks interaction.
-- `src/components/event/ClubWideRsvpBreakdown.test.tsx`: verify grouped attendance excludes non-targeted teams when `target_team_ids` provided.
+### New test — `src/components/pitch/GameTimer.lifecycle.test.tsx`
 
-**Playwright baseline** (`e2e-baseline/club-wide-game-rsvp.spec.ts` on `playwright.baseline.config.ts`, isolated local only — do not point at hosted dev/prod):
-1. Create targeted club-wide game for U8 Blue + U8 Red.
-2. Edit audience to U8 Blue + U10 Red; PATCH must include replacement `target_team_ids`.
-3. Detail page excludes U8 Red after edit.
-4. Non-targeted same-club member cannot open the detail page.
-5. Non-targeted same-club member cannot POST an RSVP (backend rejects).
+Reproduces the failure by hydrating at 16:00, dispatching a resume that returns a stale zero snapshot, and asserting the displayed elapsed time does not move backwards. Also asserts:
+- an out-of-order response with a stale `last_event_at` is dropped
+- a legitimate newer reset IS applied
+- team-id change during an in-flight read discards the response
 
-Commands (documented, do not wire to hosted envs):
-```
-npx vitest run \
-  src/components/event/TargetTeamsPicker.test.tsx \
-  src/components/event/ClubWideRsvpBreakdown.test.tsx
+## Defect 2 — Autosub plans exceed the requested maximum spread
 
-npx playwright test \
-  --config playwright.baseline.config.ts \
-  e2e-baseline/club-wide-game-rsvp.spec.ts
-```
+### Root cause
 
-## Do NOT
-- No frontend-only visibility fix.
-- No weakening of existing club/team/guardian/cross-club RLS.
-- No `USING (true)` policies; no service-role exposure.
-- No destructive data cleanup; no deletion of real events/RSVPs/roles/assignments.
-- No `promote-guard` allow markers unless a reviewed protected UPDATE is genuinely unavoidable.
-- No test edits to match incorrect behavior.
-- No use of real club/user data in tests.
+`AutoSubPlanDialog.createSubPlan` (~2400 LOC) produces the primary plan; only when a narrow set of guards pass does it hand off to the fairness-optimal `buildEqualTimePlan` post-pass. In the failing scenarios (11-a-side/3-bench mode-1, 9-a-side/4-bench mode-1, etc.) either the eligibility gate rejects the equal-time result, or the comparison scorer picks the worse primary plan because it compares on a different metric (shift smoothness / continuity) than the user-visible spread.
 
-## Files touched (approx)
-- 1 new migration (`supabase/migrations/<ts>_targeted_events_authorization.sql`)
-- `src/components/event/TargetTeamsPicker.tsx`
-- `src/pages/CreateEventPage.tsx`, `src/pages/EditEventPage.tsx`, `src/pages/EventDetailPage.tsx`
-- New: `TargetTeamsPicker.test.tsx`, `ClubWideRsvpBreakdown.test.tsx`, `e2e-baseline/club-wide-game-rsvp.spec.ts`
-- Recipient-selection audit patches in relevant Edge Functions / SQL functions (send-event-*, reminders)
+The requested `maxSpreadMinutes` cap is used as a soft preference during scoring, not a hard constraint: when the equal-time planner returns a feasible plan that meets the cap, the production selector still picks the primary plan if it wins on secondary objectives.
 
-## Verification
-- `tsgo` clean.
-- All new + existing vitest suites pass.
-- Playwright baseline journey passes.
-- Manual sanity: creating a targeted event as a non-targeted user surfaces zero rows via PostgREST; RSVP POST returns RLS error.
+### Fix (planner selection, no schema changes)
+
+1. Always run `buildEqualTimePlan` alongside `createSubPlan` for every eligible configuration (drop the current narrow eligibility gate — the equal-time planner is already deterministic and O(N²·slices), which is bounded for realistic squads).
+2. Simulate both plans through the existing production simulator so their reported `projectedSec` uses identical eligibility/GK/minutesPlayed inputs.
+3. Choose lexicographically: (a) valid/playable → (b) meets `maxSpreadMinutes` cap → (c) minimises spread → (d) minimises max deviation → (e) minimises shift churn.
+4. Expose a diagnostic on the returned plan when the cap is mathematically infeasible (e.g. cap smaller than `chunkSec × ceil-floor gap`), so the UI can surface "closest achievable" instead of silently ignoring the cap.
+5. Include starting deficit (`minutesPlayed`) and full-game GKs in the fairness objective — already handled by `equalTime.ts`, just needs to be honoured by the selector.
+
+### New tests
+
+- `src/components/pitch/planner/autosubFairness.acceptance.test.ts` — every scenario from the spec (5-a-side/3-bench through 11-a-side/5-bench, modes 1 and 2, 20–45 minute halves) asserted against its stated cap.
+- `src/components/pitch/planner/equalTime.constraints.pending.test.ts` — monotonicity: a tighter feasible cap never produces a worse plan than a looser cap.
+- `src/components/pitch/timerUtils.test.ts` — direct coverage for the new `shouldAcceptServerSnapshot` guard.
+
+## Files touched
+
+Production:
+- `src/lib/serverTimer.ts` — add `shouldAcceptServerSnapshot`.
+- `src/components/pitch/GameTimer.tsx` — wire guard + capture team-id per read.
+- `src/components/pitch/AutoSubPlanDialog.tsx` — planner selector rewrite (local to the selection block, ~150 LOC).
+- `src/components/pitch/planner/equalTime.ts` — expose infeasibility diagnostic.
+
+Tests (new, no existing tests weakened):
+- `src/components/pitch/GameTimer.lifecycle.test.tsx`
+- `src/components/pitch/timerUtils.test.ts`
+- `src/components/pitch/planner/autosubFairness.acceptance.test.ts`
+- `src/components/pitch/planner/equalTime.constraints.pending.test.ts`
+
+## Out of scope (per your safety rules)
+
+- No DB migrations. No changes to `pitch-timer-event` / `pitch-timer-read` edge functions. No auth / RLS changes. No archived sport changes. No changes to unrelated tests.
+
+## Validation
+
+`npx vitest run` on all seven files listed in your spec, then the full frontend baseline (currently 824+ passing). Success = stale-resume test green, every fairness scenario meets its cap, all pre-existing timer/autosub tests still green.
+
+Approve and I'll implement in this order: (1) timer guard + lifecycle test, (2) planner selector + acceptance test, (3) diagnostics + constraints test, (4) run full baseline and report the six items your spec requires before finishing.
