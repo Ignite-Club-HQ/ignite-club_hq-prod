@@ -7,11 +7,24 @@
  * up to 75% of match length as a "not truly broken" ceiling), this suite
  * treats the spread cap as a genuine planning constraint.
  *
- * Any case that breaches the cap is reported as a soft failure via a summary
- * table at the end of the run, so we can track fairness regressions without
- * blocking the wider PR baseline until the primary-path createSubPlan rewrite
- * lands. Cases that produce structurally impossible plans (invalid sim,
- * starved players) fail hard.
+ * ## Two spread metrics
+ *
+ * The planner explicitly excludes GK-only players (assignedPositions === ["GK"])
+ * from its rotation pool — they're locked to goal and their minutes are
+ * structurally fixed. Two metrics are therefore reported per case:
+ *
+ * - **Rotation-pool spread** (cap-enforced): spread across players the planner
+ *   can actually rebalance. This is the fairness metric the planner is
+ *   designed to optimize.
+ * - **Full-squad spread** (informational only): spread across every player,
+ *   including locked GKs. When `gkSwap = false` on long halves this is
+ *   dominated by the GK's fixed 90 min and is often mathematically
+ *   unreachable at the configured 5-min cap. Surfaced so the UI can nudge
+ *   the coach to enable halftime GK swap.
+ *
+ * Any rotation-pool breach is reported as a soft failure via a summary table
+ * at the end of the run so we can track regressions. Structurally impossible
+ * plans (invalid sim, starved players) fail hard.
  *
  * Run via: `bunx vitest run src/components/pitch/autoSubFairness.acceptance.test.ts`
  */
@@ -70,13 +83,19 @@ const simulateOutfieldTotals = (
   return totals;
 };
 
+const isGkOnly = (p: P) =>
+  p.assignedPositions.length === 1 && p.assignedPositions[0] === "GK";
+
 interface CaseResult {
   label: string;
   capMin: number;
-  spreadMin: number;
+  rotationSpreadMin: number;
+  fullSquadSpreadMin: number;
   breach: number;
+  gkLocked: boolean;
 }
-const breaches: CaseResult[] = [];
+const rotationBreaches: CaseResult[] = [];
+const gkLockedNudges: CaseResult[] = [];
 
 // A representative, curated grid — small enough to run in-CI but covering
 // the parameter combinations the fairness rewrite must eventually satisfy.
@@ -142,36 +161,91 @@ describe("AutoSub fairness acceptance — spread cap as hard constraint", () => 
       });
       expect(Math.min(...values), `${label} starved player`).toBeGreaterThan(0);
 
-      // Soft: track cap breaches for the summary. Do not fail the run — the
-      // primary-path rewrite is a follow-up. This lets us see progress
-      // trend as tuning changes land.
-      const spreadMin = (Math.max(...values) - Math.min(...values)) / 60;
-      if (spreadMin > c.capMin) {
-        breaches.push({
+      // Split into rotation-pool vs locked-GK groups.
+      const rotationValues: number[] = [];
+      const gkOnlyValues: number[] = [];
+      players.forEach(p => {
+        const v = totals.get(p.id) ?? 0;
+        if (isGkOnly(p)) gkOnlyValues.push(v);
+        else rotationValues.push(v);
+      });
+
+      const rotationSpreadMin =
+        rotationValues.length > 1
+          ? (Math.max(...rotationValues) - Math.min(...rotationValues)) / 60
+          : 0;
+      const fullSquadSpreadMin = (Math.max(...values) - Math.min(...values)) / 60;
+      const gkLocked = !c.gkSwap && gkOnlyValues.length > 0;
+
+      // Cap-enforced metric: rotation-pool spread. This is what the planner
+      // can actually control.
+      if (rotationSpreadMin > c.capMin) {
+        rotationBreaches.push({
           label,
           capMin: c.capMin,
-          spreadMin: Number(spreadMin.toFixed(2)),
-          breach: Number((spreadMin - c.capMin).toFixed(2)),
+          rotationSpreadMin: Number(rotationSpreadMin.toFixed(2)),
+          fullSquadSpreadMin: Number(fullSquadSpreadMin.toFixed(2)),
+          breach: Number((rotationSpreadMin - c.capMin).toFixed(2)),
+          gkLocked,
+        });
+      }
+
+      // Informational metric: full-squad breach driven by locked GK. Surfaces
+      // the "enable halftime GK swap" UX hint opportunity.
+      if (
+        gkLocked &&
+        rotationSpreadMin <= c.capMin &&
+        fullSquadSpreadMin > c.capMin
+      ) {
+        gkLockedNudges.push({
+          label,
+          capMin: c.capMin,
+          rotationSpreadMin: Number(rotationSpreadMin.toFixed(2)),
+          fullSquadSpreadMin: Number(fullSquadSpreadMin.toFixed(2)),
+          breach: Number((fullSquadSpreadMin - c.capMin).toFixed(2)),
+          gkLocked,
         });
       }
     });
   }
 
   afterAll(() => {
-    if (breaches.length === 0) {
-      // eslint-disable-next-line no-console
-      console.log("\n[fairness acceptance] All cases meet configured spread cap ✅");
-      return;
-    }
     const total = cases.length;
-    // eslint-disable-next-line no-console
-    console.log(
-      `\n[fairness acceptance] ${breaches.length}/${total} case(s) exceeded configured max-spread cap:\n` +
-        breaches
-          .sort((a, b) => b.breach - a.breach)
-          .map(b => `  • +${b.breach}min over cap (spread ${b.spreadMin}min, cap ${b.capMin}min) — ${b.label}`)
-          .join("\n") +
-        "\n\nThis is a soft report — see docs/autosub-fairness-rewrite.md for the follow-up plan.\n",
-    );
+    if (rotationBreaches.length === 0) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `\n[fairness acceptance] All ${total} cases meet rotation-pool spread cap ✅`,
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(
+        `\n[fairness acceptance] ${rotationBreaches.length}/${total} case(s) exceeded rotation-pool spread cap:\n` +
+          rotationBreaches
+            .sort((a, b) => b.breach - a.breach)
+            .map(
+              b =>
+                `  • +${b.breach}min over cap (rotation spread ${b.rotationSpreadMin}min, full-squad ${b.fullSquadSpreadMin}min, cap ${b.capMin}min) — ${b.label}`,
+            )
+            .join("\n") +
+          "\n\nRotation-pool breaches indicate the planner failed to balance the players it can control. See docs/autosub-fairness-rewrite.md.\n",
+      );
+    }
+
+    if (gkLockedNudges.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `\n[fairness acceptance] ${gkLockedNudges.length} case(s) balanced within rotation pool but breach full-squad cap due to locked GK — UI should suggest enabling halftime GK swap:\n` +
+          gkLockedNudges
+            .sort((a, b) => b.breach - a.breach)
+            .slice(0, 10)
+            .map(
+              b =>
+                `  • full-squad spread ${b.fullSquadSpreadMin}min (rotation ${b.rotationSpreadMin}min, cap ${b.capMin}min) — ${b.label}`,
+            )
+            .join("\n") +
+          (gkLockedNudges.length > 10 ? `\n  … +${gkLockedNudges.length - 10} more` : "") +
+          "\n",
+      );
+    }
   });
 });
