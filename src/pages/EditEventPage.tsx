@@ -432,6 +432,20 @@ export default function EditEventPage() {
     enabled: !!user,
   });
 
+  // All teams in the selected club — used by the target-teams picker.
+  const { data: allClubTeams } = useQuery({
+    queryKey: ["all-club-teams-for-edit-target", selectedClubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", selectedClubId)
+        .order("name");
+      return data ?? [];
+    },
+    enabled: !!selectedClubId,
+  });
+
   // Populate form with existing data
   useEffect(() => {
     if (event) {
