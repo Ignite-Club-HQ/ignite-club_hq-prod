@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
+import { TargetTeamsPicker } from "@/components/event/TargetTeamsPicker";
 import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -141,6 +142,8 @@ export default function CreateEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
+  // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
+  const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -393,6 +396,21 @@ export default function CreateEventPage() {
       return [];
     },
     enabled: !!clubId && userTeamIds !== undefined,
+  });
+
+  // All teams in the selected club — used by the target-teams picker
+  // (independent of the caller's team memberships).
+  const { data: allClubTeams } = useQuery({
+    queryKey: ["all-club-teams-for-target", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", clubId!)
+        .order("name");
+      return data ?? [];
+    },
+    enabled: !!clubId,
   });
 
   // Check if user is committee-only for the selected club (no admin/coach/team roles)
@@ -771,6 +789,10 @@ export default function CreateEventPage() {
       adults_only: adultsOnly,
       rsvp_grouping:
         !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+      target_team_ids:
+        !teamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+          ? targetTeamIds
+          : null,
     } as any;
 
     try {
@@ -1175,6 +1197,15 @@ export default function CreateEventPage() {
                     ]}
                     placeholder="No grouping"
                     label="RSVP grouping"
+                  />
+                )}
+
+                {/* Target teams — restrict a club-wide game/social to a subset of teams */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <TargetTeamsPicker
+                    teams={allClubTeams ?? undefined}
+                    value={targetTeamIds}
+                    onChange={setTargetTeamIds}
                   />
                 )}
                 

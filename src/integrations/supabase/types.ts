@@ -4122,6 +4122,7 @@ export type Database = {
           start_time: string | null
           state: string | null
           suburb: string | null
+          target_team_ids: string[] | null
           team_id: string | null
           title: string
           type: Database["public"]["Enums"]["event_type"]
@@ -4177,6 +4178,7 @@ export type Database = {
           start_time?: string | null
           state?: string | null
           suburb?: string | null
+          target_team_ids?: string[] | null
           team_id?: string | null
           title: string
           type?: Database["public"]["Enums"]["event_type"]
@@ -4232,6 +4234,7 @@ export type Database = {
           start_time?: string | null
           state?: string | null
           suburb?: string | null
+          target_team_ids?: string[] | null
           team_id?: string | null
           title?: string
           type?: Database["public"]["Enums"]["event_type"]
