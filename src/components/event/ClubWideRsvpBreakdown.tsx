@@ -226,14 +226,14 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       </CardHeader>
       <CardContent className="space-y-2">
         {groups.map((g) => (
-          <GroupRowItem key={g.key} group={g} />
+          <GroupRowItem key={g.key} group={g} showTeamTag={grouping === "level"} />
         ))}
       </CardContent>
     </Card>
   );
 }
 
-function GroupRowItem({ group }: { group: GroupRow }) {
+function GroupRowItem({ group, showTeamTag }: { group: GroupRow; showTeamTag: boolean }) {
   const [open, setOpen] = useState(false);
   const total =
     group.going.length + group.maybe.length + group.not_going.length + group.no_response.length;
