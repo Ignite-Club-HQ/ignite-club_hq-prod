@@ -3687,18 +3687,8 @@ export default function EventDetailPage() {
                 </div>
               );
             })()}
-            {!event?.team_id && event?.club_id &&
-              ((event as any).rsvp_grouping === "level" || (event as any).rsvp_grouping === "team") && (
-                <div className="mb-3">
-                  <ClubWideRsvpBreakdown
-                    eventId={id!}
-                    clubId={event.club_id}
-                    grouping={(event as any).rsvp_grouping}
-                    targetTeamIds={(event as any).target_team_ids ?? null}
-                  />
-
-                </div>
-              )}
+            {/* Grouping (by age level or team) is folded into each bucket
+                inside AttendanceSection below — no separate breakdown card. */}
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}
