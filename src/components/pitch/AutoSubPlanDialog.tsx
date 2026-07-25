@@ -3003,49 +3003,56 @@ export function createSubPlan(
 
   if (equalTimeEligible) {
     try {
-      const eqResult = buildEqualTimePlan({
-        players: playerData,
-        teamSize,
-        halfDurationSec: halfDurationSeconds,
-        gk1H: gkOnPitch || undefined,
-        gk2H: rotateGkAtHalftime
-          ? halftimeGkIn || gkOnPitch || undefined
-          : gkOnPitch || undefined,
-        chunkSec: 30,
-        minShiftSec: Math.max(60, eff.minShiftSeconds),
-        noSubBeforeSec: 0,
-        noSubAfterSec: 30,
-      });
+      // Sweep progressively tighter minShift values. Smaller minShift lets the
+      // deficit-driven planner take finer bites out of the largest spread
+      // gaps, at the cost of a busier plan. Select the tightest-spread
+      // variant that still sims valid.
+      const capSec = maxSpreadMinutes * 60;
+      const currentSim = simulateOutfieldPlan(plan);
+      const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
 
-      if (eqResult.plan.length > 0) {
-        const currentSim = simulateOutfieldPlan(plan);
-        const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
+      const minShiftCandidates = Array.from(
+        new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
+      ).sort((a, b) => a - b);
 
-        // Validate the equal-time plan against the same simulator the rest of
-        // the planner uses. If it sims clean AND the spread is meaningfully
-        // tighter than the current plan, swap it in.
-        const eqSim = simulateOutfieldPlan(eqResult.plan);
-        const eqSpread = eqSim.valid ? fairnessSpread(eqSim.times) : Number.POSITIVE_INFINITY;
-
-        // Lexicographic selection:
-        //   1. Both must sim valid (already checked for `eq`; guard current).
-        //   2. Prefer whichever meets the user-configured max-spread cap.
-        //   3. Otherwise prefer strictly smaller spread.
-        //   4. Ties resolved in favour of the equal-time plan (deterministic).
-        const capSec = maxSpreadMinutes * 60;
-        const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
-        const eqMeetsCap = eqSim.valid && eqSpread <= capSec;
-
-        let adopt = false;
-        if (eqSim.valid) {
-          if (eqMeetsCap && !currentMeetsCap) adopt = true;
-          else if (eqMeetsCap === currentMeetsCap && eqSpread < currentSpread) adopt = true;
-          else if (!currentSim.valid) adopt = true;
+      let bestEq: { plan: typeof plan; spread: number } | null = null;
+      for (const minShiftSec of minShiftCandidates) {
+        const eqResult = buildEqualTimePlan({
+          players: playerData,
+          teamSize,
+          halfDurationSec: halfDurationSeconds,
+          gk1H: gkOnPitch || undefined,
+          gk2H: rotateGkAtHalftime
+            ? halftimeGkIn || gkOnPitch || undefined
+            : gkOnPitch || undefined,
+          chunkSec: 30,
+          minShiftSec,
+          noSubBeforeSec: 0,
+          noSubAfterSec: 30,
+        });
+        if (eqResult.plan.length === 0) continue;
+        const eqSim = simulateOutfieldPlan(eqResult.plan as unknown as typeof plan);
+        if (!eqSim.valid) continue;
+        const eqSpread = fairnessSpread(eqSim.times);
+        if (!bestEq || eqSpread < bestEq.spread) {
+          bestEq = { plan: eqResult.plan as unknown as typeof plan, spread: eqSpread };
         }
+        if (eqSpread <= capSec) break;
+      }
+
+      if (bestEq) {
+        // Lexicographic selection: prefer whichever meets the cap; otherwise
+        // smaller spread; ties → equal-time (deterministic).
+        const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
+        const eqMeetsCap = bestEq.spread <= capSec;
+        let adopt = false;
+        if (eqMeetsCap && !currentMeetsCap) adopt = true;
+        else if (eqMeetsCap === currentMeetsCap && bestEq.spread < currentSpread) adopt = true;
+        else if (!currentSim.valid) adopt = true;
 
         if (adopt) {
           plan.length = 0;
-          plan.push(...eqResult.plan);
+          plan.push(...bestEq.plan);
           sortPlan();
         }
       }
