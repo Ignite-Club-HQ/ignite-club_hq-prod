@@ -122,6 +122,8 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
       if (!profile) continue;
       const id = profile.id as string;
       const teamId = r.team_id as string | null;
+      // When targeting a subset of teams, exclude adults not on those teams.
+      if (targetSet && (!teamId || !targetSet.has(teamId))) continue;
       const meta = teamId ? teamMeta.get(teamId) : undefined;
       let groupKey: string;
       let groupLabel: string;
