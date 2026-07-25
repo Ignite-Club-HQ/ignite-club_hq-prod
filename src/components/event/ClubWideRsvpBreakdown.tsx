@@ -274,10 +274,10 @@ function GroupRowItem({ group, showTeamTag }: { group: GroupRow; showTeamTag: bo
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-3">
-        <NameBlock title="Going" names={group.going} tone="going" />
-        <NameBlock title="Maybe" names={group.maybe} tone="maybe" />
-        <NameBlock title="Not Going" names={group.not_going} tone="no" />
-        <NameBlock title="No Response" names={group.no_response} tone="nr" />
+        <NameBlock title="Going" people={group.going} tone="going" showTeamTag={showTeamTag} />
+        <NameBlock title="Maybe" people={group.maybe} tone="maybe" showTeamTag={showTeamTag} />
+        <NameBlock title="Not Going" people={group.not_going} tone="no" showTeamTag={showTeamTag} />
+        <NameBlock title="No Response" people={group.no_response} tone="nr" showTeamTag={showTeamTag} />
       </CollapsibleContent>
     </Collapsible>
   );
@@ -285,14 +285,16 @@ function GroupRowItem({ group, showTeamTag }: { group: GroupRow; showTeamTag: bo
 
 function NameBlock({
   title,
-  names,
+  people,
   tone,
+  showTeamTag,
 }: {
   title: string;
-  names: string[];
+  people: Attendee[];
   tone: "going" | "maybe" | "no" | "nr";
+  showTeamTag: boolean;
 }) {
-  if (names.length === 0) return null;
+  if (people.length === 0) return null;
   const toneClass =
     tone === "going"
       ? "text-emerald-700 dark:text-emerald-300"
@@ -304,10 +306,20 @@ function NameBlock({
   return (
     <div className="mt-2">
       <div className={cn("text-xs font-semibold mb-1", toneClass)}>
-        {title} ({names.length})
+        {title} ({people.length})
       </div>
-      <div className="text-sm text-foreground/90 leading-relaxed">
-        {names.join(", ")}
+      <div className="text-sm text-foreground/90 leading-relaxed flex flex-wrap gap-x-2 gap-y-1.5">
+        {people.map((p, i) => (
+          <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1">
+            <span>{p.name}</span>
+            {showTeamTag && p.team && (
+              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-tight bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+                {p.team}
+              </span>
+            )}
+            {i < people.length - 1 && <span className="text-muted-foreground">,</span>}
+          </span>
+        ))}
       </div>
     </div>
   );
