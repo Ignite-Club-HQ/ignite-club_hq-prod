@@ -185,11 +185,46 @@ export function shouldAcceptServerSnapshot(
     !incoming.is_game_finished;
   const localAdvanced = !!local && (local.isRunning || local.elapsedSeconds > 0 || local.currentHalf === 2 || local.isGameFinished);
 
+  // Backwards-movement guard: reject any incoming snapshot whose derived
+  // elapsed would regress the currently displayed clock in the same half,
+  // regardless of `last_event_at`. Legitimate resets / half transitions
+  // change `current_half` OR clear `half_started_at` under a newer event
+  // timestamp, which is handled explicitly below.
+  const REGRESSION_TOLERANCE_SEC = 2;
+  if (local && Number.isFinite(nextMs) && Number.isFinite(prevMs)) {
+    const incomingElapsed = deriveElapsedSeconds(incoming, nextMs);
+    const sameHalf = (incoming.current_half ?? 1) === local.currentHalf;
+    const wouldRegress = sameHalf && incomingElapsed + REGRESSION_TOLERANCE_SEC < local.elapsedSeconds;
+    // Only enforce when the incoming isn't strictly newer AND either running
+    // locally or paused with non-zero elapsed. Newer events (manual reset,
+    // half transition) are always authoritative.
+    if (wouldRegress && nextMs <= prevMs && localAdvanced) {
+      return { accept: false, reason: "would-regress-displayed-elapsed" };
+    }
+  }
+
   if (Number.isFinite(nextMs) && Number.isFinite(prevMs)) {
     if (nextMs > prevMs) return { accept: true, reason: "newer-event" };
     if (nextMs === prevMs) {
       if (incomingIsZero && localAdvanced) {
         return { accept: false, reason: "stale-zero-at-equal-timestamp" };
+      }
+      // At equal timestamps, require materially-equivalent state to accept
+      // an idempotent re-read. Divergent half_started_at / current_half /
+      // is_running / accumulated_pause_ms with the same `last_event_at`
+      // means one of the two snapshots is corrupt or racy — refuse to
+      // overwrite the accepted state.
+      if (prev && "half_started_at" in (prev as ServerTimer)) {
+        const p = prev as ServerTimer;
+        const stateMatches =
+          p.half_started_at === incoming.half_started_at &&
+          p.current_half === incoming.current_half &&
+          p.is_running === incoming.is_running &&
+          (p.accumulated_pause_ms || 0) === (incoming.accumulated_pause_ms || 0) &&
+          p.is_game_finished === incoming.is_game_finished;
+        if (!stateMatches) {
+          return { accept: false, reason: "divergent-state-at-equal-timestamp" };
+        }
       }
       return { accept: true, reason: "idempotent-reread" };
     }
