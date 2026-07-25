@@ -3456,9 +3456,7 @@ export default function EventDetailPage() {
         };
 
 
-        const notRespondedNode = (
-          <div className="divide-y divide-border/50">
-            {notRespondedChildren.map((child: any) => {
+        const renderNotRespondedChild = (child: any) => {
               // For mini-league players: parent_user_id may be null; we still allow remind via
               // the linked child (children.parent_id + child_guardians).
               const isPendingChild = isMiniLeagueEvent ? !!child.is_pending : false;
@@ -3540,8 +3538,9 @@ export default function EventDetailPage() {
                   }
                 />
               );
-            })}
-            {notResponded.map((member: any) => {
+        };
+
+        const renderNotRespondedAdult = (member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
@@ -3600,9 +3599,58 @@ export default function EventDetailPage() {
                   }
                 />
               );
-            })}
+        };
+
+        const childGroupKey = (child: any) => {
+          const childId = isMiniLeagueEvent ? (child.child_id || child.id) : child.id;
+          return groupMap.groupOf({ childId, userId: null });
+        };
+        const adultGroupKey = (member: any) =>
+          groupMap.groupOf({ userId: member.id, childId: null });
+
+        const notRespondedNode = groupMap.isActive ? (() => {
+          const childBuckets = new Map<string, any[]>();
+          for (const c of notRespondedChildren) {
+            const g = childGroupKey(c);
+            const arr = childBuckets.get(g.key) ?? [];
+            arr.push(c);
+            childBuckets.set(g.key, arr);
+          }
+          const adultBuckets = new Map<string, any[]>();
+          for (const m of notResponded) {
+            const g = adultGroupKey(m);
+            const arr = adultBuckets.get(g.key) ?? [];
+            arr.push(m);
+            adultBuckets.set(g.key, arr);
+          }
+          return (
+            <div className="space-y-3">
+              {groupMap.orderedGroups.map((g) => {
+                const kids = childBuckets.get(g.key) ?? [];
+                const adults = adultBuckets.get(g.key) ?? [];
+                const total = kids.length + adults.length;
+                if (total === 0) return null;
+                return (
+                  <div key={g.key}>
+                    <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {g.label} <span className="text-muted-foreground/70">({total})</span>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {kids.map(renderNotRespondedChild)}
+                      {adults.map(renderNotRespondedAdult)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })() : (
+          <div className="divide-y divide-border/50">
+            {notRespondedChildren.map(renderNotRespondedChild)}
+            {notResponded.map(renderNotRespondedAdult)}
           </div>
         );
+
 
         const goingTotal = goingRsvps.length + (eventGuests?.length || 0);
         const trackableMembers = (members?.length || 0);
