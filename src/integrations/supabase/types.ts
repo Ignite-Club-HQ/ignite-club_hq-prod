@@ -10091,6 +10091,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      can_access_targeted_event: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_admin_view_child: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
@@ -10504,6 +10508,10 @@ export type Database = {
       ensure_team_role_folders: {
         Args: { _team_id: string }
         Returns: undefined
+      }
+      event_has_target_team_restriction: {
+        Args: { _event_id: string }
+        Returns: boolean
       }
       extract_mentioned_user_ids: {
         Args: { message_text: string }

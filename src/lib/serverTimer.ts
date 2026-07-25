@@ -139,3 +139,98 @@ export async function readServerTimer(teamId: string | null): Promise<TimerReadR
 export function computeClockSkewMs(serverNowIso: string): number {
   return new Date(serverNowIso).getTime() - Date.now();
 }
+
+/**
+ * Local snapshot of the *displayed* timer state at the moment a server read
+ * resolves. Used by `shouldAcceptServerSnapshot` to detect stale/racing reads
+ * that would move an active clock backwards.
+ */
+export interface LocalTimerSnapshot {
+  isRunning: boolean;
+  currentHalf: 1 | 2;
+  elapsedSeconds: number;
+  isGameFinished: boolean;
+}
+
+/**
+ * Guard against stale / out-of-order server snapshots overwriting a live
+ * timer. Rules (in order):
+ *
+ *   1. No previous accepted snapshot → accept (first hydrate).
+ *   2. Strictly newer `last_event_at` → accept (authoritative newer event).
+ *   3. Equal `last_event_at`, and the incoming snapshot doesn't zero out a
+ *      locally-advanced clock → accept (idempotent re-read).
+ *   4. Otherwise reject. In particular a snapshot with an older or equal
+ *      `last_event_at` that would move a running/advanced local clock
+ *      backwards to zero is rejected — this is the "stale zero on resume"
+ *      failure mode.
+ *
+ * A legitimate manual reset always propagates because `pitch-timer-event`
+ * bumps `last_event_at` at the same time it zeroes the state, so rule (2)
+ * matches. Half transitions and `set_minutes` behave the same way.
+ */
+export function shouldAcceptServerSnapshot(
+  prev: Pick<ServerTimer, "last_event_at"> | null | undefined,
+  incoming: ServerTimer,
+  local?: LocalTimerSnapshot,
+): { accept: boolean; reason: string } {
+  if (!prev?.last_event_at) return { accept: true, reason: "first-hydrate" };
+
+  const prevMs = new Date(prev.last_event_at).getTime();
+  const nextMs = new Date(incoming.last_event_at).getTime();
+  const incomingIsZero =
+    !incoming.is_running &&
+    !incoming.half_started_at &&
+    (incoming.current_half ?? 1) === 1 &&
+    !incoming.is_game_finished;
+  const localAdvanced = !!local && (local.isRunning || local.elapsedSeconds > 0 || local.currentHalf === 2 || local.isGameFinished);
+
+  // Backwards-movement guard: reject any incoming snapshot whose derived
+  // elapsed would regress the currently displayed clock in the same half,
+  // regardless of `last_event_at`. Legitimate resets / half transitions
+  // change `current_half` OR clear `half_started_at` under a newer event
+  // timestamp, which is handled explicitly below.
+  const REGRESSION_TOLERANCE_SEC = 2;
+  if (local && Number.isFinite(nextMs) && Number.isFinite(prevMs)) {
+    const incomingElapsed = deriveElapsedSeconds(incoming, nextMs);
+    const sameHalf = (incoming.current_half ?? 1) === local.currentHalf;
+    const wouldRegress = sameHalf && incomingElapsed + REGRESSION_TOLERANCE_SEC < local.elapsedSeconds;
+    // Only enforce when the incoming isn't strictly newer AND either running
+    // locally or paused with non-zero elapsed. Newer events (manual reset,
+    // half transition) are always authoritative.
+    if (wouldRegress && nextMs <= prevMs && localAdvanced) {
+      return { accept: false, reason: "would-regress-displayed-elapsed" };
+    }
+  }
+
+  if (Number.isFinite(nextMs) && Number.isFinite(prevMs)) {
+    if (nextMs > prevMs) return { accept: true, reason: "newer-event" };
+    if (nextMs === prevMs) {
+      if (incomingIsZero && localAdvanced) {
+        return { accept: false, reason: "stale-zero-at-equal-timestamp" };
+      }
+      // At equal timestamps, require materially-equivalent state to accept
+      // an idempotent re-read. Divergent half_started_at / current_half /
+      // is_running / accumulated_pause_ms with the same `last_event_at`
+      // means one of the two snapshots is corrupt or racy — refuse to
+      // overwrite the accepted state.
+      if (prev && "half_started_at" in (prev as ServerTimer)) {
+        const p = prev as ServerTimer;
+        const stateMatches =
+          p.half_started_at === incoming.half_started_at &&
+          p.current_half === incoming.current_half &&
+          p.is_running === incoming.is_running &&
+          (p.accumulated_pause_ms || 0) === (incoming.accumulated_pause_ms || 0) &&
+          p.is_game_finished === incoming.is_game_finished;
+        if (!stateMatches) {
+          return { accept: false, reason: "divergent-state-at-equal-timestamp" };
+        }
+      }
+      return { accept: true, reason: "idempotent-reread" };
+    }
+  }
+
+  if (localAdvanced) return { accept: false, reason: "older-event-while-local-advanced" };
+  return { accept: false, reason: "older-event" };
+}
+

@@ -177,7 +177,7 @@ async function resolveRecipients(
   // Club-wide. If the event is role-restricted, only invite those roles plus club admins.
   const { data: eventRow, error: eventError } = await supabase
     .from('events')
-    .select('restricted_to_roles')
+    .select('restricted_to_roles, target_team_ids')
     .eq('id', eventId)
     .maybeSingle();
   if (eventError) {
@@ -189,6 +189,53 @@ async function resolveRecipients(
   const rolesToInvite = restrictedRoles.length > 0
     ? [...new Set([...restrictedRoles, 'club_admin'])]
     : null;
+
+  // Targeted club-wide events: only fan out to members/coaches/team_admins
+  // of the targeted teams, guardians of children assigned to them, plus
+  // club-level admins/committee. Non-targeted same-club members are excluded.
+  const targetTeamIds: string[] = Array.isArray(eventRow?.target_team_ids)
+    ? eventRow.target_team_ids
+    : [];
+  if (targetTeamIds.length > 0) {
+    const [teamRoleIds, adminIds, guardianIds] = await Promise.all([
+      paginateUserIds(() =>
+        supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('team_id', targetTeamIds)
+          .neq('user_id', excludeUserId),
+      ),
+      paginateUserIds(() =>
+        supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('club_id', clubId)
+          .in('role', ['club_admin', 'committee_member'])
+          .neq('user_id', excludeUserId),
+      ),
+      (async () => {
+        // Guardians of children assigned to any targeted team.
+        const { data: assigns, error } = await supabase
+          .from('child_team_assignments')
+          .select('child_id')
+          .in('team_id', targetTeamIds);
+        if (error || !assigns?.length) return [] as string[];
+        const childIds = [...new Set(assigns.map((a: any) => a.child_id))];
+        const out: string[] = [];
+        // Chunk to keep .in() list reasonable.
+        for (let i = 0; i < childIds.length; i += 200) {
+          const chunk = childIds.slice(i, i + 200);
+          const { data: guardians } = await supabase
+            .from('child_guardians')
+            .select('guardian_id')
+            .in('child_id', chunk);
+          if (guardians) out.push(...guardians.map((g: any) => g.guardian_id));
+        }
+        return out.filter((id) => id && id !== excludeUserId);
+      })(),
+    ]);
+    return [...new Set([...teamRoleIds, ...adminIds, ...guardianIds])];
+  }
 
   const ids = await paginateUserIds(() => {
     let query = supabase

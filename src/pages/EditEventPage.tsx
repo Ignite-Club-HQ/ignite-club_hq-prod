@@ -129,6 +129,17 @@ export default function EditEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Clear stale target_team_ids whenever the event moves out of the
+  // "club-wide game/social" window. See CreateEventPage for rationale.
+  useEffect(() => {
+    if (
+      targetTeamIds !== null &&
+      (selectedTeamId || (type !== "game" && type !== "social"))
+    ) {
+      setTargetTeamIds(null);
+    }
+  }, [selectedTeamId, type, targetTeamIds]);
+
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
     details: true,
