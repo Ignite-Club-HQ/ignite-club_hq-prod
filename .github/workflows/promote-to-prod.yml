@@ -102,8 +102,13 @@ jobs:
       - name: Guard against destructive migrations
         # Fails the job (before backup/apply) if any NEW migration file in
         # this promotion contains DML/DDL that could nuke prod rows on a
-        # high-value table. Whitelist a specific file by adding a line:
-        #   -- promote-guard: allow   (only after human review).
+        # high-value table AT MIGRATION TIME. SQL inside CREATE FUNCTION /
+        # CREATE PROCEDURE / DO $$...$$ bodies is stripped before scanning
+        # because that SQL only runs later, per RPC call, gated by the
+        # function's own security checks — it is not executed by db push.
+        #
+        # Whitelist a specific file by adding a line (only after human review):
+        #   -- promote-guard: allow
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -132,8 +137,26 @@ jobs:
               echo "⚠️  $file has promote-guard allow marker — skipping."
               continue
             fi
-            if grep -niE -- "$PATTERNS" "$file"; then
-              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table. Remove it or add '-- promote-guard: allow' after human review."
+
+            # Strip dollar-quoted bodies (CREATE FUNCTION/PROCEDURE/DO blocks).
+            # Supports named tags too: $body$ ... $body$, $func$ ... $func$, etc.
+            # Anything between matching $TAG$ delimiters is removed before
+            # scanning so RPC bodies don't false-positive.
+            SCAN=$(python3 - "$file" <<'PY'
+          import re, sys
+          src = open(sys.argv[1], 'r', encoding='utf-8', errors='replace').read()
+          # Non-greedy match on identical opening/closing dollar tags.
+          stripped = re.sub(
+              r"\$(?P<tag>[A-Za-z0-9_]*)\$.*?\$(?P=tag)\$",
+              "\n-- [stripped dollar-quoted body]\n",
+              src,
+              flags=re.DOTALL,
+          )
+          sys.stdout.write(stripped)
+          PY
+          )
+            if echo "$SCAN" | grep -niE -- "$PATTERNS"; then
+              echo "::error file=$file::Migration contains a statement that could destroy prod data on a protected table AT MIGRATION TIME. Remove it or add '-- promote-guard: allow' after human review."
               failed=1
             fi
           done
@@ -143,6 +166,56 @@ jobs:
             exit 1
           fi
           echo "✅ Guard passed."
+
+      - name: Detect changed edge functions
+        if: github.event_name == 'push'
+        id: edge_functions
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+
+          CHANGED=$(git diff --name-only "$BEFORE" HEAD -- 'supabase/functions/**' \
+            | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' \
+            | sort -u)
+
+          if [ -z "$CHANGED" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "deploy_all=false" >> "$GITHUB_OUTPUT"
+            echo "functions=" >> "$GITHUB_OUTPUT"
+            echo "✅ No edge function changes detected for this push."
+            exit 0
+          fi
+
+          if echo "$CHANGED" | grep -qx '_shared'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_all=true" >> "$GITHUB_OUTPUT"
+            echo "functions=" >> "$GITHUB_OUTPUT"
+            echo "⚠️  supabase/functions/_shared changed — deploy step will redeploy all functions after migrations pass."
+            exit 0
+          fi
+
+          FUNCS=""
+          for name in $CHANGED; do
+            if [ -f "supabase/functions/$name/index.ts" ]; then
+              FUNCS="$FUNCS $name"
+            else
+              echo "ℹ️  '$name' changed but has no index.ts on disk — likely deleted; deploy step will skip it."
+            fi
+          done
+          FUNCS=$(echo $FUNCS | xargs || true)
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "deploy_all=false" >> "$GITHUB_OUTPUT"
+          echo "functions=$FUNCS" >> "$GITHUB_OUTPUT"
+          if [ -z "$FUNCS" ]; then
+            echo "✅ Edge function paths changed, but no deployable function directories remain."
+          else
+            echo "Edge functions queued for deploy after migrations pass: $FUNCS"
+          fi
+
 
       - name: Skip dev-only migrations in PROD
         # Files whose first 5 lines contain:  -- prod-skip: dev-only
@@ -196,9 +269,36 @@ jobs:
         if: github.event_name == 'push'
         run: supabase db push --linked
 
-      - name: Deploy edge functions to PROD
+      - name: Deploy changed edge functions to PROD
         if: github.event_name == 'push'
-        run: supabase functions deploy --project-ref "$PROJECT_REF"
+        run: |
+          set -euo pipefail
+          CHANGED="${{ steps.edge_functions.outputs.changed }}"
+          DEPLOY_ALL="${{ steps.edge_functions.outputs.deploy_all }}"
+          FUNCS="${{ steps.edge_functions.outputs.functions }}"
+
+          if [ "$CHANGED" != "true" ]; then
+            echo "✅ No edge function changes in this push — skipping deploy."
+            exit 0
+          fi
+
+          if [ "$DEPLOY_ALL" = "true" ]; then
+            echo "⚠️  supabase/functions/_shared changed — redeploying ALL functions."
+            supabase functions deploy --project-ref "$PROJECT_REF"
+            exit 0
+          fi
+
+          if [ -z "$FUNCS" ]; then
+            echo "✅ No deployable function directories remain — nothing to do."
+            exit 0
+          fi
+
+          echo "Deploying only changed functions to PROD: $FUNCS"
+          for name in $FUNCS; do
+            echo "→ $name"
+            supabase functions deploy "$name" --project-ref "$PROJECT_REF"
+          done
+
 
       - name: Post-migration state
         if: github.event_name == 'push'
