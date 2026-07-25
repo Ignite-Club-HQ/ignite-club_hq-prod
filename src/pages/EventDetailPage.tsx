@@ -951,6 +951,25 @@ export default function EventDetailPage() {
   const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
   const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
 
+  // Grouping for club-wide events (by age level or by team). Drives the
+  // sub-headers inside every attendance bucket below when the event admin
+  // picked a grouping on create/edit.
+  const eventGrouping = (event as any)?.rsvp_grouping as
+    | "level"
+    | "team"
+    | null
+    | undefined;
+  const eventTargetTeamIds = ((event as any)?.target_team_ids ?? null) as
+    | string[]
+    | null;
+  const groupMap = useEventGroupMap({
+    clubId: event?.club_id ?? null,
+    grouping: eventGrouping ?? null,
+    targetTeamIds: eventTargetTeamIds,
+    enabled: !!event && !event.team_id && !!event.club_id &&
+      (eventGrouping === "level" || eventGrouping === "team"),
+  });
+
   // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
   const { data: miniLeagueDutyAssignees } = useQuery({
     queryKey: ["mini-league-duty-assignees-session", event?.mini_league_id, id],
