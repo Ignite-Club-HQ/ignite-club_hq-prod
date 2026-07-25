@@ -24,6 +24,8 @@ interface Props {
   eventId: string;
   clubId: string;
   grouping: Grouping;
+  /** When set, restrict members to those on any of these teams. */
+  targetTeamIds?: string[] | null;
 }
 
 interface GroupRow {
@@ -56,15 +58,21 @@ function sortGroupKeys(keys: string[]): string[] {
   });
 }
 
-export function ClubWideRsvpBreakdown({ eventId, clubId, grouping }: Props) {
+export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds }: Props) {
+  const targetSet = useMemo(
+    () => (Array.isArray(targetTeamIds) && targetTeamIds.length > 0 ? new Set(targetTeamIds) : null),
+    [targetTeamIds],
+  );
   const { data, isLoading } = useQuery({
-    queryKey: ["club-wide-rsvp-breakdown", eventId, clubId, grouping],
+    queryKey: ["club-wide-rsvp-breakdown", eventId, clubId, grouping, targetTeamIds?.join(",") ?? ""],
     queryFn: async () => {
-      // 1. Teams in the club (id, name, age_group)
-      const { data: teams } = await supabase
+      // 1. Teams in the club (id, name, age_group) — filter to target teams if set.
+      let teamsQ = supabase
         .from("teams")
         .select("id, name, age_group")
         .eq("club_id", clubId);
+      if (targetSet) teamsQ = teamsQ.in("id", Array.from(targetSet));
+      const { data: teams } = await teamsQ;
 
       // 2. Adult club members via user_roles.club_id (with any team_id present)
       const { data: roles } = await supabase
