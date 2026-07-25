@@ -145,6 +145,17 @@ export default function CreateEventPage() {
   // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Clear stale target_team_ids whenever the event moves out of the
+  // "club-wide game/social" window (team picked, unsupported type, club
+  // changed). Prevents a stale UUID subset from being submitted after the
+  // relationship changes — the backend validation trigger would reject it
+  // anyway, but clearing gives a clean UX.
+  useEffect(() => {
+    if (targetTeamIds !== null && (teamId || (type !== "game" && type !== "social"))) {
+      setTargetTeamIds(null);
+    }
+  }, [teamId, type, clubId, targetTeamIds]);
+
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
     if (!eventDateTime) return "";
