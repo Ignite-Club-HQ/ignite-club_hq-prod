@@ -337,7 +337,19 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // localStorage only when the server has no row (offline, brand-new game).
   const serverTimerRef = useRef<ServerTimer | null>(null);
   const clockSkewMsRef = useRef<number>(0); // server_now - Date.now()
+
+  // Live refs of the displayed timer state so the snapshot guard can compare
+  // an incoming server response against what the user is currently seeing
+  // without stale closures.
+  const liveStateRef = useRef({ isRunning: false, currentHalf: 1 as 1 | 2, elapsedSeconds: 0, isGameFinished: false });
+  liveStateRef.current = { isRunning, currentHalf, elapsedSeconds, isGameFinished };
+
   const applyServerSnapshot = useCallback((t: ServerTimer, serverNowIso: string) => {
+    const decision = shouldAcceptServerSnapshot(serverTimerRef.current, t, liveStateRef.current);
+    if (!decision.accept) {
+      console.info('[TimerAudit] server-snapshot-rejected', { teamId, reason: decision.reason, prev: serverTimerRef.current, incoming: t, local: liveStateRef.current });
+      return;
+    }
     serverTimerRef.current = t;
     clockSkewMsRef.current = new Date(serverNowIso).getTime() - Date.now();
     if (externalMinutesPerHalf === undefined) {
@@ -349,7 +361,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     setElapsedSeconds(elapsed);
     setIsRunning(!!t.is_running);
     // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
-    console.info('[TimerAudit] server-hydrate', { teamId, t, elapsed });
+    console.info('[TimerAudit] server-hydrate', { teamId, reason: decision.reason, t, elapsed });
   }, [externalMinutesPerHalf, teamId]);
 
   useEffect(() => {
