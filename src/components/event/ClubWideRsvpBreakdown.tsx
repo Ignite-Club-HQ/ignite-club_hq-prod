@@ -196,7 +196,7 @@ export function ClubWideRsvpBreakdown({ eventId, clubId, grouping, targetTeamIds
 
     const sortedKeys = sortGroupKeys([...groupMap.keys()]);
     return sortedKeys.map((k) => groupMap.get(k)!);
-  }, [data, grouping]);
+  }, [data, grouping, targetSet]);
 
   if (isLoading) {
     return (
