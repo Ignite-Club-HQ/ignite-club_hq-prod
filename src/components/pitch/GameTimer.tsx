@@ -7,7 +7,7 @@ import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, type ServerTimer } from "@/lib/serverTimer";
+import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, shouldAcceptServerSnapshot, type ServerTimer } from "@/lib/serverTimer";
 import { getPitchStateKey, PITCH_STATE_KEY } from "./types";
 
 /**
@@ -337,7 +337,19 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // localStorage only when the server has no row (offline, brand-new game).
   const serverTimerRef = useRef<ServerTimer | null>(null);
   const clockSkewMsRef = useRef<number>(0); // server_now - Date.now()
+
+  // Live refs of the displayed timer state so the snapshot guard can compare
+  // an incoming server response against what the user is currently seeing
+  // without stale closures.
+  const liveStateRef = useRef({ isRunning: false, currentHalf: 1 as 1 | 2, elapsedSeconds: 0, isGameFinished: false });
+  liveStateRef.current = { isRunning, currentHalf, elapsedSeconds, isGameFinished };
+
   const applyServerSnapshot = useCallback((t: ServerTimer, serverNowIso: string) => {
+    const decision = shouldAcceptServerSnapshot(serverTimerRef.current, t, liveStateRef.current);
+    if (!decision.accept) {
+      console.info('[TimerAudit] server-snapshot-rejected', { teamId, reason: decision.reason, prev: serverTimerRef.current, incoming: t, local: liveStateRef.current });
+      return;
+    }
     serverTimerRef.current = t;
     clockSkewMsRef.current = new Date(serverNowIso).getTime() - Date.now();
     if (externalMinutesPerHalf === undefined) {
@@ -349,7 +361,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     setElapsedSeconds(elapsed);
     setIsRunning(!!t.is_running);
     // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
-    console.info('[TimerAudit] server-hydrate', { teamId, t, elapsed });
+    console.info('[TimerAudit] server-hydrate', { teamId, reason: decision.reason, t, elapsed });
   }, [externalMinutesPerHalf, teamId]);
 
   useEffect(() => {
@@ -653,21 +665,34 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       const r = reconcileRefs.current;
       if (r.isGameFinished) return;
 
+      // Capture the team-id we're reading for. If it changes mid-flight
+      // (user navigated to another team), discard the response so we don't
+      // hydrate team A's timer into team B's component.
+      const readForTeamId = r.teamId ?? null;
+
       // Server-first: pull authoritative timer and snap to it. Drift is
       // impossible because the server derives elapsed from event timestamps.
       try {
-        const res = await readServerTimer(r.teamId ?? null);
+        const res = await readServerTimer(readForTeamId);
+        if ((reconcileRefs.current.teamId ?? null) !== readForTeamId) {
+          console.info('[TimerAudit] reconcile: team-id changed mid-read, dropping', { readForTeamId, current: reconcileRefs.current.teamId });
+          return;
+        }
         if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
           const prevHalf = r.currentHalf;
           const prevFinished = r.isGameFinished;
+          const prevSnapshot = serverTimerRef.current;
           applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
-          // Fire half/full-time chimes if the server says we crossed those
-          // boundaries while we were backgrounded.
-          if (!prevFinished && res.timer_state.is_game_finished) {
-            playTimerBeep("Full Time! Match complete.");
-          } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
-            onHalfChangeRef.current?.(2, 'reconcile');
-            playTimerBeep("Half Time! First half complete.");
+          // Only fire chimes if the snapshot was actually accepted (i.e.
+          // serverTimerRef advanced). Prevents a rejected stale snapshot
+          // from triggering a spurious half/full-time beep.
+          if (serverTimerRef.current !== prevSnapshot) {
+            if (!prevFinished && res.timer_state.is_game_finished) {
+              playTimerBeep("Full Time! Match complete.");
+            } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
+              onHalfChangeRef.current?.(2, 'reconcile');
+              playTimerBeep("Half Time! First half complete.");
+            }
           }
           return;
         }
