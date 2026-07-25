@@ -83,3 +83,8 @@ export const LOCAL_SESSION_APPROVAL_FLAG = "--approved-local-session";
 export function hasExplicitLocalSessionApproval(args) {
   return args.filter((arg) => arg === LOCAL_SESSION_APPROVAL_FLAG).length === 1;
 }
+
+export function worktreeUpdateMode(statusCode, porcelainOutput) {
+  if (statusCode !== 0) return "error";
+  return porcelainOutput.trim() ? "test-current" : "update";
+}

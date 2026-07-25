@@ -81,8 +81,12 @@ npm run test:baseline -- --approved-local-session
 
 That one approval covers the safe branch fast-forward and the displayed local
 Supabase startup/cleanup lifecycle. Without the exact flag, the runner retains
-its interactive approval prompt. Diverged branches, dirty worktrees, stale
-contract parity, or unexpected Docker targets still stop rather than proceeding.
+its interactive approval prompt. On a clean worktree, the runner performs the
+safe branch fast-forward check. If local changes are present, it skips all
+fetch/merge activity and tests the current files in place without staging,
+committing, stashing, restoring or deleting them. Wrong branches, diverged clean
+branches, stale contract parity, or unexpected Docker targets still stop rather
+than proceeding.
 
 Startup uses the pinned CLI version embedded in the runner. Cleanup uses an
 explicit immutable allowlist of Docker resources whose names end in

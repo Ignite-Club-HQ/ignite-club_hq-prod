@@ -9,6 +9,7 @@ import {
   migrationLedgersMatch,
   parseLocalGatewayKeys,
   validateCurrentLocalParity,
+  worktreeUpdateMode,
 } from "../../scripts/local-baseline-safety.mjs";
 
 describe("complete baseline local lifecycle safety", () => {
@@ -90,5 +91,11 @@ describe("complete baseline local lifecycle safety", () => {
     expect(hasExplicitLocalSessionApproval([
       "--approved-local-session", "--approved-local-session",
     ])).toBe(false);
+  });
+
+  it("tests dirty worktrees in place without attempting an automatic branch update", () => {
+    expect(worktreeUpdateMode(0, "")).toBe("update");
+    expect(worktreeUpdateMode(0, " M src/example.test.ts\n")).toBe("test-current");
+    expect(worktreeUpdateMode(128, "")).toBe("error");
   });
 });

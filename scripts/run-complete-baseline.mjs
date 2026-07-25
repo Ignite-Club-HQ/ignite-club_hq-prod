@@ -15,6 +15,7 @@ import {
   migrationLedgersMatch,
   parseLocalGatewayKeys,
   validateCurrentLocalParity,
+  worktreeUpdateMode,
 } from "./local-baseline-safety.mjs";
 
 const LOCAL_WORKSPACE = resolve(process.cwd(), "local-supabase-workspace");
@@ -124,9 +125,16 @@ async function updateTestBranch() {
     return false;
   }
   const status = git(["status", "--porcelain"]);
-  if (status.status !== 0 || status.stdout.trim()) {
-    console.error("Refusing update: the worktree is not clean. Commit or stash changes first.");
+  const updateMode = worktreeUpdateMode(status.status, status.stdout ?? "");
+  if (updateMode === "error") {
+    console.error("Refusing test startup: unable to inspect the worktree.");
     return false;
+  }
+  if (updateMode === "test-current") {
+    console.warn("NOTICE: worktree changes are present.");
+    console.warn("Automatic fetch/merge is skipped; the current checked-out files will be tested unchanged.");
+    console.warn("No files will be staged, committed, stashed, restored or deleted by this workflow.");
+    return true;
   }
   const fetch = git(["fetch", TEST_REMOTE, TEST_BRANCH], { stdio: "inherit" });
   if (fetch.status !== 0) return false;
