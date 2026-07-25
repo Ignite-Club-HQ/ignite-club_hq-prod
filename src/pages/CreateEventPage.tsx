@@ -1199,6 +1199,15 @@ export default function CreateEventPage() {
                     label="RSVP grouping"
                   />
                 )}
+
+                {/* Target teams — restrict a club-wide game/social to a subset of teams */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <TargetTeamsPicker
+                    teams={allClubTeams ?? undefined}
+                    value={targetTeamIds}
+                    onChange={setTargetTeamIds}
+                  />
+                )}
                 
                 {/* Mini League selection - only for mini_league events, hidden when pre-set */}
                 {type === "mini_league" && !isFromMiniLeague && (
