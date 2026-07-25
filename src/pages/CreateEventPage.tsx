@@ -773,6 +773,10 @@ export default function CreateEventPage() {
       adults_only: adultsOnly,
       rsvp_grouping:
         !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+      target_team_ids:
+        !teamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+          ? targetTeamIds
+          : null,
     } as any;
 
     try {
