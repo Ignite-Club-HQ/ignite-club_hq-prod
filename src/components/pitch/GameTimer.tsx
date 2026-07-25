@@ -7,7 +7,7 @@ import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, type ServerTimer } from "@/lib/serverTimer";
+import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, shouldAcceptServerSnapshot, type ServerTimer } from "@/lib/serverTimer";
 import { getPitchStateKey, PITCH_STATE_KEY } from "./types";
 
 /**
