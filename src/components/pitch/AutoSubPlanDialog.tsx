@@ -3003,57 +3003,44 @@ export function createSubPlan(
 
   if (equalTimeEligible) {
     try {
-      // Try progressively tighter minShift values. Smaller minShift lets the
-      // deficit-driven planner take finer bites out of the largest spread
-      // gaps, at the cost of a busier plan. We select the tightest-spread
-      // variant among those that still sim valid.
-      const capSec = maxSpreadMinutes * 60;
-      const currentSim = simulateOutfieldPlan(plan);
-      const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
+      const eqResult = buildEqualTimePlan({
+        players: playerData,
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: gkOnPitch || undefined,
+        gk2H: rotateGkAtHalftime
+          ? halftimeGkIn || gkOnPitch || undefined
+          : gkOnPitch || undefined,
+        chunkSec: 30,
+        minShiftSec: Math.max(60, eff.minShiftSeconds),
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      });
 
-      const minShiftCandidates = Array.from(
-        new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
-      ).sort((a, b) => a - b);
+      if (eqResult.plan.length > 0) {
+        const currentSim = simulateOutfieldPlan(plan);
+        const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
 
-      let bestEq: { plan: typeof plan; spread: number } | null = null;
-      for (const minShiftSec of minShiftCandidates) {
-        const eqResult = buildEqualTimePlan({
-          players: playerData,
-          teamSize,
-          halfDurationSec: halfDurationSeconds,
-          gk1H: gkOnPitch || undefined,
-          gk2H: rotateGkAtHalftime
-            ? halftimeGkIn || gkOnPitch || undefined
-            : gkOnPitch || undefined,
-          chunkSec: 30,
-          minShiftSec,
-          noSubBeforeSec: 0,
-          noSubAfterSec: 30,
-        });
-        if (eqResult.plan.length === 0) continue;
-        const eqSim = simulateOutfieldPlan(eqResult.plan as unknown as typeof plan);
-        if (!eqSim.valid) continue;
-        const eqSpread = fairnessSpread(eqSim.times);
-        if (!bestEq || eqSpread < bestEq.spread) {
-          bestEq = { plan: eqResult.plan as unknown as typeof plan, spread: eqSpread };
-        }
-        // Early exit once we're comfortably inside the cap.
-        if (eqSpread <= capSec) break;
-      }
+        const eqSim = simulateOutfieldPlan(eqResult.plan);
+        const eqSpread = eqSim.valid ? fairnessSpread(eqSim.times) : Number.POSITIVE_INFINITY;
 
-      if (bestEq) {
-        // Lexicographic selection: prefer whichever meets the cap; otherwise
-        // smaller spread; ties → equal-time (deterministic).
+        // Lexicographic selection: prefer whichever meets the user-configured
+        // max-spread cap; otherwise strictly smaller spread; ties → equal-time
+        // (deterministic).
+        const capSec = maxSpreadMinutes * 60;
         const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
-        const eqMeetsCap = bestEq.spread <= capSec;
+        const eqMeetsCap = eqSim.valid && eqSpread <= capSec;
+
         let adopt = false;
-        if (eqMeetsCap && !currentMeetsCap) adopt = true;
-        else if (eqMeetsCap === currentMeetsCap && bestEq.spread < currentSpread) adopt = true;
-        else if (!currentSim.valid) adopt = true;
+        if (eqSim.valid) {
+          if (eqMeetsCap && !currentMeetsCap) adopt = true;
+          else if (eqMeetsCap === currentMeetsCap && eqSpread < currentSpread) adopt = true;
+          else if (!currentSim.valid) adopt = true;
+        }
 
         if (adopt) {
           plan.length = 0;
-          plan.push(...bestEq.plan);
+          plan.push(...eqResult.plan);
           sortPlan();
         }
       }
