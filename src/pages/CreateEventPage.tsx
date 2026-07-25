@@ -141,6 +141,8 @@ export default function CreateEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
+  // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
+  const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
