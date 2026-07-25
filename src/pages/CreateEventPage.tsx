@@ -397,6 +397,21 @@ export default function CreateEventPage() {
     enabled: !!clubId && userTeamIds !== undefined,
   });
 
+  // All teams in the selected club — used by the target-teams picker
+  // (independent of the caller's team memberships).
+  const { data: allClubTeams } = useQuery({
+    queryKey: ["all-club-teams-for-target", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", clubId!)
+        .order("name");
+      return data ?? [];
+    },
+    enabled: !!clubId,
+  });
+
   // Check if user is committee-only for the selected club (no admin/coach/team roles)
   const isCommitteeOnlyForClub = useMemo(() => {
     if (!clubId || !user) return false;
