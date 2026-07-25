@@ -28,13 +28,18 @@ interface Props {
   targetTeamIds?: string[] | null;
 }
 
+interface Attendee {
+  name: string;
+  team: string | null;
+}
+
 interface GroupRow {
   key: string;
   label: string;
-  going: string[];
-  maybe: string[];
-  not_going: string[];
-  no_response: string[];
+  going: Attendee[];
+  maybe: Attendee[];
+  not_going: Attendee[];
+  no_response: Attendee[];
 }
 
 const AGE_LEVEL_RE = /u\s*(\d+)/i;
