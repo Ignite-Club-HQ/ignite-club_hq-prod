@@ -116,4 +116,54 @@ describe("ClubWideRsvpBreakdown", () => {
     expect(assignments.in).toHaveBeenCalledWith("team_id", ["team-u10", "team-u8"]);
     expect(rsvps.eq).toHaveBeenCalledWith("event_id", "event-safe");
   });
+
+  it("restricts grouped attendance to the selected target teams", async () => {
+    mocks.results.set("teams", { data: [
+      { id: "team-u10", name: "U10 Blue", age_group: "U10" },
+    ], error: null });
+
+    render(
+      <ClubWideRsvpBreakdown
+        eventId="event-targeted"
+        clubId="club-1"
+        grouping="team"
+        targetTeamIds={["team-u10"]}
+      />,
+      { wrapper },
+    );
+
+    expect(await screen.findByRole("button", { name: /U10 Blue/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /U8 Red/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Blair Adult")).not.toBeInTheDocument();
+    expect(screen.queryByText("Drew Child")).not.toBeInTheDocument();
+
+    const teamsQuery = mocks.from.mock.results.find(
+      (_: unknown, index: number) => mocks.from.mock.calls[index][0] === "teams",
+    )!.value;
+    const assignmentsQuery = mocks.from.mock.results.find(
+      (_: unknown, index: number) =>
+        mocks.from.mock.calls[index][0] === "child_team_assignments",
+    )!.value;
+    expect(teamsQuery.in).toHaveBeenCalledWith("id", ["team-u10"]);
+    expect(assignmentsQuery.in).toHaveBeenCalledWith("team_id", ["team-u10"]);
+  });
+
+  it("keeps the complete club audience when target teams are null", async () => {
+    render(
+      <ClubWideRsvpBreakdown
+        eventId="event-all-club"
+        clubId="club-1"
+        grouping="team"
+        targetTeamIds={null}
+      />,
+      { wrapper },
+    );
+
+    expect(await screen.findByRole("button", { name: /U10 Blue/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /U8 Red/ })).toBeInTheDocument();
+    const teamsQuery = mocks.from.mock.results.find(
+      (_: unknown, index: number) => mocks.from.mock.calls[index][0] === "teams",
+    )!.value;
+    expect(teamsQuery.in).not.toHaveBeenCalled();
+  });
 });

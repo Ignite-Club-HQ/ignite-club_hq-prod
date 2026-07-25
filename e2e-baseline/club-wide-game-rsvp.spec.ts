@@ -12,7 +12,13 @@ const user = {
 test("club admin creates a club-wide game by grade, edits it to team grouping, and sees grouped attendance", async ({ page }) => {
   test.setTimeout(30_000);
   let grouping: "level" | "team" = "level";
+  let targetTeamIds: string[] | null = null;
   const writes: Array<{ method: string; body: any }> = [];
+  const teams = [
+    { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
+    { id: "team-u8-red", club_id: clubId, name: "U8 Red", age_group: "U8" },
+    { id: "team-u10-red", club_id: clubId, name: "U10 Red", age_group: "U10" },
+  ];
 
   await page.addInitScript(({ user, userId }) => {
     const enc = (v: object) => btoa(JSON.stringify(v)).replaceAll("=", "");
@@ -57,28 +63,35 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       id: clubId, name: "Synthetic Riverside FC",
       allow_guests_default: false, max_guests_per_member_default: 2,
     }]);
-    if (url.pathname === "/rest/v1/teams") return json([
-      { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
-      { id: "team-u10-red", club_id: clubId, name: "U10 Red", age_group: "U10" },
-    ]);
+    if (url.pathname === "/rest/v1/teams") {
+      const idFilter = url.searchParams.get("id");
+      return json(
+        idFilter?.startsWith("in.")
+          ? teams.filter(({ id }) => targetTeamIds?.includes(id))
+          : teams,
+      );
+    }
     if (url.pathname === "/rest/v1/club_subscriptions") return json([]);
     if (url.pathname === "/rest/v1/events" && request.method() === "POST") {
       const body = request.postDataJSON();
       writes.push({ method: "POST", body });
       grouping = body.rsvp_grouping;
+      targetTeamIds = body.target_team_ids;
       return json([{ ...body, id: eventId, is_cancelled: false }]);
     }
     if (url.pathname === "/rest/v1/events" && request.method() === "PATCH") {
       const body = request.postDataJSON();
       writes.push({ method: "PATCH", body });
       grouping = body.rsvp_grouping;
+      targetTeamIds = body.target_team_ids;
       return json([{ id: eventId, ...body }]);
     }
     if (url.pathname === "/rest/v1/events") {
       const event = {
       id: eventId, club_id: clubId, team_id: null, created_by: userId,
       title: "Synthetic Club Game", type: "game", event_date: "2099-08-01T10:00:00Z",
-      address: "Synthetic Oval", rsvp_grouping: grouping, is_cancelled: false,
+      address: "Synthetic Oval", rsvp_grouping: grouping,
+      target_team_ids: targetTeamIds, is_cancelled: false,
       clubs: { name: "Synthetic Riverside FC" }, teams: null, mini_leagues: null,
       };
       const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
@@ -103,11 +116,16 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await groupingSelect.click();
   await page.getByRole("option", { name: /Group by age level/ }).click();
 
+  await page.getByRole("button", { name: /Only selected teams/i }).click();
+  await page.getByRole("checkbox", { name: "U8 Blue" }).click();
+  await page.getByRole("checkbox", { name: "U8 Red" }).click();
+
   const create = page.getByRole("button", { name: "Create Event" });
   await expect(create).toBeEnabled();
   await create.click();
   await expect.poll(() => writes[0]?.body).toMatchObject({
     club_id: clubId, team_id: null, type: "game", rsvp_grouping: "level",
+    target_team_ids: ["team-u8-blue", "team-u8-red"],
   });
 
   await page.goto(`/events/${eventId}/edit`);
@@ -134,13 +152,22 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       "Group by team",
     );
   }, { timeout: 10_000 }).toBe(true);
+
+  await page.getByRole("checkbox", { name: "U8 Red" }).click();
+  await expect(page.getByText(/Select at least 2 teams/i)).toBeVisible();
+  await page.getByRole("checkbox", { name: "U10 Red" }).click();
+  await expect(page.getByText(/Select at least 2 teams/i)).not.toBeVisible();
+
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => writes.find(write => write.method === "PATCH")?.body).toMatchObject({
-    team_id: null, rsvp_grouping: "team",
+    team_id: null,
+    rsvp_grouping: "team",
+    target_team_ids: ["team-u8-blue", "team-u10-red"],
   });
 
   await page.goto(`/events/${eventId}`);
   await expect(page.getByText("Attendance by team")).toBeVisible();
   await expect(page.getByRole("button", { name: /U8 Blue/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /U10 Red/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /U8 Red/ })).not.toBeVisible();
 });
