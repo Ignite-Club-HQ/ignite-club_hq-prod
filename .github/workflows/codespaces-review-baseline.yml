@@ -30,7 +30,22 @@ jobs:
       - name: Check out tested commit
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Guard against destructive migrations
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          BEFORE="$PUSH_BEFORE"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+          node scripts/destructive-migration-guard.mjs \
+            --base="$BEFORE" \
+            --head="$GITHUB_SHA"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
