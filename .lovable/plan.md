@@ -1,65 +1,114 @@
 ## Goal
-Extend the club-wide game feature so a creator can target **a subset of teams** (2+) instead of only one team or the entire club. Members of the targeted teams see and can RSVP; other club members do not.
+Fix the two confirmed defects in club-wide `game`/`social` targeting (`events.target_team_ids`):
 
-## User flow
-1. In Create/Edit Event, when type = **Game** and the Team dropdown is set to **All Club**, a new **"Target specific teams"** control appears.
-2. Options:
-   - **All club members** (current club-wide behaviour — no restriction)
-   - **Only selected teams** — reveals a multi-select of teams in the club
-3. When 2+ teams are selected, only members of those teams (and the players/guardians tied to them) see the event on Home/Schedule and can RSVP.
-4. The existing RSVP grouping control (None / by level / by team) is still shown; the creator picks the grouping. Grouping by team will use the targeted teams as the sections.
+1. **Picker cannot be activated** — `TargetTeamsPicker` treats `[]` as "all club" so clicking "Only selected teams" from `null` immediately snaps back.
+2. **Targeting is not an authorization boundary** — RLS on `events`/`rsvps`, series RPC, and notification/reminder fan-out do not honor `target_team_ids`. Non-targeted same-club members can see, open, RSVP, and receive reminders.
 
-## Scope guardrails
-- Only **games** (and socials that already support All Club) can use multi-team targeting.
-- Requires `team_id IS NULL` and `>=2` teams selected. 1 team = pick that team directly; all teams = same as "All club members".
-- No change to RLS SELECT for now — visibility is enforced in the client filters (matches how `restricted_to_roles` already works). Documented as a follow-up hardening step.
-- Existing club-wide events (no target list) behave identically to today.
+## Mode semantics (locked)
+- `target_team_ids = NULL` → all eligible club members (all-club mode).
+- `target_team_ids = []` or any array → selected-team **editing** mode. Submission requires `>= 2` distinct UUIDs; otherwise the frontend blocks with the existing warning.
+- Single-team events must use `events.team_id` instead.
+- Only `game` and `social` types can carry `target_team_ids`.
 
-## Technical details
+## 1. Frontend picker fix (`TargetTeamsPicker.tsx`)
+- Change "active" from `value.length > 0` to `Array.isArray(value)`.
+- "All club members" button → `onChange(null)`.
+- "Only selected teams" button → `onChange(Array.isArray(value) ? value : [])` (opens checklist even when empty).
+- Toggle logic: dedupe via `Set`, never mutate input, never fall back to `null` when the last team is removed (stay in selected-team mode with warning shown).
+- Preserve `disabled` behavior.
 
-### Database (single migration)
-- Add column `events.target_team_ids uuid[]` (nullable).
-- Validation trigger `validate_event_target_team_ids`:
-  - If `target_team_ids IS NOT NULL`:
-    - `team_id` must be NULL
-    - `type` must be `'game'` or `'social'`
-    - Array length >= 1
-    - Every team in the array must have `club_id = events.club_id`
-- Extend `inherit_parent_event_scope` to also copy `target_team_ids` to recurring children.
-- Extend the `update_event_series` allowed-columns whitelist to include `target_team_ids` (and, as a bug-fix noticed while auditing, `rsvp_grouping`).
-- Guard-friendly: no destructive statements.
+## 2. Frontend guardrails
+- `CreateEventPage` / `EditEventPage`:
+  - Only submit `target_team_ids` when it is `null` **or** `length >= 2` (dedup + validate against club teams).
+  - When team dropdown changes to a direct team, or type flips away from game/social, or `club_id` changes → clear `target_team_ids` to `null` in state.
+  - EditEventPage: load existing target IDs; allow returning to all-club by submitting `null`.
+  - Recurring create: pass the same `target_team_ids` to every child (already inherited by `inherit_parent_event_scope`; verify column is copied — add if missing).
+  - Entire-series edit: send `target_team_ids` through `update_event_series` (already whitelisted in prior migration; verify).
+- `EventDetailPage`: continue passing target IDs to grouped attendance; **remove client-side visibility gating** — rely on backend.
+- Query-cache keys: include the current user's club/team membership already; targeted events naturally disappear when RLS excludes them, so no key changes required for cross-user leakage. Confirm no `events` list query is loaded with a service-role-like path.
 
-### Frontend
-- `src/pages/CreateEventPage.tsx` & `src/pages/EditEventPage.tsx`
-  - New state `targetTeamIds: string[]`.
-  - When `!teamId && type === "game" | "social"`: show a "Target" segmented control (All club members / Only selected teams). Selecting the latter reveals a chip-multiselect of `teams` in the club.
-  - Guard on submit: if "Only selected teams" chosen, require >= 1 team; if all teams are picked, coerce back to `null` (equivalent to All Club).
-  - Persist `target_team_ids` on insert/update.
-- `src/components/event/TargetTeamsPicker.tsx` (new) — reusable multi-select of teams (uses `MobileCardSelect` styling / chips).
-- `src/pages/EventDetailPage.tsx`
-  - When `event.target_team_ids` is set: filter the attendance list to members of those teams (uses the same team → members lookups already loaded for grouping).
-  - Access gate for the RSVP action: hide RSVP UI for users not in any targeted team (mirrors the current `restricted_to_roles` gate pattern at lines 939/2070/2266/3599).
-- `src/lib/rsvpGrouping.ts` — when `target_team_ids` is present and grouping = `team`, restrict sections to targeted teams.
-- Schedule/Home event lists — apply the same client-side filter so non-targeted members don't see the event card (helper in `src/lib/eventVisibility.ts`, colocated with the existing `restricted_to_roles` filter).
+## 3. Backend — new forward-only migration
+Create `supabase/migrations/<ts>_targeted_events_authorization.sql`. Forward-only; no edits to deployed migrations.
 
-### Permissions
-- Same as All Club today: `club_admin` + `committee_member` with events permission (unchanged).
+**Validation trigger** (replace/extend existing `validate_event_target_team_ids`):
+- `target_team_ids IS NULL` → allowed.
+- Otherwise: `array_length >= 2`, all elements distinct, all elements exist in `public.teams` with `club_id = events.club_id`, `events.team_id IS NULL`, `events.type IN ('game','social')`.
+- Normalize empty array to NULL, or reject (choose reject — clearer contract; frontend never submits `[]`).
+- Fires on INSERT and on UPDATE of `club_id`, `team_id`, `type`, `target_team_ids` (revalidates whole relationship).
 
-### Out of scope
-- RLS-level enforcement of `target_team_ids` (follow-up; today the pattern matches `restricted_to_roles`, which is client-enforced).
-- Notifications targeting — reuse the existing club-wide fan-out; recipients who can't see the event simply won't get a card in-app. Push filtering hardening is a follow-up.
-- Training remains team-only.
+**Recurring inheritance**: ensure `inherit_parent_event_scope` copies `target_team_ids` to child rows on generation (add if missing).
 
-## Verification
-- `tsgo` typecheck.
-- Unit tests:
-  - Validation trigger: rejects cross-club team in `target_team_ids`, rejects when `team_id` is set, rejects for training.
-  - `eventVisibility.ts`: member of a targeted team → visible; non-member → hidden; club admin → visible.
-- Playwright smoke: create All Club game targeting 2 teams; a member of team A sees + RSVPs; a member of team C (not targeted) does not see it.
+**SECURITY DEFINER helper** `public.can_access_targeted_event(_user_id uuid, _event_id uuid) returns boolean`:
+- `SET search_path = public`, `REVOKE EXECUTE FROM PUBLIC, anon`, `GRANT EXECUTE TO authenticated`.
+- Returns true when any of:
+  - app admin
+  - club admin / committee member for `events.club_id` (via existing helpers)
+  - `events.target_team_ids IS NULL` **and** user is an eligible club member (reuse existing club-visibility helper)
+  - `events.target_team_ids` overlaps user's team memberships (player/coach/team admin) via existing membership helpers
+  - user is an authorized guardian of a child assigned to any targeted team (reuse existing guardian helper — no new definitions)
+- No arbitrary membership enumeration; scoped strictly to `_user_id`, `events.club_id`, and target teams.
+
+**RLS updates** (audit + adjust — never weaken existing protections):
+- `events` SELECT: for rows where `target_team_ids IS NOT NULL`, require `can_access_targeted_event(auth.uid(), id)`. Rows where it's NULL keep current behavior.
+- `events` INSERT/UPDATE: unchanged managerial checks; validation trigger enforces the shape.
+- `rsvps` SELECT/INSERT/UPDATE: for RSVPs referencing a targeted event, require `can_access_targeted_event(auth.uid(), event_id)` in addition to existing ownership/guardian rules. Child RSVP creation/update uses the same helper on behalf of the guardian's authorized child.
+- `update_event_series` RPC: already whitelists `target_team_ids`; add per-caller authorization check reusing existing "can manage event" helper (no change to signature).
+
+## 4. Notifications & reminders
+Audit and constrain recipient selection everywhere a club-wide event fan-out is built:
+- Event-created notifications, RSVP reminders, attendance reminders, event digest emails, push fan-out.
+- Recipient query: when `event.target_team_ids IS NOT NULL`, restrict to union of (targeted-team members, authorized guardians of children in targeted teams, event managers/admins). Non-targeted club members receive nothing (no title/time/location/deep-link leakage).
+- Changing target teams must not leave scheduled/queued reminders addressed to removed users — invalidate/reselect at send time (recompute recipients from live `target_team_ids` rather than using stored recipient snapshots). Do not delete historical notifications.
+
+## 5. Tests
+
+**Unit (vitest):**
+- `src/components/event/TargetTeamsPicker.test.tsx` (new): 7 required cases —
+  1. From `null`, clicking "Only selected teams" opens checklist with `value=[]`.
+  2. Warning shown while `< 2` selected.
+  3. Selecting a second team fires `onChange([id1,id2])` with unique IDs.
+  4. Clicking "All club members" fires `onChange(null)`.
+  5. No mutation of input array.
+  6. Duplicate IDs never emitted.
+  7. `disabled` blocks interaction.
+- `src/components/event/ClubWideRsvpBreakdown.test.tsx`: verify grouped attendance excludes non-targeted teams when `target_team_ids` provided.
+
+**Playwright baseline** (`e2e-baseline/club-wide-game-rsvp.spec.ts` on `playwright.baseline.config.ts`, isolated local only — do not point at hosted dev/prod):
+1. Create targeted club-wide game for U8 Blue + U8 Red.
+2. Edit audience to U8 Blue + U10 Red; PATCH must include replacement `target_team_ids`.
+3. Detail page excludes U8 Red after edit.
+4. Non-targeted same-club member cannot open the detail page.
+5. Non-targeted same-club member cannot POST an RSVP (backend rejects).
+
+Commands (documented, do not wire to hosted envs):
+```
+npx vitest run \
+  src/components/event/TargetTeamsPicker.test.tsx \
+  src/components/event/ClubWideRsvpBreakdown.test.tsx
+
+npx playwright test \
+  --config playwright.baseline.config.ts \
+  e2e-baseline/club-wide-game-rsvp.spec.ts
+```
+
+## Do NOT
+- No frontend-only visibility fix.
+- No weakening of existing club/team/guardian/cross-club RLS.
+- No `USING (true)` policies; no service-role exposure.
+- No destructive data cleanup; no deletion of real events/RSVPs/roles/assignments.
+- No `promote-guard` allow markers unless a reviewed protected UPDATE is genuinely unavoidable.
+- No test edits to match incorrect behavior.
+- No use of real club/user data in tests.
 
 ## Files touched (approx)
-- 1 migration
-- CreateEventPage.tsx, EditEventPage.tsx, EventDetailPage.tsx
-- New: TargetTeamsPicker.tsx, eventVisibility.ts
-- rsvpGrouping.ts (extension)
-- Home/Schedule event-list filter call sites (~2 lines each)
+- 1 new migration (`supabase/migrations/<ts>_targeted_events_authorization.sql`)
+- `src/components/event/TargetTeamsPicker.tsx`
+- `src/pages/CreateEventPage.tsx`, `src/pages/EditEventPage.tsx`, `src/pages/EventDetailPage.tsx`
+- New: `TargetTeamsPicker.test.tsx`, `ClubWideRsvpBreakdown.test.tsx`, `e2e-baseline/club-wide-game-rsvp.spec.ts`
+- Recipient-selection audit patches in relevant Edge Functions / SQL functions (send-event-*, reminders)
+
+## Verification
+- `tsgo` clean.
+- All new + existing vitest suites pass.
+- Playwright baseline journey passes.
+- Manual sanity: creating a targeted event as a non-targeted user surfaces zero rows via PostgREST; RSVP POST returns RLS error.
