@@ -72,9 +72,16 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, scopedRoster
     [targetTeamIds],
   );
   const hasScopedRoster = !!targetKey && Array.isArray(scopedRosterRows);
+  const scopedRosterKey = useMemo(() => {
+    if (!hasScopedRoster) return "";
+    return (scopedRosterRows ?? [])
+      .map((r) => `${r.kind}:${r.person_id}:${[...(r.team_ids ?? [])].sort().join("|")}`)
+      .sort()
+      .join(",");
+  }, [hasScopedRoster, scopedRosterRows]);
 
   const query = useQuery({
-    queryKey: ["event-group-map", clubId, grouping, targetKey, hasScopedRoster ? "scoped-roster" : "direct"],
+    queryKey: ["event-group-map", clubId, grouping, targetKey, hasScopedRoster ? "scoped-roster" : "direct", scopedRosterKey],
     enabled: !!enabled && !!clubId && (grouping === "level" || grouping === "team"),
     staleTime: 60_000,
     queryFn: async () => {
