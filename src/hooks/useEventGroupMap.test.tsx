@@ -114,4 +114,23 @@ describe("useEventGroupMap scoping", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(typeof result.current.refetch).toBe("function");
   });
+
+  it("uses scoped roster rows for targeted events instead of direct role/assignment queries", async () => {
+    const { result } = renderHook(
+      () => useEventGroupMap({
+        ...scopedParams,
+        scopedRosterRows: [
+          { kind: "child", person_id: "kid-rpc", team_ids: ["t-u8-red"] },
+          { kind: "adult", person_id: "adult-rpc", team_ids: ["t-u8-blue"] },
+        ],
+      }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.groupOf({ childId: "kid-rpc" })?.label).toBe("U8");
+    expect(result.current.groupOf({ userId: "adult-rpc" })?.label).toBe("U8");
+    expect(result.current.groupOf({ childId: "kid-u8" })).toBeNull();
+  });
 });
