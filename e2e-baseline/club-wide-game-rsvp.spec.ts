@@ -109,19 +109,54 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     if (url.pathname === "/rest/v1/profiles") return json([{
       id: userId, display_name: "Synthetic Admin",
     }]);
+    if (url.pathname === "/rest/v1/children") return json([
+      { id: "child-u8-blue", name: "Bailey Blue", parent_id: userId },
+      { id: "child-u8-red", name: "Robin Red", parent_id: "adult-u8-red" },
+      { id: "child-u10-red", name: "Taylor U10", parent_id: "synthetic-coach-u10" },
+      { id: "child-u12", name: "Excluded U12 Child", parent_id: "adult-u12" },
+    ]);
+    if (url.pathname === "/rest/v1/rpc/get_targeted_event_attendance_roster") {
+      const roster = [
+        { kind: "adult", person_id: userId, display_name: "Synthetic Admin", parent_id: null, team_ids: ["team-u8-blue"] },
+        { kind: "adult", person_id: "adult-u8-red", display_name: "Riley U8 Red", parent_id: null, team_ids: ["team-u8-red"] },
+        { kind: "adult", person_id: "synthetic-coach-u10", display_name: "Synthetic U10 Coach", parent_id: null, team_ids: ["team-u10-red"] },
+        { kind: "adult", person_id: "adult-u12", display_name: "Excluded U12 Coach", parent_id: null, team_ids: ["team-u12-green"] },
+        { kind: "child", person_id: "child-u8-blue", display_name: "Bailey Blue", parent_id: userId, team_ids: ["team-u8-blue"] },
+        { kind: "child", person_id: "child-u8-red", display_name: "Robin Red", parent_id: "adult-u8-red", team_ids: ["team-u8-red"] },
+        { kind: "child", person_id: "child-u10-red", display_name: "Taylor U10", parent_id: "synthetic-coach-u10", team_ids: ["team-u10-red"] },
+        { kind: "child", person_id: "child-u12", display_name: "Excluded U12 Child", parent_id: "adult-u12", team_ids: ["team-u12-green"] },
+      ];
+      return json(roster.filter(row =>
+        targetTeamIds?.some(teamId => row.team_ids.includes(teamId)),
+      ));
+    }
     if (url.pathname === "/rest/v1/child_team_assignments") return json([
       { child_id: "child-u8-blue", team_id: "team-u8-blue", children: { id: "child-u8-blue", name: "Bailey Blue" } },
       { child_id: "child-u8-red", team_id: "team-u8-red", children: { id: "child-u8-red", name: "Robin Red" } },
       { child_id: "child-u10-red", team_id: "team-u10-red", children: { id: "child-u10-red", name: "Taylor U10" } },
       { child_id: "child-u12", team_id: "team-u12-green", children: { id: "child-u12", name: "Excluded U12 Child" } },
     ]);
-    if (url.pathname === "/rest/v1/rsvps") return json([
-      { user_id: userId, child_id: null, status: "going" },
-      { user_id: "adult-u8-red", child_id: null, status: "not_going" },
-      { user_id: null, child_id: "child-u8-blue", status: "maybe" },
-      { user_id: null, child_id: "child-u10-red", status: "going" },
-      { user_id: "adult-u12", child_id: null, status: "going" },
-    ]);
+    if (url.pathname === "/rest/v1/rsvps") {
+      const teamForAttendee: Record<string, string> = {
+        [userId]: "team-u8-blue",
+        "adult-u8-red": "team-u8-red",
+        "child-u8-blue": "team-u8-blue",
+        "child-u10-red": "team-u10-red",
+        "adult-u12": "team-u12-green",
+      };
+      const rows = [
+        { id: "rsvp-admin", user_id: userId, child_id: null, status: "going", profiles: { id: userId, display_name: "Synthetic Admin" }, children: null },
+        { id: "rsvp-u8-red", user_id: "adult-u8-red", child_id: null, status: "not_going", profiles: { id: "adult-u8-red", display_name: "Riley U8 Red" }, children: null },
+        { id: "rsvp-u8-blue-child", user_id: null, child_id: "child-u8-blue", status: "maybe", profiles: null, children: { id: "child-u8-blue", name: "Bailey Blue" } },
+        { id: "rsvp-u10-child", user_id: null, child_id: "child-u10-red", status: "going", profiles: null, children: { id: "child-u10-red", name: "Taylor U10" } },
+        { id: "rsvp-u12", user_id: "adult-u12", child_id: null, status: "going", profiles: { id: "adult-u12", display_name: "Excluded U12 Coach" }, children: null },
+      ];
+      return json(rows.filter(row => {
+        if (!targetTeamIds) return true;
+        const attendeeId = row.child_id || row.user_id!;
+        return targetTeamIds.includes(teamForAttendee[attendeeId]);
+      }));
+    }
     if (url.pathname.startsWith("/rest/v1/")) return json([]);
     return json({});
   });
@@ -148,20 +183,17 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     target_team_ids: ["team-u8-blue", "team-u8-red"],
   });
 
-  // Verify the user-visible result, not just the create payload. Both selected
-  // U8 teams must be combined into one grade while unselected grades stay out.
+  // Verify the user-visible result inside the unified attendance buckets, not
+  // just the create payload. Both selected U8 teams map to the same grade.
   await page.goto(`/events/${eventId}`);
-  await expect(page.getByText("Attendance by age level")).toBeVisible();
-  const u8Grade = page.getByRole("button", { name: /U8 \(4\).*1 going.*1 maybe.*1 no.*1 n\/r/i });
-  await expect(u8Grade).toBeVisible();
-  await expect(page.getByRole("button", { name: /U10/ })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: /U12/ })).not.toBeVisible();
-  await u8Grade.click();
-  await expect(page.getByText("Synthetic Admin", { exact: true })).toBeVisible();
-  await expect(page.getByText("Bailey Blue", { exact: true })).toBeVisible();
-  await expect(page.getByText("Riley U8 Red", { exact: true })).toBeVisible();
-  await expect(page.getByText("Robin Red", { exact: true })).toBeVisible();
-  await expect(page.getByText("Excluded U12 Coach", { exact: true })).not.toBeVisible();
+  const initialAttendance = page.locator("section").filter({ hasText: "Attendance" }).last();
+  const initialMaybe = page.locator(`#attendance-group-maybe-${eventId}`);
+  await expect(initialMaybe).toBeVisible();
+  await expect(initialMaybe.getByText(/U8\s*\(1\)/i)).toBeVisible();
+  await expect(initialMaybe.getByText("Bailey Blue", { exact: true })).toBeVisible();
+  await expect(initialAttendance.getByText(/U10\s*\(/i)).not.toBeVisible();
+  await expect(initialAttendance.getByText(/U12\s*\(/i)).not.toBeVisible();
+  await expect(initialAttendance.getByText(/Other\s*\(/i)).not.toBeVisible();
 
   await page.goto(`/events/${eventId}/edit`);
   await page.getByRole("button", { name: "Club & Team" }).click();
@@ -192,20 +224,20 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   });
 
   await page.goto(`/events/${eventId}`);
-  await expect(page.getByText("Attendance by team")).toBeVisible();
-  const u8Blue = page.getByRole("button", { name: /U8 Blue \(2\).*1 going.*1 maybe/i });
-  const u10Red = page.getByRole("button", { name: /U10 Red \(2\).*1 going.*1 n\/r/i });
-  await expect(u8Blue).toBeVisible();
-  await expect(u10Red).toBeVisible();
-  await expect(page.getByRole("button", { name: /U8 Red/ })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: /U12 Green/ })).not.toBeVisible();
-  await u10Red.click();
-  await expect(page.getByText("Synthetic U10 Coach", { exact: true })).toBeVisible();
-  await expect(page.getByText("Taylor U10", { exact: true })).toBeVisible();
+  const editedAttendance = page.locator("section").filter({ hasText: "Attendance" }).last();
+  const editedGoing = page.locator(`#attendance-group-going-${eventId}`);
+  const editedMaybe = page.locator(`#attendance-group-maybe-${eventId}`);
+  await expect(editedGoing.getByText(/U10 Red\s*\(1\)/i)).toBeVisible();
+  await expect(editedGoing.getByText("Taylor U10", { exact: true })).toBeVisible();
+  await expect(editedMaybe.getByText(/U8 Blue\s*\(1\)/i)).toBeVisible();
+  await expect(editedMaybe.getByText("Bailey Blue", { exact: true })).toBeVisible();
+  await expect(editedAttendance.getByText(/U8 Red\s*\(/i)).not.toBeVisible();
+  await expect(editedAttendance.getByText(/U12 Green\s*\(/i)).not.toBeVisible();
+  await expect(editedAttendance.getByText(/Other\s*\(/i)).not.toBeVisible();
 
   // A denied roster read must never masquerade as a valid empty RSVP list.
   // This is the failure mode the original route-only assertions could not see.
-  await page.route("**/rest/v1/user_roles*", route =>
+  await page.route("**/rest/v1/rpc/get_targeted_event_attendance_roster*", route =>
     route.fulfill({
       status: 403,
       contentType: "application/json",
@@ -216,5 +248,5 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     }),
   );
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText(/unable to load grouped attendance/i);
+  await expect(page.getByRole("alert")).toContainText(/grouped attendance (?:couldn.t be loaded|could not be loaded|is unavailable)/i);
 });
