@@ -6176,6 +6176,7 @@ export type Database = {
         Row: {
           club_id: string | null
           created_at: string
+          dedupe_key: string | null
           id: string
           is_read: boolean
           message: string
@@ -6187,6 +6188,7 @@ export type Database = {
         Insert: {
           club_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           is_read?: boolean
           message: string
@@ -6198,6 +6200,7 @@ export type Database = {
         Update: {
           club_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           is_read?: boolean
           message?: string
@@ -7510,6 +7513,59 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      push_delivery_queue: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          notification_id: string
+          payload: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id: string
+          payload: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_delivery_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: true
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_notification_logs: {
         Row: {
@@ -10294,6 +10350,16 @@ export type Database = {
           mini_league_id: string
         }[]
       }
+      claim_push_delivery_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt_count: number
+          id: string
+          notification_id: string
+          payload: Json
+          user_id: string
+        }[]
+      }
       claim_shell_team: {
         Args: { p_token: string }
         Returns: {
@@ -10513,6 +10579,23 @@ export type Database = {
           day: string
           mau: number
           wau: number
+        }[]
+      }
+      enqueue_event_push: {
+        Args: { p_rows: Json; p_url: string }
+        Returns: {
+          notification_id: string
+          user_id: string
+        }[]
+      }
+      enqueue_event_push_v2: {
+        Args: { p_rows: Json; p_url: string }
+        Returns: {
+          created: boolean
+          dedupe_key: string
+          notification_id: string
+          queued: boolean
+          user_id: string
         }[]
       }
       ensure_chat_group_vault_folder: {
@@ -11121,6 +11204,8 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      internal_functions_base_url: { Args: never; Returns: string }
+      internal_service_role_key: { Args: never; Returns: string }
       invite_shell_team_to_competition: {
         Args: {
           p_club_name: string
@@ -11418,6 +11503,30 @@ export type Database = {
       }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
+      push_delivery_cron_failures: {
+        Args: { p_limit?: number }
+        Returns: {
+          return_message: string
+          run_start: string
+          status: string
+        }[]
+      }
+      push_delivery_preflight: {
+        Args: never
+        Returns: {
+          check_name: string
+          detail: string
+          ok: boolean
+        }[]
+      }
+      push_delivery_queue_stats: {
+        Args: never
+        Returns: {
+          jobs: number
+          oldest_created_at: string
+          status: string
+        }[]
+      }
       quick_rsvp_from_dm: {
         Args: { _event_id: string; _status: string }
         Returns: {
@@ -11461,6 +11570,13 @@ export type Database = {
       remove_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
+      }
+      repair_event_push_queue: {
+        Args: { p_dry_run?: boolean; p_event_id: string }
+        Returns: {
+          candidate_count: number
+          queued_count: number
+        }[]
       }
       request_join_chat_group: {
         Args: { _group_id: string; _message?: string }
