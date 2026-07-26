@@ -3732,7 +3732,11 @@ export default function EventDetailPage() {
                   key={member.id}
                   name={member.display_name || "Unknown"}
                   avatarUrl={member.avatar_url}
-                  roleLabel={member.roles?.[0] ? String(member.roles[0]).replace(/_/g, " ") : null}
+                  roleLabel={(() => {
+                    const roles: string[] = member.roles ?? [];
+                    const shown = !effectiveShowAll && roles.includes("player") ? "player" : roles[0];
+                    return shown ? String(shown).replace(/_/g, " ") : null;
+                  })()}
                   roleTone="neutral"
                   rightSlot={
                     <>
