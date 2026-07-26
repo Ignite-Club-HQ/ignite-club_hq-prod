@@ -803,18 +803,25 @@ export default function EventDetailPage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Group roles by user_id, keeping track of every team_id we've seen for them
-      const userRolesMap = new Map<string, { profile: any; roles: string[]; teamIds: Set<string> }>();
+      // Group roles by user_id, keeping track of every team_id we've seen for them.
+      // `role_team_pairs` preserves WHICH team each role was held on, so targeted
+      // club-wide events can scope role labels/filters to the invited teams only.
+      const userRolesMap = new Map<
+        string,
+        { profile: any; roles: string[]; teamIds: Set<string>; pairs: { role: string; team_id: string | null }[] }
+      >();
       data.filter(m => m.profiles).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
           if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
           if (m.team_id) existing.teamIds.add(m.team_id);
+          existing.pairs.push({ role: m.role, team_id: m.team_id ?? null });
         } else {
           userRolesMap.set(m.user_id, {
             profile: m.profiles,
             roles: [m.role],
             teamIds: new Set(m.team_id ? [m.team_id] : []),
+            pairs: [{ role: m.role, team_id: m.team_id ?? null }],
           });
         }
       });
@@ -823,7 +830,9 @@ export default function EventDetailPage() {
         ...data.profile,
         roles: data.roles,
         team_ids: Array.from(data.teamIds),
+        role_team_pairs: data.pairs,
       }));
+
     },
     enabled: !!event,
   });
@@ -964,13 +973,24 @@ export default function EventDetailPage() {
     if (event?.team_id || !targeted || targeted.length === 0) return members;
     const targetSet = new Set(targeted);
     const CLUB_LEVEL = new Set(["club_admin", "app_admin", "committee_member"]);
-    return (members ?? []).filter((m: any) => {
-      const roles: string[] = m.roles ?? [];
-      if (roles.some((r) => CLUB_LEVEL.has(r))) return true;
-      const teamIds: string[] = m.team_ids ?? [];
-      return teamIds.some((t) => targetSet.has(t));
-    });
+    return (members ?? [])
+      .map((m: any) => {
+        const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
+        // Only roles held on a targeted team (or club-level roles with no team)
+        // count for this event — a player role on an uninvited team must not
+        // make the member show up as a player here.
+        const scopedRoles = Array.from(
+          new Set(
+            pairs
+              .filter((p) => (p.team_id ? targetSet.has(p.team_id) : CLUB_LEVEL.has(p.role)))
+              .map((p) => p.role),
+          ),
+        );
+        return scopedRoles.length ? { ...m, roles: scopedRoles } : null;
+      })
+      .filter(Boolean) as any[];
   }, [members, event?.team_id, (event as any)?.target_team_ids]);
+
   const attendancePlayerMembers = attendanceMembers?.filter((m: any) => m.roles?.includes("player")) || [];
 
 
