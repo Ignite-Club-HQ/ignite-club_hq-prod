@@ -7511,6 +7511,59 @@ export type Database = {
         }
         Relationships: []
       }
+      push_delivery_queue: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          notification_id: string
+          payload: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id: string
+          payload: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_delivery_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: true
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_notification_logs: {
         Row: {
           created_at: string
@@ -10294,6 +10347,16 @@ export type Database = {
           mini_league_id: string
         }[]
       }
+      claim_push_delivery_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt_count: number
+          id: string
+          notification_id: string
+          payload: Json
+          user_id: string
+        }[]
+      }
       claim_shell_team: {
         Args: { p_token: string }
         Returns: {
@@ -10513,6 +10576,13 @@ export type Database = {
           day: string
           mau: number
           wau: number
+        }[]
+      }
+      enqueue_event_push: {
+        Args: { p_rows: Json; p_url: string }
+        Returns: {
+          notification_id: string
+          user_id: string
         }[]
       }
       ensure_chat_group_vault_folder: {
@@ -11121,6 +11191,8 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      internal_functions_base_url: { Args: never; Returns: string }
+      internal_service_role_key: { Args: never; Returns: string }
       invite_shell_team_to_competition: {
         Args: {
           p_club_name: string
