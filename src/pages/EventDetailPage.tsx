@@ -1065,9 +1065,16 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id && !!id,
   });
 
-  // Fetch children for parent RSVP - team-assigned children for team events, all children for club-wide events
+  // Fetch children for parent RSVP - team-assigned children for team events,
+  // children on a targeted team for targeted club-wide events, all own
+  // children for whole-club events.
+  const childrenTargetKey = useMemo(() => {
+    if (event?.team_id) return "";
+    const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    return Array.isArray(t) && t.length > 0 ? [...t].sort().join(",") : "";
+  }, [event?.team_id, (event as any)?.target_team_ids]);
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, user?.id],
+    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, childrenTargetKey, user?.id],
     queryFn: async () => {
       if ((event as any)?.adults_only) return [] as Array<{ id: string; name: string }>;
       // Get children where user is parent OR guardian
@@ -1108,16 +1115,30 @@ export default function EventDetailPage() {
 
       // Deduplicate by child id
       const seen = new Set<string>();
-      const all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
+      let all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
         return true;
       });
 
+      // Targeted club-wide event: only children assigned to a target team are
+      // part of the audience — otherwise a parent could RSVP an out-of-scope
+      // child, who then renders under "Other".
+      if (!event?.team_id && childrenTargetKey && all.length > 0) {
+        const { data: targetAssignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .in("team_id", childrenTargetKey.split(","))
+          .in("child_id", all.map((c: any) => c.id));
+        const inScope = new Set((targetAssignments || []).map((a: any) => a.child_id));
+        all = all.filter((c: any) => inScope.has(c.id));
+      }
+
       return all;
     },
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
+
 
   // Fetch ALL children assigned to this event's team (for not responded list).
   // For club-wide events with `target_team_ids`, fetch children across every
@@ -1127,7 +1148,39 @@ export default function EventDetailPage() {
     const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
     return Array.isArray(t) && t.length > 0 ? t : null;
   }, [event?.team_id, (event as any)?.target_team_ids]);
-  const { data: allChildrenOnTeam } = useQuery({
+
+  // Event managers (club admin / committee / target-team admin) cannot read
+  // other members' `children` rows directly under RLS. A narrowly scoped
+  // SECURITY DEFINER RPC returns the minimum roster for THIS event only.
+  const scopedRosterQuery = useQuery({
+    queryKey: ["targeted-event-roster", id],
+    enabled: !!id && !!targetTeamIdsForFetch && !!(isAdmin || isAppAdmin),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_targeted_event_attendance_roster", {
+        p_event_id: id!,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        kind: string;
+        person_id: string;
+        display_name: string | null;
+        parent_id: string | null;
+        team_ids: string[] | null;
+      }>;
+    },
+  });
+  const scopedChildRoster = useMemo(
+    () => (scopedRosterQuery.data ?? []).filter((r) => r.kind === "child"),
+    [scopedRosterQuery.data],
+  );
+  const scopedChildNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of scopedChildRoster) if (r.display_name) m.set(r.person_id, r.display_name);
+    return m;
+  }, [scopedChildRoster]);
+
+  const { data: allChildrenOnTeamRaw } = useQuery({
     queryKey: [
       "all-children-on-team",
       event?.team_id,
@@ -1156,6 +1209,25 @@ export default function EventDetailPage() {
     },
     enabled: !!event?.team_id || !!targetTeamIdsForFetch,
   });
+
+  // Merge the RLS-visible children with the scoped RPC roster so event
+  // managers see every targeted player (and never "Unknown").
+  const allChildrenOnTeam = useMemo(() => {
+    const base = allChildrenOnTeamRaw || [];
+    if (!targetTeamIdsForFetch || scopedChildRoster.length === 0) return base;
+    const byId = new Map<string, any>();
+    for (const c of base) byId.set(c.id, c);
+    for (const r of scopedChildRoster) {
+      const existing = byId.get(r.person_id);
+      if (existing) {
+        if (!existing.name && r.display_name) existing.name = r.display_name;
+      } else {
+        byId.set(r.person_id, { id: r.person_id, name: r.display_name, parent_id: r.parent_id });
+      }
+    }
+    return [...byId.values()];
+  }, [allChildrenOnTeamRaw, scopedChildRoster, targetTeamIdsForFetch]);
+
 
 
   // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
@@ -3315,9 +3387,29 @@ export default function EventDetailPage() {
             return true;
           });
         };
-        const goingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
-        const maybeRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
-        const notGoingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
+        // Targeted club-wide event: only attendees inside the event audience
+        // may appear in any bucket. Also hydrate child names from the scoped
+        // roster so authorised managers never see "Unknown".
+        const scopedChildIds = new Set((allChildrenOnTeam || []).map((c: any) => c.id));
+        const scopedAdultIds = new Set((attendanceMembers || []).map((m: any) => m.id));
+        const isTargetedScope = !!targetTeamIdsForFetch;
+        const inTargetScope = (r: any) => {
+          if (!isTargetedScope) return true;
+          const childId = r.child_id || r.mini_league_players?.child_id || null;
+          if (childId) return scopedChildIds.has(childId);
+          return !r.user_id || scopedAdultIds.has(r.user_id);
+        };
+        const hydrateRsvp = (r: any) => {
+          const childId = r.child_id;
+          if (!childId || r.children?.name) return r;
+          const name = scopedChildNames.get(childId);
+          return name ? { ...r, children: { ...(r.children ?? {}), name } } : r;
+        };
+        const prepareRsvps = (list: any[]) => dedupeRsvps(list.filter(inTargetScope)).map(hydrateRsvp);
+        const goingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
+        const maybeRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
+        const notGoingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
+
 
         const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
         const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
@@ -3465,6 +3557,7 @@ export default function EventDetailPage() {
           const buckets = new Map<string, any[]>();
           for (const r of rsvpList) {
             const g = rsvpGroupKey(r);
+            if (!g) continue; // out of the event audience — never show
             const arr = buckets.get(g.key) ?? [];
             arr.push(r);
             buckets.set(g.key, arr);
@@ -3654,6 +3747,7 @@ export default function EventDetailPage() {
           const childBuckets = new Map<string, any[]>();
           for (const c of notRespondedChildren) {
             const g = childGroupKey(c);
+            if (!g) continue;
             const arr = childBuckets.get(g.key) ?? [];
             arr.push(c);
             childBuckets.set(g.key, arr);
@@ -3661,6 +3755,7 @@ export default function EventDetailPage() {
           const adultBuckets = new Map<string, any[]>();
           for (const m of notResponded) {
             const g = adultGroupKey(m);
+            if (!g) continue;
             const arr = adultBuckets.get(g.key) ?? [];
             arr.push(m);
             adultBuckets.set(g.key, arr);
@@ -3729,8 +3824,30 @@ export default function EventDetailPage() {
                 </div>
               );
             })()}
+            {/* Grouped attendance failed to load (e.g. permission denied) —
+                never present a failed response as a valid empty roster. */}
+            {(groupMap.isActive && groupMap.isError) || (isTargetedScope && scopedRosterQuery.isError) ? (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+              >
+                <span>Grouped attendance couldn’t be loaded. The list below may be incomplete.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => {
+                    if (groupMap.isError) groupMap.refetch();
+                    if (scopedRosterQuery.isError) scopedRosterQuery.refetch();
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : null}
             {/* Grouping (by age level or team) is folded into each bucket
                 inside AttendanceSection below — no separate breakdown card. */}
+
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}

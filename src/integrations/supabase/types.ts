@@ -10929,6 +10929,16 @@ export type Database = {
           previous_team_name: string
         }[]
       }
+      get_targeted_event_attendance_roster: {
+        Args: { p_event_id: string }
+        Returns: {
+          display_name: string
+          kind: string
+          parent_id: string
+          person_id: string
+          team_ids: string[]
+        }[]
+      }
       get_team_children_for_pitch_board: {
         Args: { p_team_id: string }
         Returns: {
