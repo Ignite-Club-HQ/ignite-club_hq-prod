@@ -1178,7 +1178,8 @@ export default function EventDetailPage() {
     targetTeamIds: eventTargetTeamIds,
     scopedRosterRows: targetTeamIdsForFetch ? scopedRosterQuery.data ?? null : null,
     enabled: !!event && !event.team_id && !!event.club_id &&
-      (eventGrouping === "level" || eventGrouping === "team"),
+      (eventGrouping === "level" || eventGrouping === "team") &&
+      (!targetTeamIdsForFetch || scopedRosterQuery.isSuccess),
   });
 
   const { data: allChildrenOnTeamRaw } = useQuery({
