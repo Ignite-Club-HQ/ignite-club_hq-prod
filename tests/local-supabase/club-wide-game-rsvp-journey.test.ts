@@ -295,6 +295,106 @@ describe("local journey: club-wide game RSVP grouping", () => {
     expect(rsvp.data?.status).toBe("going");
   });
 
+  it("allows club admins and committee members to read every source required by the grouped RSVP UI", async () => {
+    const teamMetadata = await service.from("teams").update({ age_group: "U8" })
+      .in("id", [fixture.teamA, secondClubATeam]);
+    expect(teamMetadata.error).toBeNull();
+
+    const secondChild = await service.from("children").insert({
+      parent_id: committee.id,
+      name: "Synthetic Targeted Child",
+      year_of_birth: 2018,
+    }).select("id").single();
+    expect(secondChild.error).toBeNull();
+    const secondAssignment = await service.from("child_team_assignments").insert({
+      child_id: secondChild.data!.id,
+      team_id: secondClubATeam,
+    });
+    expect(secondAssignment.error).toBeNull();
+
+    const event = await fixture.adminA.client.from("events").insert({
+      club_id: fixture.clubA,
+      team_id: null,
+      created_by: fixture.adminA.id,
+      title: "Synthetic Grouped Read Path",
+      type: "game",
+      event_date: "2099-08-11T12:00:00.000Z",
+      rsvp_grouping: "level",
+      target_team_ids: [fixture.teamA, secondClubATeam],
+    }).select("id").single();
+    expect(event.error).toBeNull();
+
+    const rsvps = await service.from("rsvps").insert([
+      { event_id: event.data!.id, user_id: fixture.memberA.id, status: "going" },
+      { event_id: event.data!.id, user_id: nonTargetMember.id, status: "maybe" },
+      { event_id: event.data!.id, child_id: fixture.childA, status: "not_going" },
+      { event_id: event.data!.id, child_id: secondChild.data!.id, status: "going" },
+    ]);
+    expect(rsvps.error).toBeNull();
+
+    const expectedAdultIds = new Set([fixture.memberA.id, nonTargetMember.id]);
+    const expectedChildIds = new Set([fixture.childA, secondChild.data!.id]);
+    const targetIds = [fixture.teamA, secondClubATeam];
+
+    for (const actor of [fixture.adminA, committee]) {
+      // These are deliberately the same four authenticated reads performed by
+      // ClubWideRsvpBreakdown. A service-role-only test would miss RLS defects.
+      const teams = await actor.client.from("teams")
+        .select("id, name, age_group")
+        .eq("club_id", fixture.clubA)
+        .in("id", targetIds);
+      expect.soft(teams.error, `${actor.email}: teams read`).toBeNull();
+      expect.soft(new Set((teams.data ?? []).map(row => row.id))).toEqual(new Set(targetIds));
+
+      const roles = await actor.client.from("user_roles")
+        .select("user_id, team_id, role, profiles:user_id (id, display_name)")
+        .eq("club_id", fixture.clubA)
+        .in("team_id", targetIds);
+      expect.soft(roles.error, `${actor.email}: roles/profiles read`).toBeNull();
+      const visibleAdults = new Set(
+        (roles.data ?? [])
+          .filter((row: any) => row.profiles?.id)
+          .map((row: any) => row.profiles.id as string),
+      );
+      expectedAdultIds.forEach(id =>
+        expect.soft(visibleAdults, `${actor.email}: missing adult profile ${id}`).toContain(id),
+      );
+
+      const assignments = await actor.client.from("child_team_assignments")
+        .select("child_id, team_id, children (id, name)")
+        .in("team_id", targetIds);
+      expect.soft(assignments.error, `${actor.email}: assignments/children read`).toBeNull();
+      const visibleChildren = new Set(
+        (assignments.data ?? [])
+          .filter((row: any) => row.children?.id)
+          .map((row: any) => row.children.id as string),
+      );
+      expectedChildIds.forEach(id =>
+        expect.soft(visibleChildren, `${actor.email}: missing child ${id}`).toContain(id),
+      );
+
+      const visibleRsvps = await actor.client.from("rsvps")
+        .select("user_id, child_id, status")
+        .eq("event_id", event.data!.id);
+      expect.soft(visibleRsvps.error, `${actor.email}: RSVP read`).toBeNull();
+      expect.soft(visibleRsvps.data).toHaveLength(4);
+    }
+
+    // Cross-club viewers must not be able to enumerate the audience or RSVP
+    // records merely by knowing the target-team or event identifiers.
+    const outsiderRoles = await fixture.outsiderB.client.from("user_roles")
+      .select("user_id")
+      .eq("club_id", fixture.clubA)
+      .in("team_id", targetIds);
+    expect(outsiderRoles.error).toBeNull();
+    expect(outsiderRoles.data).toEqual([]);
+    const outsiderRsvps = await fixture.outsiderB.client.from("rsvps")
+      .select("id")
+      .eq("event_id", event.data!.id);
+    expect(outsiderRsvps.error).toBeNull();
+    expect(outsiderRsvps.data).toEqual([]);
+  });
+
   it("rejects an RSVP from a same-club member outside all target teams", async () => {
     const created = await fixture.adminA.client.from("events").insert({
       club_id: fixture.clubA,

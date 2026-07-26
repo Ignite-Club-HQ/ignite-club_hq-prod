@@ -43,6 +43,7 @@ create table public.teams (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.clubs(id) on delete cascade,
   name text not null,
+  age_group text,
   created_by uuid references auth.users(id) on delete set null,
   is_archived boolean not null default false,
   created_at timestamptz not null default now(),

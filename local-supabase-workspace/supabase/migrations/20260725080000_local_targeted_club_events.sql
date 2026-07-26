@@ -2,6 +2,36 @@
 -- Mirrors the target_team_ids validation contract using synthetic local data.
 -- This file is applied only by the isolated Docker Supabase baseline.
 
+-- The grouped RSVP UI joins user_roles to profiles. Mirror the current
+-- production visibility contract so local RLS exercises the real query rather
+-- than suppressing every profile except the caller's own row.
+drop policy if exists roles_visible_to_self_or_admin on public.user_roles;
+create policy roles_visible_to_shared_club_or_team
+on public.user_roles
+for select
+using (
+  user_id = auth.uid()
+  or public.is_club_member(auth.uid(), club_id)
+  or public.is_team_member(auth.uid(), team_id)
+  or public.has_role(auth.uid(), 'app_admin', null, null)
+);
+
+create policy profiles_visible_to_shared_club
+on public.profiles
+for select
+using (
+  id = auth.uid()
+  or exists (
+    select 1
+    from public.user_roles viewer_role
+    join public.user_roles target_role
+      on target_role.club_id = viewer_role.club_id
+     and target_role.club_id is not null
+    where viewer_role.user_id = auth.uid()
+      and target_role.user_id = profiles.id
+  )
+);
+
 alter table public.events
   add column if not exists target_team_ids uuid[];
 
@@ -133,22 +163,51 @@ create policy events_member_select
 on public.events
 for select
 using (
-  public.is_club_member(auth.uid(), club_id)
-  and (
-    target_team_ids is null
-    or public.can_access_targeted_event(auth.uid(), id)
+  public.has_role(auth.uid(), 'app_admin', null, null)
+  or (
+    team_id is null
+    and (
+      public.has_role(auth.uid(), 'club_admin', club_id, null)
+      or public.has_role(auth.uid(), 'committee_member', club_id, null)
+    )
+  )
+  or (
+    public.is_club_member(auth.uid(), club_id)
+    and (
+      target_team_ids is null
+      or public.can_access_targeted_event(auth.uid(), id)
+    )
   )
 );
+
+create or replace function public.event_has_target_team_restriction(_event_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select event.target_team_ids is not null
+      from public.events as event
+      where event.id = _event_id
+    ),
+    false
+  );
+$$;
+
+revoke execute on function public.event_has_target_team_restriction(uuid) from public;
+revoke execute on function public.event_has_target_team_restriction(uuid) from anon;
+grant execute on function public.event_has_target_team_restriction(uuid) to authenticated;
+grant execute on function public.event_has_target_team_restriction(uuid) to service_role;
 
 create policy rsvps_targeted_access_select
 on public.rsvps
 as restrictive
 for select
 using (
-  not exists (
-    select 1 from public.events
-    where id = rsvps.event_id and target_team_ids is not null
-  )
+  not public.event_has_target_team_restriction(event_id)
   or public.can_access_targeted_event(auth.uid(), event_id)
 );
 
@@ -157,10 +216,7 @@ on public.rsvps
 as restrictive
 for insert
 with check (
-  not exists (
-    select 1 from public.events
-    where id = rsvps.event_id and target_team_ids is not null
-  )
+  not public.event_has_target_team_restriction(event_id)
   or public.can_access_targeted_event(auth.uid(), event_id)
 );
 
@@ -169,17 +225,11 @@ on public.rsvps
 as restrictive
 for update
 using (
-  not exists (
-    select 1 from public.events
-    where id = rsvps.event_id and target_team_ids is not null
-  )
+  not public.event_has_target_team_restriction(event_id)
   or public.can_access_targeted_event(auth.uid(), event_id)
 )
 with check (
-  not exists (
-    select 1 from public.events
-    where id = rsvps.event_id and target_team_ids is not null
-  )
+  not public.event_has_target_team_restriction(event_id)
   or public.can_access_targeted_event(auth.uid(), event_id)
 );
 
@@ -188,9 +238,83 @@ on public.rsvps
 as restrictive
 for delete
 using (
-  not exists (
-    select 1 from public.events
-    where id = rsvps.event_id and target_team_ids is not null
-  )
+  not public.event_has_target_team_restriction(event_id)
   or public.can_access_targeted_event(auth.uid(), event_id)
+);
+
+drop policy if exists events_admin_insert on public.events;
+create policy events_admin_insert
+on public.events
+for insert
+with check (
+  created_by = auth.uid()
+  and (
+    public.has_role(auth.uid(), 'club_admin', club_id, null)
+    or (
+      team_id is not null
+      and (
+        public.has_role(auth.uid(), 'team_admin', null, team_id)
+        or public.has_role(auth.uid(), 'coach', null, team_id)
+      )
+    )
+    or (
+      public.has_role(auth.uid(), 'committee_member', club_id, null)
+      and team_id is null
+      and type in ('game', 'social')
+    )
+  )
+);
+
+drop policy if exists events_admin_update on public.events;
+create policy events_admin_update
+on public.events
+for update
+using (
+  public.has_role(auth.uid(), 'club_admin', club_id, null)
+  or (
+    team_id is not null
+    and (
+      public.has_role(auth.uid(), 'team_admin', null, team_id)
+      or public.has_role(auth.uid(), 'coach', null, team_id)
+    )
+  )
+  or (
+    public.has_role(auth.uid(), 'committee_member', club_id, null)
+    and team_id is null
+    and type in ('game', 'social')
+  )
+)
+with check (
+  public.has_role(auth.uid(), 'club_admin', club_id, null)
+  or (
+    team_id is not null
+    and (
+      public.has_role(auth.uid(), 'team_admin', null, team_id)
+      or public.has_role(auth.uid(), 'coach', null, team_id)
+    )
+  )
+  or (
+    public.has_role(auth.uid(), 'committee_member', club_id, null)
+    and team_id is null
+    and type in ('game', 'social')
+  )
+);
+
+create policy events_admin_delete
+on public.events
+for delete
+using (
+  public.has_role(auth.uid(), 'club_admin', club_id, null)
+  or (
+    team_id is not null
+    and (
+      public.has_role(auth.uid(), 'team_admin', null, team_id)
+      or public.has_role(auth.uid(), 'coach', null, team_id)
+    )
+  )
+  or (
+    public.has_role(auth.uid(), 'committee_member', club_id, null)
+    and team_id is null
+    and type in ('game', 'social')
+  )
 );

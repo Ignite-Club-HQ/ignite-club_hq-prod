@@ -18,6 +18,7 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
     { id: "team-u8-red", club_id: clubId, name: "U8 Red", age_group: "U8" },
     { id: "team-u10-red", club_id: clubId, name: "U10 Red", age_group: "U10" },
+    { id: "team-u12-green", club_id: clubId, name: "U12 Green", age_group: "U12" },
   ];
 
   await page.addInitScript(({ user, userId }) => {
@@ -54,9 +55,17 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
         team_id: "team-u8-blue",
         profiles: { id: userId, display_name: "Synthetic Admin" },
       }, {
+        id: "role-u8-red", role: "parent", club_id: clubId, user_id: "adult-u8-red",
+        team_id: "team-u8-red",
+        profiles: { id: "adult-u8-red", display_name: "Riley U8 Red" },
+      }, {
         id: "role-2", role: "coach", club_id: clubId, user_id: "synthetic-coach-u10",
         team_id: "team-u10-red",
         profiles: { id: "synthetic-coach-u10", display_name: "Synthetic U10 Coach" },
+      }, {
+        id: "role-u12", role: "coach", club_id: clubId, user_id: "adult-u12",
+        team_id: "team-u12-green",
+        profiles: { id: "adult-u12", display_name: "Excluded U12 Coach" },
       }]);
     }
     if (url.pathname === "/rest/v1/clubs") return json([{
@@ -100,8 +109,19 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     if (url.pathname === "/rest/v1/profiles") return json([{
       id: userId, display_name: "Synthetic Admin",
     }]);
-    if (url.pathname === "/rest/v1/child_team_assignments") return json([]);
-    if (url.pathname === "/rest/v1/rsvps") return json([]);
+    if (url.pathname === "/rest/v1/child_team_assignments") return json([
+      { child_id: "child-u8-blue", team_id: "team-u8-blue", children: { id: "child-u8-blue", name: "Bailey Blue" } },
+      { child_id: "child-u8-red", team_id: "team-u8-red", children: { id: "child-u8-red", name: "Robin Red" } },
+      { child_id: "child-u10-red", team_id: "team-u10-red", children: { id: "child-u10-red", name: "Taylor U10" } },
+      { child_id: "child-u12", team_id: "team-u12-green", children: { id: "child-u12", name: "Excluded U12 Child" } },
+    ]);
+    if (url.pathname === "/rest/v1/rsvps") return json([
+      { user_id: userId, child_id: null, status: "going" },
+      { user_id: "adult-u8-red", child_id: null, status: "not_going" },
+      { user_id: null, child_id: "child-u8-blue", status: "maybe" },
+      { user_id: null, child_id: "child-u10-red", status: "going" },
+      { user_id: "adult-u12", child_id: null, status: "going" },
+    ]);
     if (url.pathname.startsWith("/rest/v1/")) return json([]);
     return json({});
   });
@@ -128,6 +148,21 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     target_team_ids: ["team-u8-blue", "team-u8-red"],
   });
 
+  // Verify the user-visible result, not just the create payload. Both selected
+  // U8 teams must be combined into one grade while unselected grades stay out.
+  await page.goto(`/events/${eventId}`);
+  await expect(page.getByText("Attendance by age level")).toBeVisible();
+  const u8Grade = page.getByRole("button", { name: /U8 \(4\).*1 going.*1 maybe.*1 no.*1 n\/r/i });
+  await expect(u8Grade).toBeVisible();
+  await expect(page.getByRole("button", { name: /U10/ })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: /U12/ })).not.toBeVisible();
+  await u8Grade.click();
+  await expect(page.getByText("Synthetic Admin", { exact: true })).toBeVisible();
+  await expect(page.getByText("Bailey Blue", { exact: true })).toBeVisible();
+  await expect(page.getByText("Riley U8 Red", { exact: true })).toBeVisible();
+  await expect(page.getByText("Robin Red", { exact: true })).toBeVisible();
+  await expect(page.getByText("Excluded U12 Coach", { exact: true })).not.toBeVisible();
+
   await page.goto(`/events/${eventId}/edit`);
   await page.getByRole("button", { name: "Club & Team" }).click();
   const editGrouping = () =>
@@ -136,22 +171,13 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       .filter({ hasText: /Group by (?:age level|team)/ })
       .first();
   await expect(editGrouping()).toContainText("Group by age level");
-  await expect.poll(async () => {
-    const current = editGrouping();
-    if ((await current.textContent().catch(() => ""))?.includes("Group by team")) {
-      return true;
-    }
-
-    await current.click({ force: true }).catch(() => {});
-    const option = page.getByRole("option", { name: /Group by team/ });
-    if (await option.count()) {
-      await option.click({ force: true }).catch(() => {});
-    }
-
-    return (await editGrouping().textContent().catch(() => ""))?.includes(
-      "Group by team",
-    );
-  }, { timeout: 10_000 }).toBe(true);
+  // Open the Radix select and choose the visible option. Avoid force-click
+  // polling: it can repeatedly toggle the portal without committing a value.
+  await editGrouping().click();
+  const teamGroupingOption = page.getByRole("option", { name: /Group by team/ });
+  await expect(teamGroupingOption).toBeVisible();
+  await teamGroupingOption.click();
+  await expect(editGrouping()).toContainText("Group by team");
 
   await page.getByRole("checkbox", { name: "U8 Red" }).click();
   await expect(page.getByText(/Select at least 2 teams/i)).toBeVisible();
@@ -167,7 +193,28 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
 
   await page.goto(`/events/${eventId}`);
   await expect(page.getByText("Attendance by team")).toBeVisible();
-  await expect(page.getByRole("button", { name: /U8 Blue/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /U10 Red/ })).toBeVisible();
+  const u8Blue = page.getByRole("button", { name: /U8 Blue \(2\).*1 going.*1 maybe/i });
+  const u10Red = page.getByRole("button", { name: /U10 Red \(2\).*1 going.*1 n\/r/i });
+  await expect(u8Blue).toBeVisible();
+  await expect(u10Red).toBeVisible();
   await expect(page.getByRole("button", { name: /U8 Red/ })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: /U12 Green/ })).not.toBeVisible();
+  await u10Red.click();
+  await expect(page.getByText("Synthetic U10 Coach", { exact: true })).toBeVisible();
+  await expect(page.getByText("Taylor U10", { exact: true })).toBeVisible();
+
+  // A denied roster read must never masquerade as a valid empty RSVP list.
+  // This is the failure mode the original route-only assertions could not see.
+  await page.route("**/rest/v1/user_roles*", route =>
+    route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "42501",
+        message: "permission denied for grouped RSVP roster",
+      }),
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText(/unable to load grouped attendance/i);
 });
