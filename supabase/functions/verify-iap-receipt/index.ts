@@ -1,253 +1,259 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fallbackExpiry, getIapProduct, type IapProduct } from "../_shared/iapCatalogue.ts";
+import {
+  readAppleConfig,
+  readGoogleConfig,
+  StoreVerificationError,
+  verifyApplePurchase,
+  verifyGooglePurchase,
+  type IapPlatform,
+  type VerifiedPurchase,
+} from "../_shared/iapStoreVerification.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Product ID to subscription mapping
-const PRODUCT_MAP: Record<string, { 
-  entityType: "club" | "team";
-  tier: "pro" | "pro_football";
-  plan?: "starter" | "standard" | "unlimited";
-  isAnnual: boolean;
-  storageGb?: number;
-  isStorage?: boolean;
-}> = {
-  // Club Pro plans
-  ignite_pro_starter_monthly: { entityType: "club", tier: "pro", plan: "starter", isAnnual: false },
-  ignite_pro_starter_annual: { entityType: "club", tier: "pro", plan: "starter", isAnnual: true },
-  ignite_pro_standard_monthly: { entityType: "club", tier: "pro", plan: "standard", isAnnual: false },
-  ignite_pro_standard_annual: { entityType: "club", tier: "pro", plan: "standard", isAnnual: true },
-  ignite_pro_unlimited_monthly: { entityType: "club", tier: "pro", plan: "unlimited", isAnnual: false },
-  // Club Pro Football plans (monthly only)
-  ignite_pf_starter_monthly: { entityType: "club", tier: "pro_football", plan: "starter", isAnnual: false },
-  ignite_pf_standard_monthly: { entityType: "club", tier: "pro_football", plan: "standard", isAnnual: false },
-  ignite_pf_unlimited_monthly: { entityType: "club", tier: "pro_football", plan: "unlimited", isAnnual: false },
-  // Team Pro plans
-  ignite_team_pro_monthly: { entityType: "team", tier: "pro", isAnnual: false },
-  ignite_team_pro_annual: { entityType: "team", tier: "pro", isAnnual: true },
-  ignite_team_pf_monthly: { entityType: "team", tier: "pro_football", isAnnual: false },
-  ignite_team_pf_annual: { entityType: "team", tier: "pro_football", isAnnual: true },
-  // Storage
-  ignite_storage_10gb_monthly: { entityType: "club", tier: "pro", isAnnual: false, storageGb: 10, isStorage: true },
-  ignite_storage_10gb_annual: { entityType: "club", tier: "pro", isAnnual: true, storageGb: 10, isStorage: true },
-  ignite_storage_50gb_monthly: { entityType: "club", tier: "pro", isAnnual: false, storageGb: 50, isStorage: true },
-  ignite_storage_50gb_annual: { entityType: "club", tier: "pro", isAnnual: true, storageGb: 50, isStorage: true },
-};
+const MAX_BODY_BYTES = 8 * 1024;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const TEAM_LIMITS: Record<string, number | null> = {
-  starter: 10,
-  standard: 20,
-  unlimited: null,
-};
+function json(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/** Structured, non-sensitive server-side diagnostics only. */
+function diag(event: string, fields: Record<string, unknown>) {
+  console.log(`[IAP] ${event}`, JSON.stringify(fields));
+}
+
+async function isAuthorizedForEntity(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  product: IapProduct,
+  entityId: string,
+): Promise<boolean> {
+  const { data: isAppAdmin } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "app_admin",
+    _club_id: null,
+    _team_id: null,
+  });
+  if (isAppAdmin) return true;
+
+  if (product.entityType === "club") {
+    const { data: isClubAdmin } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "club_admin",
+      _club_id: entityId,
+      _team_id: null,
+    });
+    return !!isClubAdmin;
+  }
+
+  const { data: isTeamAdmin } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "team_admin",
+    _club_id: null,
+    _team_id: entityId,
+  });
+  if (isTeamAdmin) return true;
+
+  const { data: isCoach } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "coach",
+    _club_id: null,
+    _team_id: entityId,
+  });
+  if (isCoach) return true;
+
+  const { data: team } = await supabase.from("teams").select("club_id").eq("id", entityId).maybeSingle();
+  if (!team?.club_id) return false;
+  const { data: isClubAdmin } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "club_admin",
+    _club_id: team.club_id,
+    _team_id: null,
+  });
+  return !!isClubAdmin;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   try {
+    // ---- auth: fail closed ----
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!authHeader?.startsWith("Bearer ")) {
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Verify user token
-    const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
-    const { platform, transactionId, productId, entityId, entityType, receipt } = await req.json();
-
-    if (!platform || !transactionId || !productId || !entityId) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // ---- request size limit ----
+    const declaredLength = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+      return json({ error: "Request too large" }, 413);
+    }
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_BODY_BYTES) {
+      return json({ error: "Request too large" }, 413);
     }
 
-    const productConfig = PRODUCT_MAP[productId];
-    if (!productConfig) {
-      return new Response(JSON.stringify({ error: `Unknown product: ${productId}` }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(rawBody || "{}");
+    } catch (_e) {
+      return json({ error: "Invalid request" }, 400);
     }
 
-    // Role-based access control
-    if (productConfig.isStorage || (entityType === "club" && !productConfig.isStorage)) {
-      // Club plans and storage require club_admin role
-      const { data: isClubAdmin } = await supabase
-        .rpc("has_role", { _user_id: user.id, _role: "club_admin", _club_id: entityId, _team_id: null });
-      const { data: isAppAdmin } = await supabase
-        .rpc("has_role", { _user_id: user.id, _role: "app_admin", _club_id: null, _team_id: null });
-      if (!isClubAdmin && !isAppAdmin) {
-        return new Response(JSON.stringify({ error: "Only club administrators can purchase this plan" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // ---- strict input validation. Only these fields are ever read. ----
+    const platformRaw = payload.platform;
+    const platform: IapPlatform | null = platformRaw === "ios" || platformRaw === "android" ? platformRaw : null;
+    if (!platform) {
+      return json({ error: "Invalid request" }, 400);
+    }
+
+    const productId = typeof payload.productId === "string" ? payload.productId : "";
+    const entityId = typeof payload.entityId === "string" ? payload.entityId.trim() : "";
+    const transactionId = typeof payload.transactionId === "string" ? payload.transactionId.trim() : "";
+    const purchaseToken = typeof payload.receipt === "string" ? payload.receipt.trim() : "";
+
+    if (!productId || !entityId || !UUID_RE.test(entityId)) {
+      return json({ error: "Invalid request" }, 400);
+    }
+
+    const product = getIapProduct(productId);
+    if (!product) {
+      diag("unknown_product", { userId: user.id, platform });
+      return json({ error: "This plan is not available." }, 400);
+    }
+
+    // Requirement: the requested entity type must match the verified product
+    // configuration. The client's value is NEVER used to derive anything.
+    if (payload.entityType !== undefined && payload.entityType !== product.entityType) {
+      diag("entity_type_mismatch", { userId: user.id, productId, requested: String(payload.entityType) });
+      return json({ error: "This plan doesn't match the selected club or team." }, 400);
+    }
+
+    // ---- authorization for the target club/team ----
+    const authorized = await isAuthorizedForEntity(supabase, user.id, product, entityId);
+    if (!authorized) {
+      diag("not_authorized", { userId: user.id, productId, entityType: product.entityType });
+      return json(
+        {
+          error: product.entityType === "club"
+            ? "Only club administrators can purchase this plan"
+            : "Only team administrators, coaches, or club administrators can purchase this plan",
+        },
+        403,
+      );
+    }
+
+    // ---- store verification: no store credentials => fail closed ----
+    let verified: VerifiedPurchase;
+    try {
+      if (platform === "ios") {
+        const appleConfig = readAppleConfig((k) => Deno.env.get(k));
+        if (!appleConfig) throw new StoreVerificationError("store_not_configured", { store: "apple", reason: "secrets_missing" });
+        if (!transactionId) throw new StoreVerificationError("purchase_not_found", { store: "apple", reason: "no_transaction_id" });
+        verified = await verifyApplePurchase({
+          config: appleConfig,
+          transactionId,
+          expectedProductId: product.productId,
+        });
+      } else {
+        const googleConfig = readGoogleConfig((k) => Deno.env.get(k));
+        if (!googleConfig) throw new StoreVerificationError("store_not_configured", { store: "google", reason: "secrets_missing" });
+        const token = purchaseToken || transactionId;
+        if (!token) throw new StoreVerificationError("purchase_not_found", { store: "google", reason: "no_purchase_token" });
+        verified = await verifyGooglePurchase({
+          config: googleConfig,
+          purchaseToken: token,
+          expectedProductId: product.productId,
         });
       }
-    } else if (entityType === "team") {
-      // Team plans require team_admin, coach, or club_admin role
-      const { data: isTeamAdmin } = await supabase
-        .rpc("has_role", { _user_id: user.id, _role: "team_admin", _club_id: null, _team_id: entityId });
-      const { data: isCoach } = await supabase
-        .rpc("has_role", { _user_id: user.id, _role: "coach", _club_id: null, _team_id: entityId });
-      // Also allow club admins to purchase team plans for teams in their club
-      const { data: team } = await supabase
-        .from("teams")
-        .select("club_id")
-        .eq("id", entityId)
-        .maybeSingle();
-      const { data: isClubAdmin } = team?.club_id
-        ? await supabase.rpc("has_role", { _user_id: user.id, _role: "club_admin", _club_id: team.club_id, _team_id: null })
-        : { data: false };
-      const { data: isAppAdmin } = await supabase
-        .rpc("has_role", { _user_id: user.id, _role: "app_admin", _club_id: null, _team_id: null });
-      if (!isTeamAdmin && !isCoach && !isClubAdmin && !isAppAdmin) {
-        return new Response(JSON.stringify({ error: "Only team administrators, coaches, or club administrators can purchase this plan" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+    } catch (err) {
+      if (err instanceof StoreVerificationError) {
+        diag("verification_failed", { userId: user.id, productId, code: err.code, ...err.diagnostic });
+        return json({ error: err.clientMessage }, err.httpStatus);
       }
+      diag("verification_error", { userId: user.id, productId, name: (err as Error)?.name });
+      return json({ error: "We couldn't confirm your purchase. Please try again shortly." }, 502);
     }
 
-    // TODO: Add proper receipt validation with Apple/Google servers
-    // For Apple: Verify with App Store Server API (https://developer.apple.com/documentation/appstoreserverapi)
-    // For Google: Verify with Google Play Developer API (https://developers.google.com/android-publisher)
-    // 
-    // For now, we trust the client-side transaction and apply the subscription.
-    // In production, you should:
-    // 1. Validate the receipt/transaction with Apple/Google servers
-    // 2. Check for duplicate transactions
-    // 3. Handle subscription renewals via server notifications
-    
-    console.log(`[IAP] Verifying ${platform} purchase: product=${productId}, transaction=${transactionId}, entity=${entityId}`);
-
-    // Check for duplicate transactions
-    const { data: existingTransaction } = await supabase
-      .from("iap_transactions")
-      .select("id")
-      .eq("transaction_id", transactionId)
-      .maybeSingle();
-
-    if (existingTransaction) {
-      return new Response(JSON.stringify({ error: "Transaction already processed" }), {
-        status: 409,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Defence in depth: the store must have confirmed the exact product.
+    if (verified.productId !== product.productId || verified.platform !== platform) {
+      diag("post_verification_mismatch", { userId: user.id, productId });
+      return json({ error: "This purchase doesn't match the selected plan." }, 400);
     }
 
-    // Record the transaction
-    await supabase.from("iap_transactions").insert({
-      user_id: user.id,
-      transaction_id: transactionId,
-      original_transaction_id: receipt || transactionId,
-      product_id: productId,
-      platform,
-      entity_id: entityId,
-      entity_type: entityType,
-      status: "completed",
+    // ---- atomic entitlement application (all-or-nothing, replay safe) ----
+    const expiresAt = verified.expiresAt ?? fallbackExpiry(product).toISOString();
+    const { data: applied, error: rpcError } = await supabase.rpc("apply_verified_iap_purchase", {
+      p_facts: {
+        user_id: user.id,
+        platform: verified.platform,
+        transaction_id: verified.transactionId,
+        original_transaction_id: verified.originalTransactionId,
+        purchase_token: verified.purchaseToken,
+        product_id: product.productId,
+        entity_id: entityId,
+        entity_type: product.entityType,
+        tier: product.tier,
+        plan: product.plan ?? null,
+        storage_gb: product.storageGb ?? null,
+        is_storage: product.isStorage,
+        expires_at: product.isStorage ? null : expiresAt,
+        purchased_at: verified.purchasedAt,
+        environment: verified.environment,
+        store_status: verified.storeStatus,
+      },
     });
 
-    // Apply the purchase
-    if (productConfig.isStorage) {
-      // Storage purchase - add to club's storage
-      const { data: subscription } = await supabase
-        .from("club_subscriptions")
-        .select("storage_purchased_gb")
-        .eq("club_id", entityId)
-        .maybeSingle();
-
-      const currentStorage = subscription?.storage_purchased_gb || 0;
-      const newStorage = currentStorage + (productConfig.storageGb || 0);
-
-      await supabase
-        .from("club_subscriptions")
-        .update({ storage_purchased_gb: newStorage })
-        .eq("club_id", entityId);
-
-      console.log(`[IAP] Applied storage: +${productConfig.storageGb}GB for club ${entityId}`);
-    } else if (entityType === "club") {
-      // Club subscription upgrade
-      const now = new Date();
-      const expiresAt = productConfig.isAnnual
-        ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-        : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-
-      const updateData = productConfig.tier === "pro"
-        ? { is_pro: true, is_pro_football: false }
-        : { is_pro: true, is_pro_football: true };
-
-      const teamLimit = productConfig.plan ? TEAM_LIMITS[productConfig.plan] : null;
-
-      await supabase
-        .from("club_subscriptions")
-        .upsert({
-          club_id: entityId,
-          plan: productConfig.plan || "starter",
-          team_limit: teamLimit,
-          ...updateData,
-          activated_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          stripe_subscription_id: `iap_${platform}_${transactionId}`,
-        }, { onConflict: "club_id" });
-
-      // Also update clubs.is_pro
-      await supabase
-        .from("clubs")
-        .update({ is_pro: true })
-        .eq("id", entityId);
-
-      console.log(`[IAP] Applied club upgrade: ${productConfig.tier} ${productConfig.plan} for club ${entityId}`);
-    } else if (entityType === "team") {
-      // Team subscription upgrade
-      const now = new Date();
-      const expiresAt = productConfig.isAnnual
-        ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-        : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-
-      const updateData = productConfig.tier === "pro"
-        ? { is_pro: true }
-        : { is_pro: true, is_pro_football: true };
-
-      await supabase
-        .from("team_subscriptions")
-        .upsert({
-          team_id: entityId,
-          ...updateData,
-          activated_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
-        }, { onConflict: "team_id" });
-
-      console.log(`[IAP] Applied team upgrade: ${productConfig.tier} for team ${entityId}`);
+    if (rpcError) {
+      const message = rpcError.message || "";
+      diag("apply_failed", { userId: user.id, productId, code: rpcError.code, message });
+      if (message.includes("transaction_conflict")) {
+        return json({ error: "This purchase has already been used." }, 409);
+      }
+      if (message.includes("unknown_club") || message.includes("unknown_team")) {
+        return json({ error: "The selected club or team no longer exists." }, 400);
+      }
+      return json({ error: "We couldn't apply your purchase. Please contact support." }, 500);
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    diag("applied", {
+      userId: user.id,
+      productId,
+      entityType: product.entityType,
+      platform: verified.platform,
+      environment: verified.environment,
+      applied: (applied as any)?.applied ?? null,
+      idempotent: (applied as any)?.idempotent ?? false,
     });
+
+    return json({ success: true, idempotent: !!(applied as any)?.idempotent }, 200);
   } catch (error) {
-    console.error("[IAP] Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Never leak internals to the client.
+    console.error("[IAP] unexpected_error", (error as Error)?.name, (error as Error)?.message);
+    return json({ error: "Something went wrong. Please try again." }, 500);
   }
 });

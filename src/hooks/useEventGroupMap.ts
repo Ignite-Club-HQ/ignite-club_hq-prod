@@ -9,6 +9,12 @@ interface Params {
   grouping: EventGrouping | null | undefined;
   /** When set, only teams in this list are considered members of the event. */
   targetTeamIds?: string[] | null;
+  /**
+   * For targeted club-wide events, pass the scoped SECURITY DEFINER roster so
+   * grouping does not depend on client-side RLS access to user_roles or
+   * child_team_assignments.
+   */
+  scopedRosterRows?: ScopedRosterRow[] | null;
   /** Only run when the event is club-wide (no team_id) and grouping is set. */
   enabled: boolean;
 }
@@ -16,6 +22,12 @@ interface Params {
 interface GroupInfo {
   key: string;
   label: string;
+}
+
+interface ScopedRosterRow {
+  kind: string;
+  person_id: string;
+  team_ids: string[] | null;
 }
 
 const OTHER_GROUP: GroupInfo = { key: "__other__", label: "Other" };
@@ -54,26 +66,47 @@ function sortGroupKeys<T extends GroupInfo>(groups: T[]): T[] {
  * via `child_team_assignments`. Anyone not tied to a scoped team lands in
  * an "Other" group so club admins/committee still appear somewhere.
  */
-export function useEventGroupMap({ clubId, grouping, targetTeamIds, enabled }: Params) {
+export function useEventGroupMap({ clubId, grouping, targetTeamIds, scopedRosterRows, enabled }: Params) {
   const targetKey = useMemo(
     () => (Array.isArray(targetTeamIds) && targetTeamIds.length > 0 ? [...targetTeamIds].sort().join(",") : ""),
     [targetTeamIds],
   );
+  const hasScopedRoster = !!targetKey && Array.isArray(scopedRosterRows);
+  const scopedRosterKey = useMemo(() => {
+    if (!hasScopedRoster) return "";
+    return (scopedRosterRows ?? [])
+      .map((r) => `${r.kind}:${r.person_id}:${[...(r.team_ids ?? [])].sort().join("|")}`)
+      .sort()
+      .join(",");
+  }, [hasScopedRoster, scopedRosterRows]);
 
   const query = useQuery({
-    queryKey: ["event-group-map", clubId, grouping, targetKey],
+    queryKey: ["event-group-map", clubId, grouping, targetKey, hasScopedRoster ? "scoped-roster" : "direct", scopedRosterKey],
     enabled: !!enabled && !!clubId && (grouping === "level" || grouping === "team"),
     staleTime: 60_000,
     queryFn: async () => {
       let teamsQ = supabase
         .from("teams")
-        .select("id, name, age_group")
+        .select("id, name, level_age")
         .eq("club_id", clubId!);
       if (targetKey) teamsQ = teamsQ.in("id", targetKey.split(","));
       const { data: teams, error: teamsErr } = await teamsQ;
       if (teamsErr) throw teamsErr;
 
       const teamIds = (teams ?? []).map((t: any) => t.id);
+
+      if (hasScopedRoster) {
+        const scopedRows = scopedRosterRows ?? [];
+        return {
+          teams: teams ?? [],
+          roles: scopedRows
+            .filter((r) => r.kind === "adult")
+            .flatMap((r) => (r.team_ids ?? []).map((teamId) => ({ user_id: r.person_id, team_id: teamId }))),
+          assignments: scopedRows
+            .filter((r) => r.kind === "child")
+            .flatMap((r) => (r.team_ids ?? []).map((teamId) => ({ child_id: r.person_id, team_id: teamId }))),
+        };
+      }
 
       const [rolesRes, assignmentsRes] = await Promise.all([
         teamIds.length
@@ -123,7 +156,7 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, enabled }: P
       if (grouping === "team") {
         info = addGroup({ key: `team:${t.id}`, label: t.name || "Unnamed team" });
       } else {
-        const lvl = extractAgeLevel(t.age_group) || extractAgeLevel(t.name);
+        const lvl = extractAgeLevel(t.level_age) || extractAgeLevel(t.name);
         info = addGroup(
           lvl
             ? { key: `level:${lvl}`, label: lvl }
