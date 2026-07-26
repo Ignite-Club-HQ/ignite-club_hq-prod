@@ -1127,7 +1127,39 @@ export default function EventDetailPage() {
     const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
     return Array.isArray(t) && t.length > 0 ? t : null;
   }, [event?.team_id, (event as any)?.target_team_ids]);
-  const { data: allChildrenOnTeam } = useQuery({
+
+  // Event managers (club admin / committee / target-team admin) cannot read
+  // other members' `children` rows directly under RLS. A narrowly scoped
+  // SECURITY DEFINER RPC returns the minimum roster for THIS event only.
+  const scopedRosterQuery = useQuery({
+    queryKey: ["targeted-event-roster", id],
+    enabled: !!id && !!targetTeamIdsForFetch && (isAdmin || isAppAdmin || isCommitteeMember),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_targeted_event_attendance_roster", {
+        p_event_id: id!,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        kind: string;
+        person_id: string;
+        display_name: string | null;
+        parent_id: string | null;
+        team_ids: string[] | null;
+      }>;
+    },
+  });
+  const scopedChildRoster = useMemo(
+    () => (scopedRosterQuery.data ?? []).filter((r) => r.kind === "child"),
+    [scopedRosterQuery.data],
+  );
+  const scopedChildNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of scopedChildRoster) if (r.display_name) m.set(r.person_id, r.display_name);
+    return m;
+  }, [scopedChildRoster]);
+
+  const { data: allChildrenOnTeamRaw } = useQuery({
     queryKey: [
       "all-children-on-team",
       event?.team_id,
@@ -1156,6 +1188,25 @@ export default function EventDetailPage() {
     },
     enabled: !!event?.team_id || !!targetTeamIdsForFetch,
   });
+
+  // Merge the RLS-visible children with the scoped RPC roster so event
+  // managers see every targeted player (and never "Unknown").
+  const allChildrenOnTeam = useMemo(() => {
+    const base = allChildrenOnTeamRaw || [];
+    if (!targetTeamIdsForFetch || scopedChildRoster.length === 0) return base;
+    const byId = new Map<string, any>();
+    for (const c of base) byId.set(c.id, c);
+    for (const r of scopedChildRoster) {
+      const existing = byId.get(r.person_id);
+      if (existing) {
+        if (!existing.name && r.display_name) existing.name = r.display_name;
+      } else {
+        byId.set(r.person_id, { id: r.person_id, name: r.display_name, parent_id: r.parent_id });
+      }
+    }
+    return [...byId.values()];
+  }, [allChildrenOnTeamRaw, scopedChildRoster, targetTeamIdsForFetch]);
+
 
 
   // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
