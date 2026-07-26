@@ -842,6 +842,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
             !!event.opponent;
 
           const isMiniLeagueOnly = !event.team_id && !!(event as any).mini_league_id;
+          const isClubWideTitled = !event.team_id && !!displayTitle?.trim();
 
           return (
             <div className="space-y-1.5">
@@ -850,15 +851,15 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
                   Match Day
                 </span>
               )}
-              {/* PRIMARY: team identity as title — or actual event title for mini-league events with no team */}
-              {isMiniLeagueOnly ? (
+              {/* PRIMARY: team identity as title — or actual event title for club-wide/mini-league events with no team */}
+              {isClubWideTitled || isMiniLeagueOnly ? (
                 <h3 className={`text-[17px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
               ) : (
                 <TeamChip
                   teamName={event.teams?.name}
-                  fallbackLabel={event.team_id ? "" : "Club event"}
+                  fallbackLabel=""
                   size="lg"
                   asTitle
                 />
