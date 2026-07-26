@@ -1133,7 +1133,7 @@ export default function EventDetailPage() {
   // SECURITY DEFINER RPC returns the minimum roster for THIS event only.
   const scopedRosterQuery = useQuery({
     queryKey: ["targeted-event-roster", id],
-    enabled: !!id && !!targetTeamIdsForFetch && (isAdmin || isAppAdmin || isCommitteeMember),
+    enabled: !!id && !!targetTeamIdsForFetch && !!(isAdmin || isAppAdmin),
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_targeted_event_attendance_roster", {
