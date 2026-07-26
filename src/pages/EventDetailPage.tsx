@@ -3346,7 +3346,7 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          const membersToShow = effectiveShowAll ? members : playerMembers;
+          const membersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
           const parentIdsWithRespondedChildren = new Set<string>();
           (allChildrenOnTeam || []).forEach((child: any) => {
             if (child.parent_id && respondedChildIds.has(child.id)) {
