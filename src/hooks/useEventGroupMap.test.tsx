@@ -5,8 +5,8 @@ import React from "react";
 import { useEventGroupMap } from "./useEventGroupMap";
 
 const TEAMS = [
-  { id: "t-u8-blue", name: "U8 Blue", age_group: "U8" },
-  { id: "t-u8-red", name: "U8 Red", age_group: "U8" },
+  { id: "t-u8-blue", name: "U8 Blue", level_age: "U8" },
+  { id: "t-u8-red", name: "U8 Red", level_age: "U8" },
 ];
 const ROLES = [{ user_id: "adult-1", team_id: "t-u8-blue" }];
 const ASSIGNMENTS = [

@@ -5020,37 +5020,64 @@ export type Database = {
           created_at: string
           entity_id: string
           entity_type: string
+          environment: string | null
+          expires_at: string | null
           id: string
           original_transaction_id: string | null
+          plan: string | null
           platform: string
           product_id: string
+          purchase_token: string | null
+          purchased_at: string | null
           status: string
+          storage_gb: number | null
+          store_status: string | null
+          tier: string | null
           transaction_id: string
           user_id: string
+          verified_at: string | null
         }
         Insert: {
           created_at?: string
           entity_id: string
           entity_type: string
+          environment?: string | null
+          expires_at?: string | null
           id?: string
           original_transaction_id?: string | null
+          plan?: string | null
           platform: string
           product_id: string
+          purchase_token?: string | null
+          purchased_at?: string | null
           status?: string
+          storage_gb?: number | null
+          store_status?: string | null
+          tier?: string | null
           transaction_id: string
           user_id: string
+          verified_at?: string | null
         }
         Update: {
           created_at?: string
           entity_id?: string
           entity_type?: string
+          environment?: string | null
+          expires_at?: string | null
           id?: string
           original_transaction_id?: string | null
+          plan?: string | null
           platform?: string
           product_id?: string
+          purchase_token?: string | null
+          purchased_at?: string | null
           status?: string
+          storage_gb?: number | null
+          store_status?: string | null
+          tier?: string | null
           transaction_id?: string
           user_id?: string
+          verified_at?: string | null
         }
         Relationships: []
       }
@@ -10061,6 +10088,7 @@ export type Database = {
         Args: { p_club_ids?: string[] }
         Returns: Json
       }
+      apply_verified_iap_purchase: { Args: { p_facts: Json }; Returns: Json }
       approve_chat_group_join_request: {
         Args: { _request_id: string }
         Returns: string
