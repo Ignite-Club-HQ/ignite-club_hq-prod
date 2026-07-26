@@ -792,7 +792,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const query = supabase
         .from("user_roles")
-        .select("user_id, role, profiles:user_id (id, display_name, avatar_url)");
+        .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
       
       if (event?.team_id) {
         query.eq("team_id", event.team_id);
@@ -803,22 +803,26 @@ export default function EventDetailPage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Group roles by user_id
-      const userRolesMap = new Map<string, { profile: any; roles: string[] }>();
+      // Group roles by user_id, keeping track of every team_id we've seen for them
+      const userRolesMap = new Map<string, { profile: any; roles: string[]; teamIds: Set<string> }>();
       data.filter(m => m.profiles).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
-          if (!existing.roles.includes(m.role)) {
-            existing.roles.push(m.role);
-          }
+          if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
+          if (m.team_id) existing.teamIds.add(m.team_id);
         } else {
-          userRolesMap.set(m.user_id, { profile: m.profiles, roles: [m.role] });
+          userRolesMap.set(m.user_id, {
+            profile: m.profiles,
+            roles: [m.role],
+            teamIds: new Set(m.team_id ? [m.team_id] : []),
+          });
         }
       });
       
-      return Array.from(userRolesMap.entries()).map(([userId, data]) => ({
+      return Array.from(userRolesMap.entries()).map(([, data]) => ({
         ...data.profile,
         roles: data.roles,
+        team_ids: Array.from(data.teamIds),
       }));
     },
     enabled: !!event,
