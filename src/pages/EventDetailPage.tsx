@@ -3824,8 +3824,30 @@ export default function EventDetailPage() {
                 </div>
               );
             })()}
+            {/* Grouped attendance failed to load (e.g. permission denied) —
+                never present a failed response as a valid empty roster. */}
+            {(groupMap.isActive && groupMap.isError) || (isTargetedScope && scopedRosterQuery.isError) ? (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+              >
+                <span>Grouped attendance couldn’t be loaded. The list below may be incomplete.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => {
+                    if (groupMap.isError) groupMap.refetch();
+                    if (scopedRosterQuery.isError) scopedRosterQuery.refetch();
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : null}
             {/* Grouping (by age level or team) is folded into each bucket
                 inside AttendanceSection below — no separate breakdown card. */}
+
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}
