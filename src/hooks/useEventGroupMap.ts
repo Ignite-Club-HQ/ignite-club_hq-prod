@@ -1,0 +1,184 @@
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+export type EventGrouping = "level" | "team";
+
+interface Params {
+  clubId: string | null | undefined;
+  grouping: EventGrouping | null | undefined;
+  /** When set, only teams in this list are considered members of the event. */
+  targetTeamIds?: string[] | null;
+  /** Only run when the event is club-wide (no team_id) and grouping is set. */
+  enabled: boolean;
+}
+
+interface GroupInfo {
+  key: string;
+  label: string;
+}
+
+const OTHER_GROUP: GroupInfo = { key: "__other__", label: "Other" };
+const AGE_LEVEL_RE = /u\s*(\d+)/i;
+
+function extractAgeLevel(source: string | null | undefined): string | null {
+  if (!source) return null;
+  const m = source.match(AGE_LEVEL_RE);
+  if (!m) return null;
+  return `U${parseInt(m[1], 10)}`;
+}
+
+function sortGroupKeys<T extends GroupInfo>(groups: T[]): T[] {
+  return [...groups].sort((a, b) => {
+    if (a.key === OTHER_GROUP.key) return 1;
+    if (b.key === OTHER_GROUP.key) return -1;
+    const na = a.label.match(/^U(\d+)/i);
+    const nb = b.label.match(/^U(\d+)/i);
+    if (na && nb) {
+      const diff = parseInt(na[1], 10) - parseInt(nb[1], 10);
+      if (diff !== 0) return diff;
+    }
+    return a.label.localeCompare(b.label);
+  });
+}
+
+/**
+ * For a club-wide event with a chosen RSVP grouping (age level or team),
+ * resolves every adult member / child to a display group and returns:
+ *
+ *  - `orderedGroups` — the list of groups to render, in display order
+ *  - `groupOf({ userId, childId })` — group lookup for a specific attendee
+ *
+ * Adults resolve via any `user_roles` row that ties them to one of the
+ * eligible teams (respecting `targetTeamIds` when set). Children resolve
+ * via `child_team_assignments`. Anyone not tied to a scoped team lands in
+ * an "Other" group so club admins/committee still appear somewhere.
+ */
+export function useEventGroupMap({ clubId, grouping, targetTeamIds, enabled }: Params) {
+  const targetKey = useMemo(
+    () => (Array.isArray(targetTeamIds) && targetTeamIds.length > 0 ? [...targetTeamIds].sort().join(",") : ""),
+    [targetTeamIds],
+  );
+
+  const query = useQuery({
+    queryKey: ["event-group-map", clubId, grouping, targetKey],
+    enabled: !!enabled && !!clubId && (grouping === "level" || grouping === "team"),
+    staleTime: 60_000,
+    queryFn: async () => {
+      let teamsQ = supabase
+        .from("teams")
+        .select("id, name, age_group")
+        .eq("club_id", clubId!);
+      if (targetKey) teamsQ = teamsQ.in("id", targetKey.split(","));
+      const { data: teams, error: teamsErr } = await teamsQ;
+      if (teamsErr) throw teamsErr;
+
+      const teamIds = (teams ?? []).map((t: any) => t.id);
+
+      const [rolesRes, assignmentsRes] = await Promise.all([
+        teamIds.length
+          ? supabase
+              .from("user_roles")
+              .select("user_id, team_id")
+              .eq("club_id", clubId!)
+              .in("team_id", teamIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        teamIds.length
+          ? supabase
+              .from("child_team_assignments")
+              .select("child_id, team_id")
+              .in("team_id", teamIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ]);
+      if (rolesRes.error) throw rolesRes.error;
+      if (assignmentsRes.error) throw assignmentsRes.error;
+
+      return {
+        teams: teams ?? [],
+        roles: rolesRes.data ?? [],
+        assignments: assignmentsRes.data ?? [],
+      };
+    },
+  });
+
+  const { orderedGroups, userToGroup, childToGroup } = useMemo(() => {
+    const empty = {
+      orderedGroups: [] as GroupInfo[],
+      userToGroup: new Map<string, GroupInfo>(),
+      childToGroup: new Map<string, GroupInfo>(),
+    };
+    if (!enabled || !grouping || !query.data) return empty;
+
+    const { teams, roles, assignments } = query.data;
+    const teamToGroup = new Map<string, GroupInfo>();
+    const groupsByKey = new Map<string, GroupInfo>();
+
+    const addGroup = (info: GroupInfo) => {
+      if (!groupsByKey.has(info.key)) groupsByKey.set(info.key, info);
+      return groupsByKey.get(info.key)!;
+    };
+
+    for (const t of teams as any[]) {
+      let info: GroupInfo;
+      if (grouping === "team") {
+        info = addGroup({ key: `team:${t.id}`, label: t.name || "Unnamed team" });
+      } else {
+        const lvl = extractAgeLevel(t.age_group) || extractAgeLevel(t.name);
+        info = addGroup(
+          lvl
+            ? { key: `level:${lvl}`, label: lvl }
+            : { key: `team:${t.id}`, label: t.name || "Unnamed team" },
+        );
+      }
+      teamToGroup.set(t.id, info);
+    }
+
+    const userToGroup = new Map<string, GroupInfo>();
+    for (const r of roles as any[]) {
+      const g = teamToGroup.get(r.team_id);
+      if (!g) continue;
+      // First-wins: an adult tied to multiple teams appears once, under the
+      // first team we see. Prefer keeping them tied to an existing group.
+      if (!userToGroup.has(r.user_id)) userToGroup.set(r.user_id, g);
+    }
+
+    const childToGroup = new Map<string, GroupInfo>();
+    for (const a of assignments as any[]) {
+      const g = teamToGroup.get(a.team_id);
+      if (!g) continue;
+      if (!childToGroup.has(a.child_id)) childToGroup.set(a.child_id, g);
+    }
+
+    const orderedGroups = sortGroupKeys([...groupsByKey.values()]);
+    return { orderedGroups, userToGroup, childToGroup };
+  }, [enabled, grouping, query.data]);
+
+  const isActive = !!enabled && (grouping === "level" || grouping === "team");
+
+  const groupOf = ({
+    userId,
+    childId,
+  }: {
+    userId?: string | null;
+    childId?: string | null;
+  }): GroupInfo => {
+    if (childId) return childToGroup.get(childId) ?? OTHER_GROUP;
+    if (userId) return userToGroup.get(userId) ?? OTHER_GROUP;
+    return OTHER_GROUP;
+  };
+
+  // Always include the "Other" bucket so members who don't resolve to a
+  // team (club-level admins/committee, or when the teams query is
+  // restricted by RLS) still render. Empty buckets are filtered by callers.
+  const displayGroups = useMemo<GroupInfo[]>(
+    () => [...orderedGroups, OTHER_GROUP],
+    [orderedGroups],
+  );
+
+  return {
+    isActive,
+    isLoading: query.isLoading,
+    orderedGroups: displayGroups,
+    groupOf,
+  };
+}

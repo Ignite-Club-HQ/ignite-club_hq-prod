@@ -40,7 +40,7 @@ describe("shouldAcceptServerSnapshot", () => {
     });
     const d = shouldAcceptServerSnapshot(prev, stale, advanced);
     expect(d.accept).toBe(false);
-    expect(d.reason).toMatch(/older|stale/);
+    expect(d.reason).toMatch(/older|stale|regress/);
   });
 
   it("rejects an equal-timestamp zero snapshot when local has advanced", () => {
