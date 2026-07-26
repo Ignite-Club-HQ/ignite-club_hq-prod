@@ -5020,37 +5020,64 @@ export type Database = {
           created_at: string
           entity_id: string
           entity_type: string
+          environment: string | null
+          expires_at: string | null
           id: string
           original_transaction_id: string | null
+          plan: string | null
           platform: string
           product_id: string
+          purchase_token: string | null
+          purchased_at: string | null
           status: string
+          storage_gb: number | null
+          store_status: string | null
+          tier: string | null
           transaction_id: string
           user_id: string
+          verified_at: string | null
         }
         Insert: {
           created_at?: string
           entity_id: string
           entity_type: string
+          environment?: string | null
+          expires_at?: string | null
           id?: string
           original_transaction_id?: string | null
+          plan?: string | null
           platform: string
           product_id: string
+          purchase_token?: string | null
+          purchased_at?: string | null
           status?: string
+          storage_gb?: number | null
+          store_status?: string | null
+          tier?: string | null
           transaction_id: string
           user_id: string
+          verified_at?: string | null
         }
         Update: {
           created_at?: string
           entity_id?: string
           entity_type?: string
+          environment?: string | null
+          expires_at?: string | null
           id?: string
           original_transaction_id?: string | null
+          plan?: string | null
           platform?: string
           product_id?: string
+          purchase_token?: string | null
+          purchased_at?: string | null
           status?: string
+          storage_gb?: number | null
+          store_status?: string | null
+          tier?: string | null
           transaction_id?: string
           user_id?: string
+          verified_at?: string | null
         }
         Relationships: []
       }
@@ -7483,6 +7510,59 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      push_delivery_queue: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          notification_id: string
+          payload: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id: string
+          payload: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_delivery_queue_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: true
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_notification_logs: {
         Row: {
@@ -10061,6 +10141,7 @@ export type Database = {
         Args: { p_club_ids?: string[] }
         Returns: Json
       }
+      apply_verified_iap_purchase: { Args: { p_facts: Json }; Returns: Json }
       approve_chat_group_join_request: {
         Args: { _request_id: string }
         Returns: string
@@ -10264,6 +10345,16 @@ export type Database = {
           child_id: string
           club_id: string
           mini_league_id: string
+        }[]
+      }
+      claim_push_delivery_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt_count: number
+          id: string
+          notification_id: string
+          payload: Json
+          user_id: string
         }[]
       }
       claim_shell_team: {
@@ -10485,6 +10576,13 @@ export type Database = {
           day: string
           mau: number
           wau: number
+        }[]
+      }
+      enqueue_event_push: {
+        Args: { p_rows: Json; p_url: string }
+        Returns: {
+          notification_id: string
+          user_id: string
         }[]
       }
       ensure_chat_group_vault_folder: {
@@ -11093,6 +11191,8 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      internal_functions_base_url: { Args: never; Returns: string }
+      internal_service_role_key: { Args: never; Returns: string }
       invite_shell_team_to_competition: {
         Args: {
           p_club_name: string

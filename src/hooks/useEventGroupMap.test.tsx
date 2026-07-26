@@ -5,8 +5,8 @@ import React from "react";
 import { useEventGroupMap } from "./useEventGroupMap";
 
 const TEAMS = [
-  { id: "t-u8-blue", name: "U8 Blue", age_group: "U8" },
-  { id: "t-u8-red", name: "U8 Red", age_group: "U8" },
+  { id: "t-u8-blue", name: "U8 Blue", level_age: "U8" },
+  { id: "t-u8-red", name: "U8 Red", level_age: "U8" },
 ];
 const ROLES = [{ user_id: "adult-1", team_id: "t-u8-blue" }];
 const ASSIGNMENTS = [
@@ -113,5 +113,24 @@ describe("useEventGroupMap scoping", () => {
     const { result } = renderHook(() => useEventGroupMap(scopedParams), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(typeof result.current.refetch).toBe("function");
+  });
+
+  it("uses scoped roster rows for targeted events instead of direct role/assignment queries", async () => {
+    const { result } = renderHook(
+      () => useEventGroupMap({
+        ...scopedParams,
+        scopedRosterRows: [
+          { kind: "child", person_id: "kid-rpc", team_ids: ["t-u8-red"] },
+          { kind: "adult", person_id: "adult-rpc", team_ids: ["t-u8-blue"] },
+        ],
+      }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.groupOf({ childId: "kid-rpc" })?.label).toBe("U8");
+    expect(result.current.groupOf({ userId: "adult-rpc" })?.label).toBe("U8");
+    expect(result.current.groupOf({ childId: "kid-u8" })).toBeNull();
   });
 });
