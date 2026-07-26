@@ -74,7 +74,7 @@ import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponso
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
-import { ClubWideRsvpBreakdown } from "@/components/event/ClubWideRsvpBreakdown";
+import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
@@ -950,6 +950,25 @@ export default function EventDetailPage() {
   // Filter members based on showAllRoles toggle / event role restrictions
   const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
   const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
+
+  // Grouping for club-wide events (by age level or by team). Drives the
+  // sub-headers inside every attendance bucket below when the event admin
+  // picked a grouping on create/edit.
+  const eventGrouping = (event as any)?.rsvp_grouping as
+    | "level"
+    | "team"
+    | null
+    | undefined;
+  const eventTargetTeamIds = ((event as any)?.target_team_ids ?? null) as
+    | string[]
+    | null;
+  const groupMap = useEventGroupMap({
+    clubId: event?.club_id ?? null,
+    grouping: eventGrouping ?? null,
+    targetTeamIds: eventTargetTeamIds,
+    enabled: !!event && !event.team_id && !!event.club_id &&
+      (eventGrouping === "level" || eventGrouping === "team"),
+  });
 
   // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
   const { data: miniLeagueDutyAssignees } = useQuery({
@@ -3326,67 +3345,118 @@ export default function EventDetailPage() {
             ) || []);
 
 
-        const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => (
-          <div className="divide-y divide-border/50">
-            {rsvpList.map((rsvp: any) => (
-              <AttendeeCard
-                key={rsvp.id}
-                rsvp={rsvp}
-                hasPaid={status !== "not_going" ? paidUserIds.has(rsvp.user_id) : undefined}
-                isAdmin={isAdmin || isAppAdmin}
-                showPrice={status !== "not_going" && !!showPaymentStatus}
-                onTogglePayment={status !== "not_going" ? () => togglePaymentMutation.mutate({
-                  userId: rsvp.user_id,
-                  isPaid: paidUserIds.has(rsvp.user_id)
-                }) : undefined}
-                isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
-                isMiniLeague={isMiniLeagueEvent}
-                currentStatus={status}
-                onChangeStatus={(newStatus) => adminUpdateRsvpMutation.mutate({
-                  rsvpId: rsvp.id,
-                  status: newStatus,
-                  playerName: rsvp.mini_league_player_id
-                    ? rsvp.mini_league_players?.name
-                    : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
-                })}
-                memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
-                  ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
-                  : undefined}
-                isCaptain={
-                  isGameEvent && (
-                    (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
-                    (!!rsvp.child_id && rsvp.child_id === captainChildId)
-                  )
-                }
-                isPotm={
-                  isGameEvent && (
-                    (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
-                    (!!rsvp.child_id && rsvp.child_id === potmChildId)
-                  )
-                }
-                isGoalkeeper={
-                  isGameEvent && (
-                    (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
-                    (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
-                  )
-                }
-              />
-            ))}
-            {includeGuests && eventGuests?.map((guest: any) => (
-              <AttendanceRow
-                key={guest.id}
-                name={guest.guest_name}
-                roleLabel="Guest"
-                roleTone="guest"
-                secondaryLine={`Guest of ${guest.added_by_name}`}
-              />
-            ))}
-          </div>
+        const renderAttendee = (rsvp: any, status: RsvpStatus) => (
+          <AttendeeCard
+            key={rsvp.id}
+            rsvp={rsvp}
+            hasPaid={status !== "not_going" ? paidUserIds.has(rsvp.user_id) : undefined}
+            isAdmin={isAdmin || isAppAdmin}
+            showPrice={status !== "not_going" && !!showPaymentStatus}
+            onTogglePayment={status !== "not_going" ? () => togglePaymentMutation.mutate({
+              userId: rsvp.user_id,
+              isPaid: paidUserIds.has(rsvp.user_id)
+            }) : undefined}
+            isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+            isMiniLeague={isMiniLeagueEvent}
+            currentStatus={status}
+            onChangeStatus={(newStatus) => adminUpdateRsvpMutation.mutate({
+              rsvpId: rsvp.id,
+              status: newStatus,
+              playerName: rsvp.mini_league_player_id
+                ? rsvp.mini_league_players?.name
+                : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
+            })}
+            memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
+              ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
+              : undefined}
+            isCaptain={
+              isGameEvent && (
+                (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
+                (!!rsvp.child_id && rsvp.child_id === captainChildId)
+              )
+            }
+            isPotm={
+              isGameEvent && (
+                (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
+                (!!rsvp.child_id && rsvp.child_id === potmChildId)
+              )
+            }
+            isGoalkeeper={
+              isGameEvent && (
+                (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
+                (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
+              )
+            }
+          />
         );
 
-        const notRespondedNode = (
-          <div className="divide-y divide-border/50">
-            {notRespondedChildren.map((child: any) => {
+        const guestNodes = eventGuests?.map((guest: any) => (
+          <AttendanceRow
+            key={guest.id}
+            name={guest.guest_name}
+            roleLabel="Guest"
+            roleTone="guest"
+            secondaryLine={`Guest of ${guest.added_by_name}`}
+          />
+        ));
+
+        // Group key for an RSVP row. Prefer child_id (including linked
+        // mini-league players) so parents responding on behalf of a child
+        // land in that child's team/level group, not the parent's.
+        const rsvpGroupKey = (rsvp: any) => {
+          const childId = rsvp.child_id || rsvp.mini_league_players?.child_id || null;
+          return groupMap.groupOf({
+            userId: childId ? null : rsvp.user_id,
+            childId,
+          });
+        };
+
+        const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => {
+          if (!groupMap.isActive) {
+            return (
+              <div className="divide-y divide-border/50">
+                {rsvpList.map((rsvp: any) => renderAttendee(rsvp, status))}
+                {includeGuests && guestNodes}
+              </div>
+            );
+          }
+          const buckets = new Map<string, any[]>();
+          for (const r of rsvpList) {
+            const g = rsvpGroupKey(r);
+            const arr = buckets.get(g.key) ?? [];
+            arr.push(r);
+            buckets.set(g.key, arr);
+          }
+          return (
+            <div className="space-y-3">
+              {groupMap.orderedGroups.map((g) => {
+                const items = buckets.get(g.key) ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <div key={g.key}>
+                    <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {g.label} <span className="text-muted-foreground/70">({items.length})</span>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {items.map((rsvp: any) => renderAttendee(rsvp, status))}
+                    </div>
+                  </div>
+                );
+              })}
+              {includeGuests && (guestNodes?.length ?? 0) > 0 && (
+                <div>
+                  <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Guests
+                  </div>
+                  <div className="divide-y divide-border/50">{guestNodes}</div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+
+        const renderNotRespondedChild = (child: any) => {
               // For mini-league players: parent_user_id may be null; we still allow remind via
               // the linked child (children.parent_id + child_guardians).
               const isPendingChild = isMiniLeagueEvent ? !!child.is_pending : false;
@@ -3468,8 +3538,9 @@ export default function EventDetailPage() {
                   }
                 />
               );
-            })}
-            {notResponded.map((member: any) => {
+        };
+
+        const renderNotRespondedAdult = (member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
@@ -3528,9 +3599,58 @@ export default function EventDetailPage() {
                   }
                 />
               );
-            })}
+        };
+
+        const childGroupKey = (child: any) => {
+          const childId = isMiniLeagueEvent ? (child.child_id || child.id) : child.id;
+          return groupMap.groupOf({ childId, userId: null });
+        };
+        const adultGroupKey = (member: any) =>
+          groupMap.groupOf({ userId: member.id, childId: null });
+
+        const notRespondedNode = groupMap.isActive ? (() => {
+          const childBuckets = new Map<string, any[]>();
+          for (const c of notRespondedChildren) {
+            const g = childGroupKey(c);
+            const arr = childBuckets.get(g.key) ?? [];
+            arr.push(c);
+            childBuckets.set(g.key, arr);
+          }
+          const adultBuckets = new Map<string, any[]>();
+          for (const m of notResponded) {
+            const g = adultGroupKey(m);
+            const arr = adultBuckets.get(g.key) ?? [];
+            arr.push(m);
+            adultBuckets.set(g.key, arr);
+          }
+          return (
+            <div className="space-y-3">
+              {groupMap.orderedGroups.map((g) => {
+                const kids = childBuckets.get(g.key) ?? [];
+                const adults = adultBuckets.get(g.key) ?? [];
+                const total = kids.length + adults.length;
+                if (total === 0) return null;
+                return (
+                  <div key={g.key}>
+                    <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {g.label} <span className="text-muted-foreground/70">({total})</span>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {kids.map(renderNotRespondedChild)}
+                      {adults.map(renderNotRespondedAdult)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })() : (
+          <div className="divide-y divide-border/50">
+            {notRespondedChildren.map(renderNotRespondedChild)}
+            {notResponded.map(renderNotRespondedAdult)}
           </div>
         );
+
 
         const goingTotal = goingRsvps.length + (eventGuests?.length || 0);
         const trackableMembers = (members?.length || 0);
@@ -3567,18 +3687,8 @@ export default function EventDetailPage() {
                 </div>
               );
             })()}
-            {!event?.team_id && event?.club_id &&
-              ((event as any).rsvp_grouping === "level" || (event as any).rsvp_grouping === "team") && (
-                <div className="mb-3">
-                  <ClubWideRsvpBreakdown
-                    eventId={id!}
-                    clubId={event.club_id}
-                    grouping={(event as any).rsvp_grouping}
-                    targetTeamIds={(event as any).target_team_ids ?? null}
-                  />
-
-                </div>
-              )}
+            {/* Grouping (by age level or team) is folded into each bucket
+                inside AttendanceSection below — no separate breakdown card. */}
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}
