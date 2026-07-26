@@ -87,7 +87,7 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, scopedRoster
     queryFn: async () => {
       let teamsQ = supabase
         .from("teams")
-        .select("id, name, age_group")
+        .select("id, name, level_age")
         .eq("club_id", clubId!);
       if (targetKey) teamsQ = teamsQ.in("id", targetKey.split(","));
       const { data: teams, error: teamsErr } = await teamsQ;
@@ -156,7 +156,7 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, scopedRoster
       if (grouping === "team") {
         info = addGroup({ key: `team:${t.id}`, label: t.name || "Unnamed team" });
       } else {
-        const lvl = extractAgeLevel(t.age_group) || extractAgeLevel(t.name);
+        const lvl = extractAgeLevel(t.level_age) || extractAgeLevel(t.name);
         info = addGroup(
           lvl
             ? { key: `level:${lvl}`, label: lvl }
