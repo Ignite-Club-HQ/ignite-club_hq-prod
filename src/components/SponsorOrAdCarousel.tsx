@@ -96,14 +96,19 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   const { data: proStatus, isLoading: isProLoading, isFetching: isProFetching } = useQuery({
     queryKey: ["user-pro-status-per-club", user?.id, effectiveClubFilter],
     enabled: !!user,
-    placeholderData: (prev) => prev,
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
     queryFn: async () => {
       // Get all clubs the user belongs to
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user!.id);
+      // Propagate transient errors so react-query keeps previous data rather
+      // than caching a network/RLS hiccup as an authoritative "Free" answer
+      // (which would flash an "Upgrade to Pro" ad on a Pro club after a
+      // network blip).
+      if (rolesError) throw rolesError;
 
       if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
@@ -112,11 +117,11 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
       // Get club IDs from teams
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
-        
+        if (teamsError) throw teamsError;
         if (teams) {
           clubIds.push(...teams.map(t => t.club_id));
         }
@@ -126,11 +131,12 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       // Fetch Pro subscriptions for all user clubs
-      const { data: subscriptions } = await supabase
+      const { data: subscriptions, error: subsError } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro")
         .in("club_id", uniqueClubIds)
         .eq("is_pro", true);
+      if (subsError) throw subsError;
 
       const proClubIds = new Set(subscriptions?.map(s => s.club_id) || []);
       const hasAnyPro = proClubIds.size > 0;
