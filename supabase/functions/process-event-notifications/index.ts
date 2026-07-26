@@ -3,6 +3,7 @@ import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 import { requireServiceRoleAuth } from "../_shared/internal-auth.ts";
 import { resolveRecipients } from "./recipients.ts";
 import { buildUpdateMessage, type ChangedField } from "./messages.ts";
+import { buildDedupeKey, changeVersion } from "./dedupe.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,18 +13,20 @@ const corsHeaders = {
 /**
  * Event notification fan-out. Called by DB triggers via net.http_post.
  *
- * Behaviour:
- * 1. Load the event from the DB (authoritative — caller cannot spoof scope).
- * 2. Resolve the recipient audience (team/mini-league/club-wide/targeted).
- * 3. Call `enqueue_event_push` to atomically create notification rows AND
- *    push_delivery_queue rows in one transaction.
- * 4. Fire-and-forget kick the `process-push-delivery-queue` worker so
- *    delivery starts immediately; the worker also runs on a 30s cron so a
- *    killed request can never lose queued jobs.
+ * 1. Authenticate (service-role only — no anon/user JWT can reach this).
+ * 2. Load the event from the DB. Caller-supplied club/team/title/audience is
+ *    IGNORED: scope is always re-derived from the stored row. Only `action`
+ *    and `changedFields` are read from the body.
+ * 3. Resolve the recipient audience (team / mini-league / club-wide /
+ *    targeted) — unchanged, characterization-tested behaviour.
+ * 4. `enqueue_event_push_v2` atomically creates the notification row AND its
+ *    push_delivery_queue job, deduplicated by a database-enforced
+ *    idempotency key, so retries/concurrent runs cannot duplicate anything.
+ * 5. Kick the worker for latency; pg_cron is the authoritative drainer.
  *
- * The old dispatchPushBatch() loop (20-at-a-time inline sends) is gone —
- * it caused fan-outs > ~20 recipients to be silently truncated when the
- * edge function hit its wall-clock limit.
+ * Enqueue failures are never reported as success: the response is non-2xx
+ * with counts so the caller/operator can retry safely (retries are
+ * idempotent).
  */
 
 interface EventPayload {
@@ -36,7 +39,6 @@ const ENQUEUE_BATCH_SIZE = 500;
 
 async function kickWorker(supabaseUrl: string, serviceKey: string) {
   try {
-    // fire-and-forget so we never block event creation
     fetch(`${supabaseUrl}/functions/v1/process-push-delivery-queue`, {
       method: "POST",
       headers: {
@@ -83,9 +85,9 @@ Deno.serve(async (req) => {
       .eq("id", eventId)
       .maybeSingle();
     if (eventErr) {
-      console.error("[EVENT-NOTIFY] Event lookup error", eventErr);
+      console.error("[EVENT-NOTIFY] Event lookup error", eventErr.code ?? "", eventErr.message ?? "");
       return new Response(
-        JSON.stringify({ error: "Event lookup failed" }),
+        JSON.stringify({ error: "event_lookup_failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -102,6 +104,10 @@ Deno.serve(async (req) => {
     let recipientUserIds: string[] = [];
     let notificationType: string;
     let message: string;
+    // Change-version keeps different legitimate updates deliverable while a
+    // retry of the *same* update is deduplicated. Invites/cancellations are
+    // one-per-(event,user).
+    let dedupeVersion: string | null = null;
     const notificationUrl = `/events/${eventId}`;
 
     if (action === "event_created") {
@@ -130,6 +136,7 @@ Deno.serve(async (req) => {
         });
       }
       message = buildUpdateMessage(title, changedFields);
+      dedupeVersion = await changeVersion(changedFields);
       const { data: rsvps } = await supabase
         .from("rsvps")
         .select("user_id")
@@ -145,10 +152,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[EVENT-NOTIFY] ${recipientUserIds.length} recipients for ${action}`);
+    const expected = recipientUserIds.length;
+    console.log(`[EVENT-NOTIFY] ${expected} recipients for ${action}`);
 
-    // Enqueue notifications + delivery jobs atomically via RPC.
-    let enqueuedTotal = 0;
+    let created = 0;
+    let alreadyExisting = 0;
+    let queued = 0;
+    let resolved = 0;
+    let batchFailures = 0;
+
     for (let i = 0; i < recipientUserIds.length; i += ENQUEUE_BATCH_SIZE) {
       const batch = recipientUserIds.slice(i, i + ENQUEUE_BATCH_SIZE);
       const rows = batch.map((userId) => ({
@@ -156,40 +168,66 @@ Deno.serve(async (req) => {
         type: notificationType,
         message,
         related_id: eventId,
+        dedupe_key: buildDedupeKey({
+          notificationType,
+          eventId,
+          userId,
+          version: dedupeVersion,
+        }),
       }));
-      const { data, error } = await supabase.rpc("enqueue_event_push", {
+      const { data, error } = await supabase.rpc("enqueue_event_push_v2", {
         p_url: notificationUrl,
         p_rows: rows,
       });
       if (error) {
-        console.error("[EVENT-NOTIFY] enqueue_event_push error", error);
-      } else {
-        enqueuedTotal += (data as any[])?.length ?? 0;
+        // Previously-committed batches are intentionally NOT rolled back —
+        // the dedupe key makes a retry safe and non-duplicating.
+        batchFailures += batch.length;
+        console.error("[EVENT-NOTIFY] enqueue failed", error.code ?? "", error.message ?? "");
+        continue;
       }
+      const rowsOut = (data as any[]) || [];
+      resolved += rowsOut.length;
+      created += rowsOut.filter((r) => r.created).length;
+      alreadyExisting += rowsOut.filter((r) => !r.created).length;
+      queued += rowsOut.filter((r) => r.queued).length;
     }
 
-    // Kick worker so delivery starts within ~1s (cron is the safety net).
-    if (enqueuedTotal > 0) {
+    if (queued > 0) {
       await kickWorker(supabaseUrl, supabaseServiceKey);
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[EVENT-NOTIFY] Done: ${enqueuedTotal} enqueued in ${elapsed}ms`);
+    const unresolved = expected - resolved;
+    const complete = batchFailures === 0 && unresolved === 0;
+
+    console.log(
+      `[EVENT-NOTIFY] Done action=${action} expected=${expected} created=${created} existing=${alreadyExisting} queued=${queued} unresolved=${unresolved} failed=${batchFailures} in ${elapsed}ms`,
+    );
 
     return new Response(
       JSON.stringify({
-        message: "Event notifications enqueued",
+        message: complete ? "Event notifications enqueued" : "Event notifications partially enqueued",
         action,
-        recipients: recipientUserIds.length,
-        enqueued: enqueuedTotal,
+        expected,
+        created,
+        already_existing: alreadyExisting,
+        queued,
+        unresolved,
+        failed: batchFailures,
         elapsed_ms: elapsed,
+        ...(complete ? {} : { error: "partial_enqueue" }),
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: complete ? 200 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (error) {
-    console.error("[EVENT-NOTIFY] Error:", error);
+    // Sanitised — never leak DB messages, tokens or internal URLs.
+    console.error("[EVENT-NOTIFY] Error:", error instanceof Error ? error.message : String(error));
     return new Response(
-      JSON.stringify({ error: "Failed to process event notifications", details: String(error) }),
+      JSON.stringify({ error: "event_notification_processing_failed" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

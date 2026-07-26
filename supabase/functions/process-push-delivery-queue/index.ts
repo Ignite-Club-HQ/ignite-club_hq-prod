@@ -1,6 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 import { requireServiceRoleAuth } from "../_shared/internal-auth.ts";
+import {
+  BATCH,
+  type Deps,
+  type Job,
+  processBatch,
+  PUSH_TIMEOUT_MS,
+  type QueueUpdate,
+} from "./delivery.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,37 +18,20 @@ const corsHeaders = {
 /**
  * Push delivery worker. Drains public.push_delivery_queue in short bursts:
  *
- *  1. claim_push_delivery_jobs(BATCH) — atomic FOR UPDATE SKIP LOCKED
- *  2. for each: POST to send-push-notification with the stored payload
- *  3. mark delivered / skipped / failed (with retry backoff)
- *  4. if more pending jobs remain, fire-and-forget re-invoke ourselves so
- *     large fan-outs (200+) drain across multiple short invocations without
- *     ever exceeding a single edge function's wall-clock budget.
+ *  1. claim_push_delivery_jobs(BATCH) — atomic FOR UPDATE SKIP LOCKED, also
+ *     reclaims rows stuck in `processing` for > 2 minutes. Terminal rows
+ *     (delivered/skipped/failed) are never reclaimed.
+ *  2. per job: POST to send-push-notification with a per-push AbortController
+ *     timeout.
+ *  3. mark delivered / skipped / failed / retry-with-backoff, conditional on
+ *     the row still being `processing` so a concurrent worker can never
+ *     downgrade an already-delivered row.
+ *  4. self-chain (latency optimisation only) while a full batch was claimed.
  *
- * A pg_cron job re-invokes this every minute as a safety net.
+ * The authoritative recovery mechanism is the pg_cron job
+ * `ignite-push-delivery-queue-worker` (every minute) — self-chaining is
+ * never relied upon to survive Edge Function termination.
  */
-
-const BATCH = 30;
-const MAX_ATTEMPTS = 5;
-
-function backoffSeconds(attempt: number): number {
-  // 30s, 2m, 8m, 30m, 2h
-  return Math.min(30 * Math.pow(4, attempt - 1), 60 * 60 * 2);
-}
-
-interface Job {
-  id: string;
-  notification_id: string;
-  user_id: string;
-  payload: {
-    title: string;
-    body: string;
-    url: string;
-    tag: string;
-    notificationType: string;
-  };
-  attempt_count: number;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -56,16 +47,14 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const start = Date.now();
-  let delivered = 0;
-  let failed = 0;
-  let skipped = 0;
-  let retried = 0;
 
-  // Claim a batch
-  const { data: jobs, error: claimErr } = await supabase.rpc("claim_push_delivery_jobs", { p_limit: BATCH });
+  const { data: jobs, error: claimErr } = await supabase.rpc("claim_push_delivery_jobs", {
+    p_limit: BATCH,
+  });
   if (claimErr) {
-    console.error("[PUSH-QUEUE] claim error", claimErr);
-    return new Response(JSON.stringify({ error: "claim failed" }), {
+    // Sanitised: never echo database internals.
+    console.error("[PUSH-QUEUE] claim error", claimErr.code ?? "", claimErr.message ?? "");
+    return new Response(JSON.stringify({ error: "claim_failed" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -73,100 +62,50 @@ Deno.serve(async (req) => {
 
   const claimedJobs = (jobs || []) as Job[];
 
-  await Promise.allSettled(
-    claimedJobs.map(async (job) => {
-      const attempt = (job.attempt_count || 0) + 1;
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            userId: job.user_id,
-            title: job.payload.title,
-            body: job.payload.body,
-            url: job.payload.url,
-            notificationId: job.notification_id,
-            tag: job.payload.tag,
-            notificationType: job.payload.notificationType,
-          }),
-        });
-
-        let bodyJson: any = null;
-        try { bodyJson = await resp.json(); } catch { /* noop */ }
-
-        if (resp.ok) {
-          // Distinguish delivered vs skipped (preference off / no subscription).
-          const isSkipped = bodyJson?.skipped === true || bodyJson?.sent === 0;
-          await supabase.from("push_delivery_queue")
-            .update({
-              status: isSkipped ? "skipped" : "delivered",
-              attempt_count: attempt,
-              completed_at: new Date().toISOString(),
-              last_error: null,
-            })
-            .eq("id", job.id);
-          if (isSkipped) skipped++; else delivered++;
-          return;
-        }
-
-        // Non-OK: decide retry vs terminal
-        const status = resp.status;
-        const errText = typeof bodyJson === "object" ? JSON.stringify(bodyJson) : `HTTP ${status}`;
-        const permanent = status === 400 || status === 404 || status === 410;
-        if (permanent || attempt >= MAX_ATTEMPTS) {
-          await supabase.from("push_delivery_queue")
-            .update({
-              status: "failed",
-              attempt_count: attempt,
-              completed_at: new Date().toISOString(),
-              last_error: `[${status}] ${errText}`,
-            })
-            .eq("id", job.id);
-          failed++;
-        } else {
-          const nextAt = new Date(Date.now() + backoffSeconds(attempt) * 1000).toISOString();
-          await supabase.from("push_delivery_queue")
-            .update({
-              status: "pending",
-              attempt_count: attempt,
-              next_attempt_at: nextAt,
-              last_error: `[${status}] ${errText}`,
-            })
-            .eq("id", job.id);
-          retried++;
-        }
-      } catch (err) {
-        // Network/timeout — retry
-        if (attempt >= MAX_ATTEMPTS) {
-          await supabase.from("push_delivery_queue")
-            .update({
-              status: "failed",
-              attempt_count: attempt,
-              completed_at: new Date().toISOString(),
-              last_error: `network: ${String(err)}`,
-            })
-            .eq("id", job.id);
-          failed++;
-        } else {
-          const nextAt = new Date(Date.now() + backoffSeconds(attempt) * 1000).toISOString();
-          await supabase.from("push_delivery_queue")
-            .update({
-              status: "pending",
-              attempt_count: attempt,
-              next_attempt_at: nextAt,
-              last_error: `network: ${String(err)}`,
-            })
-            .eq("id", job.id);
-          retried++;
-        }
+  const deps: Deps = {
+    timeoutMs: PUSH_TIMEOUT_MS,
+    async sendPush(job, signal) {
+      const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          userId: job.user_id,
+          title: job.payload.title,
+          body: job.payload.body,
+          url: job.payload.url,
+          notificationId: job.notification_id,
+          tag: job.payload.tag,
+          notificationType: job.payload.notificationType,
+        }),
+      });
+      let body: any = null;
+      try { body = await resp.json(); } catch { /* unparseable */ }
+      return { ok: resp.ok, status: resp.status, body };
+    },
+    async updateJob(jobId: string, patch: QueueUpdate) {
+      // `.eq("status", "processing")` is the concurrency guard: a duplicate
+      // worker that lost the race cannot convert delivered → skipped/failed.
+      const { data, error } = await supabase
+        .from("push_delivery_queue")
+        .update(patch)
+        .eq("id", jobId)
+        .eq("status", "processing")
+        .select("id");
+      if (error) {
+        console.error("[PUSH-QUEUE] status update failed", error.code ?? "", error.message ?? "");
+        return { updated: 0, error };
       }
-    }),
-  );
+      return { updated: (data || []).length, error: null };
+    },
+  };
 
-  // If we processed a full batch there is likely more — self-chain.
+  const counters = await processBatch(claimedJobs, deps);
+
+  // Latency optimisation only — cron is the durable scheduler.
   if (claimedJobs.length === BATCH) {
     try {
       fetch(`${supabaseUrl}/functions/v1/process-push-delivery-queue`, {
@@ -181,17 +120,15 @@ Deno.serve(async (req) => {
   }
 
   const elapsed = Date.now() - start;
-  console.log(`[PUSH-QUEUE] claimed=${claimedJobs.length} delivered=${delivered} skipped=${skipped} retried=${retried} failed=${failed} in ${elapsed}ms`);
-
-  return new Response(
-    JSON.stringify({
-      claimed: claimedJobs.length,
-      delivered,
-      skipped,
-      retried,
-      failed,
-      elapsed_ms: elapsed,
-    }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  console.log(
+    `[PUSH-QUEUE] claimed=${counters.claimed} delivered=${counters.delivered} skipped=${counters.skipped} retried=${counters.retried} failed=${counters.failed} update_failures=${counters.status_update_failures} in ${elapsed}ms`,
   );
+
+  // A status-update failure means the run was only partially recorded — do
+  // not report a clean 200.
+  const status = counters.status_update_failures > 0 ? 500 : 200;
+  return new Response(JSON.stringify({ ...counters, elapsed_ms: elapsed }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
