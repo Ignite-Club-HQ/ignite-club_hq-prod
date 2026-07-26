@@ -973,13 +973,24 @@ export default function EventDetailPage() {
     if (event?.team_id || !targeted || targeted.length === 0) return members;
     const targetSet = new Set(targeted);
     const CLUB_LEVEL = new Set(["club_admin", "app_admin", "committee_member"]);
-    return (members ?? []).filter((m: any) => {
-      const roles: string[] = m.roles ?? [];
-      if (roles.some((r) => CLUB_LEVEL.has(r))) return true;
-      const teamIds: string[] = m.team_ids ?? [];
-      return teamIds.some((t) => targetSet.has(t));
-    });
+    return (members ?? [])
+      .map((m: any) => {
+        const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
+        // Only roles held on a targeted team (or club-level roles with no team)
+        // count for this event — a player role on an uninvited team must not
+        // make the member show up as a player here.
+        const scopedRoles = Array.from(
+          new Set(
+            pairs
+              .filter((p) => (p.team_id ? targetSet.has(p.team_id) : CLUB_LEVEL.has(p.role)))
+              .map((p) => p.role),
+          ),
+        );
+        return scopedRoles.length ? { ...m, roles: scopedRoles } : null;
+      })
+      .filter(Boolean) as any[];
   }, [members, event?.team_id, (event as any)?.target_team_ids]);
+
   const attendancePlayerMembers = attendanceMembers?.filter((m: any) => m.roles?.includes("player")) || [];
 
 
