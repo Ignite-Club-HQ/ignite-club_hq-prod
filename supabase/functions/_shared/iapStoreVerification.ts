@@ -104,14 +104,16 @@ function decodeB64UrlToString(segment: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-function pemToPkcs8(pem: string): Uint8Array {
+function pemToPkcs8(pem: string): ArrayBuffer {
   const body = pem
     .replace(/\\n/g, "\n")
     .replace(/-----BEGIN [A-Z ]+-----/g, "")
     .replace(/-----END [A-Z ]+-----/g, "")
     .replace(/[\r\n\s]/g, "");
   const bin = atob(body);
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
 }
 
 // ---------------------------------------------------------------------------
