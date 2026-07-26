@@ -3387,9 +3387,29 @@ export default function EventDetailPage() {
             return true;
           });
         };
-        const goingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
-        const maybeRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
-        const notGoingRsvps = dedupeRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
+        // Targeted club-wide event: only attendees inside the event audience
+        // may appear in any bucket. Also hydrate child names from the scoped
+        // roster so authorised managers never see "Unknown".
+        const scopedChildIds = new Set((allChildrenOnTeam || []).map((c: any) => c.id));
+        const scopedAdultIds = new Set((attendanceMembers || []).map((m: any) => m.id));
+        const isTargetedScope = !!targetTeamIdsForFetch;
+        const inTargetScope = (r: any) => {
+          if (!isTargetedScope) return true;
+          const childId = r.child_id || r.mini_league_players?.child_id || null;
+          if (childId) return scopedChildIds.has(childId);
+          return !r.user_id || scopedAdultIds.has(r.user_id);
+        };
+        const hydrateRsvp = (r: any) => {
+          const childId = r.child_id;
+          if (!childId || r.children?.name) return r;
+          const name = scopedChildNames.get(childId);
+          return name ? { ...r, children: { ...(r.children ?? {}), name } } : r;
+        };
+        const prepareRsvps = (list: any[]) => dedupeRsvps(list.filter(inTargetScope)).map(hydrateRsvp);
+        const goingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
+        const maybeRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
+        const notGoingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
+
 
         const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
         const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
