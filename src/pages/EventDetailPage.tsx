@@ -1100,25 +1100,44 @@ export default function EventDetailPage() {
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
 
-  // Fetch ALL children assigned to this event's team (for not responded list)
+  // Fetch ALL children assigned to this event's team (for not responded list).
+  // For club-wide events with `target_team_ids`, fetch children across every
+  // targeted team so their child players still appear in No Response.
+  const targetTeamIdsForFetch = useMemo(() => {
+    if (event?.team_id) return null;
+    const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    return Array.isArray(t) && t.length > 0 ? t : null;
+  }, [event?.team_id, (event as any)?.target_team_ids]);
   const { data: allChildrenOnTeam } = useQuery({
-    queryKey: ["all-children-on-team", event?.team_id],
+    queryKey: [
+      "all-children-on-team",
+      event?.team_id,
+      targetTeamIdsForFetch ? [...targetTeamIdsForFetch].sort().join(",") : "",
+    ],
     queryFn: async () => {
-      if (!event?.team_id) return [];
-      
-      const { data, error } = await supabase
+      if (!event?.team_id && !targetTeamIdsForFetch) return [];
+      let q = supabase
         .from("child_team_assignments")
-        .select(`
-          child_id,
-          children (id, name, parent_id)
-        `)
-        .eq("team_id", event.team_id);
-
+        .select(`child_id, children (id, name, parent_id)`);
+      if (event?.team_id) q = q.eq("team_id", event.team_id);
+      else q = q.in("team_id", targetTeamIdsForFetch!);
+      const { data, error } = await q;
       if (error) throw error;
-      return data?.map(d => d.children).filter(Boolean) || [];
+      // Dedupe by child.id in case a child is in multiple targeted teams
+      const seen = new Set<string>();
+      const out: any[] = [];
+      for (const row of data || []) {
+        const c: any = (row as any).children;
+        if (c && !seen.has(c.id)) {
+          seen.add(c.id);
+          out.push(c);
+        }
+      }
+      return out;
     },
-    enabled: !!event?.team_id,
+    enabled: !!event?.team_id || !!targetTeamIdsForFetch,
   });
+
 
   // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
   const childIdsOnTeam = (allChildrenOnTeam || []).map((c: any) => c.id);
