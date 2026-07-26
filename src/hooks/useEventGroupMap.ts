@@ -167,10 +167,11 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, enabled }: P
     return OTHER_GROUP;
   };
 
-  // Include the "Other" bucket at the end if we have any active groups —
-  // callers can still filter it out if it ends up empty.
+  // Always include the "Other" bucket so members who don't resolve to a
+  // team (club-level admins/committee, or when the teams query is
+  // restricted by RLS) still render. Empty buckets are filtered by callers.
   const displayGroups = useMemo<GroupInfo[]>(
-    () => (orderedGroups.length > 0 ? [...orderedGroups, OTHER_GROUP] : []),
+    () => [...orderedGroups, OTHER_GROUP],
     [orderedGroups],
   );
 
