@@ -6176,6 +6176,7 @@ export type Database = {
         Row: {
           club_id: string | null
           created_at: string
+          dedupe_key: string | null
           id: string
           is_read: boolean
           message: string
@@ -6187,6 +6188,7 @@ export type Database = {
         Insert: {
           club_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           is_read?: boolean
           message: string
@@ -6198,6 +6200,7 @@ export type Database = {
         Update: {
           club_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           is_read?: boolean
           message?: string
@@ -10585,6 +10588,16 @@ export type Database = {
           user_id: string
         }[]
       }
+      enqueue_event_push_v2: {
+        Args: { p_rows: Json; p_url: string }
+        Returns: {
+          created: boolean
+          dedupe_key: string
+          notification_id: string
+          queued: boolean
+          user_id: string
+        }[]
+      }
       ensure_chat_group_vault_folder: {
         Args: {
           _category: string
@@ -11490,6 +11503,30 @@ export type Database = {
       }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
+      push_delivery_cron_failures: {
+        Args: { p_limit?: number }
+        Returns: {
+          return_message: string
+          run_start: string
+          status: string
+        }[]
+      }
+      push_delivery_preflight: {
+        Args: never
+        Returns: {
+          check_name: string
+          detail: string
+          ok: boolean
+        }[]
+      }
+      push_delivery_queue_stats: {
+        Args: never
+        Returns: {
+          jobs: number
+          oldest_created_at: string
+          status: string
+        }[]
+      }
       quick_rsvp_from_dm: {
         Args: { _event_id: string; _status: string }
         Returns: {
@@ -11533,6 +11570,13 @@ export type Database = {
       remove_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
+      }
+      repair_event_push_queue: {
+        Args: { p_dry_run?: boolean; p_event_id: string }
+        Returns: {
+          candidate_count: number
+          queued_count: number
+        }[]
       }
       request_join_chat_group: {
         Args: { _group_id: string; _message?: string }
