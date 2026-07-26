@@ -955,6 +955,25 @@ export default function EventDetailPage() {
   const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
   const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
 
+  // For club-wide events with target_team_ids, narrow the attendance roster
+  // to users tied to one of the targeted teams (via user_roles.team_id) OR
+  // club-level admins/committee (who can access every targeted event). Other
+  // consumers (duty roster, admin queries) keep using the full `members` list.
+  const attendanceMembers = useMemo(() => {
+    const targeted = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    if (event?.team_id || !targeted || targeted.length === 0) return members;
+    const targetSet = new Set(targeted);
+    const CLUB_LEVEL = new Set(["club_admin", "app_admin", "committee_member"]);
+    return (members ?? []).filter((m: any) => {
+      const roles: string[] = m.roles ?? [];
+      if (roles.some((r) => CLUB_LEVEL.has(r))) return true;
+      const teamIds: string[] = m.team_ids ?? [];
+      return teamIds.some((t) => targetSet.has(t));
+    });
+  }, [members, event?.team_id, (event as any)?.target_team_ids]);
+  const attendancePlayerMembers = attendanceMembers?.filter((m: any) => m.roles?.includes("player")) || [];
+
+
   // Grouping for club-wide events (by age level or by team). Drives the
   // sub-headers inside every attendance bucket below when the event admin
   // picked a grouping on create/edit.
