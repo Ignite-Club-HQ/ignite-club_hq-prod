@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
@@ -792,7 +792,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const query = supabase
         .from("user_roles")
-        .select("user_id, role, profiles:user_id (id, display_name, avatar_url)");
+        .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
       
       if (event?.team_id) {
         query.eq("team_id", event.team_id);
@@ -803,22 +803,26 @@ export default function EventDetailPage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Group roles by user_id
-      const userRolesMap = new Map<string, { profile: any; roles: string[] }>();
+      // Group roles by user_id, keeping track of every team_id we've seen for them
+      const userRolesMap = new Map<string, { profile: any; roles: string[]; teamIds: Set<string> }>();
       data.filter(m => m.profiles).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
-          if (!existing.roles.includes(m.role)) {
-            existing.roles.push(m.role);
-          }
+          if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
+          if (m.team_id) existing.teamIds.add(m.team_id);
         } else {
-          userRolesMap.set(m.user_id, { profile: m.profiles, roles: [m.role] });
+          userRolesMap.set(m.user_id, {
+            profile: m.profiles,
+            roles: [m.role],
+            teamIds: new Set(m.team_id ? [m.team_id] : []),
+          });
         }
       });
       
-      return Array.from(userRolesMap.entries()).map(([userId, data]) => ({
+      return Array.from(userRolesMap.entries()).map(([, data]) => ({
         ...data.profile,
         roles: data.roles,
+        team_ids: Array.from(data.teamIds),
       }));
     },
     enabled: !!event,
@@ -950,6 +954,25 @@ export default function EventDetailPage() {
   // Filter members based on showAllRoles toggle / event role restrictions
   const members = hasRestrictedEventRoles ? roleRestrictedMembers : membersWithRoles;
   const playerMembers = members?.filter((m: any) => m.roles?.includes("player")) || [];
+
+  // For club-wide events with target_team_ids, narrow the attendance roster
+  // to users tied to one of the targeted teams (via user_roles.team_id) OR
+  // club-level admins/committee (who can access every targeted event). Other
+  // consumers (duty roster, admin queries) keep using the full `members` list.
+  const attendanceMembers = useMemo(() => {
+    const targeted = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    if (event?.team_id || !targeted || targeted.length === 0) return members;
+    const targetSet = new Set(targeted);
+    const CLUB_LEVEL = new Set(["club_admin", "app_admin", "committee_member"]);
+    return (members ?? []).filter((m: any) => {
+      const roles: string[] = m.roles ?? [];
+      if (roles.some((r) => CLUB_LEVEL.has(r))) return true;
+      const teamIds: string[] = m.team_ids ?? [];
+      return teamIds.some((t) => targetSet.has(t));
+    });
+  }, [members, event?.team_id, (event as any)?.target_team_ids]);
+  const attendancePlayerMembers = attendanceMembers?.filter((m: any) => m.roles?.includes("player")) || [];
+
 
   // Grouping for club-wide events (by age level or by team). Drives the
   // sub-headers inside every attendance bucket below when the event admin
@@ -1096,25 +1119,44 @@ export default function EventDetailPage() {
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
 
-  // Fetch ALL children assigned to this event's team (for not responded list)
+  // Fetch ALL children assigned to this event's team (for not responded list).
+  // For club-wide events with `target_team_ids`, fetch children across every
+  // targeted team so their child players still appear in No Response.
+  const targetTeamIdsForFetch = useMemo(() => {
+    if (event?.team_id) return null;
+    const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    return Array.isArray(t) && t.length > 0 ? t : null;
+  }, [event?.team_id, (event as any)?.target_team_ids]);
   const { data: allChildrenOnTeam } = useQuery({
-    queryKey: ["all-children-on-team", event?.team_id],
+    queryKey: [
+      "all-children-on-team",
+      event?.team_id,
+      targetTeamIdsForFetch ? [...targetTeamIdsForFetch].sort().join(",") : "",
+    ],
     queryFn: async () => {
-      if (!event?.team_id) return [];
-      
-      const { data, error } = await supabase
+      if (!event?.team_id && !targetTeamIdsForFetch) return [];
+      let q = supabase
         .from("child_team_assignments")
-        .select(`
-          child_id,
-          children (id, name, parent_id)
-        `)
-        .eq("team_id", event.team_id);
-
+        .select(`child_id, children (id, name, parent_id)`);
+      if (event?.team_id) q = q.eq("team_id", event.team_id);
+      else q = q.in("team_id", targetTeamIdsForFetch!);
+      const { data, error } = await q;
       if (error) throw error;
-      return data?.map(d => d.children).filter(Boolean) || [];
+      // Dedupe by child.id in case a child is in multiple targeted teams
+      const seen = new Set<string>();
+      const out: any[] = [];
+      for (const row of data || []) {
+        const c: any = (row as any).children;
+        if (c && !seen.has(c.id)) {
+          seen.add(c.id);
+          out.push(c);
+        }
+      }
+      return out;
     },
-    enabled: !!event?.team_id,
+    enabled: !!event?.team_id || !!targetTeamIdsForFetch,
   });
+
 
   // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
   const childIdsOnTeam = (allChildrenOnTeam || []).map((c: any) => c.id);
@@ -3304,7 +3346,7 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          const membersToShow = effectiveShowAll ? members : playerMembers;
+          const membersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
           const parentIdsWithRespondedChildren = new Set<string>();
           (allChildrenOnTeam || []).forEach((child: any) => {
             if (child.parent_id && respondedChildIds.has(child.id)) {
