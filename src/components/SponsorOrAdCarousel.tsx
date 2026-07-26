@@ -35,13 +35,15 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   // If no filter is set, pick the first such club the user is a member of.
   const { data: eventsStripResolved, isLoading: isStripGateLoading } = useQuery({
     queryKey: ["events-sponsor-strip-allowed", activeClubFilter],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       if (activeClubFilter) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("clubs")
           .select("events_sponsor_strip_enabled")
           .eq("id", activeClubFilter)
           .maybeSingle();
+        if (error) throw error;
         const allowed = !!(data as any)?.events_sponsor_strip_enabled;
         return { allowed, effectiveClubId: allowed ? activeClubFilter : null };
       }
@@ -49,25 +51,28 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { allowed: false, effectiveClubId: null as string | null };
 
-      const { data: directRoles } = await supabase
+      const { data: directRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user.id);
+      if (rolesError) throw rolesError;
 
       const clubIds = new Set<string>();
       (directRoles ?? []).forEach((r: any) => { if (r.club_id) clubIds.add(r.club_id); });
       const teamIds = (directRoles ?? []).map((r: any) => r.team_id).filter(Boolean);
       if (teamIds.length) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams").select("club_id").in("id", teamIds);
+        if (teamsError) throw teamsError;
         (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
       }
       if (clubIds.size === 0) return { allowed: false, effectiveClubId: null };
 
-      const { data: enabledClubs } = await supabase
+      const { data: enabledClubs, error: enabledError } = await supabase
         .from("clubs")
         .select("id, events_sponsor_strip_enabled")
         .in("id", Array.from(clubIds));
+      if (enabledError) throw enabledError;
       const hit = (enabledClubs ?? []).find((c: any) => c.events_sponsor_strip_enabled);
       return { allowed: !!hit, effectiveClubId: hit?.id ?? null };
     },
