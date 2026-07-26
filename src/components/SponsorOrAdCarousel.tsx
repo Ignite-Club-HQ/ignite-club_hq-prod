@@ -166,26 +166,29 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   // Check if user has any ACTIVE sponsors (from sponsors table, not primary_sponsor_id)
   const { data: hasSponsors } = useQuery({
     queryKey: ["user-has-active-sponsors", effectiveClubFilter],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
       if (effectiveClubFilter) {
         // Check if this specific club has active sponsors
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("sponsors")
           .select("id")
           .eq("club_id", effectiveClubFilter)
           .eq("is_active", true)
           .limit(1);
+        if (error) throw error;
         return !!data && data.length > 0;
       }
 
       // Check all user's clubs for active sponsors
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user.id);
+      if (rolesError) throw rolesError;
 
       if (!roles || roles.length === 0) return false;
 
@@ -193,11 +196,11 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
 
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
-        
+        if (teamsError) throw teamsError;
         if (teams) {
           clubIds.push(...teams.map(t => t.club_id));
         }
@@ -206,12 +209,13 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
       if (uniqueClubIds.length === 0) return false;
 
-      const { data: sponsors } = await supabase
+      const { data: sponsors, error: sponsorsError } = await supabase
         .from("sponsors")
         .select("id")
         .in("club_id", uniqueClubIds)
         .eq("is_active", true)
         .limit(1);
+      if (sponsorsError) throw sponsorsError;
 
       return !!sponsors && sponsors.length > 0;
     },
