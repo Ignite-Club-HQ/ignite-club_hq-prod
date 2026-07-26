@@ -155,29 +155,51 @@ export function useEventGroupMap({ clubId, grouping, targetTeamIds, enabled }: P
 
   const isActive = !!enabled && (grouping === "level" || grouping === "team");
 
+  // "Scoped" = the event restricts its audience to a set of teams. In that
+  // mode an attendee that resolves to no eligible group is OUT OF SCOPE and
+  // must not be rendered — "Other" is only for genuinely in-scope attendees
+  // (e.g. a club-level admin with no team).
+  const isScoped = !!targetKey;
+
   const groupOf = ({
     userId,
     childId,
   }: {
     userId?: string | null;
     childId?: string | null;
-  }): GroupInfo => {
-    if (childId) return childToGroup.get(childId) ?? OTHER_GROUP;
-    if (userId) return userToGroup.get(userId) ?? OTHER_GROUP;
-    return OTHER_GROUP;
+  }): GroupInfo | null => {
+    if (childId) {
+      const g = childToGroup.get(childId);
+      if (g) return g;
+      return isScoped ? null : OTHER_GROUP;
+    }
+    if (userId) {
+      const g = userToGroup.get(userId);
+      if (g) return g;
+      // Adults are scoped upstream (roster query) — club-level admins /
+      // committee legitimately have no team, so they land in "Other".
+      return OTHER_GROUP;
+    }
+    return null;
   };
 
-  // Include the "Other" bucket at the end if we have any active groups —
-  // callers can still filter it out if it ends up empty.
+  // Always include the "Other" bucket so in-scope members who don't resolve to
+  // a team (club-level admins/committee) still render. Empty buckets are
+  // filtered by callers.
   const displayGroups = useMemo<GroupInfo[]>(
-    () => (orderedGroups.length > 0 ? [...orderedGroups, OTHER_GROUP] : []),
+    () => [...orderedGroups, OTHER_GROUP],
     [orderedGroups],
   );
 
   return {
     isActive,
+    isScoped,
     isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
     orderedGroups: displayGroups,
     groupOf,
   };
 }
+
