@@ -3503,7 +3503,13 @@ export default function EventDetailPage() {
                 : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
             })}
             memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
-              ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
+              ? (() => {
+                  const roles: string[] = membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles ?? [];
+                  // While the roster is filtered to players only, show the role
+                  // that qualified them ("player") rather than their first role.
+                  if (!effectiveShowAll && roles.includes("player")) return "player";
+                  return roles[0];
+                })()
               : undefined}
             isCaptain={
               isGameEvent && (
@@ -3726,7 +3732,11 @@ export default function EventDetailPage() {
                   key={member.id}
                   name={member.display_name || "Unknown"}
                   avatarUrl={member.avatar_url}
-                  roleLabel={member.roles?.[0] ? String(member.roles[0]).replace(/_/g, " ") : null}
+                  roleLabel={(() => {
+                    const roles: string[] = member.roles ?? [];
+                    const shown = !effectiveShowAll && roles.includes("player") ? "player" : roles[0];
+                    return shown ? String(shown).replace(/_/g, " ") : null;
+                  })()}
                   roleTone="neutral"
                   rightSlot={
                     <>
