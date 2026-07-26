@@ -1495,7 +1495,85 @@ export function createSubPlan(
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
     );
-    return ensureNoStarvedPlayers(sortedStandard, playerData, halfDurationSeconds);
+    const playableStandard = ensureNoStarvedPlayers(
+      sortedStandard,
+      playerData,
+      halfDurationSeconds,
+    );
+
+    // Standard's FIFO/cadence heuristics deliberately minimise interruptions,
+    // but they must not silently ignore the user-selected fairness cap. For a
+    // clean full-match plan with no explicit player priority, compare that
+    // practical plan with the deterministic equal-time planner. Adopt the
+    // equal-time result only when it is playable and materially fairer (or is
+    // the only result that meets the requested cap).
+    const equalTimeFallbackEligible =
+      priorityOrder.length === 0 &&
+      startHalf === 1 &&
+      clampedStartElapsed === 0 &&
+      outfieldOnBench.length > 0 &&
+      !halftimeGkIn;
+
+    if (equalTimeFallbackEligible) {
+      try {
+        const capSec = Math.max(60, maxSpreadMinutes * 60);
+        const standardResult = standardSimulate(playableStandard);
+        const standardValues = [...standardResult.projected.values()];
+        const standardSpread = standardResult.valid && standardValues.length > 1
+          ? Math.max(...standardValues) - Math.min(...standardValues)
+          : Number.POSITIVE_INFINITY;
+
+        let bestEqual: { plan: SubstitutionEvent[]; spread: number } | null = null;
+        const minShiftCandidates = Array.from(
+          new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
+        ).sort((a, b) => b - a);
+
+        for (const minShiftSec of minShiftCandidates) {
+          const candidate = buildEqualTimePlan({
+            players: playerData,
+            teamSize,
+            halfDurationSec: halfDurationSeconds,
+            gk1H: gkOnPitch || undefined,
+            gk2H: rotateGkAtHalftime
+              ? halftimeGkIn || gkOnPitch || undefined
+              : gkOnPitch || undefined,
+            chunkSec: 30,
+            minShiftSec,
+            noSubBeforeSec: 0,
+            noSubAfterSec: 30,
+          }).plan as SubstitutionEvent[];
+          if (candidate.length === 0) continue;
+
+          const result = standardSimulate(candidate);
+          const values = [...result.projected.values()];
+          if (!result.valid || values.length < 2) continue;
+          const candidateSpread = Math.max(...values) - Math.min(...values);
+          if (!bestEqual || candidateSpread < bestEqual.spread) {
+            bestEqual = { plan: candidate, spread: candidateSpread };
+          }
+          if (candidateSpread <= capSec) break;
+        }
+
+        if (bestEqual) {
+          const standardMeetsCap = standardSpread <= capSec;
+          const equalMeetsCap = bestEqual.spread <= capSec;
+          if (
+            (equalMeetsCap && !standardMeetsCap) ||
+            (equalMeetsCap === standardMeetsCap && bestEqual.spread < standardSpread)
+          ) {
+            return bestEqual.plan.sort((a, b) =>
+              (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
+              (b.half === 1 ? b.time : halfDurationSeconds + b.time)
+            );
+          }
+        }
+      } catch (error) {
+        // Preserve the known-playable practical plan if optimisation fails.
+        console.warn("[createSubPlan] Standard equal-time fallback failed:", error);
+      }
+    }
+
+    return playableStandard;
   }
   // ===========================================================================
   // BALANCED / FREQUENT MODES — fairness-driven planner below.
@@ -2373,6 +2451,53 @@ export function createSubPlan(
     if (aIsGkSwap !== bIsGkSwap) return aIsGkSwap ? -1 : 1;
     return 0;
   });
+
+  const frequentEqualTimeEligible =
+    priorityOrder.length === 0 &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0 &&
+    outfieldOnBench.length > 0 &&
+    !halftimeGkIn;
+
+  if (frequentEqualTimeEligible) {
+    try {
+      const capSec = Math.max(60, maxSpreadMinutes * 60);
+      const current = simulateFullPlan(plan);
+      const spreadAcrossRotationPool = (totals: Map<string, number>) => {
+        const values = outfieldPlayers.map((player) => totals.get(player.id) ?? 0);
+        return values.length > 1 ? Math.max(...values) - Math.min(...values) : 0;
+      };
+      const currentSpread = current.valid
+        ? spreadAcrossRotationPool(current.totals)
+        : Number.POSITIVE_INFINITY;
+      const equal = buildEqualTimePlan({
+        players: playerData,
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: gkOnPitch || undefined,
+        gk2H: gkOnPitch || undefined,
+        chunkSec: 30,
+        minShiftSec: eff.minShiftSeconds,
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      }).plan as SubstitutionEvent[];
+      const equalSimulation = simulateFullPlan(equal);
+      const equalSpread = equalSimulation.valid
+        ? spreadAcrossRotationPool(equalSimulation.totals)
+        : Number.POSITIVE_INFINITY;
+      const currentMeetsCap = currentSpread <= capSec;
+      const equalMeetsCap = equalSpread <= capSec;
+      if (
+        equal.length > 0 &&
+        ((equalMeetsCap && !currentMeetsCap) ||
+          (equalMeetsCap === currentMeetsCap && equalSpread < currentSpread))
+      ) {
+        return equal;
+      }
+    } catch (error) {
+      console.warn("[createSubPlan] Frequent equal-time fallback failed:", error);
+    }
+  }
 
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 
