@@ -1421,15 +1421,17 @@ function CompactCard({ event }: { event: EventItem }) {
           }
 
           const isTrainingType = event.type === "training";
-          const isMiniLeagueOnly = !event.team_id && !!(event as any).mini_league_id;
+          // Club-wide events (no team) — including targeted multi-team and mini-league-only —
+          // surface their actual title rather than the generic "Club event" chip.
+          const isClubWideTitled = !event.team_id && !!displayTitle?.trim();
           return (
             <div className="space-y-1 min-w-0">
-              {isMiniLeagueOnly ? (
+              {isClubWideTitled ? (
                 <h3 className={`text-[14px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
               ) : (
-                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+                <TeamChip teamName={event.teams?.name} fallbackLabel="" size="md" />
               )}
 
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
