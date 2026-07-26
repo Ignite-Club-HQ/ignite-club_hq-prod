@@ -103,7 +103,12 @@ Deno.test("missing server key fails closed with 500, never open", () => {
 Deno.test("rejection bodies never echo the expected key or the presented token", async () => {
   const bodies: string[] = [];
   withKey(SERVICE_KEY, () => {
-    for (const headers of [{}, { Authorization: `Bearer ${ANON_KEY}` }, { Authorization: "Bearer nope" }]) {
+    const rejectedHeaders: Record<string, string>[] = [
+      {},
+      { Authorization: `Bearer ${ANON_KEY}` },
+      { Authorization: "Bearer nope" },
+    ];
+    for (const headers of rejectedHeaders) {
       const res = requireServiceRoleAuth(req(headers), CORS);
       if (res) bodies.push(res.status.toString());
       if (res) bodies.push("BODY_PLACEHOLDER");
@@ -122,7 +127,8 @@ Deno.test("rejection bodies never echo the expected key or the presented token",
 
 Deno.test("CORS headers are present on every rejection (browser callers see the error)", () => {
   withKey(SERVICE_KEY, () => {
-    for (const headers of [{}, { Authorization: "Bearer wrong" }]) {
+    const rejectedHeaders: Record<string, string>[] = [{}, { Authorization: "Bearer wrong" }];
+    for (const headers of rejectedHeaders) {
       const res = requireServiceRoleAuth(req(headers), CORS);
       assertEquals(res?.headers.get("Access-Control-Allow-Origin"), "*");
       assertEquals(res?.headers.get("Content-Type"), "application/json");
