@@ -134,7 +134,15 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   // Per-player TOTAL target (GK seconds + outfield seconds). Equal-time means
   // every rotation player gets the same total. GK-locked-only players are
   // outside the pool entirely.
-  const totalPlayerSeconds = teamSize * totalSec;
+  // The rotation pool can only share the outfield capacity. Add goalkeeper
+  // duty back only when that goalkeeper is also in the rotation pool (for
+  // example, two outfield-capable players swapping GK at halftime). A locked
+  // GK-only player is intentionally outside the pool, so counting their full
+  // match here inflates every outfield target and distorts swap scoring.
+  let rotationPoolGkSeconds = 0;
+  if (gk1H && rotationIds.has(gk1H.id)) rotationPoolGkSeconds += halfDurationSec;
+  if (gk2H && rotationIds.has(gk2H.id)) rotationPoolGkSeconds += halfDurationSec;
+  const totalPlayerSeconds = outfieldSlots * totalSec + rotationPoolGkSeconds;
   const perPlayerTarget = totalPlayerSeconds / rotationPool.length;
   const targetSec = new Map<string, number>();
   rotationPool.forEach((p) => targetSec.set(p.id, perPlayerTarget));
@@ -178,6 +186,88 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const plan: EqualTimeSubEvent[] = [];
   const lastSubAt = new Map<string, number>(); // absolute seconds — last time involved in a swap
   const onPitchOutfield = new Set<string>(initialOutfieldOnPitch.map((p) => p.id));
+
+  // Exact cyclic solution for a universally compatible outfield pool.
+  // Across N equal periods, rotating one player through a FIFO bench queue at
+  // every boundary gives every player exactly `outfieldSlots` periods on the
+  // field. It is both mathematically optimal and operationally compact: N-1
+  // substitution events rather than a micro-sub every 30 seconds.
+  const occupiedPositions = [...new Set(currentPosition.values())];
+  const hasGkChange = !!(gk1H && gk2H && gk1H.id !== gk2H.id);
+  const cyclicBoundaries = Array.from(
+    { length: Math.max(0, rotationPool.length - 1) },
+    (_, index) => Math.round((totalSec * (index + 1)) / rotationPool.length),
+  );
+  const boundariesRespectBlackouts = cyclicBoundaries.every((absolute) => {
+    const intoHalf = absolute < halfDurationSec ? absolute : absolute - halfDurationSec;
+    return intoHalf >= noSubBeforeSec && intoHalf < halfDurationSec - noSubAfterSec;
+  });
+  const approximatePeriodSec = totalSec / rotationPool.length;
+  const benchCount = rotationPool.length - outfieldSlots;
+  const shortestRepeatGapSec = approximatePeriodSec * Math.min(outfieldSlots, benchCount);
+  const universallyCompatible =
+    !hasGkChange &&
+    initialOutfieldOnPitch.length === outfieldSlots &&
+    rotationPool.length > outfieldSlots &&
+    boundariesRespectBlackouts &&
+    shortestRepeatGapSec >= minShiftSec &&
+    rotationPool.every((player) =>
+      occupiedPositions.every((position) => canPlay(player, position)),
+    );
+
+  if (universallyCompatible) {
+    const onQueue = initialOutfieldOnPitch.map((player) => player.id);
+    const benchQueue = rotationPool
+      .filter((player) => !onPitchOutfield.has(player.id))
+      .map((player) => player.id);
+    let previousAbs = 0;
+
+    for (let period = 1; period < rotationPool.length; period += 1) {
+      const absolute = cyclicBoundaries[period - 1];
+      const elapsed = absolute - previousAbs;
+      onQueue.forEach((id) => projected.set(id, (projected.get(id) ?? 0) + elapsed));
+
+      const outId = onQueue.shift();
+      const inId = benchQueue.shift();
+      if (!outId || !inId) break;
+      const out = playerById.get(outId);
+      const incoming = playerById.get(inId);
+      const outPos = currentPosition.get(outId);
+      if (!out || !incoming || !outPos) break;
+
+      plan.push({
+        time: absolute < halfDurationSec ? absolute : absolute - halfDurationSec,
+        half: absolute < halfDurationSec ? 1 : 2,
+        playerOut: out,
+        playerIn: incoming,
+        executed: false,
+      });
+
+      currentPosition.delete(outId);
+      currentPosition.set(inId, outPos);
+      onPitchOutfield.delete(outId);
+      onPitchOutfield.add(inId);
+      onQueue.push(inId);
+      benchQueue.push(outId);
+      previousAbs = absolute;
+    }
+
+    const tail = totalSec - previousAbs;
+    onQueue.forEach((id) => projected.set(id, (projected.get(id) ?? 0) + tail));
+    const values = rotationPool.map((player) => projected.get(player.id) ?? 0);
+    const deviations = rotationPool.map((player) =>
+      Math.abs((projected.get(player.id) ?? 0) - (targetSec.get(player.id) ?? 0)),
+    );
+    const remainder = totalPlayerSeconds % rotationPool.length;
+    return {
+      plan,
+      projectedSec: projected,
+      targetSec,
+      spreadSec: Math.max(...values) - Math.min(...values),
+      maxDeviationSec: Math.max(...deviations),
+      perfectFloorSec: remainder === 0 ? 0 : 1,
+    };
+  }
 
   // If there's an HT GK swap, emit it now (pure GK change — no outfield
   // positions involved). The downstream simulator treats this as such.
