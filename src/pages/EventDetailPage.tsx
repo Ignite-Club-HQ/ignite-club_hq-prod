@@ -3557,6 +3557,7 @@ export default function EventDetailPage() {
           const buckets = new Map<string, any[]>();
           for (const r of rsvpList) {
             const g = rsvpGroupKey(r);
+            if (!g) continue; // out of the event audience — never show
             const arr = buckets.get(g.key) ?? [];
             arr.push(r);
             buckets.set(g.key, arr);
@@ -3746,6 +3747,7 @@ export default function EventDetailPage() {
           const childBuckets = new Map<string, any[]>();
           for (const c of notRespondedChildren) {
             const g = childGroupKey(c);
+            if (!g) continue;
             const arr = childBuckets.get(g.key) ?? [];
             arr.push(c);
             childBuckets.set(g.key, arr);
@@ -3753,6 +3755,7 @@ export default function EventDetailPage() {
           const adultBuckets = new Map<string, any[]>();
           for (const m of notResponded) {
             const g = adultGroupKey(m);
+            if (!g) continue;
             const arr = adultBuckets.get(g.key) ?? [];
             arr.push(m);
             adultBuckets.set(g.key, arr);
