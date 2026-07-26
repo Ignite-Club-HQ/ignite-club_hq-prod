@@ -1065,9 +1065,16 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id && !!id,
   });
 
-  // Fetch children for parent RSVP - team-assigned children for team events, all children for club-wide events
+  // Fetch children for parent RSVP - team-assigned children for team events,
+  // children on a targeted team for targeted club-wide events, all own
+  // children for whole-club events.
+  const childrenTargetKey = useMemo(() => {
+    if (event?.team_id) return "";
+    const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
+    return Array.isArray(t) && t.length > 0 ? [...t].sort().join(",") : "";
+  }, [event?.team_id, (event as any)?.target_team_ids]);
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, user?.id],
+    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, childrenTargetKey, user?.id],
     queryFn: async () => {
       if ((event as any)?.adults_only) return [] as Array<{ id: string; name: string }>;
       // Get children where user is parent OR guardian
@@ -1108,16 +1115,30 @@ export default function EventDetailPage() {
 
       // Deduplicate by child id
       const seen = new Set<string>();
-      const all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
+      let all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
         return true;
       });
 
+      // Targeted club-wide event: only children assigned to a target team are
+      // part of the audience — otherwise a parent could RSVP an out-of-scope
+      // child, who then renders under "Other".
+      if (!event?.team_id && childrenTargetKey && all.length > 0) {
+        const { data: targetAssignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .in("team_id", childrenTargetKey.split(","))
+          .in("child_id", all.map((c: any) => c.id));
+        const inScope = new Set((targetAssignments || []).map((a: any) => a.child_id));
+        all = all.filter((c: any) => inScope.has(c.id));
+      }
+
       return all;
     },
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
+
 
   // Fetch ALL children assigned to this event's team (for not responded list).
   // For club-wide events with `target_team_ids`, fetch children across every
