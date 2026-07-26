@@ -72,7 +72,7 @@ jobs:
           fi
 
       - name: Run complete isolated baseline
-        run: npm run test:baseline -- --approved-local-session
+        run: npm run test:baseline
 
       - name: Upload test diagnostics
         if: always()

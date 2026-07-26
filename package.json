@@ -22,7 +22,7 @@
     "test:react-router-upgrade": "REACT_ROUTER_UPGRADE_CANDIDATE=true vitest run src/test/reactRouterUpgradeSafety.test.tsx src/components/layout/AppLayout.routing.test.tsx src/components/RouteErrorBoundary.routing.test.tsx src/pages/AuthPage.test.tsx src/pages/ShortInviteRedirect.test.tsx src/pages/CompetitionJoinPage.test.tsx src/components/PushNotificationManager.test.tsx",
     "test:transitive-security-upgrade": "TRANSITIVE_SECURITY_UPGRADE_CANDIDATE=true vitest run src/test/transitiveSecurityUpgradeSafety.test.ts src/components/PushNotificationManager.test.tsx src/hooks/usePushSubscriptionHealth.test.tsx src/hooks/useEventGroupSync.realtime.test.tsx src/lib/realtimeChannelRegistry.test.ts",
     "test:e2e-baseline": "playwright test --config playwright.baseline.config.ts",
-    "test:baseline": "node scripts/run-complete-baseline.mjs",
+    "test:baseline": "node scripts/run-complete-baseline.mjs --approved-local-session",
     "test:local-supabase": "node scripts/run-local-supabase-tests.mjs",
     "test:stage2": "node -e \"console.error('Disabled: hosted Supabase tests must not be run. Use mocked unit tests or a fresh local-only Supabase stack.'); process.exit(1)\"",
     "ios:bump": "node scripts/bump-ios-version.cjs",

@@ -93,6 +93,21 @@ describe("complete baseline local lifecycle safety", () => {
     ])).toBe(false);
   });
 
+  it("keeps the one-click npm and GitHub Actions entry points on exactly one approval", () => {
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    const baselineScript = packageJson.scripts?.["test:baseline"] ?? "";
+    expect(baselineScript.match(/--approved-local-session/g)).toHaveLength(1);
+
+    const workflow = readFileSync(
+      resolve(process.cwd(), ".github/workflows/codespaces-review-baseline.yml"),
+      "utf8",
+    );
+    expect(workflow).toContain("run: npm run test:baseline");
+    expect(workflow).not.toContain("npm run test:baseline -- --approved-local-session");
+  });
+
   it("tests dirty worktrees in place without attempting an automatic branch update", () => {
     expect(worktreeUpdateMode(0, "")).toBe("update");
     expect(worktreeUpdateMode(0, " M src/example.test.ts\n")).toBe("test-current");
