@@ -974,25 +974,6 @@ export default function EventDetailPage() {
   const attendancePlayerMembers = attendanceMembers?.filter((m: any) => m.roles?.includes("player")) || [];
 
 
-  // Grouping for club-wide events (by age level or by team). Drives the
-  // sub-headers inside every attendance bucket below when the event admin
-  // picked a grouping on create/edit.
-  const eventGrouping = (event as any)?.rsvp_grouping as
-    | "level"
-    | "team"
-    | null
-    | undefined;
-  const eventTargetTeamIds = ((event as any)?.target_team_ids ?? null) as
-    | string[]
-    | null;
-  const groupMap = useEventGroupMap({
-    clubId: event?.club_id ?? null,
-    grouping: eventGrouping ?? null,
-    targetTeamIds: eventTargetTeamIds,
-    enabled: !!event && !event.team_id && !!event.club_id &&
-      (eventGrouping === "level" || eventGrouping === "team"),
-  });
-
   // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
   const { data: miniLeagueDutyAssignees } = useQuery({
     queryKey: ["mini-league-duty-assignees-session", event?.mini_league_id, id],
@@ -1179,6 +1160,26 @@ export default function EventDetailPage() {
     for (const r of scopedChildRoster) if (r.display_name) m.set(r.person_id, r.display_name);
     return m;
   }, [scopedChildRoster]);
+
+  // Grouping for club-wide events (by age level or by team). For targeted
+  // club-wide events, use the scoped roster RPC for person→team mappings so
+  // client-side RLS on children/user_roles cannot collapse everyone to Other.
+  const eventGrouping = (event as any)?.rsvp_grouping as
+    | "level"
+    | "team"
+    | null
+    | undefined;
+  const eventTargetTeamIds = ((event as any)?.target_team_ids ?? null) as
+    | string[]
+    | null;
+  const groupMap = useEventGroupMap({
+    clubId: event?.club_id ?? null,
+    grouping: eventGrouping ?? null,
+    targetTeamIds: eventTargetTeamIds,
+    scopedRosterRows: targetTeamIdsForFetch ? scopedRosterQuery.data ?? null : null,
+    enabled: !!event && !event.team_id && !!event.club_id &&
+      (eventGrouping === "level" || eventGrouping === "team"),
+  });
 
   const { data: allChildrenOnTeamRaw } = useQuery({
     queryKey: [
