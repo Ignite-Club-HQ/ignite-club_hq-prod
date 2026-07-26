@@ -35,6 +35,8 @@ project_id = "ecsdwrarzfexssxtrymj"
     verify_jwt = false
   [functions.process-message-notifications]
     verify_jwt = false
+  [functions.process-push-delivery-queue]
+    verify_jwt = false
   [functions.process-weekly-engagement-bonus]
     verify_jwt = false
   [functions.public-club-events]
