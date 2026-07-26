@@ -803,18 +803,25 @@ export default function EventDetailPage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Group roles by user_id, keeping track of every team_id we've seen for them
-      const userRolesMap = new Map<string, { profile: any; roles: string[]; teamIds: Set<string> }>();
+      // Group roles by user_id, keeping track of every team_id we've seen for them.
+      // `role_team_pairs` preserves WHICH team each role was held on, so targeted
+      // club-wide events can scope role labels/filters to the invited teams only.
+      const userRolesMap = new Map<
+        string,
+        { profile: any; roles: string[]; teamIds: Set<string>; pairs: { role: string; team_id: string | null }[] }
+      >();
       data.filter(m => m.profiles).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
           if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
           if (m.team_id) existing.teamIds.add(m.team_id);
+          existing.pairs.push({ role: m.role, team_id: m.team_id ?? null });
         } else {
           userRolesMap.set(m.user_id, {
             profile: m.profiles,
             roles: [m.role],
             teamIds: new Set(m.team_id ? [m.team_id] : []),
+            pairs: [{ role: m.role, team_id: m.team_id ?? null }],
           });
         }
       });
@@ -823,7 +830,9 @@ export default function EventDetailPage() {
         ...data.profile,
         roles: data.roles,
         team_ids: Array.from(data.teamIds),
+        role_team_pairs: data.pairs,
       }));
+
     },
     enabled: !!event,
   });
