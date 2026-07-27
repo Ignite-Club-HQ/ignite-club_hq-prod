@@ -8496,6 +8496,72 @@ export type Database = {
           },
         ]
       }
+      stripe_notification_outbox: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          purpose: string
+          stripe_event_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          purpose: string
+          stripe_event_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          purpose?: string
+          stripe_event_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      stripe_subscription_event_state: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          last_event_at: string
+          last_event_id: string
+          last_event_type: string
+          stripe_subscription_id: string
+          subscription_state: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          last_event_at: string
+          last_event_id: string
+          last_event_type: string
+          stripe_subscription_id: string
+          subscription_state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          last_event_at?: string
+          last_event_id?: string
+          last_event_type?: string
+          stripe_subscription_id?: string
+          subscription_state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stripe_webhook_events: {
         Row: {
           attempts: number
@@ -10203,6 +10269,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      apply_stripe_subscription_transition: {
+        Args: {
+          p_entity_id?: string
+          p_entity_type?: string
+          p_event_at: string
+          p_event_id: string
+          p_event_type: string
+          p_params?: Json
+          p_subscription_id: string
+          p_transition: string
+        }
+        Returns: Json
       }
       apply_verified_iap_purchase: { Args: { p_facts: Json }; Returns: Json }
       approve_chat_group_join_request: {
