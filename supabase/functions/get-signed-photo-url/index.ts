@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeExpiresIn } from "../_shared/storageUrlAuth.ts";
+import { signAuthorizedBatch } from "../_shared/signedUrlBatch.ts";
+
 
 // Module-scope client: created once per isolate, reused across warm invocations.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -9,9 +12,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Supported private buckets
-const PRIVATE_BUCKETS = ["photos", "chat-attachments", "avatars"];
 
 // Rate limiting to prevent enumeration attacks
 const RATE_LIMIT_WINDOW_SECONDS = 60;
@@ -34,14 +34,14 @@ async function checkRateLimit(
 
   if (existing) {
     const recordWindowStart = new Date(existing.window_start);
-    
+
     if (recordWindowStart < windowStart) {
       await supabase.from('rate_limits').update({
         request_count: 1,
         window_start: now.toISOString(),
         updated_at: now.toISOString()
       }).eq('id', existing.id);
-      
+
       return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
     }
 
@@ -79,11 +79,10 @@ Deno.serve(async (req) => {
     // Reuse module-scope admin client (created at cold start).
     const supabase = supabaseAdmin;
 
-
     // Verify the user is authenticated
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -96,22 +95,24 @@ Deno.serve(async (req) => {
     if (!rateLimitResult.allowed) {
       console.warn(`Rate limit exceeded for user ${user.id} on get-signed-photo-url`);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Too many requests. Please slow down.",
           retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
         }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
             "Content-Type": "application/json",
             "Retry-After": String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
-          } 
+          }
         }
       );
     }
 
-    const { paths, expiresIn = 3600 } = await req.json();
+    const body = await req.json();
+    const paths = body?.paths;
+    const expiresIn = normalizeExpiresIn(body?.expiresIn);
 
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
       return new Response(JSON.stringify({ error: "paths array is required" }), {
@@ -128,44 +129,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate signed URLs for each path
-    const signedUrls: Record<string, string> = {};
-    
-    for (const path of paths) {
-      // Detect which bucket this URL belongs to
-      let bucketId: string | null = null;
-      let storagePath = path;
-
-      for (const bucket of PRIVATE_BUCKETS) {
-        if (path.includes(`/storage/v1/object/public/${bucket}/`)) {
-          bucketId = bucket;
-          storagePath = path.split(`/storage/v1/object/public/${bucket}/`)[1];
-          break;
-        } else if (path.includes(`/storage/v1/object/sign/${bucket}/`)) {
-          bucketId = bucket;
-          storagePath = path.split(`/storage/v1/object/sign/${bucket}/`)[1].split("?")[0];
-          break;
+    // Resolve → authorize (one RPC) → sign only what the caller may access.
+    const { signedUrls, authorizationFailed } = await signAuthorizedBatch(paths, {
+      supabaseUrl: SUPABASE_URL,
+      authorize: async (items) => {
+        const { data, error } = await supabase.rpc("authorize_storage_objects", {
+          _user_id: user.id,
+          _items: items,
+        });
+        return { data: data as any, error: error as any };
+      },
+      sign: async (bucket, path) => {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, expiresIn);
+        if (error || !data) {
+          console.error(`Error creating signed URL for ${bucket}:`, error?.message);
+          return { url: null, error: error as any };
         }
-      }
+        return { url: data.signedUrl, error: null };
+      },
+    });
 
-      // Skip if not a recognized private bucket URL
-      if (!bucketId) {
-        signedUrls[path] = path; // Return original URL
-        continue;
-      }
-
-      const { data, error } = await supabase.storage
-        .from(bucketId)
-        .createSignedUrl(storagePath, expiresIn);
-
-      if (error) {
-        console.error(`Error creating signed URL for ${bucketId}/${storagePath}:`, error);
-        // Skip this URL but continue with others
-        continue;
-      }
-
-      signedUrls[path] = data.signedUrl;
+    if (authorizationFailed) {
+      return new Response(JSON.stringify({ error: "Authorization check failed" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
 
     return new Response(JSON.stringify({ signedUrls }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
