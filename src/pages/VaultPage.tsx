@@ -2326,15 +2326,15 @@ export default function VaultPage() {
       const fileItems = itemsToDelete.filter(i => i.type === 'file');
       
       // Use the permanent delete edge function to handle storage cleanup + audit
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: {
-          photoIds: photoItems.map(p => p.id),
-          fileIds: fileItems.map(f => f.id),
-          deletionType: "permanent",
-        },
+      const result = await permanentlyDeleteVaultItems({
+        photoIds: photoItems.map(p => p.id),
+        fileIds: fileItems.map(f => f.id),
       });
-      
-      if (response.error) throw new Error(response.error.message);
+
+      if (result.failed.length > 0) {
+        toast.error(`${result.failed.length} file(s) could not be deleted`);
+      }
+
       
       // Calculate total freed space
       const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
