@@ -29,7 +29,7 @@ interface FanoutDeps {
   isAdmin: boolean;
   assocKind: string | null;
   clubsUnderAssoc: string[];
-  rpc: ReturnType<typeof vi.fn>;
+  rpc: any;
 }
 
 async function runFanout(clubIds: unknown[], deps: FanoutDeps) {
