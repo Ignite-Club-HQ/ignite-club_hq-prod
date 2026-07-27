@@ -364,6 +364,7 @@ async function handleSubscriptionCreated(
         stripe_subscription_id: stripeSubscriptionId,
         activated_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
+        ...eventStamp(stripeEventId, eventAt),
       }, { onConflict: 'club_id' });
 
     if (subError) {
