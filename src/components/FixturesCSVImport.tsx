@@ -513,12 +513,40 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const teamKeyOf = (f: ParsedFixture) => f.teamName || 'No team assigned';
   const fixturesAfterExclusion = parsedFixtures.filter(f => !excludedTeams.has(teamKeyOf(f)));
 
+  // Blocking authorization state for the current (post-exclusion) selection.
+  const importAuth = validateFixtureImportAuthorization({
+    isClubAdmin,
+    teamId,
+    fixtures: fixturesAfterExclusion,
+  });
+  const authBlocked = importAuth.ok === false;
+  const authBlockMessage = importAuth.ok === false ? importAuth.message : null;
+
   const handleImport = async () => {
     if (!user) return;
 
     const fixturesToInsert = fixturesAfterExclusion;
 
     if (fixturesToInsert.length === 0) return;
+
+    // Never rely solely on the disabled button — re-run authorization here so
+    // no programmatic submission path can bypass it.
+    const auth = validateFixtureImportAuthorization({
+      isClubAdmin,
+      teamId,
+      fixtures: fixturesToInsert,
+    });
+    if (auth.ok === false) {
+      toast({
+        variant: "destructive",
+        title: "Not authorised",
+        description: auth.message,
+      });
+      setImporting(false);
+      return;
+    }
+
+
 
     setImporting(true);
     try {
