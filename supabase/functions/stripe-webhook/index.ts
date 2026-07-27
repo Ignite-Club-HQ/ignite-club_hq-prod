@@ -444,11 +444,8 @@ async function handleSubscriptionCreated(
   return { ledgerCompleted: outcome.ledgerCompleted };
 }
 
-/** Columns stamped on every subscription mutation for out-of-order safety. */
-function eventStamp(stripeEventId: string | null, eventAt: string | null) {
-  if (!stripeEventId || !eventAt) return {};
-  return { last_stripe_event_id: stripeEventId, last_stripe_event_at: eventAt };
-}
+
+
 
 async function handleSubscriptionRenewal(
   supabase: any,
