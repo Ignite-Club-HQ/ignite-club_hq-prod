@@ -2070,6 +2070,8 @@ export type Database = {
           is_pro: boolean
           is_pro_football: boolean
           is_trial: boolean
+          last_stripe_event_at: string | null
+          last_stripe_event_id: string | null
           member_payments_enabled: boolean
           member_subscription_amount: number | null
           plan: Database["public"]["Enums"]["club_subscription_plan"]
@@ -2099,6 +2101,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
@@ -2128,6 +2132,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
@@ -8490,6 +8496,42 @@ export type Database = {
           },
         ]
       }
+      stripe_webhook_events: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          event_type: string
+          last_error: string | null
+          status: string
+          stripe_event_id: string
+          stripe_object_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          event_type: string
+          last_error?: string | null
+          status?: string
+          stripe_event_id: string
+          stripe_object_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          event_type?: string
+          last_error?: string | null
+          status?: string
+          stripe_event_id?: string
+          stripe_object_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_messages: {
         Row: {
           created_at: string
@@ -9021,6 +9063,8 @@ export type Database = {
           is_pro: boolean
           is_pro_football: boolean
           is_trial: boolean | null
+          last_stripe_event_at: string | null
+          last_stripe_event_id: string | null
           max_spread_minutes: number
           minutes_per_half: number | null
           pitch_notify_coach: boolean
@@ -9030,6 +9074,7 @@ export type Database = {
           rotation_speed: number | null
           show_lineup_picker: boolean
           show_match_header: boolean | null
+          stripe_subscription_id: string | null
           team_id: string
           team_size: number | null
           trial_ends_at: string | null
@@ -9055,6 +9100,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
           pitch_notify_coach?: boolean
@@ -9064,6 +9111,7 @@ export type Database = {
           rotation_speed?: number | null
           show_lineup_picker?: boolean
           show_match_header?: boolean | null
+          stripe_subscription_id?: string | null
           team_id: string
           team_size?: number | null
           trial_ends_at?: string | null
@@ -9089,6 +9137,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
           pitch_notify_coach?: boolean
@@ -9098,6 +9148,7 @@ export type Database = {
           rotation_speed?: number | null
           show_lineup_picker?: boolean
           show_match_header?: boolean | null
+          stripe_subscription_id?: string | null
           team_id?: string
           team_size?: number | null
           trial_ends_at?: string | null
@@ -10144,6 +10195,15 @@ export type Database = {
         Args: { p_club_ids?: string[] }
         Returns: Json
       }
+      apply_stripe_storage_addon: {
+        Args: {
+          p_club_id: string
+          p_event_id: string
+          p_storage_gb: number
+          p_user_id: string
+        }
+        Returns: string
+      }
       apply_verified_iap_purchase: { Args: { p_facts: Json }; Returns: Json }
       approve_chat_group_join_request: {
         Args: { _request_id: string }
@@ -10375,6 +10435,15 @@ export type Database = {
           team_id: string
         }[]
       }
+      claim_stripe_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_object_id?: string
+          p_stale_after?: string
+        }
+        Returns: string
+      }
       cleanup_expired_chat_summaries: { Args: never; Returns: number }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
@@ -10454,6 +10523,10 @@ export type Database = {
           rsvps_total: number
           team_msgs: number
         }[]
+      }
+      complete_stripe_webhook_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
       }
       confirm_eoi_placement: {
         Args: { _submission_id: string }
@@ -10651,6 +10724,10 @@ export type Database = {
       extract_mentioned_user_ids: {
         Args: { message_text: string }
         Returns: string[]
+      }
+      fail_stripe_webhook_event: {
+        Args: { p_error?: string; p_event_id: string }
+        Returns: undefined
       }
       format_message_preview: {
         Args: { _has_image?: boolean; _text: string }
@@ -11741,6 +11818,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      stripe_event_is_stale: {
+        Args: { p_event_at: string; p_subscription_id: string }
+        Returns: boolean
+      }
       suggest_eoi_teams: {
         Args: { _season_id: string }
         Returns: {
