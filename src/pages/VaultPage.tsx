@@ -1760,7 +1760,11 @@ export default function VaultPage() {
       }
 
       // Reserve quota atomically before any bytes are written.
-      const reservationId = await reserveVaultStorage(currentView.clubId ?? null, file.size);
+      const reservationId = await reserveVaultStorage(
+        "clubId" in currentView ? currentView.clubId ?? null : null,
+        file.size,
+      );
+
 
       const { error: uploadError } = await supabase.storage
         .from("photos")
