@@ -191,12 +191,22 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       if (teamNameFromFile) {
         const matchedTeamId = teamNameMap.get(teamNameFromFile.toLowerCase());
         if (matchedTeamId) {
+          // A non-club-admin must never be able to use the file's `team`
+          // column to escape the team selected on the import page.
+          if (!isClubAdmin && teamId && matchedTeamId !== teamId) {
+            errors.push({
+              row: rowNum,
+              message: `Team "${teamNameFromFile}" does not match the selected team — club admin permissions required`,
+            });
+            continue;
+          }
           resolvedTeamId = matchedTeamId;
         } else if (teams.length > 0) {
           errors.push({ row: rowNum, message: `Team "${teamNameFromFile}" not found` });
           continue;
         }
       }
+
 
       const resolvedTeamName = resolvedTeamId ? teamIdNameMap.get(resolvedTeamId) : undefined;
 
