@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.21.0";
+import { verifyStripeSignature } from "../_shared/stripeSignature.ts";
+
 
 // Auto-cancel + refund a Stripe subscription that has no matching DB row.
 // This is the safety net that guarantees a club never gets charged again
