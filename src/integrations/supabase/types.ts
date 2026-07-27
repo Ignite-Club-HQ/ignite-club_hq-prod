@@ -10154,6 +10154,14 @@ export type Database = {
         Returns: undefined
       }
       archive_season: { Args: { _season_id: string }; Returns: undefined }
+      authorize_storage_objects: {
+        Args: { _items: Json; _user_id: string }
+        Returns: {
+          allowed: boolean
+          bucket: string
+          path: string
+        }[]
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -10492,6 +10500,22 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_association_club_event_atomic: {
+        Args: {
+          _address: string
+          _allow_guests: boolean
+          _association_id: string
+          _caller_id: string
+          _club_ids: string[]
+          _description: string
+          _end_time: string
+          _event_date: string
+          _location_name: string
+          _start_time: string
+          _title: string
+        }
+        Returns: Json
       }
       create_child_for_parent_on_team: {
         Args: {
