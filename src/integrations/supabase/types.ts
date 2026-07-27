@@ -10833,6 +10833,16 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
+      delete_media_photo: {
+        Args: { _mode: string; _photo_id: string }
+        Returns: {
+          already_deleted: boolean
+          mode: string
+          photo_id: string
+          vault_file_id: string
+          vault_updated: boolean
+        }[]
+      }
       deny_role_request: { Args: { p_request_id: string }; Returns: undefined }
       derive_notification_club_id: {
         Args: { _related_id: string; _type: string }
