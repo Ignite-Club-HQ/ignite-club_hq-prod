@@ -250,13 +250,17 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       });
     }
 
-    const uniqueTeamIds = new Set(uniqueFixtures.map(f => f.teamId).filter(Boolean));
-    if (!isClubAdmin && uniqueTeamIds.size > 1) {
-      errors.push({
-        row: 0,
-        message: `Multi-team import requires club admin permissions`
-      });
+    // Authorization is derived from the shared helper so the preview, the
+    // disabled Import button and handleImport all agree.
+    const auth = validateFixtureImportAuthorization({
+      isClubAdmin,
+      teamId,
+      fixtures: uniqueFixtures,
+    });
+    if (!auth.ok) {
+      errors.push({ row: 0, message: auth.message });
     }
+
 
     return { fixtures: uniqueFixtures, errors };
   };
