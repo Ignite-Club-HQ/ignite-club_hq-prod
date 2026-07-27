@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
@@ -34,13 +35,15 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   // If no filter is set, pick the first such club the user is a member of.
   const { data: eventsStripResolved, isLoading: isStripGateLoading } = useQuery({
     queryKey: ["events-sponsor-strip-allowed", activeClubFilter],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       if (activeClubFilter) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("clubs")
           .select("events_sponsor_strip_enabled")
           .eq("id", activeClubFilter)
           .maybeSingle();
+        if (error) throw error;
         const allowed = !!(data as any)?.events_sponsor_strip_enabled;
         return { allowed, effectiveClubId: allowed ? activeClubFilter : null };
       }
@@ -48,25 +51,28 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { allowed: false, effectiveClubId: null as string | null };
 
-      const { data: directRoles } = await supabase
+      const { data: directRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user.id);
+      if (rolesError) throw rolesError;
 
       const clubIds = new Set<string>();
       (directRoles ?? []).forEach((r: any) => { if (r.club_id) clubIds.add(r.club_id); });
       const teamIds = (directRoles ?? []).map((r: any) => r.team_id).filter(Boolean);
       if (teamIds.length) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams").select("club_id").in("id", teamIds);
+        if (teamsError) throw teamsError;
         (teams ?? []).forEach((t: any) => t.club_id && clubIds.add(t.club_id));
       }
       if (clubIds.size === 0) return { allowed: false, effectiveClubId: null };
 
-      const { data: enabledClubs } = await supabase
+      const { data: enabledClubs, error: enabledError } = await supabase
         .from("clubs")
         .select("id, events_sponsor_strip_enabled")
         .in("id", Array.from(clubIds));
+      if (enabledError) throw enabledError;
       const hit = (enabledClubs ?? []).find((c: any) => c.events_sponsor_strip_enabled);
       return { allowed: !!hit, effectiveClubId: hit?.id ?? null };
     },
@@ -90,14 +96,19 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   const { data: proStatus, isLoading: isProLoading, isFetching: isProFetching } = useQuery({
     queryKey: ["user-pro-status-per-club", user?.id, effectiveClubFilter],
     enabled: !!user,
-    placeholderData: (prev) => prev,
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
     queryFn: async () => {
       // Get all clubs the user belongs to
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user!.id);
+      // Propagate transient errors so react-query keeps previous data rather
+      // than caching a network/RLS hiccup as an authoritative "Free" answer
+      // (which would flash an "Upgrade to Pro" ad on a Pro club after a
+      // network blip).
+      if (rolesError) throw rolesError;
 
       if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
@@ -106,11 +117,11 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
       // Get club IDs from teams
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
-        
+        if (teamsError) throw teamsError;
         if (teams) {
           clubIds.push(...teams.map(t => t.club_id));
         }
@@ -120,11 +131,12 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false, resolved: true };
 
       // Fetch Pro subscriptions for all user clubs
-      const { data: subscriptions } = await supabase
+      const { data: subscriptions, error: subsError } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro")
         .in("club_id", uniqueClubIds)
         .eq("is_pro", true);
+      if (subsError) throw subsError;
 
       const proClubIds = new Set(subscriptions?.map(s => s.club_id) || []);
       const hasAnyPro = proClubIds.size > 0;
@@ -154,26 +166,29 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   // Check if user has any ACTIVE sponsors (from sponsors table, not primary_sponsor_id)
   const { data: hasSponsors } = useQuery({
     queryKey: ["user-has-active-sponsors", effectiveClubFilter],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
       if (effectiveClubFilter) {
         // Check if this specific club has active sponsors
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("sponsors")
           .select("id")
           .eq("club_id", effectiveClubFilter)
           .eq("is_active", true)
           .limit(1);
+        if (error) throw error;
         return !!data && data.length > 0;
       }
 
       // Check all user's clubs for active sponsors
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user.id);
+      if (rolesError) throw rolesError;
 
       if (!roles || roles.length === 0) return false;
 
@@ -181,11 +196,11 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
 
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase
+        const { data: teams, error: teamsError } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
-        
+        if (teamsError) throw teamsError;
         if (teams) {
           clubIds.push(...teams.map(t => t.club_id));
         }
@@ -194,12 +209,13 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
       if (uniqueClubIds.length === 0) return false;
 
-      const { data: sponsors } = await supabase
+      const { data: sponsors, error: sponsorsError } = await supabase
         .from("sponsors")
         .select("id")
         .in("club_id", uniqueClubIds)
         .eq("is_active", true)
         .limit(1);
+      if (sponsorsError) throw sponsorsError;
 
       return !!sponsors && sponsors.length > 0;
     },
