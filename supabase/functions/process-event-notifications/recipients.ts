@@ -6,7 +6,21 @@
  * contract (see docs/PROMOTION_CHECKLIST.md).
  */
 
+/**
+ * Thrown when the authoritative stored-event audience lookup fails. Callers
+ * MUST abort the fan-out: an empty recipient list is a valid success result,
+ * so failures need a distinguishable signal.
+ */
+export class AudienceResolutionError extends Error {
+  readonly code = "event_audience_lookup_failed";
+  constructor(message = "event_audience_lookup_failed") {
+    super(message);
+    this.name = "AudienceResolutionError";
+  }
+}
+
 // Resolve recipients for team/club/mini-league scoped events
+
 export async function resolveRecipients(
   supabase: any,
   eventId: string,
@@ -89,8 +103,16 @@ export async function resolveRecipients(
     .eq('id', eventId)
     .maybeSingle();
   if (eventError) {
-    console.error('[EVENT-NOTIFY] Restricted-role lookup error:', eventError);
+    // FAIL CLOSED. Falling through here would treat a targeted or
+    // role-restricted event as an unrestricted club-wide event and notify
+    // members who were never invited. Sanitised log only.
+    console.error(
+      '[EVENT-NOTIFY] Audience lookup failed',
+      (eventError as any)?.code ?? '',
+    );
+    throw new AudienceResolutionError('event_audience_lookup_failed');
   }
+
   const restrictedRoles = Array.isArray(eventRow?.restricted_to_roles)
     ? eventRow.restricted_to_roles
     : [];

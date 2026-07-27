@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 import { requireServiceRoleAuth } from "../_shared/internal-auth.ts";
-import { resolveRecipients } from "./recipients.ts";
+import { AudienceResolutionError, resolveRecipients } from "./recipients.ts";
 import { buildUpdateMessage, type ChangedField } from "./messages.ts";
 import { buildDedupeKey, changeVersion } from "./dedupe.ts";
 
@@ -118,7 +118,20 @@ Deno.serve(async (req) => {
       }
       notificationType = "event_invite";
       message = `You've been invited to: ${title}`;
-      recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
+      try {
+        recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
+      } catch (e) {
+        if (e instanceof AudienceResolutionError) {
+          // Fail closed: no notifications, no push jobs. Retriable.
+          console.error("[EVENT-NOTIFY] Aborting fan-out: audience lookup failed");
+          return new Response(
+            JSON.stringify({ error: "event_audience_lookup_failed" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        throw e;
+      }
+
     } else if (action === "event_cancelled") {
       notificationType = "event_cancelled";
       message = `Event cancelled: ${title} has been cancelled`;
