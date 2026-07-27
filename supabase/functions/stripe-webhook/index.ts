@@ -324,6 +324,7 @@ async function handleSubscriptionCreated(
         expires_at: expiresAt.toISOString(),
         is_trial: metadata.with_trial === 'true',
         trial_ends_at: metadata.with_trial === 'true' ? expiresAt.toISOString() : null,
+        ...eventStamp(stripeEventId, eventAt),
       }, { onConflict: 'team_id' });
 
     if (subError) {
