@@ -441,7 +441,7 @@ async function handleSubscriptionRenewal(
   if (teamSub) {
     await supabase
       .from('team_subscriptions')
-      .update({ expires_at: periodEnd.toISOString(), is_trial: false, trial_ends_at: null })
+      .update({ expires_at: periodEnd.toISOString(), is_trial: false, trial_ends_at: null, ...eventStamp(stripeEventId, eventAt) })
       .eq('stripe_subscription_id', subscriptionId);
     
     // Also update teams table
