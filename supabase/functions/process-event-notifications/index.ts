@@ -118,7 +118,20 @@ Deno.serve(async (req) => {
       }
       notificationType = "event_invite";
       message = `You've been invited to: ${title}`;
-      recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
+      try {
+        recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
+      } catch (e) {
+        if (e instanceof AudienceResolutionError) {
+          // Fail closed: no notifications, no push jobs. Retriable.
+          console.error("[EVENT-NOTIFY] Aborting fan-out: audience lookup failed");
+          return new Response(
+            JSON.stringify({ error: "event_audience_lookup_failed" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        throw e;
+      }
+
     } else if (action === "event_cancelled") {
       notificationType = "event_cancelled";
       message = `Event cancelled: ${title} has been cancelled`;
