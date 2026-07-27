@@ -49,7 +49,7 @@ export function assertOnlyAllowedLocalNames(names, allowedNames) {
 }
 
 export const LOCAL_PARITY_REVIEWED_THROUGH =
-  "20260725091111_331621ea-0815-43cd-b5cd-461ac55f0c3e.sql";
+  "20260727021741_ba915595-8e50-4209-94a1-96fc1919649a.sql";
 
 const MIRRORED_CONTRACT_PATTERN = new RegExp([
   "can_view_competition",
