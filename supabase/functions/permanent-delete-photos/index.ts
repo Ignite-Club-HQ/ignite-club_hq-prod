@@ -1,29 +1,41 @@
+// Permanent deletion of Vault photos / files.
+//
+// Security model:
+//  - Caller identity comes ONLY from a verified bearer token.
+//  - Authorization is decided server-side, per record, by
+//    `public.authorize_vault_deletion`, which resolves the record's effective
+//    club through its own club_id / team / mini-league relationships. Client
+//    supplied club/team/league ids, roles and storage paths are never trusted.
+//  - Every deletion runs through a durable job ledger so a failure between
+//    storage removal and metadata removal is recoverable and retryable.
+//  - Responses expose stable public codes only; raw DB/storage errors stay in logs.
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  parseVaultDeleteRequest,
+  resolveStorageRef,
+} from "../_shared/vaultDeleteRequest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "X-Content-Type-Options": "nosniff",
 };
 
-/**
- * Extracts the storage path from a full Supabase storage URL.
- * e.g. "https://xxx.supabase.co/storage/v1/object/public/photos/clubs/..." → "clubs/..."
- */
-function extractStoragePath(url: string, bucket: string): string | null {
-  // Handle both public and signed URL patterns
-  const patterns = [
-    `/storage/v1/object/public/${bucket}/`,
-    `/storage/v1/object/sign/${bucket}/`,
-    `/storage/v1/object/${bucket}/`,
-  ];
-  for (const pattern of patterns) {
-    const idx = url.indexOf(pattern);
-    if (idx !== -1) {
-      return decodeURIComponent(url.substring(idx + pattern.length).split("?")[0]);
-    }
-  }
-  return null;
+const JSON_HEADERS = { ...corsHeaders, "Content-Type": "application/json" };
+const MAX_BODY_BYTES = 64 * 1024;
+
+type ItemKind = "photo" | "file";
+
+interface ItemResult {
+  id: string;
+  kind: ItemKind;
+  code: string;
+}
+
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
 Deno.serve(async (req) => {
@@ -33,222 +45,169 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is an admin
+    // --- Authentication -----------------------------------------------------
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!authHeader?.startsWith("Bearer ")) {
+      return json(401, { success: false, error: "unauthorized" });
     }
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) return json(401, { success: false, error: "unauthorized" });
 
-    const token = authHeader.replace("Bearer ", "");
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || token);
-    const {
-      data: { user },
-      error: authError,
-    } = await anonClient.auth.getUser(token);
-
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: authError } = await userClient.auth.getUser(token);
+    const user = userData?.user;
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json(401, { success: false, error: "unauthorized" });
     }
 
-    // Check admin role
-    const { data: roles } = await adminClient
-      .from("user_roles")
-      .select("role, club_id")
-      .eq("user_id", user.id);
-
-    const isAppAdmin = roles?.some((r: any) => r.role === "app_admin");
-    const adminClubIds = roles
-      ?.filter((r: any) => r.role === "club_admin")
-      .map((r: any) => r.club_id)
-      .filter(Boolean) as string[];
-
-    if (!isAppAdmin && (!adminClubIds || adminClubIds.length === 0)) {
-      return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // --- Request validation (before any privileged query) -------------------
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_BODY_BYTES) {
+      return json(413, { success: false, error: "invalid_request" });
     }
 
-    const { photoIds, fileIds, deletionType = "permanent" } = await req.json();
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch {
+      return json(400, { success: false, error: "invalid_request", message: "Malformed JSON body" });
+    }
 
-    const results = { photosDeleted: 0, filesDeleted: 0, storageDeleted: 0, errors: [] as string[] };
+    const parsed = parseVaultDeleteRequest(parsedBody);
+    if (!parsed.ok) {
+      return json(400, { success: false, error: parsed.code, message: parsed.message });
+    }
+    const { photoIds, fileIds, deletionType } = parsed.value;
 
-    // --- Permanently delete photos ---
-    if (photoIds && photoIds.length > 0) {
-      // Fetch photo records first
-      const { data: photos, error: fetchError } = await adminClient
-        .from("photos")
-        .select("id, image_url, file_url, file_size, club_id, team_id, created_at, uploader_id")
-        .in("id", photoIds);
+    const admin = createClient(supabaseUrl, serviceKey);
 
-      if (fetchError) {
-        results.errors.push(`Failed to fetch photos: ${fetchError.message}`);
-      } else if (photos) {
-        for (const photo of photos) {
-          // Verify club access
-          if (!isAppAdmin && photo.club_id && !adminClubIds.includes(photo.club_id)) {
-            results.errors.push(`No permission to delete photo ${photo.id}`);
-            continue;
-          }
+    const succeeded: ItemResult[] = [];
+    const failed: ItemResult[] = [];
+    let storageDeleted = 0;
 
-          // Delete from storage
-          const url = photo.file_url || photo.image_url;
-          if (url) {
-            const storagePath = extractStoragePath(url, "photos");
-            if (storagePath) {
-              const { error: storageError } = await adminClient.storage
-                .from("photos")
-                .remove([storagePath]);
-              if (storageError) {
-                console.error(`Storage delete failed for ${storagePath}:`, storageError);
-                results.errors.push(`Storage delete failed for photo ${photo.id}: ${storageError.message}`);
-              } else {
-                results.storageDeleted++;
-              }
-            }
-          }
+    const items: Array<{ id: string; kind: ItemKind }> = [
+      ...photoIds.map((id) => ({ id, kind: "photo" as const })),
+      ...fileIds.map((id) => ({ id, kind: "file" as const })),
+    ];
 
-          // Also check for corresponding vault_file and delete it
-          if (url) {
-            const { data: vaultFile } = await adminClient
-              .from("vault_files")
-              .select("id, file_url")
-              .eq("file_url", url)
-              .maybeSingle();
+    for (const item of items) {
+      // 1. Per-item authorization — never batch-authorize.
+      const { data: authRows, error: authRpcError } = await admin.rpc(
+        "authorize_vault_deletion",
+        { _caller_id: user.id, _kind: item.kind, _record_id: item.id },
+      );
 
-            if (vaultFile) {
-              // Log vault file deletion
-              await adminClient.from("file_deletion_logs").insert({
-                file_id: vaultFile.id,
-                club_id: photo.club_id,
-                team_id: photo.team_id,
-                file_url: vaultFile.file_url,
-                deleted_by: user.id,
-                deletion_type: deletionType,
-                original_created_at: photo.created_at,
-                original_uploaded_by: photo.uploader_id,
-              });
-
-              await adminClient.from("vault_files").delete().eq("id", vaultFile.id);
-            }
-          }
-
-          // Log the deletion
-          await adminClient.from("photo_deletion_logs").insert({
-            photo_id: photo.id,
-            club_id: photo.club_id,
-            team_id: photo.team_id,
-            file_url: photo.file_url,
-            image_url: photo.image_url,
-            file_size: photo.file_size,
-            deleted_by: user.id,
-            deletion_type: deletionType,
-            original_created_at: photo.created_at,
-            original_uploader_id: photo.uploader_id,
-          });
-
-          // Hard delete from DB
-          const { error: deleteError } = await adminClient
-            .from("photos")
-            .delete()
-            .eq("id", photo.id);
-
-          if (deleteError) {
-            results.errors.push(`DB delete failed for photo ${photo.id}: ${deleteError.message}`);
-          } else {
-            results.photosDeleted++;
-          }
-        }
+      if (authRpcError) {
+        console.error(`[permanent-delete] authorize failed ${item.kind}:${item.id}`);
+        failed.push({ ...item, code: "unexpected_error" });
+        continue;
       }
-    }
 
-    // --- Permanently delete vault files ---
-    if (fileIds && fileIds.length > 0) {
-      const { data: files, error: fetchError } = await adminClient
-        .from("vault_files")
-        .select("id, file_url, file_size, name, club_id, team_id, created_at, uploaded_by, is_external_link")
-        .in("id", fileIds);
-
-      if (fetchError) {
-        results.errors.push(`Failed to fetch files: ${fetchError.message}`);
-      } else if (files) {
-        for (const file of files) {
-          // Verify club access
-          if (!isAppAdmin && file.club_id && !adminClubIds.includes(file.club_id)) {
-            results.errors.push(`No permission to delete file ${file.id}`);
-            continue;
-          }
-
-          // Delete from storage (skip external links)
-          if (!file.is_external_link && file.file_url) {
-            // Try photos bucket first, then vault-files
-            for (const bucket of ["photos", "vault-files"]) {
-              const storagePath = extractStoragePath(file.file_url, bucket);
-              if (storagePath) {
-                const { error: storageError } = await adminClient.storage
-                  .from(bucket)
-                  .remove([storagePath]);
-                if (storageError) {
-                  console.error(`Storage delete failed for ${bucket}/${storagePath}:`, storageError);
-                } else {
-                  results.storageDeleted++;
-                  break;
-                }
-              }
-            }
-          }
-
-          // Log the deletion
-          await adminClient.from("file_deletion_logs").insert({
-            file_id: file.id,
-            club_id: file.club_id,
-            team_id: file.team_id,
-            file_url: file.file_url,
-            file_size: file.file_size,
-            file_name: file.name,
-            deleted_by: user.id,
-            deletion_type: deletionType,
-            original_created_at: file.created_at,
-            original_uploaded_by: file.uploaded_by,
-          });
-
-          // Hard delete from DB
-          const { error: deleteError } = await adminClient
-            .from("vault_files")
-            .delete()
-            .eq("id", file.id);
-
-          if (deleteError) {
-            results.errors.push(`DB delete failed for file ${file.id}: ${deleteError.message}`);
-          } else {
-            results.filesDeleted++;
-          }
-        }
+      const auth = Array.isArray(authRows) ? authRows[0] : authRows;
+      if (!auth?.authorized) {
+        const reason = auth?.reason;
+        const code =
+          reason === "not_found"
+            ? "not_found"
+            : reason === "scope_conflict" || reason === "no_scope" ||
+                reason === "unresolvable_team_scope" || reason === "unresolvable_league_scope"
+            ? "forbidden"
+            : "forbidden";
+        console.warn(`[permanent-delete] denied ${item.kind}:${item.id} reason=${reason}`);
+        failed.push({ ...item, code });
+        continue;
       }
+
+      // 2. Canonical storage location — resolved from stored metadata or a
+      //    strictly-validated URL, never from the request body.
+      const ref = resolveStorageRef(
+        {
+          storage_bucket: auth.storage_bucket ?? null,
+          storage_path: auth.storage_path ?? null,
+          url: (auth.file_url ?? auth.image_url) ?? null,
+        },
+        supabaseUrl,
+      );
+
+      // 3. Durable job + audit record, atomically.
+      const { data: jobRows, error: jobError } = await admin.rpc("begin_vault_deletion", {
+        _caller_id: user.id,
+        _kind: item.kind,
+        _record_id: item.id,
+        _bucket: ref?.bucket ?? null,
+        _object_path: ref?.path ?? null,
+        _deletion_type: deletionType,
+      });
+
+      if (jobError) {
+        console.error(`[permanent-delete] audit/job failed ${item.kind}:${item.id}`);
+        failed.push({ ...item, code: "audit_failed" });
+        continue;
+      }
+
+      const job = Array.isArray(jobRows) ? jobRows[0] : jobRows;
+      const jobId = job?.job_id as string | undefined;
+      if (!jobId) {
+        failed.push({ ...item, code: "audit_failed" });
+        continue;
+      }
+
+      // 4. Storage removal (idempotent: a missing object is not an error).
+      if (ref) {
+        const { error: storageError } = await admin.storage.from(ref.bucket).remove([ref.path]);
+        if (storageError) {
+          console.error(`[permanent-delete] storage delete failed ${item.kind}:${item.id}`);
+          await admin.rpc("fail_vault_deletion", {
+            _job_id: jobId,
+            _error_code: "storage_delete_failed",
+          });
+          failed.push({ ...item, code: "storage_delete_failed" });
+          continue; // metadata intentionally retained
+        }
+        storageDeleted++;
+      }
+
+      // 5. Metadata removal only after storage succeeded.
+      const { error: finalizeError } = await admin.rpc("finalize_vault_deletion", {
+        _job_id: jobId,
+      });
+      if (finalizeError) {
+        console.error(`[permanent-delete] metadata delete failed ${item.kind}:${item.id}`);
+        await admin.rpc("fail_vault_deletion", {
+          _job_id: jobId,
+          _error_code: "metadata_delete_failed",
+        });
+        failed.push({ ...item, code: "metadata_delete_failed" });
+        continue;
+      }
+
+      succeeded.push({ ...item, code: "deleted" });
     }
+
+    const photosDeleted = succeeded.filter((i) => i.kind === "photo").length;
+    const filesDeleted = succeeded.filter((i) => i.kind === "file").length;
 
     console.log(
-      `Permanent delete by ${user.id}: ${results.photosDeleted} photos, ${results.filesDeleted} files, ${results.storageDeleted} storage files removed`
+      `[permanent-delete] caller=${user.id} ok=${succeeded.length} failed=${failed.length} storage=${storageDeleted}`,
     );
 
-    return new Response(JSON.stringify({ success: true, ...results }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const body = {
+      success: failed.length === 0,
+      photosDeleted,
+      filesDeleted,
+      storageDeleted,
+      succeeded: succeeded.map((i) => ({ id: i.id, kind: i.kind })),
+      failed: failed.map((i) => ({ id: i.id, kind: i.kind, code: i.code })),
+    };
+
+    return json(failed.length === 0 ? 200 : 207, body);
   } catch (error) {
-    console.error("Error:", error);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[permanent-delete] unexpected error:", error instanceof Error ? error.message : "unknown");
+    return json(500, { success: false, error: "unexpected_error" });
   }
 });
