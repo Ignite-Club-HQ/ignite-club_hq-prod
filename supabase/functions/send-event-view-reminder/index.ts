@@ -190,25 +190,65 @@ serve(async (req) => {
         .in("user_id", userIds);
       teamMembers?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
     } else if (event.club_id) {
-      // Club-wide scope: user_roles for this club, honouring restricted_to_roles.
-      const { data: restrictRow } = await supabase
+      // Club-wide scope: honour restricted_to_roles AND target_team_ids.
+      const { data: restrictRow, error: restrictErr } = await supabase
         .from("events")
-        .select("restricted_to_roles")
+        .select("restricted_to_roles, target_team_ids")
         .eq("id", eventId)
         .maybeSingle();
+      if (restrictErr) {
+        // Fail closed — a lookup failure must not widen the audience to the
+        // whole club for a targeted / role-restricted event.
+        console.error("[send-event-view-reminder] Audience lookup failed", (restrictErr as any)?.code ?? "");
+        return new Response(JSON.stringify({ error: "event_audience_lookup_failed" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const restricted = Array.isArray((restrictRow as any)?.restricted_to_roles)
         ? ((restrictRow as any).restricted_to_roles as string[])
         : [];
-      let q = supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("club_id", event.club_id)
-        .in("user_id", userIds);
-      if (restricted.length > 0) {
-        q = q.in("role", [...restricted, "club_admin"]);
+      const targetTeamIds = Array.isArray((restrictRow as any)?.target_team_ids)
+        ? ((restrictRow as any).target_team_ids as string[])
+        : [];
+
+      if (targetTeamIds.length > 0) {
+        // Targeted club-wide event: only members holding a role on a targeted
+        // team, plus parents/guardians of children assigned to those teams.
+        const [teamRoles, assigns] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("user_id")
+            .in("team_id", targetTeamIds)
+            .in("user_id", userIds),
+          supabase
+            .from("child_team_assignments")
+            .select("child_id")
+            .in("team_id", targetTeamIds),
+        ]);
+        teamRoles.data?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
+        const childIds = [...new Set((assigns.data ?? []).map((a: { child_id: string }) => a.child_id))];
+        for (let i = 0; i < childIds.length; i += 200) {
+          const chunk = childIds.slice(i, i + 200);
+          const [guardians, kids] = await Promise.all([
+            supabase.from("child_guardians").select("guardian_id").in("child_id", chunk).in("guardian_id", userIds),
+            supabase.from("children").select("parent_id").in("id", chunk).in("parent_id", userIds),
+          ]);
+          guardians.data?.forEach((g: { guardian_id: string }) => g.guardian_id && addressable.add(g.guardian_id));
+          kids.data?.forEach((c: { parent_id: string | null }) => c.parent_id && addressable.add(c.parent_id));
+        }
+      } else {
+        let q = supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("club_id", event.club_id)
+          .in("user_id", userIds);
+        if (restricted.length > 0) {
+          q = q.in("role", [...restricted, "club_admin"]);
+        }
+        const { data: clubMembers } = await q;
+        clubMembers?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
       }
-      const { data: clubMembers } = await q;
-      clubMembers?.forEach((r: { user_id: string }) => addressable.add(r.user_id));
     }
 
     const originalCount = userIds.length;

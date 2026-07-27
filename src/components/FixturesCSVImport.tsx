@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
 import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
+import { validateFixtureImportAuthorization } from "@/lib/fixtureImportAuthorization";
 import ExcelJS from "exceljs";
 
 interface Team {
@@ -190,12 +191,22 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       if (teamNameFromFile) {
         const matchedTeamId = teamNameMap.get(teamNameFromFile.toLowerCase());
         if (matchedTeamId) {
+          // A non-club-admin must never be able to use the file's `team`
+          // column to escape the team selected on the import page.
+          if (!isClubAdmin && teamId && matchedTeamId !== teamId) {
+            errors.push({
+              row: rowNum,
+              message: `Team "${teamNameFromFile}" does not match the selected team — club admin permissions required`,
+            });
+            continue;
+          }
           resolvedTeamId = matchedTeamId;
         } else if (teams.length > 0) {
           errors.push({ row: rowNum, message: `Team "${teamNameFromFile}" not found` });
           continue;
         }
       }
+
 
       const resolvedTeamName = resolvedTeamId ? teamIdNameMap.get(resolvedTeamId) : undefined;
 
@@ -239,13 +250,17 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       });
     }
 
-    const uniqueTeamIds = new Set(uniqueFixtures.map(f => f.teamId).filter(Boolean));
-    if (!isClubAdmin && uniqueTeamIds.size > 1) {
-      errors.push({
-        row: 0,
-        message: `Multi-team import requires club admin permissions`
-      });
+    // Authorization is derived from the shared helper so the preview, the
+    // disabled Import button and handleImport all agree.
+    const auth = validateFixtureImportAuthorization({
+      isClubAdmin,
+      teamId,
+      fixtures: uniqueFixtures,
+    });
+    if (auth.ok === false) {
+      errors.push({ row: 0, message: auth.message });
     }
+
 
     return { fixtures: uniqueFixtures, errors };
   };
@@ -498,12 +513,40 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const teamKeyOf = (f: ParsedFixture) => f.teamName || 'No team assigned';
   const fixturesAfterExclusion = parsedFixtures.filter(f => !excludedTeams.has(teamKeyOf(f)));
 
+  // Blocking authorization state for the current (post-exclusion) selection.
+  const importAuth = validateFixtureImportAuthorization({
+    isClubAdmin,
+    teamId,
+    fixtures: fixturesAfterExclusion,
+  });
+  const authBlocked = importAuth.ok === false;
+  const authBlockMessage = importAuth.ok === false ? importAuth.message : null;
+
   const handleImport = async () => {
     if (!user) return;
 
     const fixturesToInsert = fixturesAfterExclusion;
 
     if (fixturesToInsert.length === 0) return;
+
+    // Never rely solely on the disabled button — re-run authorization here so
+    // no programmatic submission path can bypass it.
+    const auth = validateFixtureImportAuthorization({
+      isClubAdmin,
+      teamId,
+      fixtures: fixturesToInsert,
+    });
+    if (auth.ok === false) {
+      toast({
+        variant: "destructive",
+        title: "Not authorised",
+        description: auth.message,
+      });
+      setImporting(false);
+      return;
+    }
+
+
 
     setImporting(true);
     try {
@@ -1082,11 +1125,14 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <Button
                 className="flex-1 h-12"
                 onClick={handleImport}
-                disabled={totalToImport === 0 || importing || !allFixturesValid}
+                disabled={totalToImport === 0 || importing || !allFixturesValid || authBlocked}
               >
                 {importing ? 'Importing...' : `Import ${totalToImport}`}
               </Button>
             </div>
+            {authBlocked && authBlockMessage && (
+              <p className="text-xs text-destructive text-center">{authBlockMessage}</p>
+            )}
             {!allFixturesValid && invalidCount > 0 && (
               <p className="text-xs text-destructive text-center">
                 {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields
