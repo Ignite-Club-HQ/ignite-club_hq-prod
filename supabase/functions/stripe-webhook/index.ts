@@ -381,9 +381,41 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
   }
 }
 
-async function handleSubscriptionRenewal(supabase: any, invoice: any) {
+/** Out-of-order guard: has a newer Stripe event already been applied? */
+async function isStaleStripeEvent(
+  supabase: any,
+  subscriptionId: string | null,
+  eventAt: string | null,
+): Promise<boolean> {
+  if (!subscriptionId || !eventAt) return false;
+  const { data, error } = await supabase.rpc('stripe_event_is_stale', {
+    p_subscription_id: subscriptionId,
+    p_event_at: eventAt,
+  });
+  if (error) return false; // fail open on the guard, never on the mutation itself
+  return data === true;
+}
+
+/** Columns stamped on every subscription mutation for out-of-order safety. */
+function eventStamp(stripeEventId: string | null, eventAt: string | null) {
+  if (!stripeEventId || !eventAt) return {};
+  return { last_stripe_event_id: stripeEventId, last_stripe_event_at: eventAt };
+}
+
+async function handleSubscriptionRenewal(
+  supabase: any,
+  invoice: any,
+  stripeEventId: string | null,
+  eventAt: string | null,
+) {
   const subscriptionId = invoice.subscription;
   console.log('Processing subscription renewal for:', subscriptionId);
+
+  if (await isStaleStripeEvent(supabase, subscriptionId, eventAt)) {
+    console.log('Skipping out-of-order renewal for:', subscriptionId);
+    return;
+  }
+
 
   // Calculate new expiry date based on current period end
   const periodEnd = new Date(invoice.lines.data[0]?.period?.end * 1000);
