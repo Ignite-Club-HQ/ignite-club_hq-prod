@@ -66,8 +66,11 @@ describe("stripe-webhook source validation", () => {
     );
     for (const args of logs) {
       expect(args).not.toMatch(/webhookSecret|STRIPE_WEBHOOK_SECRET"?\s*\)/);
-      expect(args).not.toMatch(/\bsignature\b/);
-      expect(args).not.toMatch(/\bbody\b/);
+      // String literals may mention these words; interpolating the values must not happen.
+      const interpolated = args.replace(/"[^"]*"|'[^']*'/g, "");
+      expect(interpolated).not.toMatch(/\bsignature\b/);
+      expect(interpolated).not.toMatch(/\bwebhookSecret\b/);
+      expect(interpolated).not.toMatch(/\bbody\b/);
       expect(args).not.toMatch(/JSON\.stringify\(event\)/);
     }
   });

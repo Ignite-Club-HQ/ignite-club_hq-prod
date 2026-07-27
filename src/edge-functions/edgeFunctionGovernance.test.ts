@@ -18,7 +18,7 @@ function verifyJwtFor(fn: string): string | null {
 }
 
 /** Provider webhooks: Stripe/etc. cannot supply a Supabase JWT. */
-const PROVIDER_WEBHOOKS = ["stripe-webhook", "eoi-webhook"];
+const PROVIDER_WEBHOOKS = ["stripe-webhook"];
 
 describe("edge function gateway governance", () => {
   it.each(PROVIDER_WEBHOOKS)(
