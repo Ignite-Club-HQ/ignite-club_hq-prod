@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 import { requireServiceRoleAuth } from "../_shared/internal-auth.ts";
-import { resolveRecipients } from "./recipients.ts";
+import { AudienceResolutionError, resolveRecipients } from "./recipients.ts";
 import { buildUpdateMessage, type ChangedField } from "./messages.ts";
 import { buildDedupeKey, changeVersion } from "./dedupe.ts";
 
