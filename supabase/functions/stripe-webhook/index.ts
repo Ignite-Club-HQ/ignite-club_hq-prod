@@ -77,55 +77,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
-// HMAC-SHA256 signature verification for Stripe webhooks
-async function verifyStripeSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<boolean> {
-  const parts = signature.split(",");
-  let timestamp: string | null = null;
-  let v1Signature: string | null = null;
+/** Best-effort extraction of the Stripe object id for support diagnostics. */
+function stripeObjectId(event: any): string | null {
+  const obj = event?.data?.object;
+  return typeof obj?.id === "string" ? obj.id : null;
+}
 
-  for (const part of parts) {
-    const [key, value] = part.split("=");
-    if (key === "t") timestamp = value;
-    if (key === "v1") v1Signature = value;
-  }
-
-  if (!timestamp || !v1Signature) {
-    console.error("Missing timestamp or signature in stripe-signature header");
-    return false;
-  }
-
-  // Verify timestamp is within tolerance (5 minutes)
-  const timestampAge = Math.floor(Date.now() / 1000) - parseInt(timestamp);
-  if (timestampAge > 300) {
-    console.error("Webhook timestamp too old:", timestampAge, "seconds");
-    return false;
-  }
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureBytes = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(signedPayload)
-  );
-
-  const expectedSignature = Array.from(new Uint8Array(signatureBytes))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return expectedSignature === v1Signature;
+/** Stripe event creation time (seconds) → ISO string, for out-of-order safety. */
+function stripeEventAt(event: any): string | null {
+  const created = event?.created;
+  if (typeof created !== "number" || !Number.isFinite(created)) return null;
+  return new Date(created * 1000).toISOString();
 }
 
 serve(async (req) => {
@@ -134,58 +96,121 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // ---------------------------------------------------------------------
+  // SECURITY GATE — everything below must happen BEFORE we create a
+  // service-role Supabase client or touch the database in any way.
+  // ---------------------------------------------------------------------
+  const signature = req.headers.get("stripe-signature");
+  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  const body = await req.text();
+
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET not configured — rejecting all webhook requests");
+    return new Response(
+      JSON.stringify({ error: "Webhook not configured" }),
+      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  if (!signature) {
+    console.error("Missing stripe-signature header - rejecting request");
+    return new Response(
+      JSON.stringify({ error: "Missing stripe-signature header" }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const verification = await verifyStripeSignature(body, signature, webhookSecret);
+  if (!verification.valid) {
+    // Reason is a fixed enum — never contains the secret, signature or payload.
+    console.error("Rejecting Stripe webhook:", verification.reason);
+    return new Response(
+      JSON.stringify({ error: "Invalid webhook signature" }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Signed, but possibly malformed JSON.
+  let event: any;
   try {
-    const signature = req.headers.get("stripe-signature");
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-    const body = await req.text();
+    event = JSON.parse(body);
+  } catch {
+    console.error("Signed Stripe webhook body was not valid JSON");
+    return new Response(
+      JSON.stringify({ error: "Invalid payload" }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
-    // SECURITY: signature verification is mandatory.
-    if (!webhookSecret) {
-      console.error("STRIPE_WEBHOOK_SECRET not configured — rejecting all webhook requests");
-      return new Response(
-        JSON.stringify({ error: "Webhook not configured" }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    if (!signature) {
-      console.error("Missing stripe-signature header - rejecting request");
-      return new Response(
-        JSON.stringify({ error: "Missing stripe-signature header" }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    const isValid = await verifyStripeSignature(body, signature, webhookSecret);
-    if (!isValid) {
-      console.error("Invalid webhook signature - rejecting request");
-      return new Response(
-        JSON.stringify({ error: "Invalid webhook signature" }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    console.log("Stripe webhook signature verified successfully");
+  const eventId: string | null = typeof event?.id === "string" ? event.id : null;
+  const eventType: string = typeof event?.type === "string" ? event.type : "unknown";
+  console.log('Received Stripe webhook event:', eventType);
 
-    const event = JSON.parse(body);
-    console.log('Received Stripe webhook event:', event.type);
+  // Create Supabase client with service role (only after verification).
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
 
-    // Create Supabase client with service role
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  // ---------------------------------------------------------------------
+  // IDEMPOTENCY — claim the event before any business mutation.
+  // ---------------------------------------------------------------------
+  let claimed = false;
+  if (eventId) {
+    const { data: claimResult, error: claimError } = await supabase.rpc(
+      'claim_stripe_webhook_event',
+      {
+        p_event_id: eventId,
+        p_event_type: eventType,
+        p_object_id: stripeObjectId(event),
+      },
     );
 
+    if (claimError) {
+      console.error('Failed to claim Stripe webhook event — asking Stripe to retry');
+      return new Response(
+        JSON.stringify({ error: 'Webhook claim failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (claimResult === 'duplicate_completed') {
+      // Already fully processed: acknowledge without repeating any work.
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (claimResult === 'in_progress') {
+      // Another processor holds the claim. Do not double-apply; let Stripe
+      // retry later so the event is never silently dropped.
+      return new Response(
+        JSON.stringify({ error: 'Event already being processed' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    claimed = true;
+  }
+
+  const eventAt = stripeEventAt(event);
+  let storageAddonSelfCompleted = false;
+
+  try {
     // Handle different event types
-    switch (event.type) {
+    switch (eventType) {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const metadata = session.metadata || {};
         
         // Check if this is a storage addon purchase
         if (metadata.type === 'storage_addon') {
-          await handleStorageAddonPurchase(supabase, session, metadata);
+          // Atomic: increment + notification + ledger completion in one txn.
+          await handleStorageAddonPurchase(supabase, session, metadata, eventId);
+          storageAddonSelfCompleted = Boolean(eventId);
         } else if (metadata.type === 'member_subscription') {
           await handleMemberSubscriptionPayment(supabase, metadata);
         } else if (session.mode === 'subscription') {
-          await handleSubscriptionCreated(supabase, session, metadata);
+          await handleSubscriptionCreated(supabase, session, metadata, eventId, eventAt);
         } else {
           // Handle one-time event payments (existing logic)
           await handleEventPayment(supabase, metadata);
@@ -197,7 +222,7 @@ serve(async (req) => {
         // Handle subscription renewal
         const invoice = event.data.object;
         if (invoice.subscription) {
-          await handleSubscriptionRenewal(supabase, invoice);
+          await handleSubscriptionRenewal(supabase, invoice, eventId, eventAt);
         }
         break;
       }
@@ -214,33 +239,50 @@ serve(async (req) => {
       case 'customer.subscription.deleted': {
         // Handle subscription cancellation
         const subscription = event.data.object;
-        await handleSubscriptionCancelled(supabase, subscription);
+        await handleSubscriptionCancelled(supabase, subscription, eventId, eventAt);
         break;
       }
 
       case 'customer.subscription.updated': {
         // Handle subscription updates (e.g., plan changes)
         const subscription = event.data.object;
-        await handleSubscriptionUpdated(supabase, subscription);
+        await handleSubscriptionUpdated(supabase, subscription, eventId, eventAt);
         break;
       }
 
       default:
-        console.log('Unhandled event type:', event.type);
+        // Unknown but validly signed events are acknowledged with no mutations.
+        console.log('Unhandled event type:', eventType);
+    }
+
+    if (claimed && !storageAddonSelfCompleted) {
+      await supabase.rpc('complete_stripe_webhook_event', { p_event_id: eventId });
     }
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error in stripe-webhook:', error);
-    // Never expose internal error details in webhook responses
+    // Never expose internal error details, credentials or Stripe secrets.
+    console.error('Error in stripe-webhook while processing', eventType);
+    if (claimed) {
+      // Mark failed so a Stripe retry can safely re-claim and re-run.
+      try {
+        await supabase.rpc('fail_stripe_webhook_event', {
+          p_event_id: eventId,
+          p_error: String((error as any)?.message ?? 'processing error').slice(0, 200),
+        });
+      } catch {
+        // Ledger update failure must not change the response contract.
+      }
+    }
     return new Response(
       JSON.stringify({ error: 'Webhook processing failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' } }
     );
   }
 });
+
 
 async function handleSubscriptionCreated(supabase: any, session: any, metadata: any) {
   const subscriptionType = metadata.subscription_type;
