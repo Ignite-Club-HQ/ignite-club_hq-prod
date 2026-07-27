@@ -501,8 +501,9 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
   if (clubSub) {
     await supabase
       .from('club_subscriptions')
-      .update({ expires_at: periodEnd.toISOString() })
+      .update({ expires_at: periodEnd.toISOString(), ...eventStamp(stripeEventId, eventAt) })
       .eq('stripe_subscription_id', subscriptionId);
+
     console.log('Club subscription renewed:', clubSub.club_id);
 
     // Send email notification to club admins
