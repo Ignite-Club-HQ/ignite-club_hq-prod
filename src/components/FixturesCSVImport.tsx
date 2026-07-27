@@ -257,7 +257,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       teamId,
       fixtures: uniqueFixtures,
     });
-    if (!auth.ok) {
+    if (auth.ok === false) {
       errors.push({ row: 0, message: auth.message });
     }
 
