@@ -46,6 +46,13 @@ import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import {
+  buildVaultStorageUrl,
+  compensateVaultUpload,
+  reserveVaultStorage,
+  settleVaultStorage,
+} from "@/lib/vaultUpload";
+
+import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
