@@ -6,7 +6,21 @@
  * contract (see docs/PROMOTION_CHECKLIST.md).
  */
 
+/**
+ * Thrown when the authoritative stored-event audience lookup fails. Callers
+ * MUST abort the fan-out: an empty recipient list is a valid success result,
+ * so failures need a distinguishable signal.
+ */
+export class AudienceResolutionError extends Error {
+  readonly code = "event_audience_lookup_failed";
+  constructor(message = "event_audience_lookup_failed") {
+    super(message);
+    this.name = "AudienceResolutionError";
+  }
+}
+
 // Resolve recipients for team/club/mini-league scoped events
+
 export async function resolveRecipients(
   supabase: any,
   eventId: string,
