@@ -690,9 +690,22 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
   }
 }
 
-async function handleSubscriptionCancelled(supabase: any, subscription: any) {
+async function handleSubscriptionCancelled(
+  supabase: any,
+  subscription: any,
+  _stripeEventId: string | null,
+  eventAt: string | null,
+) {
   const subscriptionId = subscription.id;
   console.log('Processing subscription cancellation for:', subscriptionId);
+
+  // Out-of-order safety: a cancellation older than the last applied event
+  // must not undo newer subscription state.
+  if (await isStaleStripeEvent(supabase, subscriptionId, eventAt)) {
+    console.log('Skipping out-of-order cancellation for:', subscriptionId);
+    return;
+  }
+
 
   // Deactivate team subscription
   const { data: teamSub } = await supabase
