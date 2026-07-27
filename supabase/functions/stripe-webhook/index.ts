@@ -865,7 +865,12 @@ async function handleEventPayment(supabase: any, metadata: any) {
   }
 }
 
-async function handleStorageAddonPurchase(supabase: any, session: any, metadata: any) {
+async function handleStorageAddonPurchase(
+  supabase: any,
+  session: any,
+  metadata: any,
+  stripeEventId: string | null,
+) {
   const clubId = metadata.club_id;
   const storageGb = parseInt(metadata.storage_gb);
   const userId = metadata.user_id;
@@ -877,7 +882,24 @@ async function handleStorageAddonPurchase(supabase: any, session: any, metadata:
     throw new Error('Missing required metadata for storage addon');
   }
 
-  // Get current purchased storage
+  if (stripeEventId) {
+    // Atomic path: storage increment + notification + ledger completion all
+    // succeed or all roll back, so a Stripe retry can never double-increment.
+    const { data, error } = await supabase.rpc('apply_stripe_storage_addon', {
+      p_event_id: stripeEventId,
+      p_club_id: clubId,
+      p_storage_gb: storageGb,
+      p_user_id: userId,
+    });
+    if (error) {
+      console.error('Atomic storage addon application failed');
+      throw new Error('storage_addon_apply_failed');
+    }
+    console.log('Storage addon result:', data, { clubId, storageGb });
+    return;
+  }
+
+  // Legacy fallback (no Stripe event id available).
   const { data: subscription, error: subError } = await supabase
     .from('club_subscriptions')
     .select('storage_purchased_gb')
@@ -902,6 +924,8 @@ async function handleStorageAddonPurchase(supabase: any, session: any, metadata:
     console.error('Error updating storage:', updateError);
     throw updateError;
   }
+
+
 
   // Get club name for notification
   const { data: club } = await supabase
