@@ -195,7 +195,9 @@ serve(async (req) => {
   }
 
   const eventAt = stripeEventAt(event);
-  let storageAddonSelfCompleted = false;
+  // True when a transactional RPC already marked the ledger completed inside
+  // the same transaction as the business mutation.
+  let ledgerCompletedInTransaction = false;
 
   try {
     // Handle different event types
@@ -208,11 +210,12 @@ serve(async (req) => {
         if (metadata.type === 'storage_addon') {
           // Atomic: increment + notification + ledger completion in one txn.
           await handleStorageAddonPurchase(supabase, session, metadata, eventId);
-          storageAddonSelfCompleted = Boolean(eventId);
+          ledgerCompletedInTransaction = Boolean(eventId);
         } else if (metadata.type === 'member_subscription') {
           await handleMemberSubscriptionPayment(supabase, metadata);
         } else if (session.mode === 'subscription') {
-          await handleSubscriptionCreated(supabase, session, metadata, eventId, eventAt);
+          const outcome = await handleSubscriptionCreated(supabase, session, metadata, eventId, eventAt);
+          ledgerCompletedInTransaction = outcome.ledgerCompleted;
         } else {
           // Handle one-time event payments (existing logic)
           await handleEventPayment(supabase, metadata);
@@ -224,7 +227,8 @@ serve(async (req) => {
         // Handle subscription renewal
         const invoice = event.data.object;
         if (invoice.subscription) {
-          await handleSubscriptionRenewal(supabase, invoice, eventId, eventAt);
+          const outcome = await handleSubscriptionRenewal(supabase, invoice, eventId, eventAt);
+          ledgerCompletedInTransaction = outcome.ledgerCompleted;
         }
         break;
       }
@@ -241,14 +245,16 @@ serve(async (req) => {
       case 'customer.subscription.deleted': {
         // Handle subscription cancellation
         const subscription = event.data.object;
-        await handleSubscriptionCancelled(supabase, subscription, eventId, eventAt);
+        const outcome = await handleSubscriptionCancelled(supabase, subscription, eventId, eventAt);
+        ledgerCompletedInTransaction = outcome.ledgerCompleted;
         break;
       }
 
       case 'customer.subscription.updated': {
         // Handle subscription updates (e.g., plan changes)
         const subscription = event.data.object;
-        await handleSubscriptionUpdated(supabase, subscription, eventId, eventAt);
+        const outcome = await handleSubscriptionUpdated(supabase, subscription, eventId, eventAt);
+        ledgerCompletedInTransaction = outcome.ledgerCompleted;
         break;
       }
 
@@ -257,9 +263,19 @@ serve(async (req) => {
         console.log('Unhandled event type:', eventType);
     }
 
-    if (claimed && !storageAddonSelfCompleted) {
-      await supabase.rpc('complete_stripe_webhook_event', { p_event_id: eventId });
+    if (claimed && !ledgerCompletedInTransaction) {
+      // The ledger MUST be committed before we acknowledge. If it is not, a
+      // Stripe retry would re-run the handler against a non-idempotent path,
+      // so refuse to acknowledge and let Stripe retry instead.
+      const { error: completeError } = await supabase.rpc('complete_stripe_webhook_event', {
+        p_event_id: eventId,
+      });
+      if (completeError) {
+        console.error('Failed to complete Stripe webhook ledger entry for', eventType);
+        throw new RetriableWebhookError('ledger_completion_failed');
+      }
     }
+
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
