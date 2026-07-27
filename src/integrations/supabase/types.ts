@@ -9792,6 +9792,57 @@ export type Database = {
           },
         ]
       }
+      vault_deletion_jobs: {
+        Row: {
+          attempts: number
+          bucket: string | null
+          club_id: string | null
+          created_at: string
+          deletion_type: string
+          id: string
+          kind: string
+          last_error_code: string | null
+          object_path: string | null
+          record_id: string
+          requested_by: string
+          status: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bucket?: string | null
+          club_id?: string | null
+          created_at?: string
+          deletion_type?: string
+          id?: string
+          kind: string
+          last_error_code?: string | null
+          object_path?: string | null
+          record_id: string
+          requested_by: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bucket?: string | null
+          club_id?: string | null
+          created_at?: string
+          deletion_type?: string
+          id?: string
+          kind?: string
+          last_error_code?: string | null
+          object_path?: string | null
+          record_id?: string
+          requested_by?: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vault_drive_links: {
         Row: {
           club_id: string
@@ -9903,6 +9954,8 @@ export type Database = {
           is_external_link: boolean | null
           mini_league_id: string | null
           name: string
+          storage_bucket: string | null
+          storage_path: string | null
           team_id: string | null
           updated_at: string
           uploaded_by: string | null
@@ -9922,6 +9975,8 @@ export type Database = {
           is_external_link?: boolean | null
           mini_league_id?: string | null
           name: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           team_id?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -9941,6 +9996,8 @@ export type Database = {
           is_external_link?: boolean | null
           mini_league_id?: string | null
           name?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           team_id?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -10063,6 +10120,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vault_storage_reservations: {
+        Row: {
+          bytes: number
+          club_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bytes: number
+          club_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bytes?: number
+          club_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       web_vitals: {
         Row: {
@@ -10299,6 +10386,37 @@ export type Database = {
           allowed: boolean
           bucket: string
           path: string
+        }[]
+      }
+      authorize_vault_deletion: {
+        Args: { _caller_id: string; _kind: string; _record_id: string }
+        Returns: {
+          authorized: boolean
+          created_at: string
+          effective_club_id: string
+          file_size: number
+          file_url: string
+          image_url: string
+          mini_league_id: string
+          owner_id: string
+          reason: string
+          storage_bucket: string
+          storage_path: string
+          team_id: string
+        }[]
+      }
+      begin_vault_deletion: {
+        Args: {
+          _bucket: string
+          _caller_id: string
+          _deletion_type?: string
+          _kind: string
+          _object_path: string
+          _record_id: string
+        }
+        Returns: {
+          job_id: string
+          status: string
         }[]
       }
       can_access_chat: {
@@ -10808,6 +10926,11 @@ export type Database = {
         Args: { p_error?: string; p_event_id: string }
         Returns: undefined
       }
+      fail_vault_deletion: {
+        Args: { _error_code: string; _job_id: string }
+        Returns: string
+      }
+      finalize_vault_deletion: { Args: { _job_id: string }; Returns: string }
       format_message_preview: {
         Args: { _has_image?: boolean; _text: string }
         Returns: string
@@ -11764,7 +11887,32 @@ export type Database = {
       }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      reserve_vault_storage: {
+        Args: { _bytes: number; _club_id: string }
+        Returns: {
+          limit_bytes: number
+          reservation_id: string
+          used_bytes: number
+        }[]
+      }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
+      resolve_vault_record_scope: {
+        Args: { _kind: string; _record_id: string }
+        Returns: {
+          created_at: string
+          effective_club_id: string
+          file_size: number
+          file_url: string
+          found: boolean
+          image_url: string
+          mini_league_id: string
+          owner_id: string
+          reason: string
+          storage_bucket: string
+          storage_path: string
+          team_id: string
+        }[]
+      }
       search_competition_coordinator_candidates: {
         Args: { _competition_id: string; _query?: string }
         Returns: {
@@ -11890,6 +12038,10 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
+      }
+      settle_vault_storage: {
+        Args: { _committed: boolean; _reservation_id: string }
+        Returns: string
       }
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
