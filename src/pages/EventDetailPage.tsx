@@ -1268,6 +1268,29 @@ export default function EventDetailPage() {
     enabled: childIdsOnTeam.length > 0,
   });
 
+  // Recipients for on-demand reminders. For a targeted club-wide event the
+  // audience is NOT "everyone in the club": only members holding a role on a
+  // targeted team, plus parents/guardians of children assigned to those teams.
+  // Club-level admins/committee who have no tie to a targeted team are not
+  // nagged (they can still see the event). Team / mini-league / untargeted
+  // club-wide events keep the previous behaviour.
+  const reminderMembers = useMemo(() => {
+    if (event?.team_id || !targetTeamIdsForFetch) return members;
+    const targetSet = new Set(targetTeamIdsForFetch);
+    const linkedAdultIds = new Set<string>();
+    (allChildrenOnTeam || []).forEach((c: any) => {
+      if (c.parent_id) linkedAdultIds.add(c.parent_id);
+    });
+    (childGuardiansOnTeam || []).forEach((cg: any) => {
+      if (cg.guardian_id) linkedAdultIds.add(cg.guardian_id);
+    });
+    return (members ?? []).filter((m: any) => {
+      const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
+      if (pairs.some((p) => p.team_id && targetSet.has(p.team_id))) return true;
+      return linkedAdultIds.has(m.id);
+    });
+  }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam]);
+
   // Get existing RSVPs for children (any guardian's RSVP for the child counts)
   const myChildIds = new Set((childrenOnTeam || []).map((c: any) => c.id));
   const childRsvps = rsvps?.filter((r) => r.child_id && myChildIds.has(r.child_id)) || [];
@@ -3486,7 +3509,7 @@ export default function EventDetailPage() {
         // so admins can always send reminders, regardless of the visible roster filter.
         const allNotRespondedForReminders = isMiniLeagueEvent
           ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
-          : (members?.filter((m: any) =>
+          : (reminderMembers?.filter((m: any) =>
               !respondedUserIds.has(m.id) &&
               !(new Set<string>([
                 ...((allChildrenOnTeam || [])
