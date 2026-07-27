@@ -29,19 +29,20 @@ const read = (p: string) => readFileSync(path.join(root, p), "utf8");
 
 const webhookSource = read("supabase/functions/stripe-webhook/index.ts");
 const configToml = read("supabase/config.toml");
-const migrations = read(
-  "supabase/migrations/" +
-    require("node:fs")
-      .readdirSync(path.join(root, "supabase/migrations"))
-      .filter((f: string) => f.endsWith(".sql"))
-      .sort()
-      .reverse()
-      .find((f: string) =>
-        readFileSync(path.join(root, "supabase/migrations", f), "utf8").includes(
-          "stripe_webhook_events",
-        ),
-      )!,
-);
+// Every migration that touches the Stripe webhook ledger / ordering machinery.
+const migrationFiles = require("node:fs")
+  .readdirSync(path.join(root, "supabase/migrations"))
+  .filter((f: string) => f.endsWith(".sql"))
+  .sort()
+  .filter((f: string) =>
+    readFileSync(path.join(root, "supabase/migrations", f), "utf8").includes(
+      "stripe_webhook_events",
+    ),
+  );
+const migrations = migrationFiles
+  .map((f: string) => readFileSync(path.join(root, "supabase/migrations", f), "utf8"))
+  .join("\n");
+
 
 // ---------------------------------------------------------------------------
 // 1. Gateway configuration
