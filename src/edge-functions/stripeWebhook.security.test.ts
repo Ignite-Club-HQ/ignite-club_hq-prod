@@ -418,11 +418,19 @@ describe("stripe webhook ledger schema and out-of-order safety", () => {
   it("records the last applied Stripe event so older events cannot overwrite newer state", () => {
     expect(migrations).toMatch(/last_stripe_event_id text/);
     expect(migrations).toMatch(/last_stripe_event_at timestamptz/);
-    expect(webhookSource).toMatch(/isStaleStripeEvent/);
-    expect(webhookSource).toMatch(/Skipping out-of-order cancellation/);
-    expect(webhookSource).toMatch(/Skipping out-of-order renewal/);
-    expect(webhookSource).toMatch(/Skipping out-of-order subscription update/);
+    // Ordering is now enforced inside a single transactional RPC (strictly
+    // stronger than the previous per-handler advisory check).
+    expect(migrations).toMatch(/CREATE TABLE IF NOT EXISTS public\.stripe_subscription_event_state/);
+    expect(migrations).toMatch(/stripe_subscription_id text PRIMARY KEY/);
+    expect(migrations).toMatch(/FOR UPDATE/);
+    expect(webhookSource).toMatch(/apply_stripe_subscription_transition/);
+    expect(webhookSource).toMatch(/Skipping out-of-order/);
+    // Every entitlement transition goes through the ordered RPC.
+    for (const transition of ["'activate'", "'renew'", "'update'", "'cancel'"]) {
+      expect(webhookSource).toContain(`transition: ${transition}`);
+    }
   });
+
 
   it("does not store webhook secrets or full Stripe payloads in the ledger", () => {
     expect(migrations).not.toMatch(/whsec_/);
