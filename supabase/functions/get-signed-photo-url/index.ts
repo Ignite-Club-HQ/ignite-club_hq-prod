@@ -130,68 +130,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 1. Resolve each requested URL to a { bucket, path } on OUR storage origin.
-    //    Anything else is either a genuinely non-private URL (returned unchanged)
-    //    or malformed/external (omitted).
-    const refs = new Map<string, { bucket: string; path: string }>();
-    const signedUrls: Record<string, string> = {};
+    // Resolve → authorize (one RPC) → sign only what the caller may access.
+    const { signedUrls, authorizationFailed } = await signAuthorizedBatch(paths, {
+      supabaseUrl: SUPABASE_URL,
+      authorize: async (items) => {
+        const { data, error } = await supabase.rpc("authorize_storage_objects", {
+          _user_id: user.id,
+          _items: items,
+        });
+        return { data: data as any, error: error as any };
+      },
+      sign: async (bucket, path) => {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, expiresIn);
+        if (error || !data) {
+          console.error(`Error creating signed URL for ${bucket}:`, error?.message);
+          return { url: null, error: error as any };
+        }
+        return { url: data.signedUrl, error: null };
+      },
+    });
 
-    for (const raw of paths) {
-      if (typeof raw !== "string") continue;
-      const ref = parseStorageObjectRef(raw, SUPABASE_URL);
-      if (ref) {
-        refs.set(raw, ref);
-        continue;
-      }
-      // Not a private-bucket object on our origin. Only pass through URLs that
-      // do not pretend to be private storage objects.
-      if (!/\/storage\/v1\/object\//.test(raw)) {
-        signedUrls[raw] = raw;
-      }
-    }
-
-    if (refs.size === 0) {
-      return new Response(JSON.stringify({ signedUrls }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 2. Authorize every object for THIS user before signing anything.
-    const items = Array.from(refs.values());
-    const { data: decisions, error: authzError } = await supabase.rpc(
-      "authorize_storage_objects",
-      { _user_id: user.id, _items: items },
-    );
-
-    if (authzError) {
-      console.error("authorize_storage_objects failed:", authzError.message);
+    if (authorizationFailed) {
       return new Response(JSON.stringify({ error: "Authorization check failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const allowedKeys = new Set(
-      (decisions ?? [])
-        .filter((d: any) => d.allowed === true)
-        .map((d: any) => `${d.bucket}/${d.path}`),
-    );
-
-    // 3. Sign only authorized objects. Denied paths are omitted entirely —
-    //    never returned raw — and do not affect their authorized siblings.
-    for (const [raw, ref] of refs.entries()) {
-      if (!allowedKeys.has(`${ref.bucket}/${ref.path}`)) continue;
-
-      const { data, error } = await supabase.storage
-        .from(ref.bucket)
-        .createSignedUrl(ref.path, expiresIn);
-
-      if (error || !data) {
-        console.error(`Error creating signed URL for ${ref.bucket}:`, error?.message);
-        continue;
-      }
-      signedUrls[raw] = data.signedUrl;
-    }
 
     return new Response(JSON.stringify({ signedUrls }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
