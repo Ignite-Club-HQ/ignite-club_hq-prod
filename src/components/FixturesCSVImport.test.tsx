@@ -181,7 +181,7 @@ describe("FixturesCSVImport authorization", () => {
     const btn = importButton();
     expect(btn).toBeDisabled();
     // Force the click anyway — handleImport must refuse.
-    fireEvent.click(btn, {}, { skipPointerEventsCheck: true });
+    fireEvent.click(btn);
     await waitFor(() => expect(insertMock).not.toHaveBeenCalled());
   });
 
