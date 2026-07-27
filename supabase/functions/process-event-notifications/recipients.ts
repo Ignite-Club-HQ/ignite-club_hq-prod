@@ -89,8 +89,16 @@ export async function resolveRecipients(
     .eq('id', eventId)
     .maybeSingle();
   if (eventError) {
-    console.error('[EVENT-NOTIFY] Restricted-role lookup error:', eventError);
+    // FAIL CLOSED. Falling through here would treat a targeted or
+    // role-restricted event as an unrestricted club-wide event and notify
+    // members who were never invited. Sanitised log only.
+    console.error(
+      '[EVENT-NOTIFY] Audience lookup failed',
+      (eventError as any)?.code ?? '',
+    );
+    throw new AudienceResolutionError('event_audience_lookup_failed');
   }
+
   const restrictedRoles = Array.isArray(eventRow?.restricted_to_roles)
     ? eventRow.restricted_to_roles
     : [];
