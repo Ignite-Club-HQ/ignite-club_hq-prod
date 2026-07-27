@@ -96,10 +96,18 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
   };
 
-  // Refetch any active queries currently stuck in error state. Built-in
+  // Refetch any query that a mounted component is observing, plus anything
+  // stuck in error / paused / hung-pending state. Built-in
   // `refetchOnReconnect: "always"` only refires queries with status
-  // `success`; errored queries (offlineFirst + network drop = instant
-  // error) require an explicit invalidate to come back to life.
+  // `success`; errored/paused queries (offlineFirst + network drop) stay
+  // dead until something explicitly invalidates them, and success queries
+  // whose fetch never resolved (mid-flight during the drop) can sit forever
+  // in `pending/fetching` inside the WebView. On reconnect/resume we
+  // therefore hit BOTH surfaces:
+  //   1. every active (observed) query → refetch — recovers Messages,
+  //      Schedule, Media, reward points, sponsor/ad tile, etc.
+  //   2. every errored/paused/idle-non-success query → invalidate — recovers
+  //      inactive-but-cached queries the next time they mount.
   let lastRecoveryAt = 0;
   const recoverErroredQueries = (reason: string) => {
     if (!queryClient) return;
@@ -107,37 +115,36 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     if (now - lastRecoveryAt < 2000) return; // throttle bursty triggers
     lastRecoveryAt = now;
     try {
+      // 1. Refetch every actively-observed query. This is the sledgehammer
+      //    that unsticks Messages/Schedule/Media/rewards/sponsor tiles on
+      //    reconnect. `type: 'active'` scopes it to queries with mounted
+      //    observers so we don't stampede the DB with hundreds of refetches.
+      try {
+        queryClient.refetchQueries({ type: 'active' });
+      } catch { /* noop */ }
+
+      // 2. Also invalidate errored/paused/idle-non-success queries so they
+      //    come back to life the next time their component mounts.
       const cache = queryClient.getQueryCache();
-      const errored = cache.getAll().filter((q) => {
+      const stuck = cache.getAll().filter((q) => {
         const s = q.state;
         return (
           s.status === 'error' ||
           (s.fetchStatus === 'idle' && s.status !== 'success') ||
-          // Paused queries (networkMode-driven) — kick them too.
           s.fetchStatus === 'paused'
         );
       });
-      if (errored.length === 0) {
-        // Even when nothing is in error, theme/club-list queries may have
-        // been disabled (user=null) during a transient SIGNED_OUT and missed
-        // the reconnect window. Mark them stale so they refetch the moment
-        // they become enabled again.
-        try {
-          queryClient.invalidateQueries({ queryKey: ['club-themes'] });
-          queryClient.invalidateQueries({ queryKey: ['user-clubs-for-switcher'] });
-          queryClient.invalidateQueries({ queryKey: ['all-user-clubs-for-theme-v2'] });
-        } catch { /* noop */ }
-        return;
+      if (stuck.length > 0) {
+        console.log(`[NativeAdapter] Recovering ${stuck.length} stuck queries (${reason})`);
+        stuck.forEach((q) => {
+          try {
+            queryClient.invalidateQueries({ queryKey: q.queryKey, exact: true });
+          } catch { /* noop */ }
+        });
       }
-      console.log(`[NativeAdapter] Recovering ${errored.length} errored queries (${reason})`);
-      errored.forEach((q) => {
-        try {
-          queryClient.invalidateQueries({ queryKey: q.queryKey, exact: true });
-        } catch {
-          /* noop */
-        }
-      });
-      // Also kick the critical theme/club queries regardless of state.
+      // Kick critical theme/club queries regardless of state — they may be
+      // disabled (user=null) during a transient SIGNED_OUT and miss the
+      // reconnect window otherwise.
       try {
         queryClient.invalidateQueries({ queryKey: ['club-themes'] });
         queryClient.invalidateQueries({ queryKey: ['user-clubs-for-switcher'] });
