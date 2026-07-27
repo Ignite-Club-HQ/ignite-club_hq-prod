@@ -1125,11 +1125,14 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <Button
                 className="flex-1 h-12"
                 onClick={handleImport}
-                disabled={totalToImport === 0 || importing || !allFixturesValid}
+                disabled={totalToImport === 0 || importing || !allFixturesValid || authBlocked}
               >
                 {importing ? 'Importing...' : `Import ${totalToImport}`}
               </Button>
             </div>
+            {authBlocked && authBlockMessage && (
+              <p className="text-xs text-destructive text-center">{authBlockMessage}</p>
+            )}
             {!allFixturesValid && invalidCount > 0 && (
               <p className="text-xs text-destructive text-center">
                 {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields
