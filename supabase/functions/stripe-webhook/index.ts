@@ -788,25 +788,37 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
   }
 }
 
-async function handleSubscriptionUpdated(supabase: any, subscription: any) {
+async function handleSubscriptionUpdated(
+  supabase: any,
+  subscription: any,
+  stripeEventId: string | null,
+  eventAt: string | null,
+) {
   const subscriptionId = subscription.id;
   console.log('Processing subscription update for:', subscriptionId);
 
+  if (await isStaleStripeEvent(supabase, subscriptionId, eventAt)) {
+    console.log('Skipping out-of-order subscription update for:', subscriptionId);
+    return;
+  }
+
   // Update expiry based on current period end
   const periodEnd = new Date(subscription.current_period_end * 1000);
+  const stamp = eventStamp(stripeEventId, eventAt);
 
   // Update team subscription if exists
   await supabase
     .from('team_subscriptions')
-    .update({ expires_at: periodEnd.toISOString() })
+    .update({ expires_at: periodEnd.toISOString(), ...stamp })
     .eq('stripe_subscription_id', subscriptionId);
 
   // Update club subscription if exists
   await supabase
     .from('club_subscriptions')
-    .update({ expires_at: periodEnd.toISOString() })
+    .update({ expires_at: periodEnd.toISOString(), ...stamp })
     .eq('stripe_subscription_id', subscriptionId);
 }
+
 
 async function handleEventPayment(supabase: any, metadata: any) {
   const eventId = metadata.event_id;
