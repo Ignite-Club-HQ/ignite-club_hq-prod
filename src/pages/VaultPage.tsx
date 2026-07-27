@@ -2123,15 +2123,15 @@ export default function VaultPage() {
         }
       }
       
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: {
-          photoIds: photoTableIds,
-          fileIds: [...allPhotoIds, ...allFileIds],
-          deletionType: "permanent",
-        },
+      const result = await permanentlyDeleteVaultItems({
+        photoIds: photoTableIds,
+        fileIds: [...allPhotoIds, ...allFileIds],
       });
-      
-      if (response.error) throw new Error(response.error.message);
+
+      if (result.failed.length > 0) {
+        toast.error(`${result.failed.length} item(s) could not be deleted`);
+      }
+
       
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
