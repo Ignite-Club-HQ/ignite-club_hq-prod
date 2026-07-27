@@ -1824,14 +1824,6 @@ export default function VaultPage() {
 
   const uploadFileMutation = useMutation({
     mutationFn: async ({ file, customFileName }: { file: File; customFileName?: string }) => {
-      // Check storage limit
-      if (!isAppAdmin && hasProClub) {
-        const newTotal = totalClubStorageUsed + file.size;
-        if (newTotal > PRO_STORAGE_LIMIT) {
-          throw new Error(`Storage limit reached. Delete files or purchase more storage.`);
-        }
-      }
-
       const fileExt = file.name.split(".").pop();
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).substring(7);
@@ -1848,18 +1840,27 @@ export default function VaultPage() {
         storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       }
 
+      // Reserve quota atomically before any bytes are written.
+      const reservationId = await reserveVaultStorage(
+        "clubId" in currentView ? currentView.clubId ?? null : null,
+        file.size,
+      );
+
       const { error: uploadError } = await supabase.storage
         .from("photos")
         .upload(storagePath, file, { cacheControl: "31536000" });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        await settleVaultStorage(reservationId, false);
+        throw uploadError;
+      }
 
-      // Store the Supabase storage URL format (will be converted to signed URL when displayed)
-      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-      const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+      const storageUrl = buildVaultStorageUrl(storagePath);
 
       const insertData: any = {
         file_url: storageUrl,
+        storage_bucket: "photos",
+        storage_path: storagePath,
         uploaded_by: user!.id,
         name: customFileName || fileName || file.name,
         folder_id: getCurrentFolderId(),
@@ -1877,10 +1878,17 @@ export default function VaultPage() {
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Compensate: never leave an orphaned object billed against the club.
+        await compensateVaultUpload(storagePath);
+        await settleVaultStorage(reservationId, false);
+        throw insertError;
+      }
+      await settleVaultStorage(reservationId, true);
 
       // Note: Storage tracking is now per team, handled by the storage breakdown query
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
