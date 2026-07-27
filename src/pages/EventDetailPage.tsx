@@ -3509,7 +3509,7 @@ export default function EventDetailPage() {
         // so admins can always send reminders, regardless of the visible roster filter.
         const allNotRespondedForReminders = isMiniLeagueEvent
           ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
-          : (members?.filter((m: any) =>
+          : (reminderMembers?.filter((m: any) =>
               !respondedUserIds.has(m.id) &&
               !(new Set<string>([
                 ...((allChildrenOnTeam || [])
