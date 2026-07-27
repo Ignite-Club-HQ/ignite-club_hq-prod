@@ -286,7 +286,14 @@ serve(async (req) => {
 });
 
 
-async function handleSubscriptionCreated(supabase: any, session: any, metadata: any) {
+async function handleSubscriptionCreated(
+  supabase: any,
+  session: any,
+  metadata: any,
+  stripeEventId: string | null = null,
+  eventAt: string | null = null,
+) {
+
   const subscriptionType = metadata.subscription_type;
   const entityId = metadata.entity_id;
   const tier = metadata.tier;
