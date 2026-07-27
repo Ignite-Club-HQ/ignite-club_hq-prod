@@ -9,7 +9,8 @@ alter table public.photos
   alter column club_id drop not null,
   add column if not exists mini_league_id uuid,
   add column if not exists image_url text,
-  add column if not exists file_size bigint;
+  add column if not exists file_size bigint,
+  add column if not exists show_in_feed boolean not null default true;
 
 create table public.mini_leagues (
   id uuid primary key default gen_random_uuid(),
@@ -38,6 +39,7 @@ create table public.vault_files (
   file_url text not null,
   file_size bigint,
   deleted_at timestamptz,
+  deleted_by uuid references auth.users(id),
   created_at timestamptz not null default now()
 );
 
