@@ -2,31 +2,25 @@ import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 
 /**
- * Web-only reconnect / resume invalidator for a scoped whitelist of
- * user-visible query keys.
+ * Web-only reconnect / resume recovery.
  *
  * Native apps get the equivalent (and broader) behaviour from
  * `reactQueryNativeAdapter.ts`. On the web, iOS Safari and iframed
- * previews frequently miss the `offline → online` transition, so
- * `refetchOnReconnect: "always"` alone is not enough — pages like Media
- * end up stuck on skeleton loaders after the network returns.
+ * previews frequently miss the `offline → online` transition, and
+ * `refetchOnReconnect: "always"` only refires queries whose status is
+ * `success` — queries that errored or got stuck mid-flight during the
+ * drop stay dead until something explicitly kicks them.
  *
- * We intentionally invalidate only a small whitelist (not everything)
- * so reconnect does not stampede the DB with dozens of parallel refetches.
- * Keys listed here are the ones whose hangs users notice most:
- *   - `photos` — the Media feed infinite query
- *   - `latest-photos-scroll` — homepage strip
- *   - `has-pro-access` — Pro gate for Media/Schedule
- *   - `club-pro-access` — per-club Pro resolution
+ * On any of {onlineManager online, `window.online`, tab visibility
+ * returning to visible while `navigator.onLine`}, we:
+ *   1. Refetch every actively-observed query (`type: 'active'`). This
+ *      unsticks Messages/Schedule/Media/rewards/sponsor tiles regardless
+ *      of the specific query keys they use.
+ *   2. Invalidate any query stuck in error / paused / idle-non-success
+ *      state so it recovers on next mount.
+ *
+ * Scoping to active queries prevents a reconnect stampede against the DB.
  */
-const RECOVERABLE_KEYS = [
-  "photos",
-  "latest-photos-scroll",
-  "team-latest-photos",
-  "has-pro-access",
-  "club-pro-access",
-] as const;
-
 let installed = false;
 
 export function installWebReconnectInvalidator(queryClient: QueryClient) {
@@ -44,19 +38,31 @@ export function installWebReconnectInvalidator(queryClient: QueryClient) {
     if (now - lastRunAt < THROTTLE_MS) return;
     lastRunAt = now;
     try {
-      for (const key of RECOVERABLE_KEYS) {
-        queryClient.invalidateQueries({ queryKey: [key] });
-      }
+      queryClient.refetchQueries({ type: "active" });
+      const cache = queryClient.getQueryCache();
+      const stuck = cache.getAll().filter((q) => {
+        const s = q.state;
+        return (
+          s.status === "error" ||
+          (s.fetchStatus === "idle" && s.status !== "success") ||
+          s.fetchStatus === "paused"
+        );
+      });
+      stuck.forEach((q) => {
+        try {
+          queryClient.invalidateQueries({ queryKey: q.queryKey, exact: true });
+        } catch { /* ignore */ }
+      });
       if (import.meta.env.DEV) {
-        console.log(`[WebReconnect] invalidated ${RECOVERABLE_KEYS.length} keys (${reason})`);
+        console.log(
+          `[WebReconnect] refetched active + ${stuck.length} stuck (${reason})`,
+        );
       }
     } catch {
       /* ignore */
     }
   };
 
-  // Fires whenever React Query flips online state (also covers native events
-  // routed through onlineManager if any manual toggle happens on web).
   const unsubscribe = onlineManager.subscribe(() => {
     if (onlineManager.isOnline()) kick("online-manager");
   });
@@ -78,3 +84,4 @@ export function installWebReconnectInvalidator(queryClient: QueryClient) {
     installed = false;
   };
 }
+
