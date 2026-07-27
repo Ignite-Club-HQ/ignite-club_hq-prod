@@ -51,6 +51,8 @@ import {
   reserveVaultStorage,
   settleVaultStorage,
 } from "@/lib/vaultUpload";
+import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+
 
 import {
   Breadcrumb,
