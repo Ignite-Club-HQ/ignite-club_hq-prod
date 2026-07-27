@@ -732,115 +732,68 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
   }
 }
 
+/**
+ * Resolve the entity a Stripe subscription id belongs to. Returns nulls when
+ * nothing is addressable (already-cancelled / legacy rows) — the transition
+ * RPC still records a durable watermark in that case.
+ */
+async function resolveSubscriptionEntity(
+  supabase: any,
+  subscriptionId: string,
+): Promise<{ entityType: 'team' | 'club' | null; entityId: string | null }> {
+  const { data: teamSub } = await supabase
+    .from('team_subscriptions')
+    .select('team_id')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle();
+  if (teamSub?.team_id) return { entityType: 'team', entityId: teamSub.team_id };
+
+  const { data: clubSub } = await supabase
+    .from('club_subscriptions')
+    .select('club_id')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle();
+  if (clubSub?.club_id) return { entityType: 'club', entityId: clubSub.club_id };
+
+  const { data: legacyClub } = await supabase
+    .from('clubs')
+    .select('id')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle();
+  if (legacyClub?.id) return { entityType: 'club', entityId: legacyClub.id };
+
+  return { entityType: null, entityId: null };
+}
+
 async function handleSubscriptionCancelled(
   supabase: any,
   subscription: any,
-  _stripeEventId: string | null,
+  stripeEventId: string | null,
   eventAt: string | null,
-) {
-  const subscriptionId = subscription.id;
+): Promise<HandlerOutcome> {
+  const subscriptionId = subscription?.id;
   console.log('Processing subscription cancellation for:', subscriptionId);
 
-  // Out-of-order safety: a cancellation older than the last applied event
-  // must not undo newer subscription state.
-  if (await isStaleStripeEvent(supabase, subscriptionId, eventAt)) {
-    console.log('Skipping out-of-order cancellation for:', subscriptionId);
-    return;
+  const { entityType, entityId } = await resolveSubscriptionEntity(supabase, subscriptionId);
+
+  // Cancellation must ALWAYS write a durable watermark, even when the active
+  // row is deleted or its Stripe id is cleared, so a late activation/renewal
+  // can never restore Pro access.
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'customer.subscription.deleted',
+    eventAt,
+    subscriptionId,
+    transition: 'cancel',
+    entityType,
+    entityId,
+  });
+
+  if (entityType === null && outcome.result === 'applied') {
+    console.log('Cancellation watermark recorded with no addressable entity:', subscriptionId);
   }
 
-
-  // Deactivate team subscription
-  const { data: teamSub } = await supabase
-    .from('team_subscriptions')
-    .update({ 
-      is_pro: false, 
-      is_pro_football: false,
-      stripe_subscription_id: null,
-      is_trial: false,
-      trial_ends_at: null,
-    })
-    .eq('stripe_subscription_id', subscriptionId)
-    .select('team_id, teams(created_by)')
-    .maybeSingle();
-
-  if (teamSub) {
-    // Also update the teams table directly
-    await supabase
-      .from('teams')
-      .update({
-        is_pro: false,
-        pro_expires_at: null,
-        stripe_subscription_id: null,
-      })
-      .eq('id', teamSub.team_id);
-
-    if (teamSub.teams?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: teamSub.teams.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your subscription has been cancelled.',
-        related_id: teamSub.team_id,
-      });
-    }
-    return;
-  }
-
-  // Deactivate club subscription
-  const { data: clubSub } = await supabase
-    .from('club_subscriptions')
-    .delete()
-    .eq('stripe_subscription_id', subscriptionId)
-    .select('club_id, clubs!club_id(created_by)')
-    .maybeSingle();
-
-  if (clubSub) {
-    // Update club is_pro flag
-    await supabase
-      .from('clubs')
-      .update({ is_pro: false, stripe_subscription_id: null })
-      .eq('id', clubSub.club_id);
-
-    if (clubSub.clubs?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: clubSub.clubs.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your club subscription has been cancelled.',
-        related_id: clubSub.club_id,
-      });
-    }
-    return;
-  }
-
-  // Legacy fallback: no club_subscriptions row exists, but a club may still
-  // hold this Stripe subscription id in the legacy clubs.stripe_subscription_id
-  // column. Clear it so future audits and cancel paths don't see a stale live
-  // sub id on a free club.
-  const { data: legacyClub } = await supabase
-    .from('clubs')
-    .update({ is_pro: false, stripe_subscription_id: null })
-    .eq('stripe_subscription_id', subscriptionId)
-    .select('id, created_by')
-    .maybeSingle();
-
-  if (legacyClub) {
-    console.log('Legacy clubs.stripe_subscription_id cleared on cancel:', subscriptionId, 'club:', legacyClub.id);
-    await supabase.from('admin_alerts').insert({
-      alert_type: 'legacy_club_subscription_cleared',
-      details: {
-        club_id: legacyClub.id,
-        stripe_subscription_id: subscriptionId,
-        note: 'Stripe reported this subscription as cancelled. It only lived on the legacy clubs.stripe_subscription_id column (no club_subscriptions row). Field has been cleared.',
-      },
-    });
-    if (legacyClub.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: legacyClub.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your club subscription has been cancelled.',
-        related_id: legacyClub.id,
-      });
-    }
-  }
+  return { ledgerCompleted: outcome.ledgerCompleted };
 }
 
 async function handleSubscriptionUpdated(
@@ -848,31 +801,27 @@ async function handleSubscriptionUpdated(
   subscription: any,
   stripeEventId: string | null,
   eventAt: string | null,
-) {
-  const subscriptionId = subscription.id;
+): Promise<HandlerOutcome> {
+  const subscriptionId = subscription?.id;
   console.log('Processing subscription update for:', subscriptionId);
 
-  if (await isStaleStripeEvent(supabase, subscriptionId, eventAt)) {
-    console.log('Skipping out-of-order subscription update for:', subscriptionId);
-    return;
-  }
+  const periodEnd =
+    typeof subscription?.current_period_end === 'number'
+      ? new Date(subscription.current_period_end * 1000).toISOString()
+      : null;
 
-  // Update expiry based on current period end
-  const periodEnd = new Date(subscription.current_period_end * 1000);
-  const stamp = eventStamp(stripeEventId, eventAt);
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'customer.subscription.updated',
+    eventAt,
+    subscriptionId,
+    transition: 'update',
+    params: periodEnd ? { expires_at: periodEnd } : {},
+  });
 
-  // Update team subscription if exists
-  await supabase
-    .from('team_subscriptions')
-    .update({ expires_at: periodEnd.toISOString(), ...stamp })
-    .eq('stripe_subscription_id', subscriptionId);
-
-  // Update club subscription if exists
-  await supabase
-    .from('club_subscriptions')
-    .update({ expires_at: periodEnd.toISOString(), ...stamp })
-    .eq('stripe_subscription_id', subscriptionId);
+  return { ledgerCompleted: outcome.ledgerCompleted };
 }
+
 
 
 async function handleEventPayment(supabase: any, metadata: any) {
