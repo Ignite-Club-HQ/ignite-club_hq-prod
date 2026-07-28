@@ -1517,7 +1517,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
