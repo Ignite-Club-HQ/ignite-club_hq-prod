@@ -427,20 +427,8 @@ export function AppHeader() {
     return () => observer.disconnect();
   }, [resolvedTheme]);
 
-  // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: !!user?.id,
-  });
+  // Check if user is app admin (shared authoritative hook)
+  const { isAppAdmin } = useIsAppAdmin();
 
   // Check if user has any vault-eligible club role (club_admin, league_admin, committee_member)
   const { data: hasVaultRole } = useQuery({
