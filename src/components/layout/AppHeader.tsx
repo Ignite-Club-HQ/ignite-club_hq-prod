@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-content";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
