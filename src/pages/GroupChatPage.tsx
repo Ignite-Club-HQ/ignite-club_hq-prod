@@ -8,6 +8,15 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  isTombstoned,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
+
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -685,6 +694,9 @@ export default function GroupChatPage() {
     },
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `group:${groupId ?? "none"}`;
+
   // Extract messages and reactions from query data
   const messages = useMemo(() => {
     if (!messagesData) return [];
@@ -692,10 +704,14 @@ export default function GroupChatPage() {
       ? messagesData 
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
+    // after a realtime UPDATE must never restore pre-edit text or resurrect a
+    // deleted row.
+    return (reconcileMessages(reconcileScope, sorted) ?? []) as GroupMessage[];
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // 1-item cache = notification preload; don't seed from it.
@@ -761,7 +777,7 @@ export default function GroupChatPage() {
   // Reset scroll state when groupId changes
   useEffect(() => {
     setLocalMessages((prev) => {
-      const next = getInitialLocalMessages();
+      const next = reconcileMessages(reconcileScope, getInitialLocalMessages());
       debugLogEvent("local-replace", {
         cause: "reset-effect",
         prevLen: prev?.length ?? 0,
@@ -771,7 +787,12 @@ export default function GroupChatPage() {
     });
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
-  }, [groupId, queryClient]);
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`group:${groupId ?? "none"}`);
+    };
+  }, [groupId, queryClient, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
@@ -825,6 +846,9 @@ export default function GroupChatPage() {
       );
       const previousOnly = (prev || []).filter((message: any) => {
         if (incomingIds.has(message.id)) return false;
+        // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+        if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
           const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
           if (realByAuthorText.has(key)) return false;
@@ -858,9 +882,12 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
-      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-      );
+      const mergedMessages = (reconcileMessages(
+        reconcileScope,
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
+      ) ?? []) as GroupMessage[];
       if (prev && mergedMessages.length < prev.length - 5) {
         debugLogEvent("local-replace", {
           cause: "merge-shrink",
@@ -1090,11 +1117,14 @@ export default function GroupChatPage() {
         // Continue without enrichment if it fails/timeouts.
       }
 
-      const enrichedOlderMessages = reversedOlder.map((msg) => ({
-        ...msg,
-        author: profilesMap.get(msg.author_id) || null,
-        reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
-      })) as GroupMessage[];
+      const enrichedOlderMessages = (reconcileMessages(
+        reconcileScope,
+        reversedOlder.map((msg) => ({
+          ...msg,
+          author: profilesMap.get(msg.author_id) || null,
+          reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
+        })) as GroupMessage[],
+      ) ?? []) as GroupMessage[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
@@ -1222,7 +1252,7 @@ export default function GroupChatPage() {
       });
 
       debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
-      setLocalMessages(anchoredWindow);
+      setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as GroupMessage[]);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
       setJumpRenderNonce(targetJumpNonce ?? Date.now());
     };
@@ -1232,7 +1262,7 @@ export default function GroupChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [targetMessageId, targetJumpNonce, groupId, authReady]);
+  }, [targetMessageId, targetJumpNonce, groupId, authReady, reconcileScope]);
 
   // Free-tier polling switch (only applies to groups scoped to a club).
   const { mode: groupRealtimeMode, intervalMs: groupPollIntervalMs } = useClubRealtimeMode(group?.club_id ?? null);
@@ -1364,11 +1394,15 @@ export default function GroupChatPage() {
           filter: `group_id=eq.${groupId}`,
         },
         (payload) => {
-          const deletedId = (payload.old as any).id;
+          const deletedId = (payload.old as any)?.id;
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
             if (!old) return { messages: [], reactions: [] };
-            return { ...old, messages: old.messages.filter(m => m.id !== deletedId) };
+            return { ...old, messages: removeMessage(old.messages, deletedId) };
           });
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -1381,15 +1415,27 @@ export default function GroupChatPage() {
         },
         (payload) => {
           const updated = payload.new as any;
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+              if (!old) return { messages: [], reactions: [] };
+              return { ...old, messages: removeMessage(old.messages, updated.id) };
+            });
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
             if (!old) return { messages: [], reactions: [] };
-            // If message was soft-deleted, remove it from the list
-            if (updated.deleted_at) {
-              return { ...old, messages: old.messages.filter(m => m.id !== updated.id) };
-            }
-            // Otherwise update the message content
-            return { ...old, messages: old.messages.map(m => m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m) };
+            return { ...old, messages: applyMessageUpdate(old.messages, updated) };
           });
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -1466,7 +1512,7 @@ export default function GroupChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode, user?.id]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope]);
 
 
   // Send message mutation

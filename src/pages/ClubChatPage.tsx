@@ -53,6 +53,15 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  isTombstoned,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
+
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
@@ -577,6 +586,9 @@ export default function ClubChatPage() {
     },
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `club:${clubId ?? "none"}`;
+
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
@@ -584,10 +596,13 @@ export default function ClubChatPage() {
       ? messagesData 
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
+    // restore pre-edit text or resurrect a deleted row.
+    return reconcileMessages(reconcileScope, sorted) as Message[];
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // 1-item cache = notification preload; don't seed from it.
@@ -632,9 +647,16 @@ export default function ClubChatPage() {
   
   // Reset scroll state when clubId changes
   useEffect(() => {
-    setLocalMessages(clubId ? getCachedClubMessages(clubId) : undefined);
+    setLocalMessages(
+      clubId ? (reconcileMessages(reconcileScope, getCachedClubMessages(clubId)) as Message[]) : undefined,
+    );
     setInfiniteScrollEnabled(false);
-  }, [clubId]);
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`club:${clubId ?? "none"}`);
+    };
+  }, [clubId, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
@@ -678,6 +700,9 @@ export default function ClubChatPage() {
       );
       const previousOnly = (prev || []).filter((message: any) => {
         if (incomingIds.has(message.id)) return false;
+        // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+        if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
           const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
           if (realByAuthorText.has(key)) return false;
@@ -712,9 +737,12 @@ export default function ClubChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-      );
+      const mergedMessages = (reconcileMessages(
+        reconcileScope,
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
+      ) ?? []) as Message[];
 
       cacheMessages("club", clubId, mergedMessages.map((m) => ({
         id: m.id,
@@ -892,12 +920,15 @@ export default function ClubChatPage() {
         // Continue without reactions/replies/profiles if they timeout
       }
 
-      const olderMessages = reversedOlder.map((msg) => ({
-        ...msg,
-        profiles: profilesMap.get(msg.author_id) || null,
-        reactions: reactionsData.filter((r) => r.club_message_id === msg.id) || [],
-        reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
-      })) as Message[];
+      const olderMessages = (reconcileMessages(
+        reconcileScope,
+        reversedOlder.map((msg) => ({
+          ...msg,
+          profiles: profilesMap.get(msg.author_id) || null,
+          reactions: reactionsData.filter((r) => r.club_message_id === msg.id) || [],
+          reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
+        })) as Message[],
+      ) ?? []) as Message[];
 
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
@@ -918,7 +949,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -965,7 +996,7 @@ export default function ClubChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
-      setLocalMessages(anchoredWindow);
+      setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
       setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
@@ -975,7 +1006,7 @@ export default function ClubChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [targetMessageId, targetJumpNonce, clubId, authReady]);
+  }, [targetMessageId, targetJumpNonce, clubId, authReady, reconcileScope]);
 
   // Free-tier polling switch (behind app_settings.free_club_polling_enabled).
   const { mode: clubRealtimeMode, intervalMs: clubPollIntervalMs } = useClubRealtimeMode(clubId ?? null);
@@ -1104,11 +1135,15 @@ export default function ClubChatPage() {
           filter: `club_id=eq.${clubId}`,
         },
         (payload) => {
-          const deletedId = (payload.old as any).id;
+          const deletedId = (payload.old as any)?.id;
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData(["club-messages", clubId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: existingMessages.filter(m => m.id !== deletedId) };
+            return { ...old, messages: removeMessage(existingMessages, deletedId) };
           });
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -1121,18 +1156,27 @@ export default function ClubChatPage() {
         },
         (payload) => {
           const updated = payload.new as any;
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+              const existingMessages: Message[] = old?.messages || [];
+              return { ...old, messages: removeMessage(existingMessages, updated.id) };
+            });
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(["club-messages", clubId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            // If message was soft-deleted, remove it from the list
-            if (updated.deleted_at) {
-              return { ...old, messages: existingMessages.filter(m => m.id !== updated.id) };
-            }
-            // Otherwise update the message content
-            return {
-              ...old,
-              messages: existingMessages.map(m => m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m),
-            };
+            return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
           });
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -1221,7 +1265,7 @@ export default function ClubChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient, clubRealtimeMode, user?.id]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScope]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
