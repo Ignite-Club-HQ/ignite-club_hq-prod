@@ -953,9 +953,12 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-      );
+      const mergedMessages = (reconcileMessages(
+        reconcileScope,
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
+      ) ?? []) as Message[];
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
@@ -974,7 +977,7 @@ export default function TeamChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, teamId]);
+  }, [messages, teamId, reconcileScope]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
