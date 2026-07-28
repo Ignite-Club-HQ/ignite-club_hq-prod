@@ -10511,6 +10511,10 @@ export type Database = {
         }
         Returns: number
       }
+      carry_over_players_to_teams: {
+        Args: { _assignments: Json; _target_season_id: string }
+        Returns: number
+      }
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean

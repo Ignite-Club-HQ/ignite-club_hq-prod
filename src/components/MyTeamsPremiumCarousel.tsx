@@ -970,8 +970,16 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   const showCreateClub = !activeClubFilter;
 
+  // Fall back to the last-known-good snapshot when the fresh query transiently
+  // resolves to `[]` — e.g. on app resume after inactivity, when a refetch can
+  // race a stale auth token or a momentary RLS hiccup and return zero rows.
+  // Without this fallback the carousel vanishes until relaunch. The snapshot
+  // write effect already refuses to overwrite the cache with an empty list,
+  // so this only ever shows genuinely stale-but-real data during the blip.
+  const displayItems = items.length > 0 ? items : (snapshot?.items ?? []);
+
   // Empty state: onboarding with clear paths
-  if (items.length === 0) {
+  if (displayItems.length === 0) {
     return null;
   }
 
@@ -992,13 +1000,13 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   const renderedCompetitionItems = [
     ...competitionItems,
-    ...items.filter((item) =>
+    ...displayItems.filter((item) =>
       item.type === "competition" && !competitionItems.some((c) => c.id === item.id),
     ),
   ];
 
   // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
-  const sortedItems = items.filter((item) => item.type !== "competition").sort((a, b) => {
+  const sortedItems = displayItems.filter((item) => item.type !== "competition").sort((a, b) => {
     if (a.canManage && !b.canManage) return -1;
     if (!a.canManage && b.canManage) return 1;
     const aDate = nextEvents[a.id]?.eventDate;
