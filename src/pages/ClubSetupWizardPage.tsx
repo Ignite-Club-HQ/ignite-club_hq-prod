@@ -424,9 +424,15 @@ export default function ClubSetupWizardPage() {
 
   const [savingTeams, setSavingTeams] = useState(false);
   const savingTeamsRef = useRef(false);
+  const continueInProgressRef = useRef(false);
+
+  useEffect(() => {
+    continueInProgressRef.current = false;
+  }, [safeStepIndex]);
 
   const goNext = async () => {
-    if (savingTeamsRef.current) return;
+    if (savingTeamsRef.current || continueInProgressRef.current) return;
+    continueInProgressRef.current = true;
     const createdTeamIds: string[] = [];
     const hadSavedTeamsAtStart = teams.some((t) => !!t.createdTeamId);
 
@@ -445,6 +451,7 @@ export default function ClubSetupWizardPage() {
           }
         } catch {
           savingTeamsRef.current = false;
+          continueInProgressRef.current = false;
           setSavingTeams(false);
           return; // toast surfaced by mutation onError
         }
