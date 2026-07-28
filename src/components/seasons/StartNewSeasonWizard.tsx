@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Season } from "@/hooks/useClubSeasons";
 import { ReturningMembersStep } from "./ReturningMembersStep";
+import { SeasonInviteStep } from "./SeasonInviteStep";
 
 interface Props {
   clubId: string;
@@ -28,7 +29,7 @@ interface Props {
   onComplete: () => void;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason, onComplete }: Props) {
   const [step, setStep] = useState<Step>(1);
@@ -38,6 +39,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
   const [copyStaff, setCopyStaff] = useState(true);
   const [createdSeasonId, setCreatedSeasonId] = useState<string | null>(null);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [assignments, setAssignments] = useState<Record<string, string | null>>({});
   const [carriedOverCount, setCarriedOverCount] = useState<number | null>(null);
   const qc = useQueryClient();
 
@@ -49,6 +51,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     setCopyStaff(true);
     setCreatedSeasonId(null);
     setSelectedPlayerIds(new Set());
+    setAssignments({});
     setCarriedOverCount(null);
   };
 
@@ -96,12 +99,20 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
   });
 
   const carryOverMut = useMutation({
-    mutationFn: async ({ targetId, ids }: { targetId: string; ids: string[] }): Promise<number> => {
+    mutationFn: async ({
+      targetId,
+      ids,
+    }: { targetId: string; ids: string[] }): Promise<number> => {
       if (!currentSeason || ids.length === 0) return 0;
-      const { data, error } = await supabase.rpc("carry_over_players", {
-        _source_season_id: currentSeason.id,
+      // Explicit per-player team placement — juniors usually move up a grade,
+      // so we never rely on matching the old team name.
+      const placed = ids
+        .map((id) => ({ club_player_id: id, team_id: assignments[id] ?? null }))
+        .filter((a) => !!a.team_id);
+      if (placed.length === 0) return 0;
+      const { data, error } = await supabase.rpc("carry_over_players_to_teams", {
         _target_season_id: targetId,
-        _club_player_ids: ids,
+        _assignments: placed,
       });
       if (error) throw error;
       return (data as number) ?? 0;
@@ -140,7 +151,9 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
         setStep(4);
       } else if (step === 4) {
         setStep(5);
-      } else if (step === 5 && createdSeasonId) {
+      } else if (step === 5) {
+        setStep(6);
+      } else if (step === 6 && createdSeasonId) {
         await publishMut.mutateAsync(createdSeasonId);
         toast.success("New season is live!");
         qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
@@ -166,10 +179,10 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" /> Start new season
           </DialogTitle>
-          <DialogDescription>Step {step} of 5</DialogDescription>
+          <DialogDescription>Step {step} of 6</DialogDescription>
         </DialogHeader>
 
-        <Progress value={(step / 5) * 100} className="h-1" />
+        <Progress value={(step / 6) * 100} className="h-1" />
 
         <div className="py-4 space-y-4">
           {step === 1 && (
@@ -246,8 +259,11 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
             currentSeason ? (
               <ReturningMembersStep
                 sourceSeasonId={currentSeason.id}
+                targetSeasonId={createdSeasonId}
                 selectedIds={selectedPlayerIds}
                 onChange={setSelectedPlayerIds}
+                assignments={assignments}
+                onAssignmentsChange={setAssignments}
               />
             ) : (
               <p className="text-sm text-muted-foreground py-6 text-center">
@@ -257,6 +273,14 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
           )}
 
           {step === 4 && (
+            <SeasonInviteStep
+              clubId={clubId}
+              targetSeasonId={createdSeasonId}
+              seasonName={seasonName}
+            />
+          )}
+
+          {step === 5 && (
             <div className="space-y-3">
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
@@ -291,7 +315,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div className="space-y-3">
               <div className="flex items-start gap-2">
                 <Rocket className="h-5 w-5 text-primary mt-0.5" />
@@ -311,7 +335,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <Button onClick={goNext} disabled={busy}>
-            {step === 5 ? <><Rocket className="h-4 w-4 mr-1" /> Publish</> : <>Next <ArrowRight className="h-4 w-4 ml-1" /></>}
+            {step === 6 ? <><Rocket className="h-4 w-4 mr-1" /> Publish</> : <>Next <ArrowRight className="h-4 w-4 ml-1" /></>}
           </Button>
         </DialogFooter>
       </DialogContent>
