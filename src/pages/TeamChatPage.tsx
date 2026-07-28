@@ -857,10 +857,16 @@ export default function TeamChatPage() {
         : cachedQueryData?.messages || []
     ).sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
 
-    setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
+    const seed = inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId);
+    setLocalMessages((reconcileMessages(reconcileScope, seed) ?? []) as Message[]);
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
-  }, [teamId, queryClient]);
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`team:${teamId}`);
+    };
+  }, [teamId, queryClient, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
