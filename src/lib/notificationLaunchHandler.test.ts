@@ -121,6 +121,33 @@ describe("native notification launch routing", () => {
     expect(module.processPendingNotificationNavigation(navigate)).toBe(false);
   });
 
+  it("retains the exact message route when cold-start bootstrap takes longer than the jump TTL", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-27T00:00:00.000Z"));
+    mocks.normalizeChatUrl.mockImplementation((data, url) => {
+      const parsed = new URL(url, "https://igniteclubhq.app");
+      parsed.searchParams.set("message", data.message_id);
+      parsed.searchParams.set("jump", String(Date.now()));
+      return `${parsed.pathname}${parsed.search}`;
+    });
+    const module = await loadHandler();
+
+    tap({
+      type: "team_message",
+      message_id: "exact-message-61s",
+      url: "/messages/team-1?message=stale-message",
+    });
+    vi.setSystemTime(new Date("2026-07-27T00:01:01.000Z"));
+
+    const navigate = vi.fn();
+    expect(module.processPendingNotificationNavigation(navigate)).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(expect.stringMatching(
+      /^\/messages\/team-1\?(?=.*message=exact-message-61s)(?=.*jump=)/,
+    ));
+    expect(navigate.mock.calls[0][0]).not.toContain("message=stale-message");
+    vi.useRealTimers();
+  });
+
   it.each(["pending_sub", "half_time", "full_time", "game_finished", "formation_change", "game_kickoff", "pitch_board"])(
     "routes a %s notification without a URL to the pitch board",
     async type => {
