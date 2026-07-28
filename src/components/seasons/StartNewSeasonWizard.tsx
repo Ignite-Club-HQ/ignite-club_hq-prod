@@ -167,14 +167,17 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
   };
 
   const goBack = () => {
-    if (step > 1 && !createdSeasonId) setStep((step - 1) as Step);
+    // Once the draft season exists, steps 1-3 are no longer replayable,
+    // but invite/review/publish can be revisited freely.
+    const min: Step = createdSeasonId ? 4 : 1;
+    if (step > min) setStep((step - 1) as Step);
   };
 
   const busy = archiveMut.isPending || createMut.isPending || publishMut.isPending || carryOverMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" /> Start new season
@@ -331,7 +334,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
         </div>
 
         <DialogFooter className="flex-row justify-between sm:justify-between">
-          <Button variant="ghost" onClick={goBack} disabled={step === 1 || busy || !!createdSeasonId}>
+          <Button variant="ghost" onClick={goBack} disabled={busy || step === (createdSeasonId ? 4 : 1)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <Button onClick={goNext} disabled={busy}>
