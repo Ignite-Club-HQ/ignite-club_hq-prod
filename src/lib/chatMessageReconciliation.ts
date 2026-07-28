@@ -21,11 +21,7 @@
  * the cache/fetch produced.
  */
 
-export type ReconcilableMessage = {
-  id: string;
-  created_at?: string;
-  [key: string]: unknown;
-};
+export type ReconcilableMessage = { id: string };
 
 /** Fields a realtime UPDATE payload may carry that we reconcile. */
 const RECONCILED_FIELDS = [
