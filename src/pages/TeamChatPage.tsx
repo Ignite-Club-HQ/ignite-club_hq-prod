@@ -1134,14 +1134,28 @@ export default function TeamChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task, so the user never sees the intermediate state.
+      // Functional merge keyed by message id — never replace the collection.
+      const mergeOlder = (existing: Message[] | undefined): Message[] => {
+        const byId = new Map<string, Message>();
+        olderMessages.forEach((m) => byId.set(m.id, m));
+        (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
+        return [...byId.values()].sort(
+          (a, b) =>
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
+            a.id.localeCompare(b.id),
+        );
+      };
+
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-          const existingMessages: Message[] = old?.messages || [];
-          if (!existingMessages.length) {
-            return { ...(old || {}), messages: olderMessages, hasOlderMessages: hasMore };
-          }
-          return { ...(old || {}), messages: [...olderMessages, ...existingMessages], hasOlderMessages: hasMore };
-        });
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+          ...(old || {}),
+          messages: mergeOlder(old?.messages as Message[] | undefined),
+          hasOlderMessages: hasMore,
+        }));
+        // Also converge the rendered local window on the same merged result —
+        // the cache→local sync can otherwise be short-circuited by an in-flight
+        // refetch replacing the cache with only the latest page.
+        setLocalMessages((prev) => mergeOlder(prev));
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -1525,10 +1539,13 @@ export default function TeamChatPage() {
 
       await queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
 
-      const previousData = queryClient.getQueryData(["team-messages", teamId]);
+      // Mutation-specific temp id so overlapping sends can be rolled back
+      // independently (Date.now() alone collides on rapid double-sends).
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const previousReplyingTo = replyingTo;
 
       const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         team_id: teamId!,
         author_id: user!.id,
         text,
@@ -1565,15 +1582,30 @@ export default function TeamChatPage() {
       // would otherwise leave the new bubble below the visible area).
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return { tempId, previousReplyingTo, sentText: text, sentImageUrl: image_url ?? null };
     },
     onError: (err, variables, context) => {
       // If offline, don't revert - message is queued
       if (!navigator.onLine) return;
-      
-      if (context?.previousData) {
-        queryClient.setQueryData(["team-messages", teamId], context.previousData);
+
+      const tempId = context?.tempId;
+      if (tempId) {
+        // Remove ONLY this mutation's optimistic row, regardless of whether a
+        // previous cache snapshot existed. Never restore a whole snapshot —
+        // that would discard newer realtime rows / concurrent optimistic sends.
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          if (!old) return old;
+          const existingMessages: Message[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== tempId) : prev));
       }
+
+      // Restore the unsent content only if the user hasn't typed since.
+      setMessage((current) => (current.trim().length === 0 ? (context?.sentText ?? "") : current));
+      if (context?.sentImageUrl) setImageUrl((current) => current ?? context.sentImageUrl!);
+      if (context?.previousReplyingTo) setReplyingTo((current) => current ?? context.previousReplyingTo!);
+
       console.error("Failed to send team message", err);
       toast.error("Failed to send message");
     },
