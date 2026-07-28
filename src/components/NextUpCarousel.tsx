@@ -219,7 +219,9 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
       }>;
     },
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 }
@@ -501,7 +503,9 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -596,17 +600,27 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
 
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
-      const existingChildRsvp = childRsvps?.find((rsvp) => rsvp.child_id === childId);
-      let rsvpId: string | null = null;
+      // Server-authoritative lookup — do NOT trust the local cache to decide
+      // UPDATE vs INSERT. A cold/stale childRsvps cache would otherwise cause
+      // us to INSERT a row that already exists; skip_duplicate_rsvps rescues
+      // that server-side, but a permission blip on that path silently no-ops
+      // the write and the UI never learns. See mem note in commit.
+      const { data: existingRow, error: lookupErr } = await supabase
+        .from("rsvps")
+        .select("id")
+        .eq("event_id", event.id)
+        .eq("child_id", childId)
+        .maybeSingle();
+      if (lookupErr) throw lookupErr;
 
-      if (existingChildRsvp) {
+      let rsvpId: string | null = existingRow?.id ?? null;
+
+      if (rsvpId) {
         const { error } = await supabase
           .from("rsvps")
           .update({ status })
-          .eq("id", existingChildRsvp.id);
-
+          .eq("id", rsvpId);
         if (error) throw error;
-        rsvpId = existingChildRsvp.id;
       } else {
         const { data: newRsvp, error } = await supabase
           .from("rsvps")
@@ -618,18 +632,17 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
           })
           .select("id")
           .maybeSingle();
-
         if (error) throw error;
         if (newRsvp?.id) {
           rsvpId = newRsvp.id;
         } else {
-          const { data: existingRow } = await supabase
+          const { data: fallbackRow } = await supabase
             .from("rsvps")
             .select("id")
             .eq("event_id", event.id)
             .eq("child_id", childId)
             .maybeSingle();
-          rsvpId = existingRow?.id ?? null;
+          rsvpId = fallbackRow?.id ?? null;
         }
       }
 
@@ -645,6 +658,19 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
         }).catch(console.error);
       }
     },
+    onMutate: async ({ childId, status }) => {
+      const key = ["child-rsvps-card", event.id, user?.id];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      queryClient.setQueryData<any[]>(key, (prev) => {
+        const list = prev ? [...prev] : [];
+        const idx = list.findIndex((r) => r.child_id === childId);
+        if (idx >= 0) list[idx] = { ...list[idx], status };
+        else list.push({ id: `optimistic-${childId}`, status, child_id: childId, children: null });
+        return list;
+      });
+      return { previous };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
       queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
@@ -652,8 +678,14 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
       queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
-    onError: () => {
-      toast({ title: "Failed to update child RSVP", variant: "destructive" });
+    onError: (_err, _vars, context) => {
+      // Roll back the optimistic write so the UI cannot show a "confirmed"
+      // status that never persisted (root cause of the household-mismatch bug).
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(["child-rsvps-card", event.id, user?.id], context.previous);
+      }
+      queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
+      toast({ title: "Failed to update child RSVP", description: "Please try again.", variant: "destructive" });
     },
   });
 
@@ -1333,7 +1365,9 @@ function CompactCard({ event }: { event: EventItem }) {
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
