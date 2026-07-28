@@ -1160,11 +1160,13 @@ export default function TeamChatPage() {
         const byId = new Map<string, Message>();
         olderMessages.forEach((m) => byId.set(m.id, m));
         (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
-        return [...byId.values()].sort(
+        const sorted = [...byId.values()].sort(
           (a, b) =>
             (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
             a.id.localeCompare(b.id),
         );
+        // An UPDATE received while this page was in flight must survive.
+        return (reconcileMessages(reconcileScope, sorted) ?? []) as Message[];
       };
 
       queueAnchoredPrepend(() => {
