@@ -391,6 +391,71 @@ test("a mounted chat reconciles incoming realtime messages and reactions", async
 
 });
 
+test("a mounted chat applies realtime edits and soft-deletes to an existing row", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { mockRealtime: true });
+  await page.goto(`/messages/${teamId}`);
+  const existing = page.locator(`#message-${messages[29].id}`);
+  await expect(existing).toContainText("Synthetic history message 29", { timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "team_messages" && binding.event === "UPDATE").length)).toBeGreaterThan(0);
+  await page.waitForTimeout(250);
+
+  const edited = { ...messages[29], text: "Realtime corrected existing message" };
+  await page.evaluate(({ edited, old }) => (window as any).__emitSyntheticPostgresChange("team_messages", "UPDATE", edited, old), {
+    edited, old: messages[29],
+  });
+  await expect(existing).toContainText("Realtime corrected existing message", { timeout: 15_000 });
+
+  await page.evaluate(({ edited }) => (window as any).__emitSyntheticPostgresChange("team_messages", "UPDATE", {
+    ...edited, deleted_at: "2026-07-28T05:00:00.000Z",
+  }, edited), { edited });
+  await expect(existing).toHaveCount(0);
+});
+
+test("duplicate realtime delivery renders one message and one reaction only", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { mockRealtime: true });
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "team_messages").length)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "message_reactions" && binding.event === "INSERT").length)).toBeGreaterThan(0);
+  await page.waitForTimeout(250);
+  const duplicateId = "00000000-0000-4000-8000-000000009779";
+  const reactionId = "00000000-0000-4000-8000-000000009780";
+  const row = { ...messages[0], id: duplicateId, text: "Exactly once realtime row", created_at: "2026-07-27T10:16:30.000Z" };
+  const reaction = { id: reactionId, team_message_id: duplicateId, user_id: "00000000-0000-4000-8000-000000009099", reaction_type: "like" };
+
+  await page.evaluate(({ row }) => {
+    (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
+    (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
+  }, { row });
+  await expect(page.locator(`#message-${duplicateId}`)).toHaveCount(1);
+  await page.evaluate(({ reaction }) => {
+    (window as any).__emitSyntheticPostgresChange("message_reactions", "INSERT", reaction);
+    (window as any).__emitSyntheticPostgresChange("message_reactions", "INSERT", reaction);
+  }, { reaction });
+  const bubble = page.locator(`#message-${duplicateId}`);
+  await expect(bubble.getByRole("button", { name: "1 like reaction" })).toHaveCount(1);
+});
+
+test("a team draft survives leaving the chat and remounting the route", async ({ page }) => {
+  await page.goto(`/messages/${teamId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await composer.fill("Synthetic remount-safe draft");
+  await page.goto("/messages");
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.getByRole("textbox", { name: "Type a message..." })).toHaveValue("Synthetic remount-safe draft", { timeout: 15_000 });
+});
+
 test("notification bell resolves a team notification to its exact message", async ({ page }) => {
   await page.goto("/notifications");
   await page.getByText("Alex sent a message", { exact: true }).click();

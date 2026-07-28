@@ -174,3 +174,24 @@ test("an image is uploaded into the scoped chat path and its URL is sent with th
   expect(sent).toEqual(expect.objectContaining({ team_id: teamId, author_id: userId, text: "Synthetic image caption" }));
   expect(String(sent.image_url)).toContain(`/storage/v1/object/public/chat-attachments/${uploads[0]}`);
 });
+
+test("a failed image send restores both the caption and retryable attachment", async ({ page }) => {
+  const { inserts, uploads } = await install(page, { insertFailure: true });
+  await page.goto(`/messages/${teamId}`);
+  const fileInput = page.locator('input[type="file"][accept="image/*,video/*"]').first();
+  await expect(fileInput).toBeAttached({ timeout: 15_000 });
+  await fileInput.setInputFiles({
+    name: "synthetic-retry.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+  });
+  await expect.poll(() => uploads.length).toBe(1);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await composer.fill("Retryable synthetic image");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+
+  await expect.poll(() => inserts.filter(row => row.table === "team_messages").length).toBe(1);
+  await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("Retryable synthetic image");
+  await expect(page.getByRole("button", { name: "Remove attachment" })).toBeVisible();
+});
