@@ -57,13 +57,6 @@ interface Notification {
   related_id: string | null;
 }
 
-type ChatTarget = {
-  kind: ChatJumpKind;
-  targetId: string | null;
-  messageId: string;
-  path: string;
-};
-
 type MessageReactionTargetRow = {
   team_message_id?: string | null;
   club_message_id?: string | null;
@@ -73,38 +66,6 @@ type MessageReactionTargetRow = {
   club_admin_message_id?: string | null;
 };
 
-const chatTargetPath = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
-  switch (kind) {
-    case "team": return targetId ? `/messages/${targetId}?message=${messageId}` : "/messages";
-    case "club": return targetId ? `/messages/club/${targetId}?message=${messageId}` : "/messages";
-    case "group": return targetId ? `/groups/${targetId}?message=${messageId}` : "/messages";
-    case "dm": return targetId ? `/messages/dm/${targetId}?message=${messageId}` : "/messages";
-    case "club_admin": return targetId ? `/messages/club-admin/${targetId}?message=${messageId}` : "/messages";
-    case "broadcast": return `/messages/broadcast?message=${messageId}`;
-  }
-};
-
-const resolveChatTargetForMessageId = async (messageId: string): Promise<ChatTarget | null> => {
-  const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", messageId).maybeSingle();
-  if (tMsg?.team_id) return { kind: "team", targetId: tMsg.team_id, messageId, path: chatTargetPath("team", tMsg.team_id, messageId) };
-
-  const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", messageId).maybeSingle();
-  if (cMsg?.club_id) return { kind: "club", targetId: cMsg.club_id, messageId, path: chatTargetPath("club", cMsg.club_id, messageId) };
-
-  const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", messageId).maybeSingle();
-  if (gMsg?.group_id) return { kind: "group", targetId: gMsg.group_id, messageId, path: chatTargetPath("group", gMsg.group_id, messageId) };
-
-  const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", messageId).maybeSingle();
-  if (dMsg?.conversation_id) return { kind: "dm", targetId: dMsg.conversation_id, messageId, path: chatTargetPath("dm", dMsg.conversation_id, messageId) };
-
-  const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", messageId).maybeSingle();
-  if (bMsg) return { kind: "broadcast", targetId: null, messageId, path: chatTargetPath("broadcast", null, messageId) };
-
-  const { data: caMsg } = await supabase.from("club_admin_messages").select("conversation_id").eq("id", messageId).maybeSingle();
-  if (caMsg?.conversation_id) return { kind: "club_admin", targetId: caMsg.conversation_id, messageId, path: chatTargetPath("club_admin", caMsg.conversation_id, messageId) };
-
-  return null;
-};
 
 const resolveLegacyReactionTarget = async (notification: Notification): Promise<ChatTarget | null> => {
   if (!notification.related_id) return null;
