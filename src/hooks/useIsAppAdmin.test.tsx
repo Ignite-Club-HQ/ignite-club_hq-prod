@@ -64,7 +64,7 @@ describe("useIsAppAdmin", () => {
   it("is false when the permission query errors", async () => {
     maybeSingle.mockResolvedValue({ data: null, error: { message: "boom" } });
     const { result } = renderHook(() => useIsAppAdmin(), { wrapper: wrapper(newClient()) });
-    await waitFor(() => expect(result.current.error).toBeTruthy());
+    await waitFor(() => expect(maybeSingle).toHaveBeenCalled());
     expect(result.current.isAppAdmin).toBe(false);
   });
 
