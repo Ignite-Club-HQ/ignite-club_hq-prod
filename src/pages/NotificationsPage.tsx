@@ -26,6 +26,13 @@ import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import {
+  chatTargetPath,
+  resolveChatTargetForMessageId,
+  NOTIFICATION_FALLBACK_PATH,
+  type ChatTarget,
+} from "@/lib/notificationChatRouting";
+
 
 /**
  * Belt-and-braces: when navigating from a notification tap to a chat that
@@ -57,13 +64,6 @@ interface Notification {
   related_id: string | null;
 }
 
-type ChatTarget = {
-  kind: ChatJumpKind;
-  targetId: string | null;
-  messageId: string;
-  path: string;
-};
-
 type MessageReactionTargetRow = {
   team_message_id?: string | null;
   club_message_id?: string | null;
@@ -73,38 +73,6 @@ type MessageReactionTargetRow = {
   club_admin_message_id?: string | null;
 };
 
-const chatTargetPath = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
-  switch (kind) {
-    case "team": return targetId ? `/messages/${targetId}?message=${messageId}` : "/messages";
-    case "club": return targetId ? `/messages/club/${targetId}?message=${messageId}` : "/messages";
-    case "group": return targetId ? `/groups/${targetId}?message=${messageId}` : "/messages";
-    case "dm": return targetId ? `/messages/dm/${targetId}?message=${messageId}` : "/messages";
-    case "club_admin": return targetId ? `/messages/club-admin/${targetId}?message=${messageId}` : "/messages";
-    case "broadcast": return `/messages/broadcast?message=${messageId}`;
-  }
-};
-
-const resolveChatTargetForMessageId = async (messageId: string): Promise<ChatTarget | null> => {
-  const { data: tMsg } = await supabase.from("team_messages").select("team_id").eq("id", messageId).maybeSingle();
-  if (tMsg?.team_id) return { kind: "team", targetId: tMsg.team_id, messageId, path: chatTargetPath("team", tMsg.team_id, messageId) };
-
-  const { data: cMsg } = await supabase.from("club_messages").select("club_id").eq("id", messageId).maybeSingle();
-  if (cMsg?.club_id) return { kind: "club", targetId: cMsg.club_id, messageId, path: chatTargetPath("club", cMsg.club_id, messageId) };
-
-  const { data: gMsg } = await supabase.from("group_messages").select("group_id").eq("id", messageId).maybeSingle();
-  if (gMsg?.group_id) return { kind: "group", targetId: gMsg.group_id, messageId, path: chatTargetPath("group", gMsg.group_id, messageId) };
-
-  const { data: dMsg } = await supabase.from("direct_messages").select("conversation_id").eq("id", messageId).maybeSingle();
-  if (dMsg?.conversation_id) return { kind: "dm", targetId: dMsg.conversation_id, messageId, path: chatTargetPath("dm", dMsg.conversation_id, messageId) };
-
-  const { data: bMsg } = await supabase.from("broadcast_messages").select("id").eq("id", messageId).maybeSingle();
-  if (bMsg) return { kind: "broadcast", targetId: null, messageId, path: chatTargetPath("broadcast", null, messageId) };
-
-  const { data: caMsg } = await supabase.from("club_admin_messages").select("conversation_id").eq("id", messageId).maybeSingle();
-  if (caMsg?.conversation_id) return { kind: "club_admin", targetId: caMsg.conversation_id, messageId, path: chatTargetPath("club_admin", caMsg.conversation_id, messageId) };
-
-  return null;
-};
 
 const resolveLegacyReactionTarget = async (notification: Notification): Promise<ChatTarget | null> => {
   if (!notification.related_id) return null;
@@ -737,57 +705,21 @@ export default function NotificationsPage() {
       case "team_message":
       case "message_reply":
       case "message_mention":
-      case "message_forwarded":
-        // For replies/mentions/forwards, related_id is the message id - try team first
-        const { data: teamMessage } = await supabase
-          .from("team_messages")
-          .select("team_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (teamMessage?.team_id) {
-          jumpAndNavigate(navigate, "team", teamMessage.team_id, relatedId, `/messages/${teamMessage.team_id}?message=${relatedId}`);
-          break;
-        }
-        // Try club message
-        const { data: clubMsgForReaction } = await supabase
-          .from("club_messages")
-          .select("club_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (clubMsgForReaction?.club_id) {
-          jumpAndNavigate(navigate, "club", clubMsgForReaction.club_id, relatedId, `/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
-          break;
-        }
-        // Try group message
-        const { data: groupMsgForReaction } = await supabase
-          .from("group_messages")
-          .select("group_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (groupMsgForReaction?.group_id) {
-          jumpAndNavigate(navigate, "group", groupMsgForReaction.group_id, relatedId, `/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
-          break;
-        }
-        // Try direct message
-        const { data: dmMsgForReaction } = await supabase
-          .from("direct_messages")
-          .select("conversation_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (dmMsgForReaction?.conversation_id) {
-          jumpAndNavigate(navigate, "dm", dmMsgForReaction.conversation_id, relatedId, `/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
-          break;
-        }
-        // Try broadcast
-        const { data: broadcastMsg } = await supabase
-          .from("broadcast_messages")
-          .select("id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (broadcastMsg) {
-          jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
+      case "message_forwarded": {
+        // related_id is a message id. resolveChatTargetForMessageId checks all
+        // six message tables under RLS; a deleted or inaccessible message
+        // resolves to null and we route to the safe /messages fallback rather
+        // than stranding the user on /notifications or building a route from
+        // an unverified id.
+        const target = await resolveChatTargetForMessageId(relatedId);
+        if (target) {
+          navigateToChatTarget(navigate, target);
+        } else {
+          navigate(NOTIFICATION_FALLBACK_PATH);
         }
         break;
+      }
+
       case "club_message":
         const { data: clubMessage } = await supabase
           .from("club_messages")
